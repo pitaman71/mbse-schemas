@@ -618,11 +618,15 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
 
 
 def _registered(store: Any, schema: Any, member: Any, frame: Frame) -> list[Any]:
-    """The schema object registered under the name a spec gives, where it is of the meta-schema `schema`: none
-    otherwise."""
+    """The schema object registered under the name a spec gives, where it is of the meta-schema `schema`, a module by
+    its path, the root module where it gives none: none otherwise."""
     (_, body), = member.items()
+    name = _given(body["mutations"][0])[1]
+    if schema is store.registered("Schemas.OfModule"):
+        held = store._modules.get(name or "")
+        return [] if held is None else [held]
     try:
-        held = store.registered(_given(body["mutations"][0])[1])
+        held = store.registered(name)
     except LookupError:
         return []
     return [held] if _reader(store, held).as_schema() is schema else []

@@ -11,8 +11,8 @@ object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
 
 A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is a `Mutations.OfPattern`: for each symbol, the mutations of the
 object it binds (`OfObject`: a property's, `as_property`, an adjacency's, `as_adjacency`, whose `OfAdjacency` verbs
-insert and remove entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object by its symbol or its path (`Ref`), or defining one where it is
-linked (`Def`'s `schema` and `mutations`). Value verbs are nested in them, following the property they name.
+insert, remove and clear entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object by
+its symbol or its path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`). Value verbs are nested in them, following the property they name.
 
 Payloads (a property's value) are values of whatever schema the target gives: their schema here is a value of any schema,
 and a spec records them untagged, interpreted by the target's schema.
@@ -120,6 +120,7 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
     AsAdjacency = _verb("OfObject.AsAdjacency", _text("name"), _mutations(OfAdjacency))
     AdjacencyInsert = _verb("OfAdjacency.Insert", lambda t: t.name("entries").schema([_list(Entry)]))
     AdjacencyRemove = _verb("OfAdjacency.Remove", lambda t: t.name("entries").schema([_list(Entry)]))
+    AdjacencyClear = _verb("OfAdjacency.Clear")  # every entry the adjacency holds removed
     ObjectBuilder(Def).properties([_mutations(OfObject)]).update()
 
     # --- The unions' branches ---
@@ -169,6 +170,7 @@ def schemas(Text: Any, Int: Any, Path: Any, Bool: Any, Pattern: Any, Collector: 
     UnionBuilder(OfAdjacency).branches([
         lambda t: t.name("insert").schema([AdjacencyInsert]),
         lambda t: t.name("remove").schema([AdjacencyRemove]),
+        lambda t: t.name("clear").schema([AdjacencyClear]),
     ]).update()
 
     # --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---

@@ -12,7 +12,7 @@
  *
  * A pattern's spec (docs/OBJECT_IDENTITY.md, Decided, 95) is a `Mutations.OfPattern`: for each symbol, the mutations of
  * the object it binds (`OfObject`: a property's, `as_property`, an adjacency's, `as_adjacency`, whose `OfAdjacency`
- * verbs insert and remove entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object
+ * verbs insert, remove and clear entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object
  * by its symbol or its path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`). Value verbs
  * are nested in them, following the property they name.
  *
@@ -145,6 +145,7 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const AsAdjacency = verb("OfObject.AsAdjacency", text("name"), mutations(OfAdjacency));
   const AdjacencyInsert = verb("OfAdjacency.Insert", (t) => t.name("entries").schema([list(Entry)]));
   const AdjacencyRemove = verb("OfAdjacency.Remove", (t) => t.name("entries").schema([list(Entry)]));
+  const AdjacencyClear = verb("OfAdjacency.Clear"); // every entry the adjacency holds removed
   new ObjectBuilder(Def).properties([mutations(OfObject)]).update();
 
   // --- The unions' branches ---
@@ -161,7 +162,7 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
   const OfPattern = new ContainerBuilder().name("Mutations.OfPattern").index([Text]).element([list(OfObject)]).create();
   const Spec = verb("OfObject.Spec", (t) => t.name("items").schema([list(OfPattern)])); // a pattern's spec, as recorded
   branches(OfObject, [["as_property", AsProperty], ["as_adjacency", AsAdjacency], ["spec", Spec]]);
-  branches(OfAdjacency, [["insert", AdjacencyInsert], ["remove", AdjacencyRemove]]);
+  branches(OfAdjacency, [["insert", AdjacencyInsert], ["remove", AdjacencyRemove], ["clear", AdjacencyClear]]);
 
   // --- Mutation expressions: a transaction and its terms, reference objects linked by relations (93) ---
 
@@ -249,6 +250,7 @@ export function schemas(builders: Kit): Record<string, ObjectData | UnionData | 
     AsAdjacency,
     AdjacencyInsert,
     AdjacencyRemove,
+    AdjacencyClear,
     OfPattern,
     Spec,
     OfTerm,

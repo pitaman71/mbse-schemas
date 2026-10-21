@@ -682,12 +682,18 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
     holds(store, bound.get(name), pattern.symbols.get(name).schema, items, bound, null)));
 }
 
-/** The schema object registered under the name a spec gives, where it is of the meta-schema `schema`: none otherwise. */
+/** The schema object registered under the name a spec gives, where it is of the meta-schema `schema`, a module by its
+ * path, the root module where it gives none: none otherwise. */
 function registeredAs(store: any, schema: any, member: Map<string, any>): any[] {
   const [, body] = only(member);
+  const name = given(body.get("mutations")[0])[1] as string | null;
+  if (schema === store.registered("Schemas.OfModule")) {
+    const module = store._modules.get(name ?? "");
+    return module === undefined ? [] : [module];
+  }
   let held: any;
   try {
-    held = store.registered(given(body.get("mutations")[0])[1]);
+    held = store.registered(name);
   } catch { // registered throws only LookupError
     return [];
   }

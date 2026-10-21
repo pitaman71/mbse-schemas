@@ -985,6 +985,10 @@ class StoreSnapshot {
       .filter((prop: any) => !framework || prop.as_schema().name === "name")
       .map((prop: any) => m([["as_property", m([["name", prop.as_schema().name], ["mutations", [
         m([["set", m([["value", value(prop, prop.as_schema().schema, this.names)[1]]])]])]]])]]));
+    const held: any = this.isSchema(visitor) ? this.original(visitor) : null;
+    if (held instanceof Builders._ModuleData && held.name === null) { // the root module: no name
+      members.unshift(m([["as_property", m([["name", "name"], ["mutations", [m([["clear", m([])]])]]])]]));
+    }
     for (const [name, adjacency, entries] of this.entries(visitor)) {
       const relation = adjacency.relation as Schemas.OfRelation.Data;
       if (framework && this.store.framework(relation)) continue; // the store's own, between its own schemas: never written
@@ -1027,14 +1031,28 @@ class StoreSnapshot {
 
   run(): PlainData[] {
     const store: any = this.store;
-    const schemas = (store.names() as string[]).map((name) => store.registered(name))
-      .filter((held: unknown) => !store.framework(held)).map((held: unknown) => this.reader(held));
+    const heldIn: any[] = [store.module()]; // the root module, then what each module holds, in order, nested
+    const placed = new Set<unknown>([store.module()]);
+    const visit = (module: any): void => {
+      for (const held of module.schemas.values()) {
+        if (placed.has(held) || store.framework(held)) continue;
+        placed.add(held);
+        heldIn.push(held);
+        if (held instanceof Builders._ModuleData) visit(held);
+      }
+    };
+    visit(store.module());
+    heldIn.push(...(store.names() as string[]).map((name) => store.registered(name)) // a schema no module holds: none, as built
+      .filter((held: unknown) => !placed.has(held) && !store.framework(held)));
+    const schemas = heldIn.map((held) => this.reader(held));
     const framework = [...store._objects].filter((held) => store.framework(held) && Builders._named(held))
       .map((held) => this.reader(held));
     const isData = (target: any): boolean => !this.isSchema(target);
+    const ours = (target: any): boolean => !isData(target) && !store.framework(this.original(target));
     const extending: [any, Wanted][] = framework.filter((v) => this.linked(v, false).length > 0)
       .map((v) => [v, (t: any) => !isData(t)]);
-    const first = this.transaction([...schemas.map((v: any): [any, Wanted] => [v, (t: any) => !isData(t)]), ...extending]);
+    const first = this.transaction([...schemas.map((v: any): [any, Wanted] =>
+      [v, this.original(v) instanceof Builders._ModuleData ? ours : (t: any) => !isData(t)]), ...extending]);
     const reached: any[] = [];
     const met = new Set<unknown>();
     const reach = (value: unknown): void => {
@@ -1259,7 +1277,7 @@ function checkedMembers(store: any, schema: any, members: unknown, where: Where,
         const relation = schema.adjacencies.get(name).relation;
         verbs.forEach((verb: Map<string, any>, k: number) => {
           const [verbKind, verbBody] = [...verb][0]!;
-          verbBody.get("entries").forEach((e: Map<string, any>, n: number) => {
+          (verbKind === "clear" ? [] : verbBody.get("entries")).forEach((e: Map<string, any>, n: number) => { // clear: none
             e.set("mutations", e.get("mutations").filter((item: Map<string, any>, i: number) => checkedEntry(store, name,
               relation, item, [...at, kind, "mutations", k, verbKind, "entries", n, "mutations", i], symbols, ignored)));
           });

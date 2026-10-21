@@ -17,7 +17,7 @@
                         i: schemas
                         o: ''
                         properties:
-                          name: OfObject
+                          name: OfModule
                         next:
                           target: {}
           '1':
@@ -53,10 +53,46 @@
                         i: schemas
                         o: ''
                         properties:
-                          name: OfRelation
+                          name: OfObject
                         next:
                           target: {}
           '3':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfModule
+                        next:
+                          target: {}
+          '4':
+            schema:
+            - $ref:
+                singleton: '.'
+                next:
+                  entry:
+                    i: schemas
+                    o: ''
+                    properties:
+                      name: Schemas
+                    next:
+                      entry:
+                        i: schemas
+                        o: ''
+                        properties:
+                          name: OfRelation
+                        next:
+                          target: {}
+          '5':
             schema:
             - $ref:
                 singleton: '.'
@@ -76,6 +112,52 @@
                           target: {}
         spec:
         - '0':
+          - as_property:
+              name: name
+              mutations:
+              - clear: {}
+          - as_adjacency:
+              name: schemas
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '1'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: Socket
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '2'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: Board
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '3'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: Corpus
+        - '1':
           - as_property:
               name: name
               mutations:
@@ -211,7 +293,7 @@
                         mutations:
                         - set:
                             value: pins
-        - '1':
+        - '2':
           - as_property:
               name: name
               mutations:
@@ -736,7 +818,7 @@
                                                                 mutations:
                                                                 - set:
                                                                     ref:
-                                                                      symbol: '0'
+                                                                      symbol: '1'
                     - as_property:
                         name: name
                         mutations:
@@ -872,7 +954,7 @@
                                                                                                                             mutations:
                                                                                                                             - set:
                                                                                                                                 ref:
-                                                                                                                                  symbol: '0'
+                                                                                                                                  symbol: '1'
                                                                                 - as_property:
                                                                                     name: name
                                                                                     mutations:
@@ -1284,7 +1366,42 @@
                         mutations:
                         - set:
                             value: weights
-        - '2':
+        - '3':
+          - as_property:
+              name: name
+              mutations:
+              - set:
+                  value: Corpus
+          - as_adjacency:
+              name: schemas
+              mutations:
+              - insert:
+                  entries:
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '4'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: Holds
+                  - mutations:
+                    - as_link:
+                        name: schema
+                        mutations:
+                        - set:
+                            ref:
+                              symbol: '5'
+                    - as_property:
+                        name: name
+                        mutations:
+                        - set:
+                            value: Root
+        - '4':
           - as_property:
               name: name
               mutations:
@@ -1321,7 +1438,7 @@
                         mutations:
                         - set:
                             value: item
-        - '3':
+        - '5':
           - as_property:
               name: name
               mutations:
@@ -1366,7 +1483,7 @@
                                             mutations:
                                             - set:
                                                 ref:
-                                                  symbol: '2'
+                                                  symbol: '4'
                     - as_property:
                         name: name
                         mutations:

@@ -872,6 +872,8 @@ class _StoreSnapshot:
             {"as_property": {"name": prop.as_schema().name, "mutations": [
                 {"set": {"value": _value(prop, prop.as_schema().schema, self._names)[1]}}]}}
             for prop in visitor.as_properties if not framework or prop.as_schema().name == "name"]
+        if self._schema(visitor) and isinstance(visitor._original, self._B._ModuleData) and visitor._original.name is None:
+            members.insert(0, {"as_property": {"name": "name", "mutations": [{"clear": {}}]}})  # the root module: no name
         for name, adjacency, entries in self._entries(visitor):
             relation = adjacency.relation
             if framework and self.store.framework(relation):
@@ -911,13 +913,28 @@ class _StoreSnapshot:
 
     def run(self) -> list[PlainData]:
         store = self.store
-        schemas = [self._reader(store.registered(name)) for name in store.names()
-                   if not store.framework(store.registered(name))]
+        held_in: list[Any] = [store.module()]  # the root module, then what each module holds, in order, nested
+        met = {id(store.module())}
+
+        def visit(module: Any) -> None:
+            for held in module.schemas.values():
+                if id(held) not in met and not store.framework(held):
+                    met.add(id(held))
+                    held_in.append(held)
+                    if isinstance(held, self._B._ModuleData):
+                        visit(held)
+
+        visit(store.module())
+        held_in += [store.registered(name) for name in store.names()  # a schema no module holds: none, as built
+                    if id(store.registered(name)) not in met and not store.framework(store.registered(name))]
+        schemas = [self._reader(held) for held in held_in]
         framework = [self._reader(held) for held in store._objects.values()
                      if store.framework(held) and self._B._named(held)]
         is_data = lambda target: not self._schema(target)  # noqa: E731
+        ours = lambda target: not is_data(target) and not store.framework(target._original)  # noqa: E731
         extending = [(v, lambda t: not is_data(t)) for v in framework if any(self._linked(v, False))]
-        first = self._transaction([(v, lambda t: not is_data(t)) for v in schemas] + extending)
+        first = self._transaction([(v, ours if isinstance(v._original, self._B._ModuleData) else lambda t: not is_data(t))
+                                   for v in schemas] + extending)
         reached: list[Any] = []
         met: set[int] = set()
 
@@ -1122,7 +1139,7 @@ def _checked_members(store: Any, schema: Any, members: PlainData, where: tuple, 
                 relation = schema.adjacencies[name].relation
                 for k, verb in enumerate(verbs):
                     ((verb_kind, verb_body),) = verb.items()
-                    for e, entry in enumerate(verb_body["entries"]):
+                    for e, entry in enumerate([] if verb_kind == "clear" else verb_body["entries"]):  # clear: none
                         entry["mutations"] = [item for m, item in enumerate(entry["mutations"]) if _checked_entry(
                             store, name, relation, item, (*at, kind, "mutations", k, verb_kind, "entries", e, "mutations",
                                                           m), symbols, ignored)]

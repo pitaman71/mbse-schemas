@@ -23,7 +23,7 @@ of the object it binds, *object verbs*:
 
 ```python
 Mutations.OfObject.{AsProperty, AsAdjacency, Spec}
-Mutations.OfAdjacency.{Insert, Remove}
+Mutations.OfAdjacency.{Insert, Remove, Clear}
 ```
 
 `Mutations.OfObject.Spec`, `{"spec": {"items": [...]}}`, is a pattern's own spec, written as recorded: a list of
@@ -31,7 +31,9 @@ Mutations.OfAdjacency.{Insert, Remove}
 pattern holds, in place of any it held before; its shape is checked when it is read, and what it says when the pattern
 is executed.
 
-`Mutations.OfAdjacency.{Insert, Remove}` carry a list of `Mutations.OfEntry`, each leaving out the link the object
+`Mutations.OfAdjacency.Clear` removes every entry an adjacency holds. The executor inserts entries only, and refuses a
+spec that removes or clears them (Store overhaul, 4j). `Mutations.OfAdjacency.{Insert, Remove}` carry a list of
+`Mutations.OfEntry`, each leaving out the link the object
 fills, which carries `Mutations.OfProperty.*` and `Mutations.OfLink.*`, through `Mutations.OfEntry.{AsProperty, AsLink}`:
 
 ```python
@@ -87,8 +89,10 @@ Mutations.OfObject.Def # an object with no path, defined where it is linked: its
 A store's snapshot, `Plain.ToPlain(store).Snapshot()`, is two transactions (docs/OBJECT_IDENTITY.md, Decided, 45 and
 101; Store overhaul, 4f-4), each one upsert, written as a transaction on the wire is:
 
-- **its schemas**: each schema object with a name of its own a symbol of its meta-schema, in the order the store
-  registered them, found by its name where the store reading it holds it (86), so that a schema it held before is
+- **its modules and schemas**: the root module, then what each module holds, in the order it holds it, a module's
+  contents following it, each a symbol of its meta-schema found where the store reading it holds it: a module by its
+  path, the root module by none (its name cleared), a schema by its name (86); so that reading it makes them in the
+  order each module held them. A schema no module holds follows them; so that a schema it held before is
   extended when the transaction commits (96); a schema object with no name of its own defined where it is linked
   (`{"def": ...}`); a schema the store was made holding is a symbol only where it holds an extension's entries linking
   schema objects, and then only its name and those entries are written;

@@ -410,7 +410,7 @@ so that main stays current and no branch waits on another.
 
      Built in stages: 4f-1, a counted object found only by what made it, and the spec's verbs as schemas; 4f-2, a
      transaction on the wire; 4f-3, Reachable documents; 4f-4, snapshots, the log's verbs removed and the corpora
-     regenerated; 4f-5, pattern specs on the wire.
+     regenerated; 4f-5, pattern specs on the wire; 4f-6, modules in snapshots and an adjacency's `clear`.
      - **4f-1, as built**: an upsert finds a counted object only in what it made before, for the same frame, key and
        symbol (102), and otherwise creates one; TXN-06 shows a second note made beside one with its text. The spec's
        verbs are schemas beside the log's, which 4f-4 removes: `Mutations.OfObject` (`as_property`, and
@@ -508,12 +508,22 @@ so that main stays current and no branch waits on another.
      builder's `spec` is a call that records callbacks, and a property's value would be written tagged, where a spec's
      payloads are bare (4f-1); and its values are not decoded when read, since its symbols are the pattern's, which the
      same transaction defines.
+   - **4f-6, what 4f's approval names and 4f-4 left out**, found on checking 4f against it point by point: a store's
+     snapshot "upserts its modules and schemas", and an adjacency's verbs are "`insert`, `remove` and `clear`". As
+     built: the first transaction's symbols are the root module, then what each module holds, in the order it holds it,
+     a module's contents following it, a schema no module holds last; a module is found by its path, the root module by
+     none (its spec clears its name), so that reading a snapshot makes modules and schemas in the order each module held
+     them, an empty module and a module's description included. 4f-4 wrote schemas only, and lost an empty module and
+     every module's own properties: a regression from the log, which wrote modules first, that no test caught.
+     `Mutations.OfAdjacency.Clear` is the third adjacency verb (62 mutation schemas); it is read as any spec's verb and,
+     as `remove`, refused when it runs (4j). SNP-01, SNP-03, SNP-04, MUT-01, MUT-04 and TXN-13 cover them; the corpora
+     are regenerated, byte-identical. With 4f-6, 4f is done.
    - **Every deferral has a stage.** The user, on finding pattern specs noted but unscheduled: "It feels like we are
      leaking details from the plan." Whatever a stage leaves undone is entered here, with the stage that does it,
      never only in an as-built note. Proposed placements, for the user's review:
      - pattern specs on the wire (4f-1, 4f-4): 4f-5, built;
      - a symbol's schema given as `txn.Schemas.OfObject`, not the store's (78; 4e-1): 4i, whose `install(txn)` needs it;
-     - removing through a spec: an adjacency's `remove`, and clearing an entry's link or property, which the executor
+     - removing through a spec: an adjacency's `remove` and `clear`, and clearing an entry's link or property, which the executor
        refuses before it runs (4f-2); and deleting an object no entry owns (designed, not built; tutorial 9): 4j, after
        4i;
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
@@ -537,7 +547,7 @@ so that main stays current and no branch waits on another.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
-   and 4g (released), 0.22.0 after 4e and 4f (4f-5 included), each landing the branch on main. 4e builds only the in-memory, sequential executor
+   and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included), each landing the branch on main. 4e builds only the in-memory, sequential executor
    (question 11).
 
 ### Example: a transaction, as 4e would build it

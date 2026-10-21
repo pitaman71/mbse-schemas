@@ -23,7 +23,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfModule"
                                 },
                                 "next": {
                                   "target": {}
@@ -83,7 +83,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfRelation"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -113,7 +113,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -143,7 +143,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfRelation"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -157,6 +157,66 @@
                   ]
                 },
                 "5": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfModule"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "6": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfRelation"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "7": {
                   "schema": [
                     {
                       "$ref": {
@@ -190,6 +250,183 @@
               "spec": [
                 {
                   "0": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "clear": {}
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "schemas",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "1"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "CardPhone"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Card"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "3"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Holding"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "4"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Deck"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "5"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Corpus"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "1": [
                     {
                       "as_property": {
                         "name": "name",
@@ -575,7 +812,7 @@
                   ]
                 },
                 {
-                  "1": [
+                  "2": [
                     {
                       "as_property": {
                         "name": "name",
@@ -646,7 +883,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "2"
+                                                                              "symbol": "3"
                                                                             }
                                                                           }
                                                                         }
@@ -808,7 +1045,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "0"
+                                                                              "symbol": "1"
                                                                             }
                                                                           }
                                                                         }
@@ -901,7 +1138,7 @@
                                                                                                       {
                                                                                                         "set": {
                                                                                                           "ref": {
-                                                                                                            "symbol": "0"
+                                                                                                            "symbol": "1"
                                                                                                           }
                                                                                                         }
                                                                                                       }
@@ -1774,7 +2011,7 @@
                   ]
                 },
                 {
-                  "2": [
+                  "3": [
                     {
                       "as_property": {
                         "name": "name",
@@ -1865,7 +2102,7 @@
                   ]
                 },
                 {
-                  "3": [
+                  "4": [
                     {
                       "as_property": {
                         "name": "name",
@@ -1936,7 +2173,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "2"
+                                                                              "symbol": "3"
                                                                             }
                                                                           }
                                                                         }
@@ -2080,7 +2317,96 @@
                   ]
                 },
                 {
-                  "4": [
+                  "5": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Corpus"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "schemas",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "6"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Holds"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "7"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Root"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "6": [
                     {
                       "as_property": {
                         "name": "name",
@@ -2171,7 +2497,7 @@
                   ]
                 },
                 {
-                  "5": [
+                  "7": [
                     {
                       "as_property": {
                         "name": "name",
@@ -2254,7 +2580,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "4"
+                                                                              "symbol": "6"
                                                                             }
                                                                           }
                                                                         }

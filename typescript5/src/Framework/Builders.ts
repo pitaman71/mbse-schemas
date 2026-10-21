@@ -2227,8 +2227,9 @@ export class Store extends Proxies._Store {
   /** Builds and changes schemas through `cb`, given the store: a schema the store held before may only gain members (an
    * object schema's properties and adjacencies, a relation's properties, a union's branches), each under a name it
    * neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb` builds
-   * is the store's own. Refused, a change to a schema throws before it is written, but what was written before it
-   * stays: a refused extension is a program error. */
+   * is the store's own. It is a transaction of its own (docs/OBJECT_IDENTITY.md, Decided, 44), committed before the
+   * extension ends, so that what it changes in the schemas the store held is checked as an extension's when it is
+   * written; refused, it writes nothing. */
   extend(cb: unknown): this {
     this._extending = this._held;
     const before = new Map<unknown, [Set<string>, Set<string>]>();
@@ -2236,7 +2237,7 @@ export class Store extends Proxies._Store {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
     try {
-      visit(cb, this);
+      this._transacting(() => visit(cb, this));
     } finally {
       this._extending = null;
       extendBuilders(this, before);

@@ -1701,14 +1701,16 @@ class Store(Proxies._Store):
         """Builds and changes schemas through `cb`, given the store: a schema the store held before may only gain members
         (an object schema's properties and adjacencies, a relation's properties, a union's branches), each under a name
         it neither has nor inherits, nor a refinement of it declares; anything else about it stays as it was. What `cb`
-        builds is the store's own. Refused, a change to a schema raises before it is written, but what was written before
-        it stays: a refused extension is a program error."""
+        builds is the store's own. It is a transaction of its own (docs/OBJECT_IDENTITY.md, Decided, 44), committed
+        before the extension ends, so that what it changes in the schemas the store held is checked as an extension's when
+        it is written; refused, it writes nothing."""
         held = {*self._objects, *self._unnamed.keys()}
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         self._extending = held
         try:
-            _visit(cb, self)
+            with self._transacting():
+                _visit(cb, self)
         finally:
             self._extending = None
             _extend_builders(self, before)

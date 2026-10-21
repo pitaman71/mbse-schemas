@@ -239,7 +239,7 @@ so that main stays current and no branch waits on another.
        corpora grow about threefold, every reference to a schema object now a path, until 4f replaces the log;
      - tests, examples and the corpus name the schemas they share, and SNP-02, BLD-03 and BLD-10 test paths in
        place of identities.
-   - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63): the mutation vocabulary as
+   - **4e, mutation expressions and the in-memory executor** (38, 42, 44, 46, 50, 56 to 63; done, released as 0.22.0): the mutation vocabulary as
      Decided 59 nests it, `Mutations.OfTransaction` → `Mutations.OfTerm` (`OfMap`, `OfReduce`, `OfPartition`,
      `OfUpdate`, `OfUpsert`) → `Mutations.OfPattern` → `Mutations.OfObject` → `Mutations.OfAdjacency` (`OfEntry`) →
      `Mutations.OfProperty`, `Exists` and the relation verbs gone; `store.mutation(cb)`, its builders those a property
@@ -362,7 +362,7 @@ so that main stays current and no branch waits on another.
        refused decode within a transaction leaves it as it was. The decoders check what they are given before writing,
        so the savepoint is what keeps it so as they change;
      - TXN-12 covers the proposals and savepoints, STO-06 the combined stores' refusals; no corpus changed.
-   - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
+   - **4f, the wire** (45, 51, 55, 56; done, released as 0.22.0): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between
      the languages.
@@ -547,7 +547,8 @@ so that main stays current and no branch waits on another.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
-   and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included), each landing the branch on main. 4e builds only the in-memory, sequential executor
+   and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included; released), each landing the branch on main. 4i
+   follows 0.22.0, as the user decided: "go ahead and release 0.22.0 then go straight to 4i". 4e builds only the in-memory, sequential executor
    (question 11).
 
 ### Example: a transaction, as 4e would build it
@@ -714,7 +715,8 @@ Points settled while building, for the user's review:
 6. *Settled by Object identity, Decided, 58*: a mutation's builders are those a property call with a callback gives.
 7. *Settled by Object identity, Decided, 55 and 61*: a counted object is numbered within the document that writes it,
    or, created by an upsert, identified by its frame, key and symbol; nothing re-states a transaction's index.
-8. *Approved*: 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main.
+8. *Approved*: 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main; renumbered by the
+   reorder to 0.21.0 after 4d and 4g, 0.22.0 after 4e and 4f (Order of work, Releases).
 9. *Settled*: a transaction is a mutation expression only. The store's builders do not write inside one on their own
    (a `.build(...)` handing the callback the store was proposed and refused: it "circumvents the entire streaming query
    language"); writes are made by the property builders a term's pattern gives (Object identity, Decided, 58), which are

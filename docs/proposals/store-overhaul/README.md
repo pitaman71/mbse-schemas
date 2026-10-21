@@ -327,9 +327,18 @@ so that main stays current and no branch waits on another.
        store, and a transaction's commit;
      - the library's own writes join the transaction open, else open one of their own: the decoders (90), whose writes
        are now all within it;
-     - the refusal is behind a switch, `MBSE_STRICT=1` (`Proxies._STRICT`, `Proxies._strict`), off while the callers
-       move suite by suite, and removed with the last of them; the corpus builders and the examples write within
-       transactions, and the tutorials follow, one case study at a time, in both languages.
+     - `store.extend` is a transaction of its own, committed before the extension ends, so that what it changes in the
+       schemas the store held is checked as an extension's when it is written; refused, it writes nothing;
+     - every caller writes within transactions, in both languages: the corpus builders, the examples, the tutorials
+       (tutorial 1 introduces them, tutorial 2 says why a schema that existed changes when its transaction ends, and
+       tutorial 9 makes a schema change as a transaction's expression), the skill and every suite. A test's fixture is
+       one transaction; where a case reads a schema it changed that existed before (96), or what ownership settles
+       when a transaction ends, each write has a transaction of its own; another store's writes have their own.
+       While the callers moved, the refusal was behind a switch, removed with the last of them.
+
+     Settled while building it, for the user's review: a decoder within a transaction joins it, so that a refused
+     decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise; one
+     transaction is open at a time, of any store, so a program writes another store's objects after it ends.
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

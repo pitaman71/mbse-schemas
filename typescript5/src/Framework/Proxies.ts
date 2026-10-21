@@ -200,7 +200,7 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   /** Refuses a write outside a transaction of this store (docs/OBJECT_IDENTITY.md, Decided, 44), but while a transaction's
    * expression is built (94), the store is made, or a transaction commits. */
   _written(): void {
-    if (STRICT && (OVERLAY === null || OVERLAY.store !== this) && this._expressing === 0) {
+    if ((OVERLAY === null || OVERLAY.store !== this) && this._expressing === 0) {
       throw new ValueError("a store is written only within a transaction (store.transaction)");
     }
   }
@@ -659,14 +659,6 @@ function valuesOf(holder: { _ownValues: Values }): Values {
 }
 
 /** A holder's values to write: within a transaction, the overlay's copy, made the first time. */
-/** Whether a write outside a transaction is refused (Decided, 44): off while step 4e-2 migrates the callers, suite by
- * suite; the switch goes when every caller writes within one. */
-let STRICT = false;
-
-export function _strict(on: boolean): void {
-  STRICT = on;
-}
-
 /** A holder's values to write: within a transaction, the overlay's copy, made the first time. A reference object's are
  * written only within a transaction of its store (docs/OBJECT_IDENTITY.md, Decided, 44); a value object's, built
  * standalone, are its builder's until it is placed. */

@@ -1159,7 +1159,8 @@ abstract class Builder extends Shelled {
     // the members its store's extensions added to its plain schema: the store's own
     this._members = added === undefined || added.size === 0 ? kind._table : new Map([...kind._table, ...added]);
     this._working = this._make();
-    if (original !== null) this._update(this._working, original);
+    // within a transaction, what its writes so far make of it (Object identity, 96)
+    if (original !== null) this._update(this._working, store === null ? original : store._pending(original));
     return shell(this);
   }
 
@@ -1232,7 +1233,11 @@ abstract class Builder extends Shelled {
   update(...args: unknown[]): any {
     noArguments("update", args);
     if (this._original === null) throw new ValueError("update() is only valid with a source instance");
-    if (this._store !== null) this._store._permit(this);
+    if (this._store !== null) {
+      this._store._permit(this);
+      // a schema object that existed before the transaction open: at its commit
+      if (this._store._defers(this)) return this._original;
+    }
     this._update(this._original, this._working);
     return this._held(this._finalize(this._original));
   }
@@ -2099,10 +2104,11 @@ export class Store extends Proxies._Store {
     return found;
   }
 
-  /** Records what links each object with no name of its own that `data` links, refused where another links it already:
-   * it is written nested in the one object that links it (Decided, 81). */
-  _link(data: unknown): void {
-    for (const [referent, members] of this._referents(data)) {
+  /** Records what links each object with no name of its own that `data` links (or will, its builder's working copy
+   * `source`), refused where another links it already: it is written nested in the one object that links it (Decided,
+   * 81). */
+  _link(data: unknown, source: unknown = null): void {
+    for (const [referent, members] of this._referents(source ?? data)) {
       if (_named(referent) || this.framework(referent)) continue;
       const linker = this._linker(referent);
       if (linker !== null && linker[0] !== data) {
@@ -2110,6 +2116,76 @@ export class Store extends Proxies._Store {
           + "by one schema object alone, and another links it already: name it to share it");
       }
       this._linkers.set(referent as object, [data, members]);
+    }
+  }
+
+  /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
+   * before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now. */
+  _defers(builder: Builder): boolean {
+    const overlay = Proxies._overlay();
+    if (overlay === null || overlay.store !== this || !this._existed(builder._original, overlay)) return false;
+    this._link(builder._original, builder._working);
+    overlay.deferred.set(builder._original, builder); // its last: each began from what the one before made
+    return true;
+  }
+
+  /** Whether the store held the schema object `data` when the transaction `overlay` began. */
+  _existed(data: unknown, overlay: Proxies._Overlay): boolean {
+    return this.holds(data) && (this._heldAt.get(data as object) as number) < overlay.existing;
+  }
+
+  /** A schema object as the transaction open has made it: the working copy of its last deferred update, else itself. */
+  _pending(original: unknown): unknown {
+    const overlay = Proxies._overlay();
+    const builder = overlay !== null && overlay.store === this ? overlay.deferred.get(original as object) : undefined;
+    return builder === undefined ? original : builder._working;
+  }
+
+  /** The schema objects held when a transaction begins: those its updates of wait for its commit, numbered below. */
+  _existing(): number {
+    return this._held;
+  }
+
+  /** The changes a transaction made to which objects have no name of their own: undone where it throws. */
+  _unnamedLog: [object, boolean][] | null = null;
+
+  override _saved(): Map<Map<unknown, unknown>, [unknown, unknown][]> {
+    const saved = super._saved();
+    for (const held of [this._modules, this._placed]) saved.set(held as Map<unknown, unknown>, [...held]);
+    saved.set(this._objects as unknown as Map<unknown, unknown>, [...this._objects].map((data) => [data, data]));
+    this._unnamedLog = [];
+    return saved;
+  }
+
+  override _restore(saved: Map<Map<unknown, unknown>, [unknown, unknown][]>): void {
+    const objects = saved.get(this._objects as unknown as Map<unknown, unknown>) as [unknown, unknown][];
+    saved.delete(this._objects as unknown as Map<unknown, unknown>);
+    super._restore(saved);
+    this._objects.clear();
+    for (const [data] of objects) this._objects.add(data);
+    for (const [data, unnamed] of (this._unnamedLog as [object, boolean][]).reverse()) {
+      if (unnamed) this._unnamed.add(data);
+      else this._unnamed.delete(data);
+    }
+    this._unnamedLog = null;
+  }
+
+  /** Applies the updates of schema objects that waited for the transaction's commit, in order; where one is refused,
+   * those applied before it are undone. */
+  override _commit_schemas(overlay: Proxies._Overlay): void {
+    const applied: [any, [string, unknown][]][] = [];
+    try {
+      for (const builder of overlay.deferred.values()) {
+        const original = builder._original;
+        applied.push([original, Object.keys(original).map((name) => [name, original[name]])]);
+        builder.update();
+      }
+      this._unnamedLog = null;
+    } catch (error) {
+      for (const [original, fields] of applied.reverse()) {
+        for (const [name, value] of fields) original[name] = value;
+      }
+      throw error;
     }
   }
 
@@ -2203,6 +2279,7 @@ export class Store extends Proxies._Store {
     }
     this._link(data);
     if (!this._heldAt.has(data)) this._heldAt.set(data, this._held++);
+    this._unnamedLog?.push([data, this._unnamed.has(data)]);
     if (_named(data)) {
       this._objects.add(data);
       this._unnamed.delete(data);

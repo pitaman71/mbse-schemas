@@ -192,6 +192,50 @@ export abstract class _Store extends Stores.Catalog implements Stores.Store {
   _orphaned: Instance[] = []; // owned objects an owning entry of which was removed since
   readonly _keys = new Map<string, number>(); // the last number a key's pattern gave, by relation, owner and key
 
+  /** A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written when it
+   * ends, or, where it throws, dropped, the store's registries as they were before it began. */
+  _transacting<T>(write: () => T): T {
+    if (OVERLAY !== null) throw new ValueError("a transaction is open: transactions do not nest");
+    const saved = this._saved();
+    const overlay = OVERLAY = new _Overlay(this);
+    let written: T;
+    try {
+      written = this._writing(write); // ownership is settled within it
+    } catch (error) {
+      OVERLAY = null;
+      this._restore(saved);
+      throw error;
+    }
+    OVERLAY = null;
+    try {
+      this._commit_schemas(overlay);
+    } catch (error) {
+      this._restore(saved);
+      throw error;
+    }
+    overlay.commit();
+    return written;
+  }
+
+  /** Applies the updates of schema objects that waited for the transaction's commit. */
+  abstract _commit_schemas(overlay: _Overlay): void;
+
+  /** The schema objects held when a transaction begins: those its updates of wait for its commit. */
+  abstract _existing(): number;
+
+  /** What the store holds, besides objects, that a transaction may change: restored where it throws. */
+  _saved(): Map<Map<unknown, unknown>, [unknown, unknown][]> {
+    return new Map<Map<unknown, unknown>, [unknown, unknown][]>([this._schemas, this._singletons, this._keys]
+      .map((held) => [held as Map<unknown, unknown>, [...held]]));
+  }
+
+  _restore(saved: Map<Map<unknown, unknown>, [unknown, unknown][]>): void {
+    for (const [held, entries] of saved) {
+      held.clear();
+      for (const [key, value] of entries) held.set(key, value);
+    }
+  }
+
   /** A builder's write: where it is the outermost, the objects it created are given their owners after it. */
   _writing<T>(write: () => T): T {
     this._building += 1;
@@ -502,27 +546,100 @@ const FRAMEWORK_ENTRIES = new WeakMap<object, Map<unknown, Map<RelationSchema, M
 /** The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
  * which an extension's relation links and which is given its index, hidden from its fields, when first linked. A
  * framework schema, which every store holds, is never written: `store` keeps the entries that link it. */
-function table(target: unknown, relation: RelationSchema, store: any = null): Map<string, any> {
+function table(target: unknown, relation: RelationSchema, store: any = null, write = false): Map<string, any> {
+  let own: Tables;
   if (typeof store?.framework === "function" && store.framework(target)) {
     let byTarget = FRAMEWORK_ENTRIES.get(store._objects);
     if (byTarget === undefined) FRAMEWORK_ENTRIES.set(store._objects, (byTarget = new Map()));
-    let byRelation = byTarget.get(target);
-    if (byRelation === undefined) byTarget.set(target, (byRelation = new Map()));
-    let found = byRelation.get(relation);
-    if (found === undefined) byRelation.set(relation, (found = new Map()));
-    return found;
+    own = byTarget.get(target) as Tables;
+    if (own === undefined) byTarget.set(target, (own = new Map()));
+  } else {
+    own = ownTables(target);
   }
-  const adjacent = adjacentOf(target);
-  let found = adjacent.get(relation);
-  if (found === undefined) adjacent.set(relation, (found = new Map()));
+  const tables = tablesOf(own, write);
+  let found = tables.get(relation);
+  if (found === undefined) {
+    found = new Map();
+    if (write) tables.set(relation, found);
+  }
   return found;
 }
 
-/** The entries that link `target`, by relation, then by key: made when first asked for. */
-function adjacentOf(target: unknown): Map<RelationSchema, Map<string, any>> {
+type Tables = Map<RelationSchema, Map<string, any>>;
+
+/** The entries that link `target`, by relation, then by key, as the store holds them: made when first asked for. */
+function ownTables(target: unknown): Tables {
   const state = innerOf(target) ?? target;
   if (state._adjacent === undefined) Object.defineProperty(state, "_adjacent", { value: new Map(), enumerable: false });
   return state._adjacent;
+}
+
+/** The entries that link `target`, by relation, then by key, as the transaction open sees them. */
+function adjacentOf(target: unknown): Tables {
+  return tablesOf(ownTables(target), false);
+}
+
+/** A transaction's writes, held apart from the store's objects until it commits (docs/OBJECT_IDENTITY.md, Decided, 89,
+ * 96): a data object's property values and entry tables, and a value object's values, each copied when first written
+ * and read in its place while the transaction is open; the updates of schema objects that existed before it began,
+ * applied when it commits. One is open at a time: transactions do not nest (50). */
+export class _Overlay {
+  /** Each holder's values, by its state. */
+  readonly values = new Map<object, Values>();
+  /** Each holder's entry tables, by the tables the store holds. */
+  readonly tables = new Map<Tables, Tables>();
+  /** Each schema object's last builder, whose update waits for commit. */
+  readonly deferred = new Map<object, any>();
+  /** How many schema objects the store held when it began: those its updates of wait for its commit. */
+  readonly existing: number;
+
+  constructor(readonly store: any) {
+    this.existing = store._existing();
+  }
+
+  /** Writes what the transaction wrote into the objects it wrote. */
+  commit(): void {
+    for (const [holder, values] of this.values) {
+      const own = (holder as { _ownValues: Values })._ownValues;
+      own.clear();
+      for (const [name, value] of values) own.set(name, value);
+    }
+    for (const [own, tables] of this.tables) {
+      own.clear();
+      for (const [relation, held] of tables) own.set(relation, held);
+    }
+  }
+}
+
+/** The overlay of the transaction open, if any. */
+let OVERLAY: _Overlay | null = null;
+
+export function _overlay(): _Overlay | null {
+  return OVERLAY;
+}
+
+/** A data object's or a value object's property values, as the transaction open sees them. */
+function valuesOf(holder: { _ownValues: Values }): Values {
+  return OVERLAY?.values.get(holder) ?? holder._ownValues;
+}
+
+/** A holder's values to write: within a transaction, the overlay's copy, made the first time. */
+function writableValues(holder: { _ownValues: Values }): Values {
+  if (OVERLAY === null) return holder._ownValues;
+  let held = OVERLAY.values.get(holder);
+  if (held === undefined) OVERLAY.values.set(holder, (held = new Map(holder._ownValues)));
+  return held;
+}
+
+/** Entry tables as the transaction open sees them; to write, within a transaction, the overlay's copy, made the first
+ * time. */
+function tablesOf(own: Tables, write: boolean): Tables {
+  const held = OVERLAY?.tables.get(own);
+  if (held !== undefined) return held;
+  if (OVERLAY === null || !write) return own;
+  const copied: Tables = new Map([...own].map(([relation, entries]) => [relation, new Map(entries)]));
+  OVERLAY.tables.set(own, copied);
+  return copied;
 }
 
 /** The store an entry belongs to: the one given, else that of a proxy it links. */
@@ -546,7 +663,7 @@ function addEntry(relation: RelationSchema, entry: any, store: unknown = null): 
   const key = state._key();
   const held = entryStore(state, store);
   if (table(state._links.values().next().value, relation, held).has(key)) return;
-  for (const target of state._links.values()) table(target, relation, held).set(key, entry);
+  for (const target of state._links.values()) table(target, relation, held, true).set(key, entry);
 }
 
 /** The entries of `relation` that link `target` via `link`, in the order they were added. */
@@ -561,7 +678,7 @@ function discard(relation: RelationSchema, entries: readonly unknown[], store: u
     const state: _Entry = innerOf(entry);
     const key = state._key();
     const held = entryStore(state, store);
-    for (const target of state._links.values()) table(target, relation, held).delete(key);
+    for (const target of state._links.values()) table(target, relation, held, true).delete(key);
     for (const [, owned] of ownedLinks(state)) (innerOf(owned) as _ObjectData)._store._orphaned.push(owned as Instance);
   }
 }
@@ -580,7 +697,7 @@ function orders(schema: ObjectSchema, source: unknown): Orders {
     const relation = adjacency.relation as RelationSchema;
     for (const entry of linking(relation, adjacency.me, source)) {
       for (const target of (innerOf(entry) as _Entry)._links.values()) {
-        const held = table(target, relation, store);
+        const held = table(target, relation, store, true); // reordered after the update
         if (!tables.has(held)) tables.set(held, [...held.values()]);
       }
     }
@@ -1675,9 +1792,14 @@ function kindVisitor(values: Values, name: string, schema: unknown, store: _Stor
 class _ObjectData extends Shelled {
   readonly [TYPE_NAME] = "_ObjectData";
   readonly _id = ++nextIdentity;
-  readonly _values: Values = new Map();
+  readonly _ownValues: Values = new Map();
   /** The entries linking this object, by relation and key. */
   readonly _adjacent = new Map<RelationSchema, Map<string, unknown>>();
+
+  /** Its property values, as the transaction open sees them. */
+  get _values(): Values {
+    return valuesOf(this);
+  }
 
   constructor(readonly _store: _Store, readonly _schema: ObjectSchema, readonly _schemaName: string) {
     super();
@@ -1733,13 +1855,18 @@ function isObjectData(value: unknown): boolean {
 class _RecordData extends Shelled {
   readonly [TYPE_NAME] = "_RecordData";
   readonly _id = ++nextIdentity;
-  readonly _values: Values;
+  readonly _ownValues: Values;
   _owner: unknown = null;
 
   constructor(readonly _schema: RecordSchema, values: Values, readonly _source: unknown = null,
     readonly _copyOf: unknown = null) {
     super();
-    this._values = new Map(values);
+    this._ownValues = new Map(values);
+  }
+
+  /** Its values, as the transaction open sees them. */
+  get _values(): Values {
+    return valuesOf(this);
   }
 
   override _declares(name: string): boolean {
@@ -2062,7 +2189,8 @@ function stage(old: unknown, value: unknown, mapping: Mapping): unknown {
 function stageValues(record: unknown, old: unknown, mapping: Mapping): void {
   const state: _RecordData = innerOf(record);
   const held: Values = old === null ? new Map() : innerOf(old)._values;
-  for (const [name, value] of [...state._values]) state._values.set(name, stage(held.get(name), value, mapping));
+  const values = writableValues(state);
+  for (const [name, value] of [...values]) values.set(name, stage(held.get(name), value, mapping));
 }
 
 /** A copy of a placed value object, with copies of the value objects it holds. */
@@ -2100,7 +2228,8 @@ function finish(owner: unknown, old: unknown, value: unknown, mapping: Mapping):
     return old;
   }
   state._owner = owner;
-  for (const [name, held] of [...state._values]) state._values.set(name, finish(value, null, held, mapping));
+  const values = writableValues(state);
+  for (const [name, held] of [...values]) values.set(name, finish(value, null, held, mapping));
   return value;
 }
 
@@ -2109,8 +2238,9 @@ function merge(old: unknown, edit: unknown, mapping: Mapping): void {
   const target: _RecordData = innerOf(old);
   const values = new Map([...innerOf(edit)._values as Values].map(([name, value]) =>
     [name, finish(old, target._values.get(name), value, mapping)] as const));
-  target._values.clear();
-  for (const [name, value] of values) target._values.set(name, value);
+  const held = writableValues(target);
+  held.clear();
+  for (const [name, value] of values) held.set(name, value);
 }
 
 /** Whether an entry builder adds its entry: an entry rewritten from one already held (`_source`), linking the same
@@ -2844,8 +2974,9 @@ class _ObjectBuilder extends Shelled {
     const values = new Map([...staged].map(([name, value]) => [name, finish(target, old.get(name), value, mapping)] as const));
     for (const entries of this._entries.values()) for (const entry of entries) innerOf(entry)._place(target, mapping);
     mapping.delete(this._source); // its own entries keep their links (a self-loop links the source)
-    state._values.clear();
-    for (const [name, value] of values) state._values.set(name, value);
+    const held = writableValues(state);
+    held.clear();
+    for (const [name, value] of values) held.set(name, value);
     for (const [name, entries] of this._entries) {
       const relation = (this._schema.adjacencies.get(name) as AdjacencySchema).relation as RelationSchema;
       for (const entry of entries) {

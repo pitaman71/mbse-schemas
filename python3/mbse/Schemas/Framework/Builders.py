@@ -861,8 +861,8 @@ class _Builder(_Unassignable, Generic[D]):
             self._members_ = {**type(self)._members_, **added}
         self._written: list[Any] = []  # the members written, in order
         self._working = self._make()
-        if original is not None:
-            self._update(self._working, original)
+        if original is not None:  # within a transaction, what its writes so far make of it (Object identity, 96)
+            self._update(self._working, store._pending(original) if store is not None else original)
 
     def _make(self) -> D:
         return self._data()
@@ -937,6 +937,8 @@ class _Builder(_Unassignable, Generic[D]):
             raise ValueError("update() is only valid with a source instance")
         if self._store is not None:
             self._store._permit(self)
+            if self._store._defers(self):  # a schema object that existed before the transaction open: at its commit
+                return self._original
         self._update(self._original, self._working)
         return self._held(self._finalize(self._original))
 
@@ -1664,10 +1666,11 @@ class Store(Proxies._Store):
             return None
         return linker, found[1]
 
-    def _link(self, data: Any) -> None:
-        """Records what links each object with no name of its own that `data` links, refused where another links it
-        already: it is written nested in the one object that links it (Decided, 81)."""
-        for referent, members in self._referents(data):
+    def _link(self, data: Any, source: Any = None) -> None:
+        """Records what links each object with no name of its own that `data` links (or will, its builder's working copy
+        `source`), refused where another links it already: it is written nested in the one object that links it
+        (Decided, 81)."""
+        for referent, members in self._referents(data if source is None else source):
             if _named(referent) or self.framework(referent):
                 continue
             linker = self._linker(referent)
@@ -1777,6 +1780,48 @@ class Store(Proxies._Store):
         if isinstance(data, (*S._DEFINED, _ModuleData)) and data.name:
             self._place(data)
         return data
+
+    def _defers(self, builder: _Builder[Any]) -> bool:
+        """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
+        existed before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now."""
+        overlay = Proxies._OVERLAY
+        if overlay is None or overlay.store is not self or id(builder._original) not in overlay.existing:
+            return False
+        self._link(builder._original, builder._working)
+        overlay.deferred[id(builder._original)] = builder  # its last: each began from what the one before made
+        return True
+
+    def _pending(self, original: Any) -> Any:
+        """A schema object as the transaction open has made it: the working copy of its last deferred update, else
+        itself."""
+        overlay = Proxies._OVERLAY
+        builder = overlay.deferred.get(id(original)) if overlay is not None and overlay.store is self else None
+        return original if builder is None else builder._working
+
+    def _saved(self) -> dict[str, Any]:
+        saved = super()._saved()
+        saved.update({"_modules": dict(self._modules), "_placed": dict(self._placed), "_objects": dict(self._objects),
+                      "_unnamed": weakref.WeakValueDictionary(self._unnamed)})
+        return saved
+
+    def _existing(self) -> set[int]:
+        """The schema objects it holds, by id: those a transaction's updates of wait for its commit."""
+        return {*self._objects, *self._unnamed.keys()}
+
+    def _commit_schemas(self, overlay: Proxies._Overlay) -> None:
+        """Applies the updates of schema objects that waited for the transaction's commit, in order; where one is
+        refused, those applied before it are undone."""
+        applied: list[tuple[Any, dict[str, Any]]] = []
+        try:
+            for builder in overlay.deferred.values():
+                original = builder._original
+                applied.append((original, {f.name: getattr(original, f.name) for f in dataclasses.fields(original)}))
+                builder.update()
+        except BaseException:
+            for original, fields in reversed(applied):
+                for name, value in fields.items():
+                    setattr(original, name, value)
+            raise
 
     def _meta_builder(self, name: str, target: Any = None) -> Any:
         """A builder of a schema object of the meta-schema registered as `name`, new or `target` updated, as a link

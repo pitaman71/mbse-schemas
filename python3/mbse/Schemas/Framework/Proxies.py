@@ -55,6 +55,76 @@ _SERIALS = itertools.count(1)  # proxies' serial numbers, in the order made
 # --- Stores ---
 
 
+class _Overlay:
+    """A transaction's writes, held apart from the store's objects until it commits (docs/OBJECT_IDENTITY.md, Decided,
+    89, 96): a data object's property values and entry tables, and a value object's values, each copied when first
+    written and read in its place while the transaction is open; the updates of schema objects that existed before it
+    began, applied when it commits. One is open at a time: transactions do not nest (50)."""
+
+    def __init__(self, store: Any) -> None:
+        self.store = store
+        self.values: dict[int, tuple[Any, dict[str, Any]]] = {}  # each holder's values, by its id
+        self.tables: dict[tuple[int, str], tuple[Any, dict[Hashable, dict[Hashable, Any]]]] = {}  # entry tables, by holder
+        self.deferred: dict[int, Any] = {}  # each schema object's last builder, whose update waits for commit
+        self.existing: set[int] = store._existing()  # the schema objects held when it began, by id (`Builders.Store`)
+
+    def commit(self) -> None:
+        """Writes what the transaction wrote into the objects it wrote."""
+        for holder, values in self.values.values():
+            own = object.__getattribute__(holder, "_own_values")
+            own.clear()
+            own.update(values)
+        for (_, attribute), (holder, tables) in self.tables.items():
+            own = object.__getattribute__(holder, attribute)
+            own.clear()
+            own.update(tables)
+
+
+_OVERLAY: _Overlay | None = None
+"""The overlay of the transaction open, if any."""
+
+
+def _values_of(holder: Any) -> dict[str, Any]:
+    """A data object's or a value object's property values, as the transaction open sees them."""
+    overlay = _OVERLAY
+    if overlay is not None:
+        held = overlay.values.get(id(holder))
+        if held is not None:
+            return held[1]
+    return object.__getattribute__(holder, "_own_values")
+
+
+def _writable_values(holder: Any) -> dict[str, Any]:
+    """A holder's values to write: within a transaction, the overlay's copy, made the first time."""
+    overlay = _OVERLAY
+    if overlay is None:
+        return object.__getattribute__(holder, "_own_values")
+    held = overlay.values.get(id(holder))
+    if held is None:
+        held = overlay.values[id(holder)] = (holder, dict(object.__getattribute__(holder, "_own_values")))
+    return held[1]
+
+
+def _tables(holder: Any, attribute: str, write: bool) -> dict[Hashable, dict[Hashable, Any]]:
+    """The entry tables `holder` keeps in `attribute` (an object's `_adjacent`, a store's `_framework_entries`), as the
+    transaction open sees them; to write, within a transaction, the overlay's copy, made the first time."""
+    overlay = _OVERLAY
+    if overlay is not None:
+        held = overlay.tables.get((id(holder), attribute))
+        if held is not None:
+            return held[1]
+    try:
+        own = object.__getattribute__(holder, attribute)
+    except AttributeError:
+        own = {}
+        object.__setattr__(holder, attribute, own)
+    if overlay is None or not write:
+        return own
+    copied = {key: dict(table) for key, table in own.items()}
+    overlay.tables[(id(holder), attribute)] = (holder, copied)
+    return copied
+
+
 class _Store(Stores.Catalog):
     """The proxies of a store (`Builders.Store`, the one store, is this with its builders): schemas by name, and the
     instance of each singleton schema registered, created with it. `store.builder(name, instance)` gives a builder of an
@@ -83,6 +153,41 @@ class _Store(Stores.Catalog):
         if self._building == 0 and (self._unowned or self._orphaned):
             self._settle_owners()
             self._delete_orphans()
+
+    @contextlib.contextmanager
+    def _transacting(self) -> Iterator[_Overlay]:
+        """A transaction's writes (docs/OBJECT_IDENTITY.md, Decided, 89, 96): held in an overlay while it runs, written
+        when it ends, or, where it raises, dropped, the store's registries as they were before it began."""
+        global _OVERLAY
+        if _OVERLAY is not None:
+            raise ValueError("a transaction is open: transactions do not nest")
+        saved = self._saved()
+        overlay = _OVERLAY = _Overlay(self)
+        try:
+            with self._writing():  # ownership is settled within it
+                yield overlay
+        except BaseException:
+            _OVERLAY = None
+            self._restore(saved)
+            raise
+        _OVERLAY = None
+        try:
+            self._commit_schemas(overlay)
+        except BaseException:
+            self._restore(saved)
+            raise
+        overlay.commit()
+
+    def _commit_schemas(self, overlay: _Overlay) -> None:
+        """Applies the updates of schema objects that waited for commit: none, in a store of proxies alone."""
+
+    def _saved(self) -> dict[str, Any]:
+        """What the store holds, besides objects, that a transaction may change: restored where it raises."""
+        return {"_schemas": dict(self._schemas), "_singletons": dict(self._singletons), "_keys": dict(self._keys)}
+
+    def _restore(self, saved: dict[str, Any]) -> None:
+        for name, value in saved.items():
+            object.__setattr__(self, name, value)
 
     def _settle_owners(self) -> None:
         """Gives each object created without an owner, whose schema declares one, the one owner possible: the singleton
@@ -118,7 +223,7 @@ class _Store(Stores.Catalog):
             if id(target) in deleted or _owner_entries(target):
                 continue
             deleted.add(id(target))
-            for relation_id, table in list(object.__getattribute__(target, "_adjacent").items()):
+            for relation_id, table in list(_tables(target, "_adjacent", False).items()):
                 _discard(relation_id, list(table.values()))
 
     def _next_key(self, relation: RelationSchema, owner: Any, name: str, link: str, owned: str) -> str:
@@ -292,19 +397,22 @@ class _Entry:
         )
 
 
-def _table(target: Any, relation_id: int, store: Any = None) -> dict[Hashable, _Entry]:
+def _table(target: Any, relation_id: int, store: Any = None, write: bool = False) -> dict[Hashable, _Entry]:
     """The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
     which an extension's relation links (docs/SCHEMA_EXTENSION.md) and which is given its index when first linked. A
     framework schema, which every store holds, is never written: `store` keeps the entries that link it."""
     framework = getattr(store, "framework", None)
     if framework is not None and framework(target):
-        return store.__dict__.setdefault("_framework_entries", {}).setdefault((id(target), relation_id), {})
-    try:
-        tables = object.__getattribute__(target, "_adjacent")
-    except AttributeError:
-        tables = {}
-        object.__setattr__(target, "_adjacent", tables)
-    return tables.setdefault(relation_id, {})
+        holder, attribute, key = store, "_framework_entries", (id(target), relation_id)
+    else:
+        holder, attribute, key = target, "_adjacent", relation_id
+    tables = _tables(holder, attribute, write)
+    table = tables.get(key)
+    if table is None:
+        table = {}
+        if write:
+            tables[key] = table
+    return table
 
 
 def _entry_store(entry: _Entry, store: Any = None) -> Any:
@@ -327,7 +435,7 @@ def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> No
     if key in _table(next(iter(entry._links.values())), id(relation), store):
         return
     for target in entry._links.values():
-        _table(target, id(relation), store)[key] = entry
+        _table(target, id(relation), store, write=True)[key] = entry
 
 
 def _linking(relation: RelationSchema, link: str, target: Any, store: Any = None) -> list[_Entry]:
@@ -341,7 +449,7 @@ def _discard(relation_id: int, entries: list[_Entry], store: Any = None) -> None
     for entry in entries:
         key, held = entry._key(), _entry_store(entry, store)
         for target in entry._links.values():
-            _table(target, relation_id, held).pop(key, None)
+            _table(target, relation_id, held, write=True).pop(key, None)
         for _, owned in _owned_links(entry):
             object.__getattribute__(owned, "_store")._orphaned.append(owned)
 
@@ -357,7 +465,7 @@ def _orders(schema: ObjectSchema, source: Any) -> list[tuple[dict[Hashable, _Ent
     for adjacency in schema.adjacencies.values():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             for target in entry._links.values():
-                table = _table(target, id(adjacency.relation), store)
+                table = _table(target, id(adjacency.relation), store, write=True)  # reordered after the update
                 tables.setdefault(id(table), (table, list(table.values())))
     return list(tables.values())
 
@@ -1261,7 +1369,7 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: _Store 
 class _ObjectData:
     """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members."""
 
-    __slots__ = ("_store", "_schema", "_schema_name", "_serial", "_values", "_adjacent", "__weakref__")
+    __slots__ = ("_store", "_schema", "_schema_name", "_serial", "_own_values", "_adjacent", "__weakref__")
 
     def __init__(self, store: _Store, schema: ObjectSchema, schema_name: str):
         object.__setattr__(self, "_serial", next(_SERIALS))  # tells it apart in memory; never written
@@ -1269,7 +1377,12 @@ class _ObjectData:
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_schema_name", schema_name)
-        object.__setattr__(self, "_values", {})
+        object.__setattr__(self, "_own_values", {})
+
+    @property
+    def _values(self) -> dict[str, Any]:
+        """Its property values, as the transaction open sees them."""
+        return _values_of(self)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
@@ -1304,12 +1417,17 @@ class _RecordData:
     are members giving the visitor of their own schema's kind. It belongs to one owner and has no identity of its own;
     nothing links it, so it has no adjacencies."""
 
-    __slots__ = ("_schema", "_values", "_owner", "_source", "_copy_of")
+    __slots__ = ("_schema", "_own_values", "_owner", "_source", "_copy_of")
 
     def __init__(self, schema: Any, values: dict[str, Any], source: _RecordData | None = None, copy_of: Any = None):
-        for name, value in (("_schema", schema), ("_values", dict(values)), ("_owner", None), ("_source", source),
+        for name, value in (("_schema", schema), ("_own_values", dict(values)), ("_owner", None), ("_source", source),
                             ("_copy_of", copy_of)):
             object.__setattr__(self, name, value)
+
+    @property
+    def _values(self) -> dict[str, Any]:
+        """Its values, as the transaction open sees them."""
+        return _values_of(self)
 
     def __getattr__(self, name: str) -> Any:
         if name.startswith("_"):
@@ -1526,7 +1644,7 @@ def _a(noun: str) -> str:
 
 
 def _set(target: Any, name: str, value: Any) -> None:
-    object.__getattribute__(target, "_values")[name] = value
+    _writable_values(target)[name] = value
 
 
 def _prior(old: Any, key: Hashable, new: Any) -> Any:
@@ -1608,8 +1726,9 @@ def _finish(owner: Any, old: Any, new: Any, mapping: dict[int, Any]) -> Any:
 def _merge(old: _RecordData, new: _RecordData, mapping: dict[int, Any]) -> None:
     """Writes an edit of a placed value object into it, so that it is the one its owner holds."""
     values = {name: _finish(old, old._values.get(name), value, mapping) for name, value in new._values.items()}
-    object.__getattribute__(old, "_values").clear()
-    object.__getattribute__(old, "_values").update(values)
+    held = _writable_values(old)
+    held.clear()
+    held.update(values)
 
 
 def _first_copy(relation: RelationSchema, builder: _EntryBuilder, target: Any, mapping: dict[Any, Any]) -> bool:
@@ -2233,8 +2352,9 @@ class _ObjectBuilder(_Unassignable):
             for entry in entries:
                 entry._place(target, mapping)
         mapping.pop(id(self._source), None)  # its own entries keep their links (a self-loop links the source)
-        target._values.clear()
-        target._values.update(values)
+        held = _writable_values(target)
+        held.clear()
+        held.update(values)
         for name, entries in self._entries.items():
             relation = self._schema.adjacencies[name].relation
             for entry in entries:

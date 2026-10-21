@@ -267,6 +267,18 @@ so that main stays current and no branch waits on another.
      `symbols` and `variables`, since a schema member may not start with `as_` (the visitor protocol's); a spec is
      recorded per symbol as `as_property` and `as_adjacency` members, an adjacency's `insert` entries leaving out the
      object's own link, rather than through relation-level verbs.
+
+     The second, as built: the overlay (89, 96), opened by `store._transacting()`, which `store.transaction` will use.
+     - While it is open, a data object's property values and entry tables, a value object's values and a store's
+       framework entries are read from a copy, made when first written; the copies are written into the objects when it
+       commits, and dropped where it raises.
+     - A builder's update of a schema object the store held when the transaction began is checked for what it would link
+       (81), and applied when it commits, in the order first deferred. A later builder of that object begins from what
+       the one before it made. A schema object the transaction created changes at once.
+     - Where it raises, or an update at commit is refused, the store's registries (schemas, singletons, key numbers,
+       modules, placements, the objects it holds, named or not) are restored, and the updates applied at commit undone.
+     - It refuses a transaction within one (50). The decoders (`Plain.FromPlain`, a log's reader) each write in a
+       transaction of their own (90).
    - **4f, the wire** (45, 51, 55, 56): a store's snapshot is made of transactions; a journal holds transactions as
      submitted, replayed by executing them; a Reachable document is one transaction, its counted objects numbered within
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between

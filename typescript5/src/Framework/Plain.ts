@@ -1041,7 +1041,7 @@ function restore(store: Stores.Store, schema: Schemas.OfObject.Data, plain: unkn
 
   const created = new Map<string, unknown>();
   const owned: [string, unknown][] = []; // objects placed through an owner, given their ownership entries once all exist
-  (store as any)._writing(() => {
+  (store as any)._transacting(() => { // a transaction of its own, until 4f (docs/OBJECT_IDENTITY.md, Decided, 90)
     let pending = [...decoded.keys()];
     while (pending.length > 0) { // an owner before what it owns: its path is the owned's but the last step, so never a cycle
       const progress = pending.filter((symbol) => {
@@ -1562,7 +1562,7 @@ class LogReader {
 
   apply(log: unknown): unknown[] {
     if (!Array.isArray(log)) throw new DecodeError(`a log is a list, got ${typeName(log)}`, { path: "$" });
-    return this.store._writing(() => this.applyAll(log)); // an object's ownership is settled once the log is read
+    return this.store._transacting(() => this.applyAll(log)); // a transaction of its own, until 4f (Object identity, Decided, 90)
   }
 
   private applyAll(log: unknown[]): unknown[] {

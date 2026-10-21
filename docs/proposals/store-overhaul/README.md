@@ -410,7 +410,7 @@ so that main stays current and no branch waits on another.
 
      Built in stages: 4f-1, a counted object found only by what made it, and the spec's verbs as schemas; 4f-2, a
      transaction on the wire; 4f-3, Reachable documents; 4f-4, snapshots, the log's verbs removed and the corpora
-     regenerated.
+     regenerated; 4f-5, pattern specs on the wire.
      - **4f-1, as built**: an upsert finds a counted object only in what it made before, for the same frame, key and
        symbol (102), and otherwise creates one; TXN-06 shows a second note made beside one with its text. The spec's
        verbs are schemas beside the log's, which 4f-4 removes: `Mutations.OfObject` (`as_property`, and
@@ -491,6 +491,28 @@ so that main stays current and no branch waits on another.
        - What a snapshot read gives is its data, the singletons first: CONF-04 and the portability check validate the
          data but the corpus's root, which holds each case's objects through a relation no case's schema declares.
        - Still not written: a pattern's `spec`, which is not a property of `Schemas.OfPattern` (4f-1).
+   - **4f-5, pattern specs on the wire**: a pattern's `spec` is written and read wherever the pattern is, in a store's
+     snapshot, a document and a transaction's expression (by now only the last, as recorded), so that a snapshot
+     carries every pattern whole. It is not a property of `Schemas.OfPattern` (4f-1), which is to be settled when it
+     starts. Required by the user: "plan must include writing pattern specs". Built before 0.22.0, completing 4f.
+   - **Every deferral has a stage.** The user, on finding pattern specs noted but unscheduled: "It feels like we are
+     leaking details from the plan." Whatever a stage leaves undone is entered here, with the stage that does it,
+     never only in an as-built note. Proposed placements, for the user's review:
+     - pattern specs on the wire (4f-1, 4f-4): 4f-5;
+     - a symbol's schema given as `txn.Schemas.OfObject`, not the store's (78; 4e-1): 4i, whose `install(txn)` needs it;
+     - removing through a spec: an adjacency's `remove`, and clearing an entry's link or property, which the executor
+       refuses before it runs (4f-2); and deleting an object no entry owns (designed, not built; tutorial 9): 4j, after
+       4i;
+     - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
+       which rewrites how schemas are built;
+     - the dataclass adapter building through a store's builders, not `_register` (DC-03; 4f-3), which the plan
+       pointed to a `TODO.md` that does not exist: 4l, after 4k;
+     - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
+       the executor refuses (87): 4h, in mbse-expressions, as 87 says;
+     - a journal: as built, a list of transactions on the wire, replayed by executing each, with no call of its own;
+       to be decided whether that is the journal, or one is built;
+     - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): to be decided whether in
+       step 4 or after it.
    - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
      convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
      extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,
@@ -502,7 +524,7 @@ so that main stays current and no branch waits on another.
    - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
-   and 4g (released), 0.22.0 after 4e and 4f, each landing the branch on main. 4e builds only the in-memory, sequential executor
+   and 4g (released), 0.22.0 after 4e and 4f (4f-5 included), each landing the branch on main. 4e builds only the in-memory, sequential executor
    (question 11).
 
 ### Example: a transaction, as 4e would build it

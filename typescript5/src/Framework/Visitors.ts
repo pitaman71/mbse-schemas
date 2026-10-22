@@ -164,6 +164,8 @@ export interface OfAdjacency extends Iterable<OfEntry> {
   insert(spec: Callback<OfEntry>): this;
   /** Removes every entry that agrees with `spec`. */
   remove(spec: Callback<OfEntry>): this;
+  /** Removes every entry. */
+  clear(): this;
 }
 
 /** One entry of a relation: its links are members (`env.<linkName>`, a `Visitors.OfObject`), and so are its properties
@@ -200,7 +202,7 @@ export const PROTOCOL_METHODS = {
   OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "as_container", "clear"],
   OfProperty: ["as_schema", "as_value", "as_scalar", "as_object", "get"],
   OfObject: ["as_schema", "as_properties", "as_adjacencies"],
-  OfAdjacency: ["as_schema", "as_iterable", "insert", "remove"],
+  OfAdjacency: ["as_schema", "as_iterable", "insert", "remove", "clear"],
   OfEntry: ["as_schema"],
   OfUnion: ["as_schema"],
   OfIntersection: ["as_schema"],

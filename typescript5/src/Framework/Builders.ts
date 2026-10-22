@@ -605,6 +605,13 @@ class AdjacencyMember extends Shelled {
     return this._proxy;
   }
 
+  /** Removes every entry. */
+  clear(): any {
+    this._builder._check();
+    this._store([]);
+    return this._proxy;
+  }
+
   /** Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
    * replacing the entry held where the relation allows one only: an entry (the entry shorthand), or, where the
    * relation has two links (the peer shorthand), a `Specs.Callback[OfThem.Visitor]`: the object to link, or a function
@@ -783,7 +790,8 @@ class Entry extends Shelled {
   }
 
   _agrees(referent: any): boolean {
-    if (this._records() !== null) { // each field written, and the schema linked, agree
+    if (this._records() !== null) { // each field written, and the schema linked, agree; an entry held, itself
+      if (this._index !== null) return referent === this._referent;
       const link = this._adjacency._members.link;
       return [...this._fields].every((name) => name === link ? referent.schema === this._referent.schema
         : referent[name] === this._referent[name]);

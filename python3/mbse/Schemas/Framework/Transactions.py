@@ -14,14 +14,17 @@ order. A property written is `{"as_property": {"name": ..., "mutations": [{"set"
 {"entries": [...]}}]}}`, each entry `{"mutations": [...]}` of its links (`as_link`) and properties (`as_property`), as a
 snapshot writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
 {"symbol": "ada"}}`, to an object by its path, `{"ref": {"path": ...}}` (a schema object, a singleton or an owned
-object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`.
+object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`. An adjacency's
+entries are removed as a builder's adjacency removes them, `knows(lambda a: a.remove(lambda e: e.known(_.bob)))`,
+recorded `{"remove": {"entries": [...]}}`, and all of them by `clear()`, recorded `{"clear": {}}`.
 
 `store.transaction(spec)` executes a transaction, sequentially: its stream starts as one frame, empty, and each term
 makes the frames it passes on through `then`. A map binds each symbol its frame lacks to every object of its schema,
 reachable from the store's singletons, whose spec holds; an upsert binds what it finds the same way and creates what it
 does not, writing its spec where it does not hold; an update writes its spec; a reduce drops symbols; a partition runs
 its branches and joins what they end with. It gives the frames its chain ends with, each the objects its symbols bind,
-by symbol.
+by symbol. A spec holds where the entries it inserts are held and those it removes are absent: an entry is removed
+where every link and property the removal gives agrees with it, so that run again, a spec that removes writes nothing.
 
 A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
 schemas, each found by its name, so that a transaction defines and extends schemas (Decided, 86).
@@ -93,7 +96,7 @@ class _State:
         self.store, self.schema, self.symbol = store, schema, symbol
         self.loose = False  # defined by `_definition`, and not linked yet
         self.values: dict[str, Any] = {}
-        self.written: list[tuple[str, Any]] = []  # ("property", name) or ("adjacency", (name, entries)), in order
+        self.written: list[tuple[str, Any]] = []  # ("property", name) or ("adjacency", (name, entries, verb)), in order
 
     def plain(self) -> list[Any]:
         names, members = Plain._Values(self.store), []
@@ -106,9 +109,9 @@ class _State:
                 verb = {"set": {"value": plain}} if present else {"clear": {}}
                 members.append({"as_property": {"name": what, "mutations": [verb]}})
             elif kind == "adjacency":
-                name, entries = what
-                members.append({"as_adjacency": {"name": name, "mutations": [
-                    {"insert": {"entries": [entry.plain() for entry in entries]}}]}})
+                name, entries, verb = what
+                given = {"clear": {}} if verb == "clear" else {verb: {"entries": [entry.plain() for entry in entries]}}
+                members.append({"as_adjacency": {"name": name, "mutations": [given]}})
             else:  # a pattern's own spec, as recorded (`_RecordedSpec`)
                 members.append({"spec": {"items": what}})
         return members
@@ -195,10 +198,10 @@ def _declared(state: _State) -> dict[str, Any]:
     since a spec is recorded before its transaction runs."""
     symbols: dict[str, Any] = {}
     for kind, what in state.written:
-        if kind == "adjacency" and what[0] == "symbols":
+        if kind == "adjacency" and what[0] == "symbols" and what[2] == "insert":
             for entry in what[1]:
                 held = entry._links["symbol"]
-                typed = [w for k, w in held.written if k == "adjacency" and w[0] == "schema"]
+                typed = [w for k, w in held.written if k == "adjacency" and w[0] == "schema" and w[2] == "insert"]
                 ref = typed[0][1][0]._links["schema"] if typed else {}
                 if not isinstance(ref, dict) or "path" not in ref:
                     raise ValueError(f"symbol {entry._values['name']!r} of a pattern whose spec a spec records names no "
@@ -218,7 +221,8 @@ def _shorthand(state: _State, name: str) -> Any:
 
 
 class _RecordedAdjacency(Proxies._Unassignable):
-    """An adjacency of a recorded object: its entries inserted, recorded. Called with a callback, it visits through it;
+    """An adjacency of a recorded object: its entries inserted, removed or cleared, recorded, as a builder's adjacency
+    takes them (`insert(cb)`, `remove(cb)`, `clear()`). Called with a callback, it visits through it;
     with an iterable, the peer shorthand, each item an entry's callback or the object to link; with a mapping, where
     its relation has two links and one property, each item an entry keyed by that property (FRAMEWORK.md, Resolved,
     Mappings for keyed adjacencies)."""
@@ -239,13 +243,26 @@ class _RecordedAdjacency(Proxies._Unassignable):
                             "more than two links; give each entry's links")
         return others[0]
 
-    def _record(self, entries: list[_Entry]) -> None:
-        self._recorder._state.written.append(("adjacency", (self._name, entries)))
+    def _record(self, entries: list[_Entry], verb: str = "insert") -> None:
+        self._recorder._state.written.append(("adjacency", (self._name, entries, verb)))
 
     def insert(self, spec: Any) -> _RecordedAdjacency:
         entry = _Entry(self._recorder._state.store, self._schema.relation, self._schema.me)
         Proxies._visit(spec, entry)
         self._record([entry])
+        return self
+
+    def remove(self, spec: Any) -> _RecordedAdjacency:
+        """Removes every entry that agrees with the one `spec` gives: each link and property it gives equal to the
+        entry's; a keyed adjacency's entry by its name."""
+        entry = _Entry(self._recorder._state.store, self._schema.relation, self._schema.me)
+        Proxies._visit(spec, entry)
+        self._record([entry], "remove")
+        return self
+
+    def clear(self) -> _RecordedAdjacency:
+        """Removes every entry the adjacency holds."""
+        self._record([], "clear")
         return self
 
     def __call__(self, spec: Any) -> _Recorder:
@@ -489,27 +506,32 @@ def _a(kind: str) -> str:
     return f"an {kind}" if kind[0] in "aeiou" else f"a {kind}"
 
 
-def _inserts(spec: Any) -> None:
-    """Refuses a spec whose adjacency removes entries (`Mutations.OfAdjacency.Remove`), or whose entry clears a link or a
-    property, which a spec read from the wire may give: a spec says what holds of a frame, and the executor inserts the
-    entries it gives."""
+def _verbs(body: Any) -> list[tuple[str, list[Any]]]:
+    """An adjacency's verbs in a spec, in order, each with the entries it gives: `insert` and `remove` theirs, `clear`
+    none (`Mutations.OfAdjacency`)."""
+    return [(kind, [] if kind == "clear" else given["entries"])
+            for verb in body["mutations"] for kind, given in verb.items()]
+
+
+def _links_set(spec: Any) -> None:
+    """Refuses a spec whose entry, inserted or removed, clears a link, which a spec read from the wire may give: every
+    link of an entry but its object's own is set. An entry's property cleared is left out of the entry inserted."""
     for item in spec:
         for members in item.values():
             for member in members:
                 (kind, body), = member.items()
                 if kind != "as_adjacency":
                     continue
-                for verb in body["mutations"]:
-                    if "insert" not in verb:
-                        raise ValueError("a spec's adjacency inserts entries; removing them is not supported")
-                    for entry in verb["insert"]["entries"]:
-                        for member in entry["mutations"]:
-                            given = next(iter(member.values()))["mutations"][0]
-                            if "set" not in given:
-                                raise ValueError("a spec's entry sets its links and properties; clearing them is not "
-                                                 "supported")
-                            if "def" in given["set"]:
-                                _inserts([{"": given["set"]["def"]["mutations"]}])
+                for _, entries in _verbs(body):
+                    for entry in entries:
+                        for part in entry["mutations"]:
+                            (part_kind, part_body), = part.items()
+                            given = part_body["mutations"][0]
+                            if part_kind == "as_link" and "set" not in given:
+                                raise ValueError("a spec's entry clears a link: every link of an entry but its object's "
+                                                 "own is set")
+                            if part_kind == "as_link" and "def" in given["set"]:
+                                _links_set([{"": given["set"]["def"]["mutations"]}])
 
 
 def _check(store: Any, term: Any, bound: set[str]) -> set[str]:
@@ -526,16 +548,16 @@ def _check(store: Any, term: Any, bound: set[str]) -> set[str]:
     if kind == "map":
         pattern = _pattern(term, "symbols", kind)
         _symbols(store, pattern)
-        _inserts(pattern.spec)
+        _links_set(pattern.spec)
         bound = bound | set(pattern.symbols)
     elif kind == "upsert":
         pattern = _pattern(term, "exists", kind)
         _symbols(store, pattern)
-        _inserts(pattern.spec)
+        _links_set(pattern.spec)
         bound = bound | set(pattern.symbols)
     elif kind == "update":
         pattern = _pattern(term, "apply", kind)
-        _inserts(pattern.spec)
+        _links_set(pattern.spec)
         _unbound(pattern.symbols, bound, kind)
     elif kind == "reduce":
         entries = list(term.symbols)
@@ -733,7 +755,7 @@ def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str,
             if kind != "as_adjacency":
                 continue
             relation = pattern.symbols[other].schema.adjacencies[body["name"]].relation
-            for entry in body["mutations"][0]["insert"]["entries"]:
+            for entry in (entry for verb, entries in _verbs(body) if verb == "insert" for entry in entries):
                 link = next((part["as_link"]["name"] for part in entry["mutations"] if "as_link" in part
                              and part["as_link"]["mutations"][0]["set"].get("ref", {}).get("symbol") == name), None)
                 if link is None or not any(a.relation is relation and a.me == link for a in owning):
@@ -753,7 +775,8 @@ def _identifies(store: Any, schema: Any, member: Any) -> bool:
     (kind, body), = member.items()
     if kind == "as_property":
         return body["name"] == "name" and _meta(store, schema)
-    return kind == "as_adjacency" and schema.adjacencies[body["name"]].owner
+    return kind == "as_adjacency" and schema.adjacencies[body["name"]].owner and \
+        any(verb == "insert" for verb, _ in _verbs(body))
 
 
 def _members(pattern: Any) -> dict[str, list[Any]]:
@@ -766,9 +789,9 @@ def _members(pattern: Any) -> dict[str, list[Any]]:
 
 
 def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: Frame, partial: Frame | None) -> bool:
-    """Whether what a spec gives of an object holds of `target`: its properties' values, and its adjacencies' entries.
-    Finding the object of a symbol (`partial`, the frame as bound so far), an entry linking a symbol not yet bound is
-    left out."""
+    """Whether what a spec gives of an object holds of `target`: its properties' values, the entries it inserts held,
+    and those it removes absent, none where it clears the adjacency. Finding the object of a symbol (`partial`, the frame
+    as bound so far), an entry linking a symbol not yet bound is left out."""
     visitor = _reader(store, target)
     for member in members:
         (kind, body), = member.items()
@@ -783,12 +806,18 @@ def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
             continue
         relation = schema.adjacencies[name].relation
         held = list(getattr(visitor, name))
-        for entry in body["mutations"][0]["insert"]["entries"]:
-            if partial is not None and any(target_ref.get("symbol") not in partial
-                                           for target_ref in _symbol_refs(entry)):
-                continue
-            if _match(store, relation, held, entry, frame) is None:
+        unmatched = list(held)
+        for verb, entries in _verbs(body):
+            if verb == "clear" and held:
                 return False
+            for entry in entries:
+                if partial is not None and any(target_ref.get("symbol") not in partial
+                                               for target_ref in _symbol_refs(entry)):
+                    continue
+                if verb == "insert" and _match(store, relation, unmatched, entry, frame) is None:
+                    return False
+                if verb == "remove" and _removed(store, relation, held, [entry], frame):
+                    return False
     return True
 
 
@@ -805,8 +834,9 @@ def _symbol_refs(entry: Any) -> list[dict[str, Any]]:
                 for member in held["def"]["mutations"]:
                     (member_kind, member_body), = member.items()
                     if member_kind == "as_adjacency":
-                        for nested in member_body["mutations"][0]["insert"]["entries"]:
-                            found += _symbol_refs(nested)
+                        for _, nested in _verbs(member_body):
+                            for given in nested:
+                                found += _symbol_refs(given)
     return found
 
 
@@ -880,10 +910,37 @@ def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
             builder.update()
             continue
         adjacency = schema.adjacencies[name]
-        held = list(getattr(_reader(store, target), name))
-        for entry in body["mutations"][0]["insert"]["entries"]:
-            if _match(store, adjacency.relation, held, entry, frame) is None:
-                _insert(store, target, schema, name, adjacency, entry, frame)
+        for verb, entries in _verbs(body):
+            held = list(getattr(_reader(store, target), name))
+            if verb != "insert":
+                _remove(store, target, schema, name, None if verb == "clear" else entries, held, frame)
+                continue
+            for entry in entries:
+                if _match(store, adjacency.relation, held, entry, frame) is None:
+                    _insert(store, target, schema, name, adjacency, entry, frame)
+
+
+def _removed(store: Any, relation: Any, held: list[Any], entries: list[Any], frame: Frame) -> list[int]:
+    """The positions of the entries `held` that agree with one of the entries a spec removes."""
+    return [index for index, candidate in enumerate(held)
+            if any(_matches(store, relation, candidate, entry, frame) for entry in entries)]
+
+
+def _remove(store: Any, target: Any, schema: Any, name: str, entries: list[Any] | None, held: list[Any],
+            frame: Frame) -> None:
+    """Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's
+    removal, or every entry where it gives None (`clear`); through the object's builder, which removes the entries it
+    holds at those positions, so that removing an owning entry deletes what it owned (Decided, 48)."""
+    relation = schema.adjacencies[name].relation
+    removed = range(len(held)) if entries is None else _removed(store, relation, held, entries, frame)
+    if not removed:
+        return
+    builder = _writer(store, schema, target)
+    member = getattr(builder, name)
+    written = list(member)
+    for index in removed:
+        member.remove(written[index])
+    builder.update()
 
 
 def _match(store: Any, relation: Any, held: list[Any], entry: Any, frame: Frame) -> Any:
@@ -916,8 +973,10 @@ def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, ent
     for item in entry["mutations"]:
         (kind, body), = item.items()
         if kind == "as_property":
-            prop = adjacency.relation.entry.properties[body["name"]]
-            values[body["name"]] = Plain._decode(prop.schema, body["mutations"][0]["set"]["value"], (), store)
+            verb = body["mutations"][0]
+            if "set" in verb:  # a property cleared: the entry is inserted without it
+                prop = adjacency.relation.entry.properties[body["name"]]
+                values[body["name"]] = Plain._decode(prop.schema, verb["set"]["value"], (), store)
             continue
         given = body["mutations"][0]["set"]
         if "def" in given:

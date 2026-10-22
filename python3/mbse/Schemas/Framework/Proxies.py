@@ -1558,6 +1558,9 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
 
     remove = insert
 
+    def clear(self) -> _Adjacency:
+        return self.insert(None)
+
     def __call__(self, spec: Any) -> Any:
         """Called with a mapping of keys, a lookup: the object the entry with those keys links through the relation's
         other link (docs/OBJECT_IDENTITY.md, Decided, 26 to 28); `LookupError` where no entry has them. Called with a
@@ -2002,6 +2005,11 @@ class _AdjacencyBuilder(_Unassignable):
     def remove(self, spec: Any) -> _AdjacencyBuilder:
         kept = [e for e in self._entries() if not _agrees(e, spec, self._schema, self._builder._store)]
         self._builder._entries[self._name] = kept
+        return self
+
+    def clear(self) -> _AdjacencyBuilder:
+        """Removes every entry."""
+        self._builder._entries[self._name] = []
         return self
 
     def __call__(self, spec: Any) -> Any:

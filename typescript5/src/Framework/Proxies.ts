@@ -2025,6 +2025,10 @@ class _Adjacency extends Array<any> implements Shellable {
     return this.insert(spec);
   }
 
+  clear(): never {
+    return this.insert(null);
+  }
+
   /** Called with keys (an object), a lookup: the object the entry with those keys links through the
    * relation's other link (docs/OBJECT_IDENTITY.md, Decided, 26 to 28); `LookupError` where no entry has them. Called
    * with a callback, it visits through it. */
@@ -2539,6 +2543,12 @@ class _AdjacencyBuilder extends Shelled {
     const builder = innerOf(this._builder);
     const kept = this._entries().filter((entry) => !agrees(entry, spec, this._schema, builder._store));
     builder._entries.set(this._name, kept);
+    return this._proxy;
+  }
+
+  /** Removes every entry. */
+  clear(): any {
+    innerOf(this._builder)._entries.set(this._name, []);
     return this._proxy;
   }
 

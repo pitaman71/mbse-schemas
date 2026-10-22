@@ -31,8 +31,9 @@ Mutations.OfAdjacency.{Insert, Remove, Clear}
 pattern holds, in place of any it held before; its shape is checked when it is read, and what it says when the pattern
 is executed.
 
-`Mutations.OfAdjacency.Clear` removes every entry an adjacency holds. The executor inserts entries only, and refuses a
-spec that removes or clears them (Store overhaul, 4j). `Mutations.OfAdjacency.{Insert, Remove}` carry a list of
+`Mutations.OfAdjacency.Remove` removes each entry that agrees with an entry it gives, every link and property given
+equal to the entry's, and `Mutations.OfAdjacency.Clear` every entry an adjacency holds; a spec holds where what it
+removes is absent (Store overhaul, 4j, as built). `Mutations.OfAdjacency.{Insert, Remove}` carry a list of
 `Mutations.OfEntry`, each leaving out the link the object
 fills, which carries `Mutations.OfProperty.*` and `Mutations.OfLink.*`, through `Mutations.OfEntry.{AsProperty, AsLink}`:
 

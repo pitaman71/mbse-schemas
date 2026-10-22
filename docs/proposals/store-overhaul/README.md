@@ -553,15 +553,56 @@ so that main stays current and no branch waits on another.
      them, an empty module and a module's description included. 4f-4 wrote schemas only, and lost an empty module and
      every module's own properties: a regression from the log, which wrote modules first, that no test caught.
      `Mutations.OfAdjacency.Clear` is the third adjacency verb (62 mutation schemas); it is read as any spec's verb and,
-     as `remove`, refused when it runs (4j). SNP-01, SNP-03, SNP-04, MUT-01, MUT-04 and TXN-13 cover them; the corpora
+     as `remove`, refused when it runs (until 4j, which runs both). SNP-01, SNP-03, SNP-04, MUT-01, MUT-04 and TXN-13 cover them; the corpora
      are regenerated, byte-identical. With 4f-6, 4f is done.
+   - **4j, removing entries through a spec, as built** (the user, 2026-10-22: "4j : implement removing entries, but
+     defer deleting objects to a later phase"; Decided, 27): an adjacency's `remove` and `clear` in a spec run, and an
+     entry's property cleared, where the executor refused them (4f-2). A spec writes them in the calls a builder's
+     adjacency takes, `_.ada.knows(lambda a: a.remove(lambda e: e.known(_.bob)))` and `a.clear()`, recorded as
+     `Mutations.OfAdjacency.Remove` and `Clear`; a builder's adjacency, data's and a schema object's, gains `clear()`
+     (`Visitors.OfAdjacency`, VISITOR_PATTERN.md), so that both take the same calls. An install removes a member of
+     the store's own schemas, `_.Contact.name("crm.Contact").properties(lambda a: a.remove(lambda e:
+     e.name("nickname")))`, as tutorial 9 and the skill show.
+
+     The semantics, fixed by the agent, for the user's review:
+     - `remove` removes from the adjacency each entry that agrees with an entry given: every link and property the
+       removal gives equals the entry's. In a keyed adjacency (entries keyed by `name`), an entry given by its name
+       removes that entry. An entry given that matches none removes nothing, and is no error.
+     - `clear` removes every entry the adjacency holds.
+     - A spec holds of a frame (what an upsert's match, a map's binding and a re-run see) where what it removes is
+       absent, as well as what it inserts held: so an install or transaction that removes, run again, writes nothing,
+       and a map whose spec removes binds the objects that lack the entry.
+     - Clearing an entry's property, in an entry inserted, is allowed: the entry is inserted without it.
+     - Clearing an entry's link, in an entry inserted or removed, is still refused before the transaction runs, since
+       every link other than the object's own is set: "a spec's entry clears a link: every link of an entry but its
+       object's own is set".
+     - The extension check ("Framework schemas, always") still refuses removing a member of a schema the store was made
+       holding ("an extension only adds members to 'Schemas.OfObject': it removes or replaces what 'properties'
+       holds"): removal applies to the store's own schemas and to data. Where the member is absent, the spec holds and
+       nothing is written, so nothing is refused.
+     - Removing an owning entry deletes what it owned, cascading, as a builder's removal does (Object identity,
+       Decided, 48). Deleting an object no entry owns stays deferred (Decided, 27).
+
+     Found while building it, for the user's review:
+     - A spec's verbs apply in the order it gives them, each where it does not hold. A spec that clears an adjacency and
+       then inserts into it (`a.clear().insert(...)`) does not hold where the adjacency holds just what it inserts, so
+       run again it removes the entry and inserts it again: the store ends as it was, but it writes. Open: whether a
+       spec's `clear` should hold where the adjacency holds only what the same spec inserts after it.
+     - A schema builder's `remove(entry)`, given an entry it holds of a union's branches or an intersection's parts (a
+       record), removed every record, since an entry whose fields were not written agreed with any; an entry held now
+       agrees only with itself (BLD-09). The executor removes through the object's builder, entry by entry.
+     - An owning entry that a spec removes does not identify the object it would own, as an inserted one does (60).
+     - A spec read from the wire whose adjacency verb is none of `insert`, `remove` and `clear` is refused when read.
+
+     TXN-04, TXN-13, TXN-14 (new), INS-05 (new), PRX-11, BLD-09, VIS-01 and VIS-03 cover it, in both languages; the
+     corpora are unchanged.
    - **Every deferral has a stage.** The user, on finding pattern specs noted but unscheduled: "It feels like we are
      leaking details from the plan." Whatever a stage leaves undone is entered here, with the stage that does it,
      never only in an as-built note. Proposed placements, for the user's review:
      - pattern specs on the wire (4f-1, 4f-4): 4f-5, built;
      - a symbol's schema given as `txn.Schemas.OfObject`, not the store's (78; 4e-1): 4i, whose `install(txn)` needs it;
      - removing entries through a spec: an adjacency's `remove` and `clear`, and clearing an entry's link or property,
-       which the executor refuses before it runs (4f-2): 4j, after 4i. Deleting an object no entry owns (designed, not
+       which the executor refuses before it runs (4f-2): 4j, after 4i, built (4j, as built, above). Deleting an object no entry owns (designed, not
        built; tutorial 9) is deferred past step 4, as the user decided (2026-10-22): "4j : implement removing entries,
        but defer deleting objects to a later phase";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,

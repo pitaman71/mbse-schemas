@@ -483,6 +483,12 @@ class _AdjacencyMember(_Unassignable):
         self._store([referent for referent in self._held() if not template._agrees(referent)])
         return self
 
+    def clear(self) -> _AdjacencyMember:
+        """Removes every entry."""
+        self._builder._check()
+        self._store([])
+        return self
+
     def __call__(self, spec: Any) -> Any:
         """Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
         replacing the entry held where the relation allows one only: an entry (the entry shorthand), or, where the
@@ -642,7 +648,9 @@ class _Entry(_Unassignable):
             self._adjacency._replace(self._index, referent)
 
     def _agrees(self, referent: Any) -> bool:
-        if self._records() is not None:  # each field written, and the schema linked, agree
+        if self._records() is not None:  # each field written, and the schema linked, agree; an entry held, itself
+            if self._index is not None:
+                return referent is self._referent
             link = self._adjacency._members.link
             return all((referent.schema is self._referent.schema) if name == link else
                        getattr(referent, name) == getattr(self._referent, name) for name in self._fields)

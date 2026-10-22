@@ -47,7 +47,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    objects in their store, through a builder whose members take a value or a callable given the visitor:
    `store.crm.Contact(obj, lambda c: c.name("Ada"))` updates `obj`, `store.crm.Contact(lambda c: ...)` creates and
    `store.crm.Contact(obj)` clones. Entries are inserted and removed through an adjacency's visitor
-   (`.phones(lambda a: a.insert(...))`).
+   (`.phones(lambda a: a.insert(...))`, `a.remove(...)`, `a.clear()`), in a builder and in a transaction's spec alike.
 8. **Everything is built in a store, and a module installs its schemas.** `store = Builders.Store()` holds schemas and
    data. A module defines its schemas in a module-scope `install(txn)`, which `store.transaction(install)` runs: one
    upsert whose symbols are its schemas, each of its kind (`txn.Schemas.OfObject`), and whose spec writes each one with

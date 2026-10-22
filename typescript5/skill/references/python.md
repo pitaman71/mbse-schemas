@@ -81,6 +81,8 @@ store.transaction(install)                                  # a module's schemas
 with store.transaction(): ...                              # every write within one, all or nothing; outside one, refused
 store.transaction(lambda t: t.mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p.symbols({"P": Person})
     .spec([lambda _: _.P.name("Ada")])]))]))                # a transaction's expression: find by spec, else create
+    # a spec removes as a builder does: _.P.knows(lambda a: a.remove(lambda e: e.b(_.Q))), or every entry, a.clear();
+    # it holds where what it removes is absent, so run again it writes nothing
 store.Schemas.OfInt                                         # its basic scalars, by path: OfBool, OfInt, OfFloat, OfStr, OfBytes
 store.Schemas.OfInt.as_schema()                             # the schema a path names, where an object is wanted
 # The five are the only scalar schemas: a store builds no other. A finer scalar (a date, an int32) is a domain,
@@ -146,6 +148,7 @@ obj.value_prop.as_object(lambda r: ...)                     # a value object's v
 [(e.target, str(e.label)) for e in irq.fanout]              # an adjacency iterates its entries; a link is the object itself
 irq.fanout.project("target"); contact.phones.at("home")     # each entry's link or property; the entry by its key
 store.crm.Contact(obj, lambda c: c.knows(lambda a: a.remove(lambda e: e.b(bob))))   # remove every entry agreeing
+store.crm.Contact(obj, lambda c: c.knows(lambda a: a.clear()))   # remove every entry
 obj.likes.as_iterable(lambda entries: ...)                  # an iterator over an adjacency's entries, in order
 store.crm.Card(lambda c: c.reach(lambda p: p.phone(spec)))  # a branch: a property of one kind has its members
 obj.reach.phone.number.get()                                # read through them, as through as_value and as_union

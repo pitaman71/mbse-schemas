@@ -523,9 +523,10 @@ so that main stays current and no branch waits on another.
      never only in an as-built note. Proposed placements, for the user's review:
      - pattern specs on the wire (4f-1, 4f-4): 4f-5, built;
      - a symbol's schema given as `txn.Schemas.OfObject`, not the store's (78; 4e-1): 4i, whose `install(txn)` needs it;
-     - removing through a spec: an adjacency's `remove` and `clear`, and clearing an entry's link or property, which the executor
-       refuses before it runs (4f-2); and deleting an object no entry owns (designed, not built; tutorial 9): 4j, after
-       4i;
+     - removing entries through a spec: an adjacency's `remove` and `clear`, and clearing an entry's link or property,
+       which the executor refuses before it runs (4f-2): 4j, after 4i. Deleting an object no entry owns (designed, not
+       built; tutorial 9) is deferred past step 4, as the user decided (2026-10-22): "4j : implement removing entries,
+       but defer deleting objects to a later phase";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
      - the dataclass adapter building through a store's builders, not `_register` (DC-03; 4f-3), which the plan
@@ -539,7 +540,9 @@ so that main stays current and no branch waits on another.
      - a journal, settled: a list of transactions on the wire, replayed by executing each, with no call of its own, is
        the journal, built as designed (the user: "journal as a transaction list: yes that is built as designed");
      - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): after step 4, as the user
-       decided ("after 4").
+       decided ("after 4");
+     - deleting an object no entry owns: after step 4, as the user decided ("defer deleting objects to a later
+       phase"), beside subsequent snapshots.
    - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
      convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
      extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,

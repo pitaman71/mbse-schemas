@@ -564,7 +564,8 @@ so that main stays current and no branch waits on another.
      the store's own schemas, `_.Contact.name("crm.Contact").properties(lambda a: a.remove(lambda e:
      e.name("nickname")))`, as tutorial 9 and the skill show.
 
-     The semantics, fixed by the agent, for the user's review:
+     The semantics, fixed by the agent and approved by the user (2026-10-22: "approved"), the builders' new `clear()`
+     included; a spec that clears then inserts is tech debt ("note as tech debt"; TODO.md):
      - `remove` removes from the adjacency each entry that agrees with an entry given: every link and property the
        removal gives equals the entry's. In a keyed adjacency (entries keyed by `name`), an entry given by its name
        removes that entry. An entry given that matches none removes nothing, and is no error.

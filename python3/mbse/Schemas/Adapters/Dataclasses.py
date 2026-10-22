@@ -337,19 +337,19 @@ class _FromDataclass:
         name or made; each class, a `Schemas.OfObject` named `<module>.<class>`, defined in the module under its class
         name; and each relation a container field becomes, a `Schemas.OfRelation` named `<module>.<Class><Field>`.
         Run again, it writes nothing."""
-        store = getattr(txn, "_store", None)
-        if store is None or not callable(getattr(txn, "mutations", None)):
+        from mbse.Schemas.Framework import Builders
+
+        if not isinstance(txn, Builders._Transaction):
             raise TypeError(f"FromDataclass.install takes the transaction an install is given, got {type(txn).__name__}")
         path = self._module(module)
         reader = self._read(sources)
-        S = store.Schemas
+        S = txn.Schemas
         named = {name: f"{path}.{name}" for name in (*reader.objects, *reader.relations)}  # each symbol, by its name
 
         def of_module(_: Any) -> Any:
             m = getattr(_, path)
             module(m)
-            return m.schemas([lambda t, name=name: t.name(name).schema([getattr(_, named[name])])
-                              for name in reader.objects])
+            return m.schemas({name: getattr(_, named[name]) for name in reader.objects})
 
         def of_class(name: str, schema: _Object) -> Any:
             def spec(_: Any) -> Any:

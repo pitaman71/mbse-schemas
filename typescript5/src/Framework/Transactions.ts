@@ -430,11 +430,16 @@ class RecordedEntry extends Shelled {
       if (!this._links.has(link)) this._defined(link); // given no link, it defines the object it links, as a builder's
       return;
     }
-    const schema = this._store.registered(this._store._filled(this._relation, link));
+    let schema: any = null;
     const takers: [string, string][] = Proxies._links(this._store, this._relation, link, value) ? [["link", link]] : [];
-    for (const [name, prop] of schema.properties) if (Proxies._holds((prop as any).schema, value)) takers.push(["property", name]);
-    for (const [name, adjacency] of schema.adjacencies) {
-      if (Proxies._linksThrough(this._store, adjacency, value)) takers.push(["adjacency", name]);
+    const declared = this._relation.entry.links.get(link)?.schema;
+    const known = declared instanceof S.OfObject.Data && declared.ref || this._store._filling(this._relation, link).length === 1;
+    if (known || takers.length === 0) { // where no one schema fills the link, the object it links has no members known
+      schema = this._store.registered(this._store._filled(this._relation, link));
+      for (const [name, prop] of schema.properties) if (Proxies._holds((prop as any).schema, value)) takers.push(["property", name]);
+      for (const [name, adjacency] of schema.adjacencies) {
+        if (Proxies._linksThrough(this._store, adjacency, value)) takers.push(["adjacency", name]);
+      }
     }
     if (takers.length !== 1) {
       throw new TypeError(`${takers.length === 0 ? "no member" : "more than one member"} of the entry takes ${repr(value)}: `

@@ -2373,13 +2373,26 @@ function makePath(store: Store, name: string): any {
 /** What a callback building a transaction is given (`store.transaction(install)`): the transaction's builder, whose
  * members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (docs/OBJECT_IDENTITY.md, Decided, 78). */
 function makeTransaction(store: Store, builder: any): any {
-  return new Proxy({}, {
+  const txn: any = new Proxy({}, {
     get: (_target, part) => {
       if (part === REPR) return () => "<transaction>";
       if (typeof part === "symbol" || Proxies._probes.has(part)) return undefined;
       if (part.startsWith("_")) throw new AttributeError(part);
       const schema = builder.as_schema();
-      return schema.properties.has(part) || schema.adjacencies.has(part) ? builder[part] : makePath(store, part);
+      return schema.properties.has(part) || schema.adjacencies.has(part) ? transactionMember(txn, builder[part])
+        : makePath(store, part);
+    },
+  });
+  return txn;
+}
+
+/** A member of a transaction's builder, as `txn.uid` gives it: called, it gives back the transaction, not the builder,
+ * so that what follows still names the store's schemas (`txn.uid(...).Schemas`); read, the member's own. */
+function transactionMember(txn: any, member: any): any {
+  return new Proxy(member, {
+    apply: (target, self, args) => {
+      Reflect.apply(target, self, args);
+      return txn;
     },
   });
 }

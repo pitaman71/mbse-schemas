@@ -382,11 +382,14 @@ class _Entry(Proxies._Unassignable):
             if link not in self._links:  # given no link, it defines the object it links, as a builder's
                 self._defined(link)
             return
-        schema = self._store.registered(self._store._filled(self._relation, link))
-        takers = [("link", link)] if Proxies._links(self._store, self._relation, link, value) else []
-        takers += [("property", name) for name, prop in schema.properties.items() if Proxies._holds(prop.schema, value)]
-        takers += [("adjacency", name) for name, adjacency in schema.adjacencies.items()
-                   if Proxies._links_through(self._store, adjacency, value)]
+        schema, takers = None, [("link", link)] if Proxies._links(self._store, self._relation, link, value) else []
+        declared = self._relation.entry.links[link].schema
+        known = isinstance(declared, S.OfObject.Data) and declared.ref or len(self._store._filling(self._relation, link)) == 1
+        if known or not takers:  # where no one schema fills the link, the object it links has no members known
+            schema = self._store.registered(self._store._filled(self._relation, link))
+            takers += [("property", name) for name, prop in schema.properties.items() if Proxies._holds(prop.schema, value)]
+            takers += [("adjacency", name) for name, adjacency in schema.adjacencies.items()
+                       if Proxies._links_through(self._store, adjacency, value)]
         if len(takers) != 1:
             raise TypeError(f"{'no member' if not takers else 'more than one member'} of the entry takes {value!r}: "
                             "give a callback")

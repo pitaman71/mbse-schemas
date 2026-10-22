@@ -2015,11 +2015,26 @@ class _Transaction(_Unassignable):
             raise AttributeError(name)
         schema = self._builder.as_schema()
         if name in schema.properties or name in schema.adjacencies:
-            return getattr(self._builder, name)
+            return _TransactionMember(self, getattr(self._builder, name))
         return _Path(self._store, name)
 
     def __repr__(self) -> str:
         return "<transaction>"
+
+
+class _TransactionMember(_Unassignable):
+    """A member of a transaction's builder, as `txn.uid` gives it: called, it gives back the transaction, not the builder,
+    so that what follows still names the store's schemas (`txn.uid(...).Schemas`); read, the member's own."""
+
+    def __init__(self, txn: _Transaction, member: Any):
+        self._txn, self._member = txn, member
+
+    def __call__(self, *args: Any) -> Any:
+        self._member(*args)
+        return self._txn
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._member, name)
 
 
 # --- The namespaces, as `Schemas` gives them ---

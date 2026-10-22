@@ -620,10 +620,12 @@ so that main stays current and no branch waits on another.
        any store, the same gap; `FromDataclass.ast` and the reverse direction, `ToDataclass`, stay as they were. Settled
        while building it, for the user's review: the schemas' names need the module's path when the spec is recorded, so
        the adapter reads it by calling `module` on a module's builder outside any store, which it never creates, and
-       refuses a module given no name, or one that is not a path; and since `txn.uid(...)` gives the transaction's
-       builder, not the `txn` an install is given, the adapter reaches the store's schemas through the builder's store.
-       A module's `schemas` given a mapping of names to symbols (`m.schemas({"Order": _.Order})`) is refused by the
-       recorder ("expected exactly one object schema filling link 'schema'"), so the adapter gives the entries as a list.
+       refuses a module given no name, or one that is not a path. Two gaps it found, closed in both languages on
+       merging (INS-03): a member of the transaction's builder, called (`txn.uid(...)`), gave the builder, which names no
+       schemas, and now gives the transaction back, so that `txn.uid(...).Schemas` names the store's; and an entry
+       given a value for a link that no one schema fills (a module's `schemas`, whose `schema` link any kind fills:
+       `m.schemas({"Order": _.Order})`) was refused, looking for the linked object's members, and is now taken by the
+       link. The adapter names the store's schemas from `txn` and gives the module's entries as a mapping.
        DC is rewritten to the API (DC-03's gap closed), with DC-08 for the install.
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
        the executor refuses (87): step 5, in mbse-expressions, as 87 says;

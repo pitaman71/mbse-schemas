@@ -1,9 +1,21 @@
 """Dataclasses: translation between Python dataclasses and object schemas, through Python's syntax trees.
 
-`FromDataclass(cls)` returns the `Schemas.OfObject.Data` that a dataclass describes, named after the class, and
-`ToDataclass(schema)` returns a new dataclass describing an object schema, named after the last part of the schema's
-name (or `ToDataclass(schema, name)`). `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate
-several at once, by name. Both directions go through `ast` trees and never through source text:
+`FromDataclass.install(txn, module, *classes)` writes the schemas dataclasses describe into a transaction, as a written
+install does, and is called within one (Store overhaul, Decided, 31):
+
+    def install(txn):  # the order-entry schemas, read from their dataclasses
+        return FromDataclass.install(txn.uid("models/1"), lambda m: m.name("models"), Order, Line)
+
+
+    store.transaction(install)
+    Order = store.registered("models.Order")
+
+`module` writes the module (`Schemas.OfModule`) that holds them, found by its name or made; each class is an object
+schema named after the module and the class (`models.Order`), defined in the module under the class's name, and each
+relation the adapter infers is named after the module too. Each is a symbol of the install's upsert, found by its name,
+else made: run again, the install writes nothing. `ToDataclass(schema)` returns a new dataclass describing an object
+schema, named after the last part of the schema's name (or `ToDataclass(schema, name)`), and `ToDataclass.model(schemas)`
+several, by name. Both directions go through `ast` trees and never through source text:
 
 - `FromDataclass.ast(cls)` builds an `ast.ClassDef` from the class's fields and resolved type hints, not from its
   source. `FromDataclass` also reads such trees, so trees built by other tools work too.
@@ -19,10 +31,10 @@ Only types are translated, one flat class to one object schema:
   for an int key (`dict[int, bool]`), so that its keys are not padded. Their elements may be lists and dicts of
   scalars in turn (`list[list[float]]`): containers nest.
 - A container of dataclasses maps to an adjacency. The field `addresses: set[Address]` of `Contact` becomes the
-  relation `ContactAddresses` with links `owner` and `item`, the adjacency `addresses` of `Contact` via `owner`, and the
-  adjacency `contact_addresses` of `Address` via `item`. `list[Address]` adds the property `index: int` and
-  `dict[K, Address]` the property `key: K`, each with `unique(item)`: the owner and the index or key determine the
-  item. The element may be a union of dataclasses, and each gets the adjacency via `item`.
+  relation `ContactAddresses` (`models.ContactAddresses`, in the module `models`) with links `owner` and `item`, the
+  adjacency `addresses` of `Contact` via `owner`, and the adjacency `contact_addresses` of `Address` via `item`.
+  `list[Address]` adds the property `index: int` and `dict[K, Address]` the property `key: K`, each with
+  `unique(item)`: the owner and the index or key determine the item. The element may be a union of dataclasses, and each gets the adjacency via `item`.
 - An adjacency declares which object schemas may fill its link, so the element type of a container is found by
   reverse lookup: the object schemas that declare an adjacency via the relation's other link. `ToDataclass` writes a
   field for each adjacency via the first of its relation's two links; an adjacency via the second only declares
@@ -54,6 +66,7 @@ from mbse.Schemas.Framework import Schemas
 __all__ = ["FromDataclass", "ToDataclass"]
 
 _SCALARS: dict[str, type] = {t.__name__: t for t in (int, float, str, bool, bytes)}
+_SCALAR_NAMES = {int: "Int", float: "Float", str: "Str", bool: "Bool", bytes: "Bytes"}  # each a basic scalar, `S.OfInt`
 _CONTAINERS = {"list": "list", "List": "list", "set": "set", "Set": "set", "frozenset": "set", "FrozenSet": "set",
                "dict": "dict", "Dict": "dict"}
 _COLLECTIONS = frozenset({
@@ -63,8 +76,6 @@ _COLLECTIONS = frozenset({
 _NOT_FIELDS = frozenset({"ClassVar", "InitVar"})
 _OWNER, _ITEM, _INDEX, _KEY = "owner", "item", "index", "key"
 _RESERVED = frozenset({"dataclass", *_SCALARS, *_CONTAINERS})
-
-Model = dict[str, "Schemas.OfObject.Data | Schemas.OfRelation.Data"]
 
 
 def _identifier(value: str, what: str) -> str:
@@ -167,15 +178,42 @@ def _pascal(name: str) -> str:
     return "".join(part[:1].upper() + part[1:] for part in name.split("_"))
 
 
+@dataclasses.dataclass
+class _Container:
+    """A property's container of scalars: its index's host type, its element (a host type or a `_Container`), and its
+    layout, where it is not the default."""
+
+    index: type
+    element: Any
+    layout: str | None = None
+
+
+@dataclasses.dataclass
+class _Object:
+    """What a class becomes: its properties' schemas (a host type, or a `_Container`), and its adjacencies, each its
+    relation's name and the link it is seen through."""
+
+    properties: dict[str, Any] = dataclasses.field(default_factory=dict)
+    adjacencies: dict[str, tuple[str, str]] = dataclasses.field(default_factory=dict)
+
+
+@dataclasses.dataclass
+class _Relation:
+    """What a container of dataclasses becomes: a relation linking `owner` and `item`, with an `index` or `key` property
+    and `unique(item)` where it has one."""
+
+    properties: dict[str, type] = dataclasses.field(default_factory=dict)
+
+
 class _Reader:
-    """Reads the schemas of a model from class definitions, by name."""
+    """Reads what the classes of an install become, from their class definitions, by class name."""
 
     def __init__(self, trees: dict[str, ast.ClassDef]):
         self.trees = trees
-        self.objects = {name: Schemas.OfObject.Data(ref=True, name=name) for name in trees}  # a dataclass: a reference object
-        self.relations: dict[str, Schemas.OfRelation.Data] = {}
+        self.objects = {name: _Object() for name in trees}
+        self.relations: dict[str, _Relation] = {}
 
-    def read(self) -> Model:
+    def read(self) -> _Reader:
         for name, tree in self.trees.items():
             for field, annotation in _fields(tree):
                 self._field(name, field, annotation)
@@ -183,14 +221,14 @@ class _Reader:
             clashes = sorted(set(schema.properties) & set(schema.adjacencies))
             if clashes:
                 raise ValueError(f"{name}: {clashes} would be both properties and adjacencies")
-        return {**self.objects, **self.relations}
+        return self
 
     def _field(self, owner: str, field: str, node: ast.expr) -> None:
         if isinstance(node, ast.Subscript):
             outer = _name(node.value)
             container = _container(node) if outer in _CONTAINERS else None
             if container is not None:
-                self.objects[owner].properties[field] = Schemas.OfProperty.Data(field, container)
+                self.objects[owner].properties[field] = container
                 return
             if outer in _CONTAINERS:
                 self._container(owner, field, _CONTAINERS[outer], outer, node.slice)
@@ -205,7 +243,7 @@ class _Reader:
             raise TypeError(f"field {field!r}: a union needs a name per branch; unions are not translated")
         name = _name(node)
         if name in _SCALARS:
-            self.objects[owner].properties[field] = Schemas.OfProperty.Data(field, Schemas.OfScalar.Data(_SCALARS[name]))
+            self.objects[owner].properties[field] = _SCALARS[name]
         elif name in _COLLECTIONS:
             raise TypeError(f"field {field!r}: {name} needs a dataclass element type")
         elif name in self.trees:
@@ -216,16 +254,16 @@ class _Reader:
             raise TypeError(f"field {field!r}: {name} is neither a scalar type nor a dataclass being translated")
 
     def _container(self, owner: str, field: str, shape: str, outer: str, node: ast.expr) -> None:
-        properties: dict[str, Schemas.OfProperty.Data] = {}
+        properties: dict[str, type] = {}
         if shape == "dict":
             key, element = node.elts if isinstance(node, ast.Tuple) and len(node.elts) == 2 else (None, node)
             if key is None or _name(key) not in _SCALARS:
                 raise TypeError(f"field {field!r}: {outer} needs a scalar key type and a dataclass value type")
-            properties[_KEY] = Schemas.OfProperty.Data(_KEY, Schemas.OfScalar.Data(_SCALARS[_name(key)]))  # type: ignore[index]
+            properties[_KEY] = _SCALARS[_name(key)]  # type: ignore[index]
         else:
             element = node
         if shape == "list":
-            properties[_INDEX] = Schemas.OfProperty.Data(_INDEX, Schemas.OfScalar.Data(int))
+            properties[_INDEX] = int
         nested = _name(element.value) if isinstance(element, ast.Subscript) else None
         if nested in _CONTAINERS:
             raise TypeError(f"field {field!r}: a {outer} of {nested}s of dataclasses is not translated; a container of "
@@ -238,32 +276,23 @@ class _Reader:
         name = owner + _pascal(field)
         if name in self.relations or name in self.objects:
             raise ValueError(f"field {field!r}: the relation name {name!r} is already used")
-        relation = Schemas.OfRelation.Data(_entry((_OWNER, _ITEM), properties),
-                                           uniques=(frozenset({_ITEM}),) if properties else (), name=name)
-        self.relations[name] = relation
-        self._adjacency(owner, Schemas.OfAdjacency.Data(name=field, relation=relation, me=_OWNER))
+        self.relations[name] = _Relation(properties)
+        self._adjacency(owner, field, name, _OWNER)
         for target in dict.fromkeys(targets):
-            self._adjacency(target, Schemas.OfAdjacency.Data(name=f"{_snake(owner)}_{field}", relation=relation,  # type: ignore[arg-type]
-                                                             me=_ITEM))
+            self._adjacency(target, f"{_snake(owner)}_{field}", name, _ITEM)  # type: ignore[arg-type]
 
-    def _adjacency(self, owner: str, adjacency: Schemas.OfAdjacency.Data) -> None:
+    def _adjacency(self, owner: str, name: str, relation: str, me: str) -> None:
         adjacencies = self.objects[owner].adjacencies
-        if adjacency.name in adjacencies:
-            raise ValueError(f"{owner}: the adjacency {adjacency.name!r} would be declared twice")
-        adjacencies[adjacency.name] = adjacency
+        if name in adjacencies:
+            raise ValueError(f"{owner}: the adjacency {name!r} would be declared twice")
+        adjacencies[name] = (relation, me)
 
 
-def _entry(links: tuple[str, ...], properties: dict[str, Schemas.OfProperty.Data]) -> Schemas.OfEntry.Data:
-    """The schema of a relation's entries: links by name, and properties."""
-    return Schemas.OfEntry.Data({link: Schemas.OfSymbol.Data(link) for link in links}, properties)
+def _scalar(node: ast.expr) -> type | None:
+    return _SCALARS.get(_name(node))  # type: ignore[arg-type]
 
 
-def _scalar(node: ast.expr) -> Schemas.OfScalar.Data | None:
-    name = _name(node)
-    return Schemas.OfScalar.Data(_SCALARS[name]) if name in _SCALARS else None
-
-
-def _element(node: ast.expr) -> Schemas.OfScalar.Data | Schemas.OfContainer.Data | None:
+def _element(node: ast.expr) -> type | _Container | None:
     """A container's element type: a scalar, or a list or dict of them; None for anything else."""
     scalar = _scalar(node)
     if scalar is not None or not isinstance(node, ast.Subscript) or _name(node.value) not in _CONTAINERS:
@@ -271,30 +300,101 @@ def _element(node: ast.expr) -> Schemas.OfScalar.Data | Schemas.OfContainer.Data
     return _container(node)
 
 
-def _container(node: ast.Subscript) -> Schemas.OfContainer.Data | None:
+def _container(node: ast.Subscript) -> _Container | None:
     """The container a list of scalars (by an int index, dense) or a dict of them by a scalar key (sparse for an int
     key) becomes, its elements scalars or such containers in turn; None for a container of anything else."""
     shape = _CONTAINERS[_name(node.value)]  # type: ignore[index]
     if shape == "list":
         element = _element(node.slice)
-        return None if element is None else Schemas.OfContainer.Data(Schemas.OfScalar.Data(int), element)
+        return None if element is None else _Container(int, element)
     pair = node.slice.elts if shape == "dict" and isinstance(node.slice, ast.Tuple) else []
     key, element = (_scalar(pair[0]), _element(pair[1])) if len(pair) == 2 else (None, None)
     if key is None or element is None:
         return None
-    return Schemas.OfContainer.Data(key, element, "sparse" if key.type is int else None)
+    return _Container(key, element, "sparse" if key is int else None)
+
+
+def _schema(S: Any, shape: Any) -> Any:
+    """A property's schema, in a spec: a basic scalar (`S.OfInt`), or a container defined where it is linked."""
+    if isinstance(shape, type):
+        return getattr(S, "Of" + _SCALAR_NAMES[shape])
+
+    def container(c: Any) -> Any:
+        c = c.index([_schema(S, shape.index)]).element([_schema(S, shape.element)])
+        return c if shape.layout is None else c.layout(shape.layout)
+
+    return S.OfContainer(container)
 
 
 class _FromDataclass:
-    """`FromDataclass(cls)` or `FromDataclass(tree)`: the object schema a dataclass describes."""
+    """`FromDataclass.install(txn, module, *classes)`: an install of the schemas dataclasses describe."""
 
-    def __call__(self, source: type | ast.ClassDef) -> Schemas.OfObject.Data:
-        model = self.model(source)
-        return model[source.name if isinstance(source, ast.ClassDef) else source.__name__]  # type: ignore[return-value]
+    def install(self, txn: Any, module: Any, *sources: type | ast.ClassDef) -> Any:
+        """Writes the schemas the given dataclasses or class definitions describe, and every dataclass their container
+        fields hold, into a transaction: `txn.mutations([...])`, as a written install returns, called within one's
+        module-scope `install(txn)` with the transaction it is given, its uid set by the caller. Its one upsert's
+        symbols are the module, a `Schemas.OfModule` that `module` writes (`lambda m: m.name("models")`), found by its
+        name or made; each class, a `Schemas.OfObject` named `<module>.<class>`, defined in the module under its class
+        name; and each relation a container field becomes, a `Schemas.OfRelation` named `<module>.<Class><Field>`.
+        Run again, it writes nothing."""
+        store = getattr(txn, "_store", None)
+        if store is None or not callable(getattr(txn, "mutations", None)):
+            raise TypeError(f"FromDataclass.install takes the transaction an install is given, got {type(txn).__name__}")
+        path = self._module(module)
+        reader = self._read(sources)
+        S = store.Schemas
+        named = {name: f"{path}.{name}" for name in (*reader.objects, *reader.relations)}  # each symbol, by its name
 
-    def model(self, *sources: type | ast.ClassDef) -> Model:
-        """The object schemas of the given dataclasses or class definitions and of every dataclass their container
-        fields hold, by class name, followed by the relations their container fields become, by name."""
+        def of_module(_: Any) -> Any:
+            m = getattr(_, path)
+            module(m)
+            return m.schemas([lambda t, name=name: t.name(name).schema([getattr(_, named[name])])
+                              for name in reader.objects])
+
+        def of_class(name: str, schema: _Object) -> Any:
+            def spec(_: Any) -> Any:
+                o = getattr(_, named[name]).name(named[name]).ref(True)
+                if schema.properties:
+                    o = o.properties({field: _schema(S, shape) for field, shape in schema.properties.items()})
+                if schema.adjacencies:
+                    o = o.adjacencies({field: lambda a, r=relation, me=me: a.relation([getattr(_, named[r])]).me(me)
+                                       for field, (relation, me) in schema.adjacencies.items()})
+                return o
+            return spec
+
+        def of_relation(name: str, relation: _Relation) -> Any:
+            def spec(_: Any) -> Any:
+                r = getattr(_, named[name]).name(named[name]).links([lambda t: t.name(_OWNER), lambda t: t.name(_ITEM)])
+                if relation.properties:
+                    r = r.properties({key: _schema(S, scalar) for key, scalar in relation.properties.items()}).uniques(_ITEM)
+                return r
+            return spec
+
+        symbols = {path: S.OfModule, **{named[name]: S.OfObject for name in reader.objects},
+                   **{named[name]: S.OfRelation for name in reader.relations}}
+        items = [of_module, *[of_class(n, o) for n, o in reader.objects.items()],
+                 *[of_relation(n, r) for n, r in reader.relations.items()]]
+        return txn.mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p.symbols(symbols).spec(items)]))])
+
+    @staticmethod
+    def _module(module: Any) -> str:
+        """The path of the module that `module` writes, which names its schemas: what its callback gives `name`."""
+        from mbse.Schemas.Framework import Builders
+
+        if not callable(module) or isinstance(module, type):
+            raise TypeError("FromDataclass.install takes the module as a callback writing it, "
+                            f"lambda m: m.name(\"models\"); got {module!r}")
+        probe = Builders.ModuleBuilder(None, True, None)  # outside any store: read, never created
+        module(probe)
+        path = probe.name.get()
+        if not isinstance(path, str) or not Schemas._DOTTED.match(path):
+            raise ValueError(f"the module's name is its path, a dotted name its schemas' names start with; got {path!r}")
+        return path
+
+    def _read(self, sources: tuple[type | ast.ClassDef, ...]) -> _Reader:
+        """What the given dataclasses or class definitions become, and every dataclass their container fields hold."""
+        if not sources:
+            raise TypeError("FromDataclass.install takes at least one dataclass")
         namespace: dict[str, type] = {}
 
         def known(cls: type) -> None:
@@ -399,8 +499,8 @@ class _ToDataclass:
         return self.model({name: schema})[name]
 
     def model(self, schemas: Mapping[str, Any]) -> dict[str, type]:
-        """A dataclass for each object schema, by name. Relation schemas are skipped, so the result of
-        `FromDataclass.model` can be passed as is."""
+        """A dataclass for each object schema, by name. Relation schemas are skipped, so the schemas an install
+        of `FromDataclass.install` defines can be passed as they are."""
         return self.compile(self.ast(schemas))
 
     @staticmethod

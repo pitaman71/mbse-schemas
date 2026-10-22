@@ -262,10 +262,14 @@ Implementation is strictly typed in all languages - parameters, returns, etc.
   two transactions, and `Plain.FromPlain(store).Snapshot(snapshot)` reads one.
 
 - `Adapters` : translate between a language's own type declarations and schemas, so they are specific to each
-  language. Python has `Adapters.Dataclasses`: `FromDataclass(cls)` returns the `OfObject` a dataclass describes and
-  `ToDataclass(schema, name)` returns a new dataclass, both through `ast` trees rather than source text;
-  `FromDataclass.model(*classes)` and `ToDataclass.model(schemas)` translate several at once. Only the classes'
-  declarations are translated. Scalar fields are properties, and so are lists and dicts of scalars, nested or not: each holds a
+  language. Python has `Adapters.Dataclasses`: `FromDataclass.install(txn, module, *classes)` writes the schemas
+  dataclasses describe into the transaction a module-scope `install(txn)` is given, and returns `txn.mutations([...])`
+  as a written install does ([Store overhaul, Decided, 31](proposals/store-overhaul/README.md#decided-here)): `module`,
+  a callback writing a `Schemas.OfModule` (`lambda m: m.name("models")`), is found by its name or made, and each class
+  and each relation the adapter infers is a symbol of the install, named after the module (`models.Order`), each class
+  defined in the module under its own name; run again, it writes nothing. `ToDataclass(schema, name)` returns a new
+  dataclass, and `ToDataclass.model(schemas)` several; both directions go through `ast` trees rather than source text.
+  Only the classes' declarations are translated. Scalar fields are properties, and so are lists and dicts of scalars, nested or not: each holds a
   container, by an int index (dense) or by its scalar key (sparse for an int key), written back as `list[E]` and
   `dict[K, E]`. A container of dataclasses (`set[X]`, `list[X]`, `dict[K, X]`) is a
   relation with links `owner` and `item`, plus `index: int` or `key: K` with `unique(item)` for lists and dicts: the

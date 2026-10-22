@@ -172,8 +172,11 @@ Comparison.OfObject(schema, a).compare(Comparison.OfObject(schema, b))   # -1, 0
 # Dataclasses: scalar fields are properties, list/dict of scalars containers; set/list/dict of dataclasses are relations.
 # Defaults, mandatoriness and nesting are not translated.
 from mbse.Schemas.Adapters.Dataclasses import FromDataclass, ToDataclass
-FromDataclass.model(Contact)       # {"Contact": ..., "Address": ..., "ContactAddresses": ...}, named, built outside any store (for now)
-ToDataclass.model(schemas)         # {"Contact": class, "Address": class}; FromDataclass(cls), ToDataclass(schema, name)
+def install(txn):                  # an install: the module found by its name or made, each class and relation a symbol
+    return FromDataclass.install(txn.uid("crm/1"), lambda m: m.name("crm"), Contact)
+store.transaction(install)         # run again, it writes nothing
+store.registered("crm.Contact")    # crm.Contact, crm.Address, crm.ContactAddresses: named after the module
+ToDataclass.model({n: store.registered(f"crm.{n}") for n in ("Contact", "Address")})   # {"Contact": class, ...}; ToDataclass(schema, name)
 ```
 
 ## Traps

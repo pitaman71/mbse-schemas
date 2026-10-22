@@ -567,7 +567,23 @@ so that main stays current and no branch waits on another.
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
      - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to
-       a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31);
+       a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31); built. **4l, as built**:
+       `FromDataclass.install(txn, module, *classes)` returns `txn.mutations([...])`, one upsert whose symbols are the
+       module (`txn.Schemas.OfModule`, its spec what `module` writes, found by its name or made), each class
+       (`OfObject`, named `<module>.<Class>`, a reference object) and each relation it infers (`OfRelation`, named
+       `<module>.<Class><Field>`), each found by its name or made; the module's spec adds an entry of its `schemas` for
+       each class, linking the class's symbol under the class's name, and a relation is placed in the module by its
+       name, as the store places every named schema. A container of scalars is defined where its property links it.
+       The spec is built through the recorder's fluent calls, never wire format. Run again, it writes nothing (DC-08).
+       `FromDataclass.model(...)` is gone, and so is `FromDataclass(source)`, which gave one class's schema made outside
+       any store, the same gap; `FromDataclass.ast` and the reverse direction, `ToDataclass`, stay as they were. Settled
+       while building it, for the user's review: the schemas' names need the module's path when the spec is recorded, so
+       the adapter reads it by calling `module` on a module's builder outside any store, which it never creates, and
+       refuses a module given no name, or one that is not a path; and since `txn.uid(...)` gives the transaction's
+       builder, not the `txn` an install is given, the adapter reaches the store's schemas through the builder's store.
+       A module's `schemas` given a mapping of names to symbols (`m.schemas({"Order": _.Order})`) is refused by the
+       recorder ("expected exactly one object schema filling link 'schema'"), so the adapter gives the entries as a list.
+       DC is rewritten to the API (DC-03's gap closed), with DC-08 for the install.
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
        the executor refuses (87): step 5, in mbse-expressions, as 87 says;
      - helpers that build models through the builders, which P-019 forbids ("Do not invent another DSL by wrapping

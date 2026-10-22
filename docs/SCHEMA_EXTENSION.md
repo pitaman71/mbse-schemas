@@ -7,6 +7,13 @@
 was made holding only gains members, in any transaction ([Installing schemas](proposals/install/README.md); Object
 identity, Decided, 86). What follows is the design as it was decided, `store.extend` included.*
 
+*Since store overhaul 4m, `Parametrics` is such an extension, installed before use: it gives `Schemas.OfParameter` its
+`for_value` and `for_object` and every kind its `parameters`, which the core no longer declares; the parameters of
+section 4 and of Decided, 6 and 14 are its ([Parametrics as a module](proposals/parametrics/README.md)). The entries a
+transaction writes from a schema object the store held before it began are written at once, in the transaction, as
+data's are, not when it commits. An extension's adjacency is still to a relation of two links and no properties
+(Decided, 18 and 22), which keeps `Parametrics` from installing its bindings' adjacencies: open.*
+
 1. Schema extension
 
 - Store already has a module lookup function but Visitors it returns must be read-only. 

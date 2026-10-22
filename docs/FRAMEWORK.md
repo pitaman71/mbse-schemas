@@ -622,10 +622,13 @@ import one, so the dependency keeps pointing one way.
 
 ## Parametrics
 
-Status: declaring parameters, and writing them, is built. Since 0.17.0 a parameter is a name only, and applying a
-schema to arguments, terms, widths, evaluators and equivalence after substitution are gone from mbse-schemas: they are
-mbse-expressions' ([Store overhaul](proposals/store-overhaul/README.md), Decided, 20; [Schema
-extension](SCHEMA_EXTENSION.md), Decided, 5 to 7). The decisions below stand for wherever binding is built.
+Status: parameters are a module, `Parametrics`, normal schemas and one extension, installed before use
+([PARAMETRICS.md](PARAMETRICS.md); [Parametrics as a module](proposals/parametrics/README.md), Decided, 1 to 4; Store
+overhaul 4m): declaring parameters, each for a value or for an object, validating them and writing them are built;
+storing bindings is not yet (open). Since 0.17.0 applying a schema to arguments, terms, widths, evaluators and
+equivalence after substitution are gone from mbse-schemas: they are mbse-expressions' ([Store
+overhaul](proposals/store-overhaul/README.md), Decided, 20; [Schema extension](SCHEMA_EXTENSION.md), Decided, 5 to 7).
+The decisions below stand for wherever binding is built.
 
 A parameter is a variable of a schema, or of anything else that declares it, that is determined where that element is
 referred to, not by data. mbse-patterns' symbols are the other kind of variable: a predicate's symbol ranges over a
@@ -655,18 +658,31 @@ resolving constraints.
 ### Built
 
 - **`Schemas.OfParameter` is an element**, like a property: a `name` and a `description`, a symbol (mbse-basis P-015)
-  standing for what is bound where the schema is referred to (Store overhaul, Decided, 20: "Names only"). It is not a
-  kind of schema, since no property's value is a parameter. A scalar's parameters are part of it, as its name is; a
-  parameter compares by what it holds.
-- **Every kind of schema declares parameters**: `.parameters(spec, ...)`, held in declared order as `parameters`, by
-  name, as properties are. A parameter's scope is its binder, inline schemas nested in it included. `validate()`
-  reports reserved names and bad descriptions, and a pattern's names used as both a symbol, a variable or a parameter.
-- **A store's snapshot writes them** ([SERIALIZATION.md](SERIALIZATION.md)): a kind's `parameters`, each a schema
-  object of the store, linked to its owner by `Schemas.HasParameter` and named by the entry.
+  standing for what is bound where the definition is referred to (Store overhaul, Decided, 20: "Names only"). It is not
+  a kind of schema, since no property's value is a parameter; a parameter compares by what it holds.
+- **`Parametrics`, installed before use** (`store.transaction(Parametrics.install)`; Store overhaul 4m): a set of
+  parameters, `Parametrics.OfParameters`, holds each through `Parametrics.Defines`, keyed by its name; a parameter is
+  for a value of a schema (`for_value`, `Parametrics.ForValue`) or for an object of an object schema (`for_object`,
+  `Parametrics.ForObject`), exactly one (Parametrics as a module, Decided, 1 and 2). Every kind of schema declares one
+  set, `.parameters([txn.Parametrics.OfParameters(...)])` (`Parametrics.HasParameters`, unique in both directions), the
+  extension adding the adjacency to each kind. A parameter's scope is its binder, inline schemas nested in it included.
+  `BindsValue` and `BindsObject` are defined (Decided, 3); no kind has their adjacencies yet (open).
+- **Validation moved to `Parametrics.Defines`** (Decided): `Parametrics.validate(store, defn)` reports reserved names,
+  bad descriptions, a parameter for neither or both of a value and an object, a pattern's names used as both a symbol
+  or a variable and a parameter, and a definition with more than one set or a set with more than one definition. A
+  kind's `validate()` does not see parameters (fixed by the agent, for the user's review).
+- **A store's snapshot writes them** ([SERIALIZATION.md](SERIALIZATION.md)): a set is data, written with the store's
+  data, its parameters defined where its entries link them; the definition's `parameters` entry is written once. A
+  store without `Parametrics` reads such a snapshot ignoring what needs it (Store overhaul, Decided, 19).
 - **Validation evaluates nothing.** `Validators.Check(store)(schema, value)` reports problems and `unknowns`; its
   `Outcome` is three-valued, though nothing it checks is unknown yet (Validators).
 
-### Moved out (0.17.0)
+### Moved out
+
+Since Store overhaul 4m, out of the core into `Parametrics`: `Schemas.HasParameter`, every kind's built-in
+`parameters`, the data classes' `parameters`, the builders' `parameters` member and the checks of `validate()` on them.
+
+0.17.0:
 
 `OfApply` and its arguments (`Argument`), terms (`Schemas.Form`), a scalar's widths (`bits`, `bytes`), a predicate's
 `requires`, typed and value parameters, `Schemas.structure`, `Schemas.Evaluate` and `Schemas.equivalent` are removed
@@ -728,6 +744,11 @@ it is fixed here:
 - **Parametrics**, beyond the proposal (see Parametrics): schema parameters now or later; equality of differently
   written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
   whose shape depends on an unbound parameter.
+- **Parametrics' bindings** (Store overhaul 4m): `values` (to `BindsValue`, an entry property) and `objects` (to
+  `BindsObject`, three links) are not installed, since an extension's adjacency is to a relation of two links and no
+  properties (Schema extension, Decided, 18 and 22). Extend the mechanism, make bindings objects linked by relations of
+  two links, or leave them unbuilt until something binds ([Parametrics as a module](proposals/parametrics/README.md),
+  Stages, as built).
 
 Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import math
 
-from mbse.Schemas.Framework import Builders as B
+from mbse.Schemas.Framework import Builders as B, Parametrics
 
 CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
 
@@ -192,16 +192,22 @@ def lists(txn):
 
 def module(txn):
     """The corpus's own schemas as data, beside the address book's, the family's, the embedded values' and the lists':
-    parametric schemas, whose parameters are names, a flat union and a flat intersection."""
+    parametric schemas, each declaring its set of parameters (Parametrics, installed before), a flat union and a flat
+    intersection."""
     S = txn.Schemas
     return txn.uid("corpus.module/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({"Grid": S.OfObject, "Tricky": S.OfObject, "Choice": S.OfUnion, "Marked": S.OfIntersection})
         .spec([
-            lambda _: _.Grid.name("Grid").parameters([
-                lambda t: t.name("n").description("Its side"), lambda t: t.name("x"),
-            ]).properties({"mask": S.OfInt, "cells": S.OfContainer(lambda c: c.index([S.OfInt]).element([S.OfInt]))}),
-            lambda _: _.Tricky.name("Tricky").parameters([
-                lambda t: t.name("a"), lambda t: t.name("b"), lambda t: t.name("c"), lambda t: t.name("d")]),
+            lambda _: _.Grid.name("Grid").parameters([txn.Parametrics.OfParameters(lambda ps: ps.parameters({
+                "n": lambda d: d.parameter(lambda p: p.description("Its side").for_value([S.OfInt])),
+                "x": lambda d: d.parameter(lambda p: p.for_value([S.OfInt])),
+            }))]).properties({"mask": S.OfInt, "cells": S.OfContainer(lambda c: c.index([S.OfInt]).element([S.OfInt]))}),
+            lambda _: _.Tricky.name("Tricky").parameters([txn.Parametrics.OfParameters(lambda ps: ps.parameters({
+                "a": lambda d: d.parameter(lambda p: p.for_value([S.OfInt])),
+                "b": lambda d: d.parameter(lambda p: p.for_value([S.OfStr])),
+                "c": lambda d: d.parameter(lambda p: p.for_object([_.Grid])),
+                "d": lambda d: d.parameter(lambda p: p.for_object([_.Tricky])),
+            }))]),
             lambda _: _.Choice.name("Choice").flat(True).branches([
                 lambda t: t.name("n").schema([S.OfInt]), lambda t: t.name("s").schema([S.OfStr])]),
             lambda _: _.Marked.name("Marked").flat(True).parts([
@@ -225,9 +231,9 @@ def patterns(txn):
                 lambda t: t.name("since").schema([S.OfStr]),
             ]).requires([
                 lambda c: c.description("lived there since").result([S.OfBool]),
-            ]).parameters([
-                lambda t: t.name("era"),
-            ]).spec([
+            ]).parameters([txn.Parametrics.OfParameters(lambda ps: ps.parameters({
+                "era": lambda d: d.parameter(lambda p: p.for_value([S.OfStr])),
+            }))]).spec([
                 lambda _: _.who.addresses({"home": _.where}),
                 lambda _: _.where.locality("London"),
             ]),
@@ -385,7 +391,7 @@ def build():
         cases["lists"] = (s, [board])
 
     s = B.Store()
-    for install in (address_book, family, embedded, lists, module, patterns, rooted):
+    for install in (Parametrics.install, address_book, family, embedded, lists, module, patterns, rooted):
         s.transaction(install)
     with s.transaction():  # the case's data, none but its root's
         _hold(s, [])

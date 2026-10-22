@@ -9,9 +9,9 @@ installs it here.
 Every kind of schema may have a `name`, set by its builder's `.name('crm.Contact')`: identifiers separated by dots, the
 part before the last dot the module it is in. A store registers a named schema under that name.
 
-Every kind of schema may declare `parameters` (`OfParameter`): names, each a symbol standing for a schema, bound
-where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications and widths are
-mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
+A parameter (`OfParameter`) is a name and a description. Which definitions declare parameters, what each can be bound
+to, and their bindings are `Parametrics`', a module installed before use (docs/PARAMETRICS.md). Terms, applications and
+widths are mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
 
 A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object, variables
 (`OfVariable`), each standing for a value, and the constraints a frame meets (its `requires`, each an `OfExpression` of
@@ -100,13 +100,13 @@ def _visited(names: Any) -> list[str]:
             for name in names if isinstance(name, str) and name.startswith("as_")]
 
 
-# --- OfParameter: a variable a schema declares ---
+# --- OfParameter: a name a definition declares, through `Parametrics` ---
 
 
 @dataclass
 class _ParameterData:
-    """A parameter of the schema that declares it: a name, a symbol standing for a schema, bound where the schema is
-    referred to and referred to within it by name, as a variable is."""
+    """A parameter: a name, a symbol standing for what is bound where the definition that declares it is referred to,
+    and a description. Its name is its set's entry's (`Parametrics.Defines`)."""
 
     name: str = ""
     description: str | None = None
@@ -114,13 +114,6 @@ class _ParameterData:
 
 class OfParameter:
     Data = _ParameterData
-
-
-def _parameter_problems(parameters: dict[str, _ParameterData]) -> list[str]:
-    problems = _reserved(parameters)
-    for name, parameter in parameters.items():
-        problems += [f"parameter {name!r}: {p}" for p in _description_problems(parameter.description)]
-    return problems
 
 
 # --- OfScalar ---
@@ -141,14 +134,11 @@ class _ScalarData:
 
     name: str | None
     description: str | None
-    parameters: dict[str, _ParameterData]
 
-    def __init__(self, host: Any = None, name: str | None = None, description: str | None = None,
-                 parameters: dict[str, _ParameterData] | None = None):
+    def __init__(self, host: Any = None, name: str | None = None, description: str | None = None):
         if isinstance(host, type) and host in _BASIC_NAMES:
             name = f"Schemas.Of{_BASIC_NAMES[host].capitalize()}"
         self.name, self.description = name, description
-        self.parameters = {} if parameters is None else parameters
 
     @property
     def type(self) -> type[Scalar] | None:
@@ -167,7 +157,7 @@ class _ScalarData:
         return self.type
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        problems = _name_problems(self.name) + _description_problems(self.description)
         if self.type is None:
             problems.append(f"{_scalar_shown(self)} is not a basic scalar: a scalar is Schemas.OfBool, Schemas.OfInt, "
                             "Schemas.OfFloat, Schemas.OfStr or Schemas.OfBytes")
@@ -341,11 +331,9 @@ class _RelationData:
     uniques: tuple[frozenset[str], ...] = ()
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
-        problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + self.entry.validate())
+        problems = _name_problems(self.name) + _description_problems(self.description) + self.entry.validate()
         for unique in self.uniques:
             unknown = unique - set(self.entry.links) - set(self.entry.properties)
             if unknown:
@@ -493,7 +481,6 @@ class _ObjectData:
     ref: bool = False  # a reference object schema; otherwise a value object schema
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
     anonymous: list[_AdjacencyData] = field(default_factory=list)  # the links it may fill with no member
     refines: Any = None  # the object schema it refines, whose members it inherits, or None
 
@@ -505,7 +492,7 @@ class _ObjectData:
     def validate(self) -> list[str]:
         """The schema's problems. A value object schema may hold itself, through a property or an entry."""
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + _reserved([*self.properties, *self.adjacencies])
+                    + _reserved([*self.properties, *self.adjacencies])
                     + _visited([*self.properties, *self.adjacencies]))
         if self.singleton is not None and not self.ref:
             problems.append("a singleton's schema must be a reference object schema")
@@ -600,7 +587,6 @@ class _UnionData:
     branches: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
     flat: bool = False
     """Whether a value reads as its branch's value, told apart by schema, rather than as an object of one branch."""
 
@@ -611,7 +597,7 @@ class _UnionData:
 
     @_once
     def validate(self) -> list[str]:
-        return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        return (_name_problems(self.name) + _description_problems(self.description)
                 + _member_problems("a union", "branch", "branches", self.branches)
                 + (_flat_union_problems(self.branches) if self.flat else []))
 
@@ -626,7 +612,6 @@ class _IntersectionData:
     parts: tuple[_MemberData, ...] = ()
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
     flat: bool = False
     """Whether a value reads its parts' properties as its own, rather than as an object of its parts."""
 
@@ -637,7 +622,7 @@ class _IntersectionData:
 
     @_once
     def validate(self) -> list[str]:
-        return (_name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        return (_name_problems(self.name) + _description_problems(self.description)
                 + _member_problems("an intersection", "part", "parts", self.parts)
                 + (_flat_intersection_problems(self.parts) if self.flat else []))
 
@@ -688,7 +673,6 @@ class _ContainerData:
     layout: str | None = None  # "dense", "sparse", or None for the default
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
     refines: Any = None  # the container schema it refines, or None
 
     @property
@@ -702,7 +686,7 @@ class _ContainerData:
 
     @_once
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        problems = _name_problems(self.name) + _description_problems(self.description)
         for role, schema in (("index", self.index), ("element", self.element)):
             if not isinstance(schema, _KINDS):
                 problems.append(f"a container's {role} is a schema, got {schema!r}")
@@ -760,11 +744,10 @@ class _AnyValueData:
     schemas: tuple[Any, ...] = ()  # OfAny.Data each
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     @_once
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        problems = _name_problems(self.name) + _description_problems(self.description)
         valid = []
         for schema in self.schemas:
             if not isinstance(schema, _KINDS):
@@ -819,10 +802,9 @@ class _ExpressionData:
     result: Any = None  # OfAny.Data
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        problems = _name_problems(self.name) + _description_problems(self.description)
         if self.pattern is not None and not isinstance(self.pattern, _PatternData):
             problems.append("an expression's pattern is a pattern")
         if self.result is None:
@@ -861,18 +843,14 @@ class _PatternData:
     requires: tuple[_ExpressionData, ...] = ()
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
     spec: tuple[Any, ...] = ()  # what must hold of a frame: `Mutations.OfPattern`s, as plain data (Object identity, 95)
 
     def validate(self) -> list[str]:
         problems = (_name_problems(self.name) + _description_problems(self.description)
-                    + _parameter_problems(self.parameters) + _reserved([*self.symbols, *self.variables]))
-        for first, second, plural in ((self.symbols, self.variables, "symbol and variable"),
-                                      (self.symbols, self.parameters, "symbol and parameter"),
-                                      (self.variables, self.parameters, "variable and parameter")):
-            clashes = set(first) & set(second)
-            if clashes:
-                problems.append(f"names used as both {plural}: {sorted(clashes)}")
+                    + _reserved([*self.symbols, *self.variables]))
+        clashes = set(self.symbols) & set(self.variables)
+        if clashes:
+            problems.append(f"names used as both symbol and variable: {sorted(clashes)}")
         for name, symbol in self.symbols.items():
             problems += [f"symbol {name!r}: {p}" for p in _symbol_problems(symbol)]
         for name, variable in self.variables.items():
@@ -911,10 +889,9 @@ class _CollectorData:
     computes: Any = None  # an OfExpression.Data
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, _ParameterData] = field(default_factory=dict)
 
     def validate(self) -> list[str]:
-        problems = _name_problems(self.name) + _description_problems(self.description) + _parameter_problems(self.parameters)
+        problems = _name_problems(self.name) + _description_problems(self.description)
         if not isinstance(self.pattern, _PatternData):
             problems.append("a collector needs a pattern")
         else:
@@ -1096,10 +1073,10 @@ def install(txn: Any) -> Any:
             "OfProperty": S.OfObject, "OfParameter": S.OfObject, "OfSymbol": S.OfObject, "OfVariable": S.OfObject,
             "OfAdjacency": S.OfObject,
             "HasSchema": S.OfRelation, "Refines": S.OfRelation, "Indexing": S.OfRelation, "Containing": S.OfRelation,
-            "AnyOf": S.OfRelation, "Relating": S.OfRelation, "HasParameter": S.OfRelation, "HasProperty": S.OfRelation,
-            "HasAdjacency": S.OfRelation, "HasBranch": S.OfRelation, "HasPart": S.OfRelation, "HasSymbol": S.OfRelation,
-            "HasVariable": S.OfRelation, "Requiring": S.OfRelation, "Matching": S.OfRelation, "Resulting": S.OfRelation,
-            "Computing": S.OfRelation, "HasLink": S.OfRelation, "Defines": S.OfRelation,
+            "AnyOf": S.OfRelation, "Relating": S.OfRelation, "HasProperty": S.OfRelation, "HasAdjacency": S.OfRelation,
+            "HasBranch": S.OfRelation, "HasPart": S.OfRelation, "HasSymbol": S.OfRelation, "HasVariable": S.OfRelation,
+            "Requiring": S.OfRelation, "Matching": S.OfRelation, "Resulting": S.OfRelation, "Computing": S.OfRelation,
+            "HasLink": S.OfRelation, "Defines": S.OfRelation,
         })
         .spec([
             # --- The basic scalars, the only scalar schemas, each mapping to its host type by its name ---
@@ -1125,9 +1102,6 @@ def install(txn: Any) -> Any:
             lambda _: _.AnyOf.name("Schemas.AnyOf").links([lambda t: t.name("any"), lambda t: t.name("schema")]),
             lambda _: _.Relating.name("Schemas.Relating").links([
                 lambda t: t.name("adjacency"), lambda t: t.name("relation")]).uniques([["relation"]]),
-            lambda _: _.HasParameter.name("Schemas.HasParameter").links([
-                lambda t: t.name("owner"), lambda t: t.name("parameter")]).properties({"name": _.OfStr}).uniques([
-                ["owner", "name"], ["parameter"]]),
             lambda _: _.HasProperty.name("Schemas.HasProperty").links([
                 lambda t: t.name("owner"), lambda t: t.name("property")]).properties({"name": _.OfStr}).uniques([
                 ["owner", "name"], ["property"]]),
@@ -1165,8 +1139,6 @@ def install(txn: Any) -> Any:
             # (Store overhaul, Decided, 10): named where it is the first, anonymous where it is the second ---
             lambda _: _.OfScalar.name("Schemas.OfScalar").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr,
-            }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
                 lambda a: a.relation([_.Refines]).me("refined"),
@@ -1181,7 +1153,6 @@ def install(txn: Any) -> Any:
             lambda _: _.OfObject.name("Schemas.OfObject").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr, "ref": _.OfBool, "singleton": _.OfStr,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "adjacencies": lambda a: a.relation([_.HasAdjacency]).me("owner"),
                 "properties": lambda a: a.relation([_.HasProperty]).me("owner"),
                 "refines": lambda a: a.relation([_.Refines]).me("refinement"),
@@ -1199,7 +1170,6 @@ def install(txn: Any) -> Any:
             lambda _: _.OfUnion.name("Schemas.OfUnion").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr, "flat": _.OfBool,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "branches": lambda a: a.relation([_.HasBranch]).me("owner"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
@@ -1215,7 +1185,6 @@ def install(txn: Any) -> Any:
             lambda _: _.OfIntersection.name("Schemas.OfIntersection").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr, "flat": _.OfBool,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "parts": lambda a: a.relation([_.HasPart]).me("owner"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
@@ -1233,7 +1202,6 @@ def install(txn: Any) -> Any:
             }).adjacencies({
                 "index": lambda a: a.relation([_.Indexing]).me("container"),
                 "element": lambda a: a.relation([_.Containing]).me("container"),
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "refines": lambda a: a.relation([_.Refines]).me("refinement"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
@@ -1250,7 +1218,6 @@ def install(txn: Any) -> Any:
                 "name": _.OfStr, "description": _.OfStr,
             }).adjacencies({
                 "schemas": lambda a: a.relation([_.AnyOf]).me("any"),
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
             }).adjacencies([
                 lambda a: a.relation([_.HasSchema]).me("schema"),
                 lambda a: a.relation([_.Refines]).me("refined"),
@@ -1267,7 +1234,6 @@ def install(txn: Any) -> Any:
                 "uniques": S.OfContainer(lambda c: c.index([_.OfInt]).element([
                     S.OfContainer(lambda d: d.index([_.OfInt]).element([_.OfStr]))])),  # lists of names
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "links": lambda a: a.relation([_.HasLink]).me("owner"),
                 "properties": lambda a: a.relation([_.HasProperty]).me("owner"),
             }).adjacencies([
@@ -1277,7 +1243,6 @@ def install(txn: Any) -> Any:
             lambda _: _.OfPattern.name("Schemas.OfPattern").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "symbols": lambda a: a.relation([_.HasSymbol]).me("owner"),
                 "variables": lambda a: a.relation([_.HasVariable]).me("owner"),
                 "requires": lambda a: a.relation([_.Requiring]).me("pattern"),
@@ -1288,7 +1253,6 @@ def install(txn: Any) -> Any:
             lambda _: _.OfExpression.name("Schemas.OfExpression").ref(True).properties({
                 "name": _.OfStr, "description": _.OfStr,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "pattern": lambda a: a.relation([_.Matching]).me("expression"),
                 "result": lambda a: a.relation([_.Resulting]).me("expression"),
             }).adjacencies([
@@ -1303,7 +1267,6 @@ def install(txn: Any) -> Any:
                 "commutative": _.OfBool, "associative": _.OfBool,
                 "suffixes": S.OfContainer(lambda c: c.index([_.OfStr]).element([_.OfStr])),
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "pattern": lambda a: a.relation([_.Matching]).me("expression"),
                 "computes": lambda a: a.relation([_.Computing]).me("collector"),
             }).adjacencies([
@@ -1312,7 +1275,6 @@ def install(txn: Any) -> Any:
             lambda _: _.OfModule.name("Schemas.OfModule").ref(True).properties({  # its identity is its path
                 "name": _.OfStr, "description": _.OfStr,
             }).adjacencies({
-                "parameters": lambda a: a.relation([_.HasParameter]).me("owner"),
                 "schemas": lambda a: a.relation([_.Defines]).me("module"),
             }).adjacencies([
                 lambda a: a.relation([_.Defines]).me("schema").owner(True),
@@ -1326,11 +1288,9 @@ def install(txn: Any) -> Any:
             }).adjacencies([
                 lambda a: a.relation([_.HasProperty]).me("property").owner(True),
             ]),
-            lambda _: _.OfParameter.name("Schemas.OfParameter").ref(True).properties({  # a symbol for a schema
+            lambda _: _.OfParameter.name("Schemas.OfParameter").ref(True).properties({  # declared through Parametrics
                 "description": _.OfStr,
-            }).adjacencies([
-                lambda a: a.relation([_.HasParameter]).me("parameter").owner(True),
-            ]),
+            }),
             lambda _: _.OfSymbol.name("Schemas.OfSymbol").ref(True).properties({
                 "description": _.OfStr,
             }).adjacencies({

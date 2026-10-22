@@ -53,7 +53,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfModule"
                                 },
                                 "next": {
                                   "target": {}
@@ -113,7 +113,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -203,7 +203,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -353,7 +353,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfRelation"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -383,7 +383,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -413,7 +413,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -473,7 +473,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -503,7 +503,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfObject"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -533,7 +533,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfUnion"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -563,7 +563,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfIntersection"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -593,7 +593,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfPattern"
+                                  "name": "OfRelation"
                                 },
                                 "next": {
                                   "target": {}
@@ -623,7 +623,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfCollector"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -653,7 +653,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfModule"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -683,7 +683,7 @@
                                 "i": "schemas",
                                 "o": "",
                                 "properties": {
-                                  "name": "OfRelation"
+                                  "name": "OfObject"
                                 },
                                 "next": {
                                   "target": {}
@@ -697,6 +697,246 @@
                   ]
                 },
                 "23": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfObject"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "24": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfObject"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "25": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfUnion"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "26": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfIntersection"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "27": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfPattern"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "28": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfCollector"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "29": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfModule"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "30": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfRelation"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "31": {
                   "schema": [
                     {
                       "$ref": {
@@ -769,217 +1009,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Contact"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "2"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "Address"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "3"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "Phone"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "4"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "ContactAddresses"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "5"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "ContactPhones"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "6"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "Person"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "7"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "Parentage"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "schema",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "ref": {
-                                                "symbol": "8"
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "Mentorship"
+                                              "value": "Parametrics"
                                             }
                                           }
                                         ]
@@ -1009,7 +1039,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "CardPhone"
+                                              "value": "Contact"
                                             }
                                           }
                                         ]
@@ -1039,7 +1069,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Card"
+                                              "value": "Address"
                                             }
                                           }
                                         ]
@@ -1069,7 +1099,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Holding"
+                                              "value": "Phone"
                                             }
                                           }
                                         ]
@@ -1099,7 +1129,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Deck"
+                                              "value": "ContactAddresses"
                                             }
                                           }
                                         ]
@@ -1129,7 +1159,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Socket"
+                                              "value": "ContactPhones"
                                             }
                                           }
                                         ]
@@ -1159,7 +1189,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Board"
+                                              "value": "Person"
                                             }
                                           }
                                         ]
@@ -1189,7 +1219,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Grid"
+                                              "value": "Parentage"
                                             }
                                           }
                                         ]
@@ -1219,7 +1249,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Tricky"
+                                              "value": "Mentorship"
                                             }
                                           }
                                         ]
@@ -1249,7 +1279,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Choice"
+                                              "value": "CardPhone"
                                             }
                                           }
                                         ]
@@ -1279,7 +1309,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Marked"
+                                              "value": "Card"
                                             }
                                           }
                                         ]
@@ -1309,7 +1339,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Lives"
+                                              "value": "Holding"
                                             }
                                           }
                                         ]
@@ -1339,7 +1369,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "Homes"
+                                              "value": "Deck"
                                             }
                                           }
                                         ]
@@ -1357,6 +1387,246 @@
                                             "set": {
                                               "ref": {
                                                 "symbol": "21"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Socket"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "22"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Board"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "23"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Grid"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "24"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Tricky"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "25"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Choice"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "26"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Marked"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "27"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Lives"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "28"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Homes"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "29"
                                               }
                                             }
                                           }
@@ -1387,6 +1657,1248 @@
                 },
                 {
                   "1": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "schemas",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "OfParameters"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "3"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "Defines"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "4"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "ForValue"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "5"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "ForObject"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "6"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "HasParameters"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "7"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "BindsValue"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "schema",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "8"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "BindsObject"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "2": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.OfParameters"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "ref",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": true
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "adjacencies",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "parameters"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "3"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "parameters"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "adjacency",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfAdjacency",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "me",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "params"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "relation",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "relation",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "6"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "3": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.Defines"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "uniques",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": [
+                                [
+                                  "parameters",
+                                  "name"
+                                ],
+                                [
+                                  "parameter"
+                                ]
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "parameters"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "parameter"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "properties",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "property",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfProperty",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "schema",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfStr"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "name"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "4": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.ForValue"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "uniques",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": [
+                                [
+                                  "param"
+                                ]
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "param"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "schema"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "5": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.ForObject"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "uniques",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": [
+                                [
+                                  "param"
+                                ]
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "param"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "schema"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "6": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.HasParameters"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "uniques",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": [
+                                [
+                                  "defn"
+                                ],
+                                [
+                                  "params"
+                                ]
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "defn"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "params"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "7": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.BindsValue"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "defn"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "param"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "properties",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "property",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfProperty",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "schema",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "def": {
+                                                                              "schema": "Schemas.OfAny",
+                                                                              "mutations": []
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "value"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "8": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Parametrics.BindsObject"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "links",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "defn"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "param"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "link",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfSymbol",
+                                                "mutations": []
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "obj_ref"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "9": [
                     {
                       "as_property": {
                         "name": "name",
@@ -1457,7 +2969,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "4"
+                                                                              "symbol": "12"
                                                                             }
                                                                           }
                                                                         }
@@ -1532,7 +3044,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "5"
+                                                                              "symbol": "13"
                                                                             }
                                                                           }
                                                                         }
@@ -1848,7 +3360,7 @@
                   ]
                 },
                 {
-                  "2": [
+                  "10": [
                     {
                       "as_property": {
                         "name": "name",
@@ -1919,7 +3431,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "4"
+                                                                              "symbol": "12"
                                                                             }
                                                                           }
                                                                         }
@@ -2321,7 +3833,7 @@
                   ]
                 },
                 {
-                  "3": [
+                  "11": [
                     {
                       "as_property": {
                         "name": "name",
@@ -2392,7 +3904,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "5"
+                                                                              "symbol": "13"
                                                                             }
                                                                           }
                                                                         }
@@ -2536,7 +4048,7 @@
                   ]
                 },
                 {
-                  "4": [
+                  "12": [
                     {
                       "as_property": {
                         "name": "name",
@@ -2726,7 +4238,7 @@
                   ]
                 },
                 {
-                  "5": [
+                  "13": [
                     {
                       "as_property": {
                         "name": "name",
@@ -2916,7 +4428,7 @@
                   ]
                 },
                 {
-                  "6": [
+                  "14": [
                     {
                       "as_property": {
                         "name": "name",
@@ -2987,7 +4499,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "7"
+                                                                              "symbol": "15"
                                                                             }
                                                                           }
                                                                         }
@@ -3062,7 +4574,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "7"
+                                                                              "symbol": "15"
                                                                             }
                                                                           }
                                                                         }
@@ -3137,7 +4649,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "8"
+                                                                              "symbol": "16"
                                                                             }
                                                                           }
                                                                         }
@@ -3212,7 +4724,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "8"
+                                                                              "symbol": "16"
                                                                             }
                                                                           }
                                                                         }
@@ -3442,7 +4954,7 @@
                   ]
                 },
                 {
-                  "7": [
+                  "15": [
                     {
                       "as_property": {
                         "name": "name",
@@ -3632,7 +5144,7 @@
                   ]
                 },
                 {
-                  "8": [
+                  "16": [
                     {
                       "as_property": {
                         "name": "name",
@@ -3723,7 +5235,7 @@
                   ]
                 },
                 {
-                  "9": [
+                  "17": [
                     {
                       "as_property": {
                         "name": "name",
@@ -4109,7 +5621,7 @@
                   ]
                 },
                 {
-                  "10": [
+                  "18": [
                     {
                       "as_property": {
                         "name": "name",
@@ -4180,7 +5692,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "11"
+                                                                              "symbol": "19"
                                                                             }
                                                                           }
                                                                         }
@@ -4342,7 +5854,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "9"
+                                                                              "symbol": "17"
                                                                             }
                                                                           }
                                                                         }
@@ -4435,7 +5947,7 @@
                                                                                                       {
                                                                                                         "set": {
                                                                                                           "ref": {
-                                                                                                            "symbol": "9"
+                                                                                                            "symbol": "17"
                                                                                                           }
                                                                                                         }
                                                                                                       }
@@ -5308,7 +6820,7 @@
                   ]
                 },
                 {
-                  "11": [
+                  "19": [
                     {
                       "as_property": {
                         "name": "name",
@@ -5399,7 +6911,7 @@
                   ]
                 },
                 {
-                  "12": [
+                  "20": [
                     {
                       "as_property": {
                         "name": "name",
@@ -5470,7 +6982,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "11"
+                                                                              "symbol": "19"
                                                                             }
                                                                           }
                                                                         }
@@ -5614,7 +7126,7 @@
                   ]
                 },
                 {
-                  "13": [
+                  "21": [
                     {
                       "as_property": {
                         "name": "name",
@@ -5914,7 +7426,7 @@
                   ]
                 },
                 {
-                  "14": [
+                  "22": [
                     {
                       "as_property": {
                         "name": "name",
@@ -7020,7 +8532,7 @@
                                                                                                       {
                                                                                                         "set": {
                                                                                                           "ref": {
-                                                                                                            "symbol": "13"
+                                                                                                            "symbol": "21"
                                                                                                           }
                                                                                                         }
                                                                                                       }
@@ -7290,7 +8802,7 @@
                                                                                                                                                                                                 {
                                                                                                                                                                                                   "set": {
                                                                                                                                                                                                     "ref": {
-                                                                                                                                                                                                      "symbol": "13"
+                                                                                                                                                                                                      "symbol": "21"
                                                                                                                                                                                                     }
                                                                                                                                                                                                   }
                                                                                                                                                                                                 }
@@ -8287,7 +9799,7 @@
                   ]
                 },
                 {
-                  "15": [
+                  "23": [
                     {
                       "as_property": {
                         "name": "name",
@@ -8307,94 +9819,6 @@
                           {
                             "set": {
                               "value": false
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "as_adjacency": {
-                        "name": "parameters",
-                        "mutations": [
-                          {
-                            "insert": {
-                              "entries": [
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": [
-                                                  {
-                                                    "as_property": {
-                                                      "name": "description",
-                                                      "mutations": [
-                                                        {
-                                                          "set": {
-                                                            "value": "Its side"
-                                                          }
-                                                        }
-                                                      ]
-                                                    }
-                                                  }
-                                                ]
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "n"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": []
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "x"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
                             }
                           }
                         ]
@@ -8675,7 +10099,7 @@
                   ]
                 },
                 {
-                  "16": [
+                  "24": [
                     {
                       "as_property": {
                         "name": "name",
@@ -8699,148 +10123,11 @@
                           }
                         ]
                       }
-                    },
-                    {
-                      "as_adjacency": {
-                        "name": "parameters",
-                        "mutations": [
-                          {
-                            "insert": {
-                              "entries": [
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": []
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "a"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": []
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "b"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": []
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "c"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                },
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": []
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "d"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
-                            }
-                          }
-                        ]
-                      }
                     }
                   ]
                 },
                 {
-                  "17": [
+                  "25": [
                     {
                       "as_property": {
                         "name": "name",
@@ -8987,7 +10274,7 @@
                   ]
                 },
                 {
-                  "18": [
+                  "26": [
                     {
                       "as_property": {
                         "name": "name",
@@ -9314,7 +10601,7 @@
                   ]
                 },
                 {
-                  "19": [
+                  "27": [
                     {
                       "as_property": {
                         "name": "name",
@@ -9334,50 +10621,6 @@
                           {
                             "set": {
                               "value": "Who lives where"
-                            }
-                          }
-                        ]
-                      }
-                    },
-                    {
-                      "as_adjacency": {
-                        "name": "parameters",
-                        "mutations": [
-                          {
-                            "insert": {
-                              "entries": [
-                                {
-                                  "mutations": [
-                                    {
-                                      "as_link": {
-                                        "name": "parameter",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "def": {
-                                                "schema": "Schemas.OfParameter",
-                                                "mutations": []
-                                              }
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    },
-                                    {
-                                      "as_property": {
-                                        "name": "name",
-                                        "mutations": [
-                                          {
-                                            "set": {
-                                              "value": "era"
-                                            }
-                                          }
-                                        ]
-                                      }
-                                    }
-                                  ]
-                                }
-                              ]
                             }
                           }
                         ]
@@ -9417,7 +10660,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "1"
+                                                                              "symbol": "9"
                                                                             }
                                                                           }
                                                                         }
@@ -9492,7 +10735,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "2"
+                                                                              "symbol": "10"
                                                                             }
                                                                           }
                                                                         }
@@ -9804,7 +11047,7 @@
                   ]
                 },
                 {
-                  "20": [
+                  "28": [
                     {
                       "as_property": {
                         "name": "name",
@@ -9886,7 +11129,7 @@
                                           {
                                             "set": {
                                               "ref": {
-                                                "symbol": "19"
+                                                "symbol": "27"
                                               }
                                             }
                                           }
@@ -9935,7 +11178,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "19"
+                                                                              "symbol": "27"
                                                                             }
                                                                           }
                                                                         }
@@ -10022,7 +11265,7 @@
                   ]
                 },
                 {
-                  "21": [
+                  "29": [
                     {
                       "as_property": {
                         "name": "name",
@@ -10051,7 +11294,7 @@
                                           {
                                             "set": {
                                               "ref": {
-                                                "symbol": "22"
+                                                "symbol": "30"
                                               }
                                             }
                                           }
@@ -10081,7 +11324,7 @@
                                           {
                                             "set": {
                                               "ref": {
-                                                "symbol": "23"
+                                                "symbol": "31"
                                               }
                                             }
                                           }
@@ -10111,7 +11354,7 @@
                   ]
                 },
                 {
-                  "22": [
+                  "30": [
                     {
                       "as_property": {
                         "name": "name",
@@ -10202,7 +11445,7 @@
                   ]
                 },
                 {
-                  "23": [
+                  "31": [
                     {
                       "as_property": {
                         "name": "name",
@@ -10285,7 +11528,7 @@
                                                                         {
                                                                           "set": {
                                                                             "ref": {
-                                                                              "symbol": "22"
+                                                                              "symbol": "30"
                                                                             }
                                                                           }
                                                                         }
@@ -10372,8 +11615,1055 @@
                       }
                     }
                   ]
+                },
+                "1": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Parametrics"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfParameters"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "2": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Parametrics"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfParameters"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "3": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Parametrics"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfParameters"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "4": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfObject"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "5": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfObject"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                },
+                "6": {
+                  "schema": [
+                    {
+                      "$ref": {
+                        "singleton": ".",
+                        "next": {
+                          "entry": {
+                            "i": "schemas",
+                            "o": "",
+                            "properties": {
+                              "name": "Schemas"
+                            },
+                            "next": {
+                              "entry": {
+                                "i": "schemas",
+                                "o": "",
+                                "properties": {
+                                  "name": "OfPattern"
+                                },
+                                "next": {
+                                  "target": {}
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
                 }
-              }
+              },
+              "spec": [
+                {
+                  "1": [
+                    {
+                      "as_adjacency": {
+                        "name": "parameters",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_property": {
+                                                      "name": "description",
+                                                      "mutations": [
+                                                        {
+                                                          "set": {
+                                                            "value": "Its side"
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  },
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_value",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfInt"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "n"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_value",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfInt"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "x"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "2": [
+                    {
+                      "as_adjacency": {
+                        "name": "parameters",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_value",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfInt"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "a"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_value",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfStr"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "b"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_object",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "4"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "c"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                },
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_object",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "symbol": "5"
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "d"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "3": [
+                    {
+                      "as_adjacency": {
+                        "name": "parameters",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "parameter",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "def": {
+                                                "schema": "Schemas.OfParameter",
+                                                "mutations": [
+                                                  {
+                                                    "as_adjacency": {
+                                                      "name": "for_value",
+                                                      "mutations": [
+                                                        {
+                                                          "insert": {
+                                                            "entries": [
+                                                              {
+                                                                "mutations": [
+                                                                  {
+                                                                    "as_link": {
+                                                                      "name": "schema",
+                                                                      "mutations": [
+                                                                        {
+                                                                          "set": {
+                                                                            "ref": {
+                                                                              "path": {
+                                                                                "singleton": ".",
+                                                                                "next": {
+                                                                                  "entry": {
+                                                                                    "i": "schemas",
+                                                                                    "o": "",
+                                                                                    "properties": {
+                                                                                      "name": "Schemas"
+                                                                                    },
+                                                                                    "next": {
+                                                                                      "entry": {
+                                                                                        "i": "schemas",
+                                                                                        "o": "",
+                                                                                        "properties": {
+                                                                                          "name": "OfStr"
+                                                                                        },
+                                                                                        "next": {
+                                                                                          "target": {}
+                                                                                        }
+                                                                                      }
+                                                                                    }
+                                                                                  }
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      ]
+                                                                    }
+                                                                  }
+                                                                ]
+                                                              }
+                                                            ]
+                                                          }
+                                                        }
+                                                      ]
+                                                    }
+                                                  }
+                                                ]
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    },
+                                    {
+                                      "as_property": {
+                                        "name": "name",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "value": "era"
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "4": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Grid"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "ref",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": false
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "parameters",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "params",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "1"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "5": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Tricky"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "ref",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": false
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "parameters",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "params",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "2"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "6": [
+                    {
+                      "as_property": {
+                        "name": "name",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Lives"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_property": {
+                        "name": "description",
+                        "mutations": [
+                          {
+                            "set": {
+                              "value": "Who lives where"
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "as_adjacency": {
+                        "name": "parameters",
+                        "mutations": [
+                          {
+                            "insert": {
+                              "entries": [
+                                {
+                                  "mutations": [
+                                    {
+                                      "as_link": {
+                                        "name": "params",
+                                        "mutations": [
+                                          {
+                                            "set": {
+                                              "ref": {
+                                                "symbol": "3"
+                                              }
+                                            }
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "spec": {
+                        "items": [
+                          {
+                            "who": [
+                              {
+                                "as_adjacency": {
+                                  "name": "addresses",
+                                  "mutations": [
+                                    {
+                                      "insert": {
+                                        "entries": [
+                                          {
+                                            "mutations": [
+                                              {
+                                                "as_link": {
+                                                  "name": "address",
+                                                  "mutations": [
+                                                    {
+                                                      "set": {
+                                                        "ref": {
+                                                          "symbol": "where"
+                                                        }
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              },
+                                              {
+                                                "as_property": {
+                                                  "name": "label",
+                                                  "mutations": [
+                                                    {
+                                                      "set": {
+                                                        "value": "home"
+                                                      }
+                                                    }
+                                                  ]
+                                                }
+                                              }
+                                            ]
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          },
+                          {
+                            "where": [
+                              {
+                                "as_property": {
+                                  "name": "locality",
+                                  "mutations": [
+                                    {
+                                      "set": {
+                                        "value": "London"
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              ]
             }
           ]
         }

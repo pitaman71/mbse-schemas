@@ -3,8 +3,8 @@
  * and the store they are built in. They replace the builders and meta-schemas in `Schemas`, which stay beside them
  * while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` is unchanged.
  *
- * Every schema object is a reference object: a kind of schema, and each of its members (a property, an adjacency, a
- * parameter, a symbol, a branch or a part). A property of a schema object holds a value (a name, a flag); every
+ * Every schema object is a reference object: a kind of schema, each of its members (a property, an adjacency, a symbol,
+ * a branch or a part), and a parameter. A property of a schema object holds a value (a name, a flag); every
  * reference from one schema object to another is a relation: a schema to its members (`Schemas.HasProperty`, ...), a
  * member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Schemas.Refines`), and so on
  * (`plainSchemas`, below): each store builds its own (docs/proposals/store-overhaul, Levels).
@@ -1336,13 +1336,11 @@ function schemaOf(field: string): Members {
   return new Members("schema", { accepts: isSchema, ...one(field) });
 }
 
-/** A builder of a kind of schema: named, described, and parametric. */
+/** A builder of a kind of schema: named and described. Its parameters are `Parametrics`', where installed. */
 abstract class KindBuilder extends Builder {
   static override _table = extendTable(Builder._table, {
     name: new Prop(),
     description: new Prop(),
-    parameters: new Members("parameter", { keyed: true, accepts: isA(S.OfParameter.Data), build: "ParameterBuilder",
-      ...byName("parameters") }),
   });
 }
 
@@ -1362,7 +1360,8 @@ export class PropertyBuilder extends MemberBuilder {
   });
 }
 
-/** A parameter: a name, by the entry that links it to its schema, a symbol standing for a schema. */
+/** A parameter: a symbol standing for what is bound where the definition declaring it is referred to, named by its set's
+ * entry (`Parametrics.Defines`). */
 export class ParameterBuilder extends Builder {
   static override _data = S.OfParameter.Data;
   static override _meta = "OfParameter";
@@ -1653,7 +1652,6 @@ export class RelationBuilder extends KindBuilder {
 class ModuleData {
   name: string | null = null;
   description: string | null = null;
-  parameters = new Map<string, unknown>();
   schemas = new Map<string, unknown>();
 }
 
@@ -1738,7 +1736,7 @@ export interface Plain {
   OfModule: ObjectData; OfProperty: ObjectData; OfParameter: ObjectData; OfSymbol: ObjectData; OfVariable: ObjectData;
   OfAdjacency: ObjectData;
   HasSchema: RelationData; Refines: RelationData; Indexing: RelationData; Containing: RelationData; AnyOf: RelationData;
-  Relating: RelationData; HasParameter: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
+  Relating: RelationData; HasProperty: RelationData; HasAdjacency: RelationData;
   HasBranch: RelationData; HasPart: RelationData; HasSymbol: RelationData; HasLink: RelationData; Defines: RelationData;
   HasVariable: RelationData; Requiring: RelationData; Matching: RelationData; Resulting: RelationData;
   Computing: RelationData;

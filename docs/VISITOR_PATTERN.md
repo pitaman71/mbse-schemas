@@ -293,7 +293,7 @@ env.<propName>(spec: Specs.Callback[Visitors.OfProperty]) -> Visitors.OfEntry: .
 ## Predicates
 
 - `Schemas.OfPredicate` takes mbse-patterns' predicate as its model, moved down to mbse-schemas: it names its symbols,
-  each with a referenceable object schema, and declares its parameters as any schema does (`Schemas.OfParameter`).
+  each with a referenceable object schema, and declares its parameters as any schema does (`Parametrics`, where installed).
 - mbse-schemas has no knowledge of expression dialects: what a predicate requires of a match, its constraint, is
   mbse-patterns' and mbse-expressions' (docs/proposals/store-overhaul, Decided, 20).
 - `Visitors.OfPredicate` visits a match: each symbol bound to an object, handed over as a `Visitors.OfObject`, in the

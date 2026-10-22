@@ -9,7 +9,7 @@
 
 import { render } from "../../src/Conformance/Render.js";
 import { build, CASES } from "../../src/Conformance/Corpus.js";
-import { Builders, JSON, Validators, YAML } from "../../src/Framework/index.js";
+import { Builders, JSON, Parametrics, Validators, YAML } from "../../src/Framework/index.js";
 
 const root = new URL("../../../conformance/", import.meta.url);
 const read = async (path: string): Promise<string> => (await fetch(new URL(path, root))).text();
@@ -33,6 +33,7 @@ for (const name of CASES) {
   for (const implementation of ["python3", "typescript5"]) {
     for (const ext of ["json", "yaml"]) {
       const fresh = new Builders.Store();
+      if (name === "module") fresh.transaction(Parametrics.install); // its store extends the framework's schemas
       const load = ext === "json" ? JSON.FromJSON(fresh) : YAML.FromYAML(fresh);
       const made = load.Snapshot(await read(`${implementation}/${name}.${ext}`));
       if (JSON.ToJSON(fresh).Snapshot({ indent: 2 }) + "\n" !== expected) {

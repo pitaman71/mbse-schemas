@@ -10,7 +10,7 @@ that binds it, is `Parametrics.BindsValue`, its value an entry property, or `Par
 third link.
 
 The extension: `install` gives `Schemas.OfParameter` its `for_value` and `for_object`, and every kind of schema its
-`parameter_set` (to `HasParameters`). `validate(store, defn)` checks a definition's set's `Defines` entries.
+`parameters` (to `HasParameters`). `validate(store, defn)` checks a definition's set's `Defines` entries.
 """
 
 from __future__ import annotations
@@ -66,27 +66,27 @@ def install(txn: Any) -> Any:
                 lambda a: a.relation([_.Defines]).me("parameter"),
             ]),
             lambda _: _.OfScalar.name("Schemas.OfScalar").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfObject.name("Schemas.OfObject").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfUnion.name("Schemas.OfUnion").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfIntersection.name("Schemas.OfIntersection").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfContainer.name("Schemas.OfContainer").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfAny.name("Schemas.OfAny").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfRelation.name("Schemas.OfRelation").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfPattern.name("Schemas.OfPattern").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfExpression.name("Schemas.OfExpression").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfCollector.name("Schemas.OfCollector").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
             lambda _: _.OfModule.name("Schemas.OfModule").adjacencies({
-                "parameter_set": lambda a: a.relation([_.HasParameters]).me("defn")}),
+                "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
         ])]))])
 
 
@@ -96,8 +96,8 @@ def validate(store: Any, defn: Any) -> list[str]:
     of a pattern, a name used as both a symbol or a variable and a parameter; and that the definition has one set, and
     its set one definition (`Parametrics.HasParameters`, unique in both directions). None where it has no set."""
     builder = _builder_for(defn)(defn, False, store)
-    has_parameters = builder.as_schema().adjacencies["parameter_set"].relation
-    sets = [held.params._target() for held in builder.parameter_set]
+    has_parameters = builder.as_schema().adjacencies["parameters"].relation
+    sets = [held.params._target() for held in builder.parameters]
     problems: list[str] = []
     if len(sets) > 1:
         problems.append(f"it has {len(sets)} sets of parameters: a definition has one")

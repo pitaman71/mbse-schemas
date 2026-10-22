@@ -11,7 +11,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { Builders as B } from "../Framework/index.js";
+import { Builders as B, Parametrics } from "../Framework/index.js";
 
 export const CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
 
@@ -187,17 +187,23 @@ function lists(txn: any): any {
 }
 
 /** The corpus's own schemas as data, beside the address book's, the family's, the embedded values' and the lists':
- * parametric schemas, whose parameters are names, a flat union and a flat intersection. */
+ * parametric schemas, each declaring its set of parameters (Parametrics, installed before), a flat union and a flat
+ * intersection. */
 function module(txn: any): any {
   const S = txn.Schemas;
   return txn.uid("corpus.module/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
     .symbols({Grid: S.OfObject, Tricky: S.OfObject, Choice: S.OfUnion, Marked: S.OfIntersection})
     .spec([
-      (_: any) => _.Grid.name("Grid").parameters([
-        (t: any) => t.name("n").description("Its side"), (t: any) => t.name("x"),
-      ]).properties({mask: S.OfInt, cells: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfInt]))}),
-      (_: any) => _.Tricky.name("Tricky").parameters([
-        (t: any) => t.name("a"), (t: any) => t.name("b"), (t: any) => t.name("c"), (t: any) => t.name("d")]),
+      (_: any) => _.Grid.name("Grid").parameters([txn.Parametrics.OfParameters((ps: any) => ps.parameters({
+        n: (d: any) => d.parameter((p: any) => p.description("Its side").for_value([S.OfInt])),
+        x: (d: any) => d.parameter((p: any) => p.for_value([S.OfInt])),
+      }))]).properties({mask: S.OfInt, cells: S.OfContainer((c: any) => c.index([S.OfInt]).element([S.OfInt]))}),
+      (_: any) => _.Tricky.name("Tricky").parameters([txn.Parametrics.OfParameters((ps: any) => ps.parameters({
+        a: (d: any) => d.parameter((p: any) => p.for_value([S.OfInt])),
+        b: (d: any) => d.parameter((p: any) => p.for_value([S.OfStr])),
+        c: (d: any) => d.parameter((p: any) => p.for_object([_.Grid])),
+        d: (d: any) => d.parameter((p: any) => p.for_object([_.Tricky])),
+      }))]),
       (_: any) => _.Choice.name("Choice").flat(true).branches([
         (t: any) => t.name("n").schema([S.OfInt]), (t: any) => t.name("s").schema([S.OfStr])]),
       (_: any) => _.Marked.name("Marked").flat(true).parts([
@@ -221,9 +227,9 @@ function patterns(txn: any): any {
         (t: any) => t.name("since").schema([S.OfStr]),
       ]).requires([
         (c: any) => c.description("lived there since").result([S.OfBool]),
-      ]).parameters([
-        (t: any) => t.name("era"),
-      ]).spec([
+      ]).parameters([txn.Parametrics.OfParameters((ps: any) => ps.parameters({
+        era: (d: any) => d.parameter((p: any) => p.for_value([S.OfStr])),
+      }))]).spec([
         (_: any) => _.who.addresses({home: _.where}),
         (_: any) => _.where.locality("London"),
       ]),
@@ -391,7 +397,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
   });
 
   s = new B.Store();
-  for (const install of [addressBook, family, embedded, lists, module, patterns, rooted]) s.transaction(install);
+  for (const install of [Parametrics.install, addressBook, family, embedded, lists, module, patterns, rooted]) s.transaction(install);
   s.transaction(() => { // the case's data, none but its root's
     hold(s, []);
   });

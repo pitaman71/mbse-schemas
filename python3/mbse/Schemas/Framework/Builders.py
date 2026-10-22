@@ -2,8 +2,8 @@
 relations, and the store they are built in. They replace the builders and meta-schemas in `Schemas`, which stay beside
 them while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` is unchanged.
 
-Every schema object is a reference object: a kind of schema, and each of its members (a property, an adjacency, a
-parameter, a symbol, a branch or a part). A property of a schema object holds a value (a name, a flag); every
+Every schema object is a reference object: a kind of schema, each of its members (a property, an adjacency, a symbol,
+a branch or a part), and a parameter. A property of a schema object holds a value (a name, a flag); every
 reference from one schema object to another is a relation: a schema to its members (`Schemas.HasProperty`, ...), a
 member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Schemas.Refines`), and so on
 (`Schemas.install`): each store makes its own, reading the framework's installs when it is made (the bootstrap, below;
@@ -1099,12 +1099,10 @@ def _extend_builders(store: Store, before: dict[int, tuple[set[str], set[str]]])
 
 
 class _KindBuilder(_Builder[D]):
-    """A builder of a kind of schema: named, described, and parametric."""
+    """A builder of a kind of schema: named and described. Its parameters are `Parametrics`', where installed."""
 
     name = _Prop()
     description = _Prop()
-    parameters = _Members("parameter", keyed=True, accepts=lambda v: isinstance(v, S.OfParameter.Data),
-                          build=lambda: ParameterBuilder, **_by_name("parameters"))
 
 
 # --- Builders of members ---
@@ -1125,7 +1123,8 @@ class PropertyBuilder(_MemberBuilder[S.OfProperty.Data]):
 
 
 class ParameterBuilder(_Builder[S.OfParameter.Data]):
-    """A parameter: a name, by the entry that links it to its schema, a symbol standing for a schema."""
+    """A parameter: a symbol standing for what is bound where the definition declaring it is referred to, named by its
+    set's entry (`Parametrics.Defines`)."""
 
     _data, _meta, _noun = S.OfParameter.Data, "OfParameter", "a parameter"
 
@@ -1376,7 +1375,6 @@ class _ModuleData:
 
     name: str | None = None
     description: str | None = None
-    parameters: dict[str, Any] = field(default_factory=dict)
     schemas: dict[str, Any] = field(default_factory=dict)
 
 

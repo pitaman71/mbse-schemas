@@ -11,9 +11,9 @@
  * Every kind of schema may have a `name`, set by its builder's `.name("crm.Contact")`: identifiers separated by dots,
  * the part before the last dot the module it is in. A store registers a named schema under that name.
  *
- * Every kind of schema may declare `parameters` (`OfParameter`): names, each a symbol standing for a schema, bound
- * where the schema is referred to (docs/proposals/store-overhaul, Decided, 12 and 20). Terms, applications and widths
- * are mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
+ * A parameter (`OfParameter`) is a name and a description. Which definitions declare parameters, what each can be bound
+ * to, and their bindings are `Parametrics`', a module installed before use (docs/PARAMETRICS.md). Terms, applications
+ * and widths are mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
  *
  * A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object, variables
  * (`OfVariable`), each standing for a value, and the constraints a frame meets (its `requires`, each an `OfExpression` of
@@ -66,10 +66,10 @@ export function hostOf(value: unknown): ScalarToken | null {
   return SCALAR_TYPES.find((token) => isScalarOf(token, value)) ?? null;
 }
 
-// --- OfParameter: a name a schema declares ---
+// --- OfParameter: a name a definition declares, through `Parametrics` ---
 
-/** A parameter of the schema that declares it: a name, a symbol standing for a schema, bound where the schema is
- * referred to and referred to within it by name, as a variable is. */
+/** A parameter: a name, a symbol standing for what is bound where the definition that declares it is referred to, and
+ * a description. Its name is its set's entry's (`Parametrics.Defines`). */
 class ParameterData {
   name: string;
   description: string | null;
@@ -90,19 +90,6 @@ export namespace OfParameter {
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
   export declare const Builder: typeof Builders.ParameterBuilder;
   export type Builder = Builders.ParameterBuilder;
-}
-
-function parameterProblems(parameters: ReadonlyMap<string, ParameterData>): string[] {
-  const problems = reserved([...parameters.keys()]);
-  for (const [name, parameter] of parameters) {
-    problems.push(...descriptionProblems(parameter.description).map((p) => `parameter ${repr(name)}: ${p}`));
-  }
-  return problems;
-}
-
-/** Parameters equal as Python's dict equality finds them: the same names, each parameter equal. */
-function sameParameters(a: ReadonlyMap<string, ParameterData>, b: ReadonlyMap<string, ParameterData>): boolean {
-  return a.size === b.size && [...a].every(([name, parameter]) => parameter.equals(b.get(name)));
 }
 
 // --- OfScalar ---
@@ -144,11 +131,10 @@ function scalarShown(scalar: ScalarData): string {
   return scalar.name === null ? "an unnamed scalar" : `the scalar ${repr(scalar.name)}`;
 }
 
-/** A scalar's name, description and parameters. */
+/** A scalar's name and description. */
 export interface ScalarFields {
   name?: string | null;
   description?: string | null;
-  parameters?: Map<string, ParameterData>;
 }
 
 /** A scalar: one of the five basic scalars, `Schemas.OfBool`, `Schemas.OfInt`, `Schemas.OfFloat`,
@@ -158,12 +144,10 @@ export interface ScalarFields {
 class ScalarData {
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
 
   constructor(host: unknown = null, fields: ScalarFields = {}) {
     this.name = SCALAR_NAMES.has(host) ? basicName(SCALAR_NAMES.get(host) as string) : fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
   }
 
   /** The host type the basic scalar maps to, or null when it names none. */
@@ -185,12 +169,11 @@ class ScalarData {
   }
 
   equals(other: unknown): boolean {
-    return other instanceof ScalarData && other.name === this.name && other.description === this.description
-      && sameParameters(this.parameters, other.parameters);
+    return other instanceof ScalarData && other.name === this.name && other.description === this.description;
   }
 
   validate(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
     if (this.type === null) {
       problems.push(`${scalarShown(this)} is not a basic scalar: a scalar is Schemas.OfBool, Schemas.OfInt, `
         + "Schemas.OfFloat, Schemas.OfStr or Schemas.OfBytes");
@@ -380,15 +363,13 @@ class RelationData {
   uniques: readonly ReadonlySet<string>[];
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
 
   constructor(fields: { entry?: EntryData; uniques?: readonly ReadonlySet<string>[]; name?: string | null;
-    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    description?: string | null } = {}) {
     this.entry = fields.entry ?? new EntryData();
     this.uniques = fields.uniques ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
   }
 
   equals(other: unknown): boolean {
@@ -397,7 +378,7 @@ class RelationData {
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...this.entry.validate()];
+      ...this.entry.validate()];
     for (const unique of this.uniques) {
       const unknown = [...unique].filter((name) => !this.entry.links.has(name) && !this.entry.properties.has(name));
       if (unknown.length > 0) {
@@ -575,14 +556,13 @@ class ObjectData {
   ref: boolean;
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
   /** The links it may fill with no member. */
   anonymous: AdjacencyData[];
   /** The object schema it refines, whose members it inherits, or null. */
   refines: unknown;
 
   constructor(fields: { properties?: Map<string, PropertyData>; adjacencies?: Map<string, AdjacencyData>; singleton?: string | null;
-    ref?: boolean; name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>;
+    ref?: boolean; name?: string | null; description?: string | null;
     anonymous?: AdjacencyData[]; refines?: unknown } = {}) {
     this.properties = fields.properties ?? new Map();
     this.adjacencies = fields.adjacencies ?? new Map();
@@ -590,7 +570,6 @@ class ObjectData {
     this.ref = fields.ref ?? false;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
     this.anonymous = fields.anonymous ?? [];
     this.refines = fields.refines ?? null;
   }
@@ -613,7 +592,7 @@ class ObjectData {
 
   private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...reserved([...this.properties.keys(), ...this.adjacencies.keys()]),
+      ...reserved([...this.properties.keys(), ...this.adjacencies.keys()]),
       ...visited([...this.properties.keys(), ...this.adjacencies.keys()])];
     if (this.singleton !== null && !this.ref) problems.push("a singleton's schema must be a reference object schema");
     const clashes = [...this.properties.keys()].filter((name) => this.adjacencies.has(name));
@@ -726,16 +705,13 @@ class UnionData {
   branches: readonly MemberData[];
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
   /** Whether a value reads as its branch's value, told apart by schema, rather than as an object of one branch. */
   flat: boolean;
 
-  constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData>; flat?: boolean } = {}) {
+  constructor(fields: { branches?: readonly MemberData[]; name?: string | null; description?: string | null; flat?: boolean } = {}) {
     this.branches = fields.branches ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
     this.flat = fields.flat ?? false;
   }
 
@@ -753,7 +729,7 @@ class UnionData {
   }
 
   private problems(): string[] {
-    return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
+    return [...nameProblems(this.name), ...descriptionProblems(this.description),
       ...memberProblems("a union", "branch", "branches", this.branches), ...(this.flat ? flatUnionProblems(this.branches) : [])];
   }
 }
@@ -772,16 +748,13 @@ class IntersectionData {
   parts: readonly MemberData[];
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
   /** Whether a value reads its parts' properties as its own, rather than as an object of its parts. */
   flat: boolean;
 
-  constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData>; flat?: boolean } = {}) {
+  constructor(fields: { parts?: readonly MemberData[]; name?: string | null; description?: string | null; flat?: boolean } = {}) {
     this.parts = fields.parts ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
     this.flat = fields.flat ?? false;
   }
 
@@ -799,7 +772,7 @@ class IntersectionData {
   }
 
   private problems(): string[] {
-    return [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters),
+    return [...nameProblems(this.name), ...descriptionProblems(this.description),
       ...memberProblems("an intersection", "part", "parts", this.parts), ...(this.flat ? flatIntersectionProblems(this.parts) : [])];
   }
 }
@@ -852,18 +825,16 @@ class ContainerData {
   layout: string | null;
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
   /** The container schema it refines, or null. */
   refines: unknown;
 
   constructor(fields: { index?: AnyData | null; element?: AnyData | null; layout?: string | null; name?: string | null;
-    description?: string | null; parameters?: Map<string, ParameterData>; refines?: unknown } = {}) {
+    description?: string | null; refines?: unknown } = {}) {
     this.index = fields.index ?? null;
     this.element = fields.element ?? null;
     this.layout = fields.layout ?? null;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
     this.refines = fields.refines ?? null;
   }
 
@@ -883,7 +854,7 @@ class ContainerData {
   }
 
   private problems(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
     for (const [role, schema] of [["index", this.index], ["element", this.element]] as const) {
       if (!isAnyData(schema)) problems.push(`a container's ${role} is a schema, got ${repr(schema)}`);
       else problems.push(...validateSchema(schema).map((p) => `${role}: ${p}`));
@@ -947,15 +918,12 @@ class ExpressionData {
   result: unknown;
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
 
-  constructor(fields: { pattern?: unknown; result?: unknown; name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData> } = {}) {
+  constructor(fields: { pattern?: unknown; result?: unknown; name?: string | null; description?: string | null; } = {}) {
     this.pattern = fields.pattern ?? null;
     this.result = fields.result ?? null;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
   }
 
   equals(other: unknown): boolean {
@@ -963,7 +931,7 @@ class ExpressionData {
   }
 
   validate(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
     if (this.pattern !== null && !(this.pattern instanceof PatternData)) problems.push("an expression's pattern is a pattern");
     if (this.result === null) problems.push("an expression needs a result schema");
     else problems.push(...[...validateSchema(this.result), ...embeddedProblems(this.result)].map((p) => `result: ${p}`));
@@ -1002,18 +970,16 @@ class PatternData {
   requires: ExpressionData[];
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
   /** What must hold of a frame: `Mutations.OfPattern`s, as plain data (docs/OBJECT_IDENTITY.md, Decided, 95). */
   spec: unknown[];
 
   constructor(fields: { symbols?: Map<string, SymbolData>; variables?: Map<string, VariableData>; requires?: ExpressionData[];
-    name?: string | null; description?: string | null; parameters?: Map<string, ParameterData>; spec?: unknown[] } = {}) {
+    name?: string | null; description?: string | null; spec?: unknown[] } = {}) {
     this.symbols = fields.symbols ?? new Map();
     this.variables = fields.variables ?? new Map();
     this.requires = fields.requires ?? [];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
     this.spec = fields.spec ?? [];
   }
 
@@ -1023,12 +989,9 @@ class PatternData {
 
   validate(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...parameterProblems(this.parameters), ...reserved([...this.symbols.keys(), ...this.variables.keys()])];
-    for (const [first, second, plural] of [[this.symbols, this.variables, "symbol and variable"],
-      [this.symbols, this.parameters, "symbol and parameter"], [this.variables, this.parameters, "variable and parameter"]] as const) {
-      const clashes = [...first.keys()].filter((name) => second.has(name));
-      if (clashes.length > 0) problems.push(`names used as both ${plural}: ${repr(sortedStrings(new Set(clashes)))}`);
-    }
+      ...reserved([...this.symbols.keys(), ...this.variables.keys()])];
+    const clashes = [...this.symbols.keys()].filter((name) => this.variables.has(name));
+    if (clashes.length > 0) problems.push(`names used as both symbol and variable: ${repr(sortedStrings(new Set(clashes)))}`);
     for (const [name, symbol] of this.symbols) problems.push(...symbolProblems(symbol).map((p) => `symbol ${repr(name)}: ${p}`));
     for (const [name, variable] of this.variables) {
       problems.push(...variableProblems(variable).map((p) => `variable ${repr(name)}: ${p}`));
@@ -1073,11 +1036,10 @@ class CollectorData {
   computes: unknown;
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
 
   constructor(fields: { pattern?: unknown; symbols?: string[]; variables?: string[]; commutative?: boolean | null;
     associative?: boolean | null; suffixes?: Map<string, string> | null; computes?: unknown; name?: string | null;
-    description?: string | null; parameters?: Map<string, ParameterData> } = {}) {
+    description?: string | null } = {}) {
     this.pattern = fields.pattern ?? null;
     this.symbols = fields.symbols ?? [];
     this.variables = fields.variables ?? [];
@@ -1087,7 +1049,6 @@ class CollectorData {
     this.computes = fields.computes ?? null;
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
   }
 
   equals(other: unknown): boolean {
@@ -1095,7 +1056,7 @@ class CollectorData {
   }
 
   validate(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
     const pattern = this.pattern;
     if (!(pattern instanceof PatternData)) {
       problems.push("a collector needs a pattern");
@@ -1175,14 +1136,11 @@ class AnyValueData {
   schemas: AnyData[];
   name: string | null;
   description: string | null;
-  parameters: Map<string, ParameterData>;
 
-  constructor(schemas: readonly unknown[] = [], fields: { name?: string | null; description?: string | null;
-    parameters?: Map<string, ParameterData> } = {}) {
+  constructor(schemas: readonly unknown[] = [], fields: { name?: string | null; description?: string | null; } = {}) {
     this.schemas = [...schemas] as AnyData[];
     this.name = fields.name ?? null;
     this.description = fields.description ?? null;
-    this.parameters = fields.parameters ?? new Map();
   }
 
   equals(other: unknown): boolean {
@@ -1194,7 +1152,7 @@ class AnyValueData {
   }
 
   private problems(): string[] {
-    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description), ...parameterProblems(this.parameters)];
+    const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
     const valid: AnyData[] = [];
     for (const schema of this.schemas as unknown[]) {
       if (!isAnyData(schema)) problems.push(`an OfAny holds schemas, got ${repr(schema)}`);
@@ -1392,10 +1350,10 @@ export function install(txn: any): any {
       OfProperty: S.OfObject, OfParameter: S.OfObject, OfSymbol: S.OfObject, OfVariable: S.OfObject,
       OfAdjacency: S.OfObject,
       HasSchema: S.OfRelation, Refines: S.OfRelation, Indexing: S.OfRelation, Containing: S.OfRelation,
-      AnyOf: S.OfRelation, Relating: S.OfRelation, HasParameter: S.OfRelation, HasProperty: S.OfRelation,
-      HasAdjacency: S.OfRelation, HasBranch: S.OfRelation, HasPart: S.OfRelation, HasSymbol: S.OfRelation,
-      HasVariable: S.OfRelation, Requiring: S.OfRelation, Matching: S.OfRelation, Resulting: S.OfRelation,
-      Computing: S.OfRelation, HasLink: S.OfRelation, Defines: S.OfRelation,
+      AnyOf: S.OfRelation, Relating: S.OfRelation, HasProperty: S.OfRelation, HasAdjacency: S.OfRelation,
+      HasBranch: S.OfRelation, HasPart: S.OfRelation, HasSymbol: S.OfRelation, HasVariable: S.OfRelation,
+      Requiring: S.OfRelation, Matching: S.OfRelation, Resulting: S.OfRelation, Computing: S.OfRelation,
+      HasLink: S.OfRelation, Defines: S.OfRelation,
     })
     .spec([
      // --- The basic scalars, the only scalar schemas, each mapping to its host type by its name ---
@@ -1421,9 +1379,6 @@ export function install(txn: any): any {
       (_: any) => _.AnyOf.name("Schemas.AnyOf").links([(t: any) => t.name("any"), (t: any) => t.name("schema")]),
       (_: any) => _.Relating.name("Schemas.Relating").links([
         (t: any) => t.name("adjacency"), (t: any) => t.name("relation")]).uniques([["relation"]]),
-      (_: any) => _.HasParameter.name("Schemas.HasParameter").links([
-        (t: any) => t.name("owner"), (t: any) => t.name("parameter")]).properties({name: _.OfStr}).uniques([
-        ["owner", "name"], ["parameter"]]),
       (_: any) => _.HasProperty.name("Schemas.HasProperty").links([
         (t: any) => t.name("owner"), (t: any) => t.name("property")]).properties({name: _.OfStr}).uniques([
         ["owner", "name"], ["property"]]),
@@ -1461,8 +1416,6 @@ export function install(txn: any): any {
      // (Store overhaul, Decided, 10): named where it is the first, anonymous where it is the second ---
       (_: any) => _.OfScalar.name("Schemas.OfScalar").ref(true).properties({
         name: _.OfStr, description: _.OfStr,
-      }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
       }).adjacencies([
         (a: any) => a.relation([_.HasSchema]).me("schema"),
         (a: any) => a.relation([_.Refines]).me("refined"),
@@ -1477,7 +1430,6 @@ export function install(txn: any): any {
       (_: any) => _.OfObject.name("Schemas.OfObject").ref(true).properties({
         name: _.OfStr, description: _.OfStr, ref: _.OfBool, singleton: _.OfStr,
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         adjacencies: (a: any) => a.relation([_.HasAdjacency]).me("owner"),
         properties: (a: any) => a.relation([_.HasProperty]).me("owner"),
         refines: (a: any) => a.relation([_.Refines]).me("refinement"),
@@ -1495,7 +1447,6 @@ export function install(txn: any): any {
       (_: any) => _.OfUnion.name("Schemas.OfUnion").ref(true).properties({
         name: _.OfStr, description: _.OfStr, flat: _.OfBool,
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         branches: (a: any) => a.relation([_.HasBranch]).me("owner"),
       }).adjacencies([
         (a: any) => a.relation([_.HasSchema]).me("schema"),
@@ -1511,7 +1462,6 @@ export function install(txn: any): any {
       (_: any) => _.OfIntersection.name("Schemas.OfIntersection").ref(true).properties({
         name: _.OfStr, description: _.OfStr, flat: _.OfBool,
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         parts: (a: any) => a.relation([_.HasPart]).me("owner"),
       }).adjacencies([
         (a: any) => a.relation([_.HasSchema]).me("schema"),
@@ -1529,7 +1479,6 @@ export function install(txn: any): any {
       }).adjacencies({
         index: (a: any) => a.relation([_.Indexing]).me("container"),
         element: (a: any) => a.relation([_.Containing]).me("container"),
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         refines: (a: any) => a.relation([_.Refines]).me("refinement"),
       }).adjacencies([
         (a: any) => a.relation([_.HasSchema]).me("schema"),
@@ -1546,7 +1495,6 @@ export function install(txn: any): any {
         name: _.OfStr, description: _.OfStr,
       }).adjacencies({
         schemas: (a: any) => a.relation([_.AnyOf]).me("any"),
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
       }).adjacencies([
         (a: any) => a.relation([_.HasSchema]).me("schema"),
         (a: any) => a.relation([_.Refines]).me("refined"),
@@ -1563,7 +1511,6 @@ export function install(txn: any): any {
         uniques: S.OfContainer((c: any) => c.index([_.OfInt]).element([
           S.OfContainer((d: any) => d.index([_.OfInt]).element([_.OfStr]))])), // lists of names
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         links: (a: any) => a.relation([_.HasLink]).me("owner"),
         properties: (a: any) => a.relation([_.HasProperty]).me("owner"),
       }).adjacencies([
@@ -1573,7 +1520,6 @@ export function install(txn: any): any {
       (_: any) => _.OfPattern.name("Schemas.OfPattern").ref(true).properties({
         name: _.OfStr, description: _.OfStr,
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         symbols: (a: any) => a.relation([_.HasSymbol]).me("owner"),
         variables: (a: any) => a.relation([_.HasVariable]).me("owner"),
         requires: (a: any) => a.relation([_.Requiring]).me("pattern"),
@@ -1584,7 +1530,6 @@ export function install(txn: any): any {
       (_: any) => _.OfExpression.name("Schemas.OfExpression").ref(true).properties({
         name: _.OfStr, description: _.OfStr,
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         pattern: (a: any) => a.relation([_.Matching]).me("expression"),
         result: (a: any) => a.relation([_.Resulting]).me("expression"),
       }).adjacencies([
@@ -1599,7 +1544,6 @@ export function install(txn: any): any {
         commutative: _.OfBool, associative: _.OfBool,
         suffixes: S.OfContainer((c: any) => c.index([_.OfStr]).element([_.OfStr])),
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         pattern: (a: any) => a.relation([_.Matching]).me("expression"),
         computes: (a: any) => a.relation([_.Computing]).me("collector"),
       }).adjacencies([
@@ -1608,7 +1552,6 @@ export function install(txn: any): any {
       (_: any) => _.OfModule.name("Schemas.OfModule").ref(true).properties({ // its identity is its path
         name: _.OfStr, description: _.OfStr,
       }).adjacencies({
-        parameters: (a: any) => a.relation([_.HasParameter]).me("owner"),
         schemas: (a: any) => a.relation([_.Defines]).me("module"),
       }).adjacencies([
         (a: any) => a.relation([_.Defines]).me("schema").owner(true),
@@ -1622,11 +1565,9 @@ export function install(txn: any): any {
       }).adjacencies([
         (a: any) => a.relation([_.HasProperty]).me("property").owner(true),
       ]),
-      (_: any) => _.OfParameter.name("Schemas.OfParameter").ref(true).properties({ // a symbol for a schema
+      (_: any) => _.OfParameter.name("Schemas.OfParameter").ref(true).properties({ // declared through Parametrics
         description: _.OfStr,
-      }).adjacencies([
-        (a: any) => a.relation([_.HasParameter]).me("parameter").owner(true),
-      ]),
+      }),
       (_: any) => _.OfSymbol.name("Schemas.OfSymbol").ref(true).properties({
         description: _.OfStr,
       }).adjacencies({

@@ -121,8 +121,10 @@ schema.validate()                                           # the schema's own p
 .name("crm.Contact")                                        # a name, identifiers separated by dots, on any kind of schema
 .description("A person we know")                            # documentation, on a schema or a member: property, adjacency,
 schema.properties["home"].schema                             # branch or part; a property is an element, its schema inside
-.parameters([lambda t: t.name("n")])                        # parameters, names only, on any kind of schema; binding is
-                                                            # mbse-expressions'
+store.transaction(Parametrics.install)                      # parameters are Parametrics', installed before use; in a spec,
+.parameters([txn.Parametrics.OfParameters(lambda ps: ps.parameters({  # a set of them on any kind of schema, each
+    "n": lambda d: d.parameter(lambda p: p.for_value([S.OfInt]))}))])  # for a value of a schema, or for_object([Shape])
+Parametrics.validate(store, schema)                         # its parameters' problems; binding is mbse-expressions'
 store.Schemas.OfPattern(lambda p: p.symbols([lambda t: t.name("p").schema([Person])])  # a pattern: symbols,
     .variables([lambda t: t.name("since").schema([Int])]))      # variables, and constraints (requires)
 Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown

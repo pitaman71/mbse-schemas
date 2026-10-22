@@ -186,12 +186,13 @@ at least one time to make schema objects references. all of them.").
 
 - **Kinds.** `Schemas.OfScalar`, `OfObject`, `OfUnion`, `OfIntersection`, `OfContainer` and `OfAny` are the schemas of
   values: only such a schema is anything's schema, refined, indexed, contained or allowed. `OfRelation`, `OfPredicate`
-  and `OfModule` are not schemas of values (mbse-basis V-026: schema, never "type"). Every kind has the properties `name` and `description`, and owns `parameters`, each kind declaring
-  them itself: there are no abstract bases (`Schemas.Schema`, `Type` and `Typed` are gone since 0.17.0;
+  and `OfModule` are not schemas of values (mbse-basis V-026: schema, never "type"). Every kind has the properties `name` and `description`, each kind declaring
+  them itself (its `parameters` are `Parametrics`', an extension installed before use, since Store overhaul 4m;
+  [Parametrics as a module](proposals/parametrics/README.md)): there are no abstract bases (`Schemas.Schema`, `Type` and `Typed` are gone since 0.17.0;
   [Store overhaul](proposals/store-overhaul/README.md), Decided, 20 and 21).
 - **Members.** `Schemas.OfProperty` and `OfSymbol` have a `description` and a `schema` (a union's branch and an
   intersection's part, `Member` objects until 0.18.0, are entries since); `OfParameter` has a `description` only: a parameter is a name, a symbol standing for
-  what a use of the schema binds (Store overhaul, Decided, 20). A member's name is not its own: it is the `name`
+  what a use of the schema binds, named by its set's entry (`Parametrics.Defines`; `Schemas.HasParameter` until 4m). A member's name is not its own: it is the `name`
   property of the entry that links it to its owner (`HasProperty`, ...), since a member is named within its owner.
 - **Other schema objects.** `OfAdjacency` (a `description`, and `me`), and `OfModule`, which defines schemas and
   modules (its `schemas`).
@@ -216,7 +217,7 @@ at least one time to make schema objects references. all of them.").
 | Indexing, Containing | container (Container), index / element (of values) | `OfContainer.index`, `OfContainer.element` | one |
 | AnyOf | any (Any), schema (of values) | `OfAny.schemas` (`types` until 0.19.0) | none: open, a list in declaration order |
 | Relating | adjacency (Adjacency), relation (Relation) | `OfAdjacency.relation` | one |
-| HasParameter | owner (every kind), parameter (Parameter); property `name` | `.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
+| HasParameter (until 4m: `Parametrics.HasParameters` and `Defines` since) | owner (every kind), parameter (Parameter); property `name` | `.parameters` | keyed: `unique(owner, name)`, `unique(parameter)` |
 | HasProperty | owner (Object, Relation), property (Property); `name` | `OfObject.properties`, `OfRelation.properties` | keyed |
 | HasAdjacency | owner (Object), adjacency (Adjacency); `name` | `OfObject.adjacencies` | keyed |
 | HasBranch, HasPart | owner (Union / Intersection), schema (of values; `type` in 0.18.0); `name`, `description` (since 0.18.0; a Member object until then) | `OfUnion.branches`, `OfIntersection.parts` | named: `unique(owner, name)` |

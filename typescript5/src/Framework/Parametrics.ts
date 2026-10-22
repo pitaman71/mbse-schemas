@@ -11,7 +11,7 @@
  * `Parametrics.BindsObject`, the object a third link.
  *
  * The extension: `install` gives `Schemas.OfParameter` its `for_value` and `for_object`, and every kind of schema its
- * `parameter_set` (to `HasParameters`). `validate(store, defn)` checks a definition's set's `Defines` entries.
+ * `parameters` (to `HasParameters`). `validate(store, defn)` checks a definition's set's `Defines` entries.
  */
 
 import * as Builders from "./Builders.js";
@@ -62,27 +62,27 @@ export function install(txn: any): any {
         (a: any) => a.relation([_.Defines]).me("parameter"),
       ]),
       (_: any) => _.OfScalar.name("Schemas.OfScalar").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfObject.name("Schemas.OfObject").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfUnion.name("Schemas.OfUnion").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfIntersection.name("Schemas.OfIntersection").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfContainer.name("Schemas.OfContainer").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfAny.name("Schemas.OfAny").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfRelation.name("Schemas.OfRelation").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfPattern.name("Schemas.OfPattern").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfExpression.name("Schemas.OfExpression").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfCollector.name("Schemas.OfCollector").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
       (_: any) => _.OfModule.name("Schemas.OfModule").adjacencies({
-        parameter_set: (a: any) => a.relation([_.HasParameters]).me("defn") }),
+        parameters: (a: any) => a.relation([_.HasParameters]).me("defn") }),
     ])]))]);
 }
 
@@ -93,8 +93,8 @@ export function install(txn: any): any {
 export function validate(store: any, defn: any): string[] {
   const reader = (data: any): any => new (Builders._builder_for(data) as any)(data, false, store);
   const builder = reader(defn);
-  const hasParameters = builder.as_schema().adjacencies.get("parameter_set").relation;
-  const sets = [...builder.parameter_set].map((held: any) => Builders._linked_data(held.params) as any);
+  const hasParameters = builder.as_schema().adjacencies.get("parameters").relation;
+  const sets = [...builder.parameters].map((held: any) => Builders._linked_data(held.params) as any);
   let problems: string[] = [];
   if (sets.length > 1) problems.push(`it has ${sets.length} sets of parameters: a definition has one`);
   const names: string[] = [];

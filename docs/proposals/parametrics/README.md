@@ -184,3 +184,34 @@ As the user decided (2026-10-22), on the questions this draft put:
   does (`o.values(lambda a: a.insert(lambda e: e.param([n]).value(3)))`), revising Schema extension, Decided, 18 and
   22; (b) bindings as objects linked by relations of two links, as formals are (Schema extension, Decided, 22); (c)
   leave bindings unbuilt until something binds (Store overhaul, Decided, 12 and 28).
+
+- **4m-2, every use moved, the core's parameters removed.** `Schemas.HasParameter`, every kind's built-in `parameters`
+  adjacency, the data classes' `parameters` (a scalar's equality no longer compares them), `_parameter_problems`
+  (`parameterProblems`, `sameParameters`), the builders' `parameters` member and the module data's go, in both
+  languages, from `Schemas.install` too, which the bootstrap reads: the store's own schemas are those less
+  `Schemas.HasParameter`. `Schemas.OfParameter` stays, a `description` (its data's `name` field kept, set by nothing
+  now). The extension's adjacency on every kind is named `parameters`, as drafted. A pattern's `validate()` keeps its
+  symbol-and-variable clash; the clashes with parameters are `Parametrics.validate`'s.
+
+  Moved to `Parametrics`:
+  - the conformance corpus: `module` installs `Parametrics.install` first, and declares `Grid`'s and `Tricky`'s sets
+    and `Lives`' (`era`) in place. *The bindings chosen, for the user's review:* `Grid`'s `n` ("Its side") and `x`, each
+    for a value of `Schemas.OfInt`; `Tricky`'s `a` for a value of `Schemas.OfInt`, `b` of `Schemas.OfStr`, `c` for an
+    object of `Grid` and `d` of `Tricky` itself, so that the corpus holds both ends and a parameter for an object of its
+    own definition; `Lives`' `era` for a value of `Schemas.OfStr`. Both corpora regenerated, byte-identical; CONF-04
+    reads `module` into a store that installed `Parametrics` first.
+  - the suites: PAR rewritten (PAR-01 to PAR-04, 4m-1's PAR-03 to PAR-06; the core's two cases gone); SCH, BLD, SNP and
+    PAT lose the core's parameters (SNP's two members shown alike through other adjacencies are a symbol and a variable;
+    PAT's and SCH's clashes are a symbol's and a variable's); INS's install given nothing defines a property
+    (`crm.Note`'s `text`) in place of a parameter. EXT, which declared none, is unchanged. CONF-04 and the portability
+    smoke test read `module` into a store that installed `Parametrics`.
+  - tutorial 1's outputs (a scalar's data printed without `parameters`), re-executed in both languages; the skill
+    (`python.md`, `typescript.md`, `modeling.md`); FRAMEWORK.md's Parametrics (Built, Moved out, an open question),
+    META_SCHEMAS.md, SCHEMA_EXTENSION.md and VISITOR_PATTERN.md where they describe parameters. SERIALIZATION.md and the
+    READMEs did not mention them.
+
+  *Snapshots*: a definition's parameters are the extension's entries, its set written with the data (PAR-04); a
+  snapshot round-trips into a store with `Parametrics` installed, written again the same; a store without it reads it
+  as Store overhaul, Decided, 19 says, ignoring `Schemas.OfParameter`'s `for_value` and `for_object` and the kinds'
+  `parameters`, and keeping the rest (the sets, now unlinked, and `Parametrics`' own schemas, which a snapshot writes as
+  any store's own).

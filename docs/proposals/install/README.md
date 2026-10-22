@@ -93,7 +93,8 @@ behind, so that moving them to installs means porting them to the store first:
 
 7. The dependents move to installs at 4h, as part of their port to the store ("1."), not in 4i-4: 4i-4 is done once
    this repository's schemas are installs. Chosen over porting them to 0.22 and installs before 4j, which 4j and 4k
-   would have changed again.
+   would have changed again. Since moved, with the rest of the dependents' port, from 4h to step 5 (Store overhaul,
+   Decided, 26).
 
 ## Stages
 
@@ -133,7 +134,7 @@ behind, so that moving them to installs means porting them to the store first:
   `Schemas.OfObject`), and EXT-03 extends one in an imperative scope.
 - **4i-4, everything else migrates**: the corpus, the examples, the README, the skill, the tutorials and every test
   notebook define their schemas in a module-scope `install(txn)`, in batches, each with both gates at 100%. The
-  dependents, mbse-expressions and mbse-programs, move to installs at 4h, as part of their port (Decided, 7).
+  dependents, mbse-expressions and mbse-programs, move to installs in their port, step 5 (Decided, 7).
   As built:
   - the conformance corpus: each case's schemas a module-scope install written out (`rooted`, `address_book`, ...,
     `patterns`), its schema helpers (`_text`, `_list`, `_basics`) gone; each case runs its installs, then its data in a

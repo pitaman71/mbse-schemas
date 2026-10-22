@@ -125,6 +125,23 @@ As the user decided (2026-10-16), on the questions put to them:
     `Schemas.HasSchema`, linking `member` to `schema`; messages and documents say schema. A host language's own type
     (`OfScalar.Data.type`, `host()`: Python's `int`, TypeScript's `BigInt`) stays, qualified as the host's.
 
+As the user decided (2026-10-22), on what remains after 4i, item by item as they answered it:
+
+25. **Step 4's goal**: "Our main goal right now is to stabilize mbse-schemas to allow schemas, models, and code to be
+    developed. That should be the goal of step 4."
+26. **Step 5 ports the dependents**: "If we do not have a step 5 defined yet, it should be focused on porting all of
+    the `mbse-*` dependencies over to the stabilized `mbse-schemas`." The dependents leave 4h for it.
+27. **Deferred**: subsequent snapshots and optimizing the installs' size ("1, 3. correct, defer"). Deleting an object
+    no entry owns, and the meta-schemas as linked objects (META_SCHEMAS.md, phase 5) with generated code (phase 6):
+    "not sure the case exists, will exist, or should exist". 4j removes entries only: "4j : implement removing
+    entries, but defer deleting objects to a later phase".
+28. **Bindings are lazy**: "parameter, argument bindings of any kind are super lazy", settling Open, 1, when a binding
+    is applied.
+29. **Where constraints attach** (FRAMEWORK.md, Open questions): "not built yet, coming soon". Parametrics beyond what
+    is built "needs design, may come up after" it.
+30. **Open-world modeling, parametrics and the meta-schemas as linked objects** (FRAMEWORK.md, Open questions;
+    META_SCHEMAS.md): "needs design, not particularly urgent at the moment".
+
 ## Order of work
 
 Each step lands on main as its own release, with both gates at 100%, the corpora regenerated and conformance passing,
@@ -162,7 +179,8 @@ so that main stays current and no branch waits on another.
    its global name, an owned object by its path, a counted object by nothing beyond a document, or, created by an
    upsert, by its frame, key and symbol); patterns (`Schemas.OfPattern`) replacing predicates; mutations as expressions
    over streams of frames, every write in a transaction; `as_identity` gone. Worked on the branch `object-identity`,
-   landed on main when released.
+   landed on main when released. Its goal, as the user set it (2026-10-22, Decided, 25): "to stabilize mbse-schemas to
+   allow schemas, models, and code to be developed".
    *Breaks*: `HasInstance`, `OfObject.pattern`, `store.Instances.<schema>(keys)`, `as_identity`; every write outside
    `store.mutation` (about 1200 build calls in 214 cells of the Python notebooks alone, and as many in TypeScript's, the
    tutorials, examples, skill and README included); `Schemas.OfPredicate`; the mutation vocabulary (`Exists` and the
@@ -532,7 +550,7 @@ so that main stays current and no branch waits on another.
      - the dataclass adapter building through a store's builders, not `_register` (DC-03; 4f-3), which the plan
        pointed to a `TODO.md` that does not exist: 4l, after 4k;
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
-       the executor refuses (87): 4h, in mbse-expressions, as 87 says;
+       the executor refuses (87): step 5, in mbse-expressions, as 87 says;
      - helpers that build models through the builders, which P-019 forbids ("Do not invent another DSL by wrapping
        builder syntax"), beyond the schema helpers 4i-4 removes with installs: the corpus's data helpers (`_put`,
        `_write`), and test helpers that build mutations or data (MUT's `entry` and `spec`, and their kin): written out in
@@ -540,13 +558,12 @@ so that main stays current and no branch waits on another.
      - a journal, settled: a list of transactions on the wire, replayed by executing each, with no call of its own, is
        the journal, built as designed (the user: "journal as a transaction list: yes that is built as designed");
      - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): after step 4, as the user
-       decided ("after 4");
-     - deleting an object no entry owns: after step 4, as the user decided ("defer deleting objects to a later
-       phase"), beside subsequent snapshots.
+       decided ("after 4"); deferred (Decided, 27);
+     - deleting an object no entry owns: deferred, whether it is needed at all open (Decided, 27).
    - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
      convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
      extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,
-     the framework's own modules, the tests and the tutorials, migrates; the dependents at 4h, in their port (Installing
+     the framework's own modules, the tests and the tutorials, migrates; the dependents in their port, step 5 (Installing
      schemas, Decided, 7). Not to be passed over: the
      user, on finding it unscheduled after 4f, "There is no gap. You just decided to ignore Decided 86. It doesn't have
      to be done now, but soon. One of the last things that must be done for schemas to be stabilized." Built after 4f
@@ -554,13 +571,16 @@ so that main stays current and no branch waits on another.
      proposed for the user's review when it starts. Proposed and decided in [Installing schemas](../install/README.md)
      (the framework's own modules drafted there, a bootstrap reading them, "everything" migrating), built in four
      stages, 4i-1 to 4i-4, listed there; done.
-   - **4h, the last release**, and the dependents, ported to the store, their schemas installs (Installing schemas,
-     Decided, 7): mbse-expressions refines `OfExpression` and `OfConstraint`;
-     mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
+   - **4h, the last release** of step 4: mbse-schemas stabilized. The dependents are step 5's (Decided, 26).
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
    and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included; released), each landing the branch on main. 4i
    follows 0.22.0, as the user decided: "go ahead and release 0.22.0 then go straight to 4i". 4e builds only the in-memory, sequential executor
    (question 11).
+5. **The dependents ported** (Decided, 26): every `mbse-*` repository that depends on mbse-schemas moves to the
+   stabilized mbse-schemas, its schemas installs (Installing schemas, Decided, 7). mbse-expressions refines
+   `OfExpression` and `OfConstraint`, evaluates what the executor refuses (87), and redrafts its framework model (below);
+   mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, moves to `OfPattern`
+   (STREAMING_QUERIES.md). Each is proposed for the user's review when it starts.
 
 ### Example: a transaction, as 4e would build it
 
@@ -575,7 +595,7 @@ store.mutation(lambda t: t
             .then(lambda u: u.apply(TITLE)))))        # OfUpdate: defn's title set through its property's builder
 ```
 
-Then mbse-expressions redrafts its framework model on per-store extension, its schemas defined by its own
+Then, in step 5, mbse-expressions redrafts its framework model on per-store extension, its schemas defined by its own
 `install(txn)` (86; 4i), with domains, dialects and `DefinesDomains` as the user described.
 
 ## Step 1, as built (0.14.0)
@@ -711,7 +731,7 @@ Points settled while building, for the user's review:
 
 ## Open, for the user
 
-1. **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":
+1. *Settled by Decided, 28*: bindings are "super lazy". Was: **Deferred: when a binding is applied.** "I don't think we need to force the issue of eager or on-demand binding":
    whether `Parameters.Apply` is a record in the store or an operation, and so when a `Parameters.Bind` takes effect,
    is left open. Under object identity (step 4), a path's builder given an identity the store holds visits that object,
    and otherwise makes one; the present code clones on `store.crm.Contact(obj)` until then.
@@ -721,7 +741,11 @@ Points settled while building, for the user's review:
    (`crm.Kinds.x`), and a module named as a schema is (`crm.Contact`, holding `crm.Contact.v2`).
 4. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
    (`e.domain(store.Instances.Expressions.Dialects.Basic.as_instance('Int32'))`); should a link also accept a path to
-   an instance?
+   an instance? The user (2026-10-22): "I think this already works: `Visitors.OfEntry.<linkName>(spec:
+   Specs.Callback[Visitors.OfObject])`". As built, that callback writes a new object at the link (an entry's
+   `course(lambda c: c.code("CS101"))` makes a second Course beside an existing CS101): it finds none. An existing
+   object is linked by giving the object, or, in a transaction, the symbol a pattern binds to it. Still open: whether a
+   link should also find one by a path.
 5. *Superseded by 8.*
 6. *Settled by Object identity, Decided, 58*: a mutation's builders are those a property call with a callback gives.
 7. *Settled by Object identity, Decided, 55 and 61*: a counted object is numbered within the document that writes it,

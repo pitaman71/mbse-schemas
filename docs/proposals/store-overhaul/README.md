@@ -555,7 +555,7 @@ so that main stays current and no branch waits on another.
      `Mutations.OfAdjacency.Clear` is the third adjacency verb (62 mutation schemas); it is read as any spec's verb and,
      as `remove`, refused when it runs (until 4j, which runs both). SNP-01, SNP-03, SNP-04, MUT-01, MUT-04 and TXN-13 cover them; the corpora
      are regenerated, byte-identical. With 4f-6, 4f is done.
-   - **4j, removing entries through a spec, as built** (the user, 2026-10-22: "4j : implement removing entries, but
+   - **4j, removing entries through a spec, as built** (released as 0.23.0) (the user, 2026-10-22: "4j : implement removing entries, but
      defer deleting objects to a later phase"; Decided, 27): an adjacency's `remove` and `clear` in a spec run, and an
      entry's property cleared, where the executor refused them (4f-2). A spec writes them in the calls a builder's
      adjacency takes, `_.ada.knows(lambda a: a.remove(lambda e: e.known(_.bob)))` and `a.clear()`, recorded as
@@ -608,7 +608,7 @@ so that main stays current and no branch waits on another.
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
      - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to
-       a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31); built. **4l, as built**:
+       a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31); built, released as 0.23.0. **4l, as built**:
        `FromDataclass.install(txn, module, *classes)` returns `txn.mutations([...])`, one upsert whose symbols are the
        module (`txn.Schemas.OfModule`, its spec what `module` writes, found by its name or made), each class
        (`OfObject`, named `<module>.<Class>`, a reference object) and each relation it infers (`OfRelation`, named
@@ -648,11 +648,12 @@ so that main stays current and no branch waits on another.
      and before 4h; how the meta-schemas themselves are installed, which a transaction's symbols are typed by, is to be
      proposed for the user's review when it starts. Proposed and decided in [Installing schemas](../install/README.md)
      (the framework's own modules drafted there, a bootstrap reading them, "everything" migrating), built in four
-     stages, 4i-1 to 4i-4, listed there; done.
+     stages, 4i-1 to 4i-4, listed there; done, released as 0.23.0.
    - **4h, the last release** of step 4: mbse-schemas stabilized. The dependents are step 5's (Decided, 26).
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
    and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included; released), each landing the branch on main. 4i
-   follows 0.22.0, as the user decided: "go ahead and release 0.22.0 then go straight to 4i". 4e builds only the in-memory, sequential executor
+   follows 0.22.0, as the user decided: "go ahead and release 0.22.0 then go straight to 4i". 0.23.0 after 4i, 4j and 4l, as the user
+   decided: "Do 4j, 4l, then release". 4e builds only the in-memory, sequential executor
    (question 11).
 5. **The dependents ported** (Decided, 26): every `mbse-*` repository that depends on mbse-schemas moves to the
    stabilized mbse-schemas, its schemas installs (Installing schemas, Decided, 7). mbse-expressions refines

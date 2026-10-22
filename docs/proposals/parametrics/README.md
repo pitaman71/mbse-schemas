@@ -115,3 +115,72 @@ As the user decided (2026-10-22), on the questions this draft put:
 4. **First of what remains of step 4**: "4m should go before 4k or any other 4*". In two stages: **4m-1**,
    `Parametrics` and its validation, beside today's parameters (both gates at 100%); **4m-2**, every use moved, the
    core's parameters removed, the corpora regenerated.
+
+## Stages, as built
+
+- **4m-1, `Parametrics` beside today's parameters.** `Framework/Parametrics.py` and `Framework/Parametrics.ts`, exported
+  as `Framework.Parametrics` beside the other modules: `install(txn)`, the draft above, defining
+  `Parametrics.OfParameters`, `Defines`, `ForValue`, `ForObject`, `HasParameters`, `BindsValue` and `BindsObject`, and
+  extending `Schemas.OfParameter` and every kind; and `validate(store, defn)`. Installed before use, never by the
+  bootstrap; installed again, it writes nothing. Declared in an install, a set is defined where its definition links
+  it, as the draft writes it, `txn.Parametrics.OfParameters(lambda ps: ps.parameters({...}))`; imperatively, the same
+  through `store.Parametrics.OfParameters`. PAR-03 to PAR-06 cover it, in both languages.
+
+  *Fixed by the agent, for the user's review:*
+
+  1. **The name clash.** Every kind has the core's `parameters` until 4m-2, and the extension check refuses a name a
+     schema has, so in 4m-1 the extension names each kind's adjacency to `HasParameters` `parameter_set`; 4m-2 renames
+     it `parameters` when the core's goes. PAR-01 and PAR-02 keep testing the core's until then.
+  2. **How validation is reached**: `Parametrics.validate(store, defn)`, the problems of a definition's parameters,
+     checked of its set's `Defines` entries: a name starting with `$` (reserved), a description not text, a parameter
+     for neither a value nor an object or for both (Decided, 1), and, of a pattern, a name used as both a symbol or a
+     variable and a parameter. The messages are the core's (`names used as both symbol and parameter: ['x']`) and, for
+     Decided, 1, `parameter 'x' is for neither a value nor an object: a parameter is for one` (`... for both a value
+     and an object ...`). It also checks `HasParameters`' uniqueness in both directions (`it has 2 sets of parameters:
+     a definition has one`; `its set of parameters belongs to 2 definitions: a set belongs to one`), which nothing
+     else checks: validation checks data, and the set's end of `HasParameters` is anonymous. A kind's own `validate()`
+     does not read the extension's entries: the core does not know `Parametrics`. Chosen over the kinds' `validate()`
+     reading them where installed, which would keep the core knowing what it no longer holds.
+  3. **A set is a counted object**, owned by nothing. The draft's `.owner(True)` on `OfParameters`' `parameters` would
+     make a set owned by its parameter, `owner()` marking the owned end (a member's, in `Schemas.install`). Owned by its
+     definition, through `HasParameters`, a set could not be read by a store without `Parametrics`: the owning entry is
+     ignored there (Store overhaul, Decided, 19), and an owned object no entry owns is refused. Nor does a set own its
+     parameters: a parameter is a schema object, and validation refuses an adjacency that would make a counted object
+     an owner.
+  4. **`Schemas.OfParameter` also declares its end of `Defines`**, anonymously (`me("parameter")`), so that a set's
+     entry defines its parameter where it links it (`d.parameter(lambda p: p.for_value([S.OfInt]))`): a link's schema
+     is the one object schema that declares an adjacency to it.
+  5. **`BindsValue`'s `value` is `S.OfAny(lambda a: a)`**, a value of any schema, defined where it is linked: `S.OfAny`
+     alone names the meta-schema, whose instances are schemas.
+  6. **The install's uid is `mbse.Schemas.Parametrics/1`**, as the framework's own installs are named
+     (`mbse.Schemas.Paths/1`), not the draft's `mbse-schemas.Parametrics/1`.
+
+  *What building it found the framework lacked, built in both languages:*
+
+  - Within a spec, `txn.X.Y(cb)` for a reference object schema of data records a definition where it is linked, as
+    `txn.Schemas.OfX(cb)` does for a schema object; the executor makes it where it writes the link, and finds an equal
+    one held (before, it created the object at once, outside the transaction's spec).
+  - An extension's adjacency read on a schema object no store holds yet, one being built, holds nothing (it raised).
+  - A schema object that existed before a transaction is updated at its commit (Object identity, Decided, 96); its
+    entries in an extension's relations are now written at once, in the transaction's proposals, as data's are. Written
+    at commit, they went into the store, and were then overwritten by the proposals' entry tables of the objects they
+    link, wherever the transaction had written other entries of those objects: reading a snapshot, a definition lost
+    its set where one of its parameters was for an object of the definition itself. EXT-05 asserts the entry within
+    the transaction.
+  - Python: matching a spec's entry against an entry held that links data took the link's target for a builder.
+
+  *Snapshots*: a set is data, written with the store's data as a counted object; the definition's entry in
+  `HasParameters` is written once, from the definition, in the data's transaction, as an extension's relation's entries
+  are (EXT-05). A set's entries are data's keyed entries, written sorted by their names (SERIALIZATION.md), so a set
+  read back holds its parameters in that order, not as declared.
+
+  *Not built, stopped on for a decision* (open): **the bindings' adjacencies, `values` and `objects`.** The extension
+  mechanism refuses them: an adjacency an extension adds to a meta-schema is to a relation of two links and no
+  properties (Schema extension, Decided, 18, as built, and 22: "yes that's a compromise"), and `BindsValue` has an
+  entry property and `BindsObject` three links (Decided, 3), so the draft's install raises `TypeError: an extension's
+  adjacency 'values' is to a relation of two links and no properties, got 'Parametrics.BindsValue'`. `BindsValue` and
+  `BindsObject` are defined; no kind has `values` or `objects`. The choices: (a) extend the mechanism, so that a
+  builder's member of an extension's adjacency holds entries with their properties and links, as a proxy's adjacency
+  does (`o.values(lambda a: a.insert(lambda e: e.param([n]).value(3)))`), revising Schema extension, Decided, 18 and
+  22; (b) bindings as objects linked by relations of two links, as formals are (Schema extension, Decided, 22); (c)
+  leave bindings unbuilt until something binds (Store overhaul, Decided, 12 and 28).

@@ -954,7 +954,10 @@ class _Builder(_Unassignable, Generic[D]):
             raise ValueError("update() is only valid with a source instance")
         if self._store is not None:
             self._store._permit(self)
-            if self._store._defers(self):  # a schema object that existed before the transaction open: at its commit
+            if self._store._defers(self):  # a schema object that existed before the transaction open: at its commit,
+                # but for its entries in an extension's relations, which the transaction's proposals hold, as data's
+                # are: written now, so that they are read, and committed, with the data they link
+                _settle_pending(self._original, self._working.__dict__.get("_pending"), self._store)
                 return self._original
         self._update(self._original, self._working)
         return self._held(self._finalize(self._original))
@@ -1044,6 +1047,9 @@ def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
         pending = data.__dict__.get("_pending", {})
         if name in pending:
             return list(pending[name])
+        store = store if store is not None else data.__dict__.get("_held_by")
+        if store is None:  # a schema object no store holds yet, which links nothing
+            return []
         return [entry._links[other] for entry in Proxies._linking(relation, me, data, store)]
 
     def store(data: Any, referents: list[Any]) -> None:
@@ -1057,9 +1063,15 @@ def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
 def _settle_extended(data: Any, store: Any) -> Any:
     """Makes a schema object's entries in the relations an extension added agree with what its builder wrote, in its
     builder's store."""
-    pending = data.__dict__.pop("_pending", None)
+    _settle_pending(data, data.__dict__.pop("_pending", None), store)
+    return data
+
+
+def _settle_pending(data: Any, pending: dict[str, list[Any]] | None, store: Any) -> None:
+    """Makes a schema object's entries in the relations an extension added agree with `pending`, what a builder wrote
+    to them, by adjacency."""
     if not pending:
-        return data
+        return
     added = store._added.get(_builder_for(data), {})
     for name, referents in pending.items():
         relation, me, other = added[name].extension
@@ -1068,7 +1080,6 @@ def _settle_extended(data: Any, store: Any) -> Any:
         for referent in referents:
             if all(e._links[other] is not referent for e in held):
                 Proxies._add_entry(relation, Proxies._Entry(relation, {me: data, other: referent}, {}), store)
-    return data
 
 
 def _extend_builders(store: Store, before: dict[int, tuple[set[str], set[str]]]) -> None:
@@ -1985,7 +1996,8 @@ class _Path(_Unassignable, Proxies._Named):
 
     def __call__(self, *args: Any) -> Any:
         store = self._store
-        if store._recording and len(args) == 1 and _is_function(args[0]) and store._meta_builder(self._name) is not None:
+        if store._recording and len(args) == 1 and _is_function(args[0]) and (
+                store._meta_builder(self._name) is not None or getattr(store._schemas.get(self._name), "ref", False)):
             from . import Transactions  # within a spec: a schema object defined where it is linked, made by nothing else
 
             return Transactions._definition(store, self.as_schema(), args[0])

@@ -17,6 +17,7 @@ export * as Comparison from "./Comparison.js";
 export * as Errors from "./Errors.js";
 export * as JSON from "./JSON.js";
 export * as Mutations from "./Mutations.js";
+export * as Parametrics from "./Parametrics.js";
 export * as Paths from "./Paths.js";
 export * as Plain from "./Plain.js";
 export * as Proposals from "./Proposals.js";

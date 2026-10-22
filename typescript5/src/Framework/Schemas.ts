@@ -1368,7 +1368,7 @@ export namespace OfAny {
   export type Builder = Builders.AnyValueBuilder;
 }
 
-export { nameFor as _name_for, numberOf as _number_of };
+export { nameFor as _name_for, numberOf as _number_of, reserved as _reserved, descriptionProblems as _description_problems };
 
 /** Whether a schema is of a kind a module defines and a store registers by name. */
 export function _defined(schema: unknown): boolean {

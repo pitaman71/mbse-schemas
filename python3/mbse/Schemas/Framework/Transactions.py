@@ -619,10 +619,14 @@ def _writer(store: Any, schema: Any, target: Any = None) -> Any:
 
 
 def _linked(value: Any) -> Any:
-    """The object an entry links, as read: a schema object's entry gives a link, read through its builder."""
+    """The object an entry links, as read: a schema object's entry gives a link, read through its builder where it links
+    a schema object, else the data it links (an extension's relation's)."""
     from . import Builders
 
-    return value._target()._original if isinstance(value, Builders._Link) else value
+    if not isinstance(value, Builders._Link):
+        return value
+    target = value._target()
+    return target._original if isinstance(target, Builders._Builder) else target
 
 
 def _extent(store: Any, schema: Any) -> list[Any]:

@@ -10,9 +10,9 @@ prevent most mistakes, and which reference to load for a task. The design is in 
 https://github.com/pitaman71/mbse-schemas.
 """
 
-from . import (JSON, YAML, Builders, Comparison, Errors, Mutations, Paths, Plain, Proposals, Proxies, Reachable, Readers,
-               Schemas, Specs, Stores, Transactions, Validators, Visitors)
+from . import (JSON, YAML, Builders, Comparison, Errors, Mutations, Parametrics, Paths, Plain, Proposals, Proxies, Reachable,
+               Readers, Schemas, Specs, Stores, Transactions, Validators, Visitors)
 
 __all__ = ["Errors", "Schemas", "Builders", "Specs", "Visitors", "Readers", "Proxies", "Reachable", "Validators",
-           "Comparison", "Plain", "JSON", "YAML", "Mutations", "Paths", "Stores", "Transactions",
+           "Comparison", "Plain", "JSON", "YAML", "Mutations", "Paths", "Parametrics", "Stores", "Transactions",
            "Proposals"]

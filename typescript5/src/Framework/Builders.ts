@@ -1086,7 +1086,9 @@ function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
     items: (data, store: unknown = null) => { // a framework schema's entries are its store's
       const pending: Map<string, any[]> | undefined = data._pending;
       if (pending?.has(name)) return [...(pending.get(name) as any[])];
-      return Proxies._linking(relation, me, data, store).map((entry: any) => innerOf(entry)._links.get(other));
+      const holder = store ?? _heldBy(data) ?? null;
+      if (holder === null) return []; // a schema object no store holds yet, which links nothing
+      return Proxies._linking(relation, me, data, holder).map((entry: any) => innerOf(entry)._links.get(other));
     },
     store: (data, referents) => {
       hidden(data, "_pending").set(name, [...referents]);
@@ -1101,6 +1103,15 @@ function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
 function settleExtended(data: any, store: unknown): any {
   const pending: Map<string, any[]> | undefined = data._pending;
   if (pending === undefined) return data;
+  settlePending(data, pending, store);
+  pending.clear();
+  return data;
+}
+
+/** Makes a schema object's entries in the relations an extension added agree with `pending`, what a builder wrote to
+ * them, by adjacency. */
+function settlePending(data: any, pending: Map<string, any[]> | undefined, store: unknown): void {
+  if (pending === undefined) return;
   const added = (store as Store)._added.get(builderFor(data) as unknown as typeof Builder) as Table;
   for (const [name, referents] of pending) {
     const [relation, me, other] = (added.get(name) as Members).extension as [S.OfRelation.Data, string, string];
@@ -1113,8 +1124,6 @@ function settleExtended(data: any, store: unknown): any {
       }
     }
   }
-  pending.clear();
-  return data;
 }
 
 /** Gives each schema builder in `store` the members an extension added to its plain schema (or one it refines):
@@ -1248,8 +1257,13 @@ abstract class Builder extends Shelled {
     if (this._original === null) throw new ValueError("update() is only valid with a source instance");
     if (this._store !== null) {
       this._store._permit(this);
-      // a schema object that existed before the transaction open: at its commit
-      if (this._store._defers(this)) return this._original;
+      // a schema object that existed before the transaction open: at its commit, but for its entries in an
+      // extension's relations, which the transaction's proposals hold, as data's are: written now, so that they are
+      // read, and committed, with the data they link
+      if (this._store._defers(this)) {
+        settlePending(this._original, (this._working as any)._pending, this._store);
+        return this._original;
+      }
     }
     this._update(this._original, this._working);
     return this._held(this._finalize(this._original));
@@ -2354,7 +2368,7 @@ function makeInstances(store: Store, name: string): any {
 function makePath(store: Store, name: string): any {
   const asSchema = (): unknown => store.registered(name);
   const call = (...args: unknown[]): unknown => store._recording > 0 && args.length === 1 && Proxies._isFunction(args[0])
-    && store._meta_builder(name) !== null
+    && (store._meta_builder(name) !== null || (store._schemas.get(name) as any)?.ref === true)
     ? Transactions._definition(store, store.registered(name), args[0]) // within a spec: defined where it is linked
     : store._build(name, args);
   const path = new Proxy(call, {

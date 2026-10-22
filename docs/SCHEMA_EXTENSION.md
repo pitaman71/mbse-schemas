@@ -40,7 +40,9 @@ What the check would accept and refuse:
 - **May add:** properties and adjacencies to an existing object schema; properties to a relation's entries; perhaps
   branches to a union, if unions stay.
 - **May not:** retype or remove a member, or change `ref`, `pattern`, `singleton`, `uniques`, a relation's links or a
-  scalar's token. Adding a link to an existing relation is refused too: every entry it holds would lack the link.
+  scalar's token. Adding a link to an existing relation is refused too: every entry it holds would lack the link. (An
+  install's spec removes a member of a schema the store defined, `properties(lambda a: a.remove(lambda e:
+  e.name("nickname")))`, since Store overhaul 4j; of a schema the store was made holding, this check refuses it.)
 - **Names:** an added member may not take a name the schema already has, its inherited members included (through
   `refines`), nor one another extension added, nor one a schema refining it declares (a refinement inherits the
   extension).

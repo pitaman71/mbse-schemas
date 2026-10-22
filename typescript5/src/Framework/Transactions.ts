@@ -15,14 +15,18 @@
  * {"entries": [...]}}]}}`, each entry `{"mutations": [...]}` of its links (`as_link`) and properties (`as_property`), as
  * a snapshot writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
  * {"symbol": "ada"}}`, to an object by its path, `{"ref": {"path": ...}}` (a schema object, a singleton or an owned
- * object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`.
+ * object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`. An adjacency's
+ * entries are removed as a builder's adjacency removes them, `knows((a) => a.remove((e) => e.known(_.bob)))`, recorded
+ * `{"remove": {"entries": [...]}}`, and all of them by `clear()`, recorded `{"clear": {}}`.
  *
  * `store.transaction(spec)` executes a transaction, sequentially: its stream starts as one frame, empty, and each term
  * makes the frames it passes on through `then`. A map binds each symbol its frame lacks to every object of its schema,
  * reachable from the store's singletons, whose spec holds; an upsert binds what it finds the same way and creates what
  * it does not, writing its spec where it does not hold; an update writes its spec; a reduce drops symbols; a partition
  * runs its branches and joins what they end with. It gives the frames its chain ends with, each the objects its symbols
- * bind, by symbol.
+ * bind, by symbol. A spec holds where the entries it inserts are held and those it removes are absent: an entry is
+ * removed where every link and property the removal gives agrees with it, so that run again, a spec that removes writes
+ * nothing.
  *
  * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
  * schemas, each found by its name, so that a transaction defines and extends schemas (Decided, 86).
@@ -99,7 +103,7 @@ class SpecFrame extends Shelled {
 /** What a spec writes of one object: its properties' values, and the entries of its adjacencies, in order. */
 class State {
   readonly values = new Map<string, unknown>();
-  /** ["property", name] or ["adjacency", [name, entries]], in order. */
+  /** ["property", name] or ["adjacency", [name, entries, verb]], in order. */
   readonly written: [string, unknown][] = [];
   /** Defined by `_definition`, and not linked yet. */
   loose = false;
@@ -118,9 +122,9 @@ class State {
         const verb = present ? m([["set", m([["value", plain]])]]) : m([["clear", new Map()]]);
         members.push(m([["as_property", m([["name", what], ["mutations", [verb]]])]]));
       } else if (kind === "adjacency") {
-        const [name, entries] = what as [string, RecordedEntry[]];
-        members.push(m([["as_adjacency", m([["name", name], ["mutations", [
-          m([["insert", m([["entries", entries.map((entry) => entry.plain())]])]])]]])]]));
+        const [name, entries, verb] = what as [string, RecordedEntry[], string];
+        members.push(m([["as_adjacency", m([["name", name], ["mutations", [verb === "clear" ? m([["clear", new Map()]])
+          : m([[verb, m([["entries", entries.map((entry) => entry.plain())]])]])]]])]]));
       } else { // a pattern's own spec, as recorded (`RecordedSpec`)
         members.push(m([["spec", m([["items", what]])]]));
       }
@@ -212,10 +216,12 @@ function makeRecordedSpec(recorder: Recorder): any {
 function declared(state: State): Map<string, any> {
   const symbols = new Map<string, any>();
   for (const [kind, what] of state.written) {
-    if (kind !== "adjacency" || (what as [string, unknown])[0] !== "symbols") continue;
+    const [name, , verb] = what as unknown[];
+    if (kind !== "adjacency" || name !== "symbols" || verb !== "insert") continue;
     for (const entry of (what as [string, RecordedEntry[]])[1]) {
       const held = entry._links.get("symbol") as State;
-      const typed = held.written.filter(([k, w]) => k === "adjacency" && (w as [string, unknown])[0] === "schema");
+      const typed = held.written.filter(([k, w]) => k === "adjacency" && (w as [string, unknown])[0] === "schema"
+      && (w as unknown[])[2] === "insert");
       const ref: any = typed.length > 0 ? ((typed[0]![1] as [string, RecordedEntry[]])[1][0]!)._links.get("schema") : new Map();
       if (!(ref instanceof Map) || !ref.has("path")) {
         throw new ValueError(`symbol ${repr(entry._values.get("name"))} of a pattern whose spec a spec records names no `
@@ -240,10 +246,10 @@ function makeRecordedProperty(recorder: Recorder, name: string): any {
   return shell(state, (spec) => state._call(spec));
 }
 
-/** An adjacency of a recorded object: its entries inserted, recorded. Called with a callback, it visits through it; with
- * an iterable, the peer shorthand, each item an entry's callback or the object to link; with a mapping, where its
- * relation has two links and one property, each item an entry keyed by that property (FRAMEWORK.md, Resolved, Mappings
- * for keyed adjacencies). */
+/** An adjacency of a recorded object: its entries inserted, removed or cleared, recorded, as a builder's adjacency takes
+ * them (`insert(cb)`, `remove(cb)`, `clear()`). Called with a callback, it visits through it; with an iterable, the peer
+ * shorthand, each item an entry's callback or the object to link; with a mapping, where its relation has two links and
+ * one property, each item an entry keyed by that property (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
 class RecordedAdjacency extends Shelled {
   readonly [TYPE_NAME] = "_RecordedAdjacency";
   readonly _schema: any;
@@ -266,14 +272,29 @@ class RecordedAdjacency extends Shelled {
     return others[0] as string;
   }
 
-  _record(entries: RecordedEntry[]): void {
-    this._recorder._state.written.push(["adjacency", [this._name, entries]]);
+  _record(entries: RecordedEntry[], verb = "insert"): void {
+    this._recorder._state.written.push(["adjacency", [this._name, entries, verb]]);
   }
 
   insert(spec: unknown): any {
     const entry = new RecordedEntry(this._recorder._state.store, this._schema.relation, this._schema.me);
     Proxies._visit(spec, shell(entry));
     this._record([entry]);
+    return this._proxy;
+  }
+
+  /** Removes every entry that agrees with the one `spec` gives: each link and property it gives equal to the entry's; a
+   * keyed adjacency's entry by its name. */
+  remove(spec: unknown): any {
+    const entry = new RecordedEntry(this._recorder._state.store, this._schema.relation, this._schema.me);
+    Proxies._visit(spec, shell(entry));
+    this._record([entry], "remove");
+    return this._proxy;
+  }
+
+  /** Removes every entry the adjacency holds. */
+  clear(): any {
+    this._record([], "clear");
     return this._proxy;
   }
 
@@ -549,26 +570,34 @@ function a(kind: string): string {
   return "aeiou".includes(kind[0] as string) ? `an ${kind}` : `a ${kind}`;
 }
 
-/** Checks a term and those after it, given the symbols bound before it: that each refers only to symbols a term before
- * it binds (85), and binds no variable and evaluates no expression (87). Gives the symbols bound after the chain. */
-/** Refuses a spec whose adjacency removes entries (`Mutations.OfAdjacency.Remove`), or whose entry clears a link or a
- * property, which a spec read from the wire may give: a spec says what holds of a frame, and the executor inserts the
- * entries it gives. */
-function inserts(spec: Map<string, any[]>[]): void {
+/** An adjacency's verbs in a spec, in order, each with the entries it gives: `insert` and `remove` theirs, `clear` none
+ * (`Mutations.OfAdjacency`). */
+function verbsOf(body: Map<string, any>): [string, Map<string, any>[]][] {
+  return body.get("mutations").map((verb: Map<string, any>) => {
+    const [kind, given] = only(verb);
+    return [kind, kind === "clear" ? [] : given.get("entries")];
+  });
+}
+
+/** Refuses a spec whose entry, inserted or removed, clears a link, which a spec read from the wire may give: every link
+ * of an entry but its object's own is set. An entry's property cleared is left out of the entry inserted. */
+function linksSet(spec: Map<string, any[]>[]): void {
   for (const item of spec) {
     for (const members of item.values()) {
       for (const member of members) {
         const [kind, body] = only(member);
         if (kind !== "as_adjacency") continue;
-        for (const verb of body.get("mutations")) {
-          if (!verb.has("insert")) throw new ValueError("a spec's adjacency inserts entries; removing them is not supported");
-          for (const entry of verb.get("insert").get("entries")) {
-            for (const member of entry.get("mutations")) {
-              const given = [...member.values()][0].get("mutations")[0];
-              if (!given.has("set")) {
-                throw new ValueError("a spec's entry sets its links and properties; clearing them is not supported");
+        for (const [, entries] of verbsOf(body)) {
+          for (const entry of entries) {
+            for (const part of entry.get("mutations")) {
+              const [partKind, partBody] = only(part);
+              const given = partBody.get("mutations")[0];
+              if (partKind === "as_link" && !given.has("set")) {
+                throw new ValueError("a spec's entry clears a link: every link of an entry but its object's own is set");
               }
-              if (given.get("set").has("def")) inserts([new Map([["", given.get("set").get("def").get("mutations")]])]);
+              if (partKind === "as_link" && given.get("set").has("def")) {
+                linksSet([new Map([["", given.get("set").get("def").get("mutations")]])]);
+              }
             }
           }
         }
@@ -577,6 +606,8 @@ function inserts(spec: Map<string, any[]>[]): void {
   }
 }
 
+/** Checks a term and those after it, given the symbols bound before it: that each refers only to symbols a term before
+ * it binds (85), and binds no variable and evaluates no expression (87). Gives the symbols bound after the chain. */
 function check(store: any, term: any, bound: Set<string>): Set<string> {
   const kind = kindOf(store, term);
   if (kind === "branch") {
@@ -589,11 +620,11 @@ function check(store: any, term: any, bound: Set<string>): Set<string> {
   if (kind === "map" || kind === "upsert") {
     const pattern = patternOf(term, kind === "map" ? "symbols" : "exists", kind);
     symbols(store, pattern);
-    inserts(pattern.spec);
+    linksSet(pattern.spec);
     bound = new Set([...bound, ...pattern.symbols.keys()]);
   } else if (kind === "update") {
     const pattern = patternOf(term, "apply", kind);
-    inserts(pattern.spec);
+    linksSet(pattern.spec);
     unbound(pattern.symbols.keys(), bound, kind);
   } else if (kind === "reduce") {
     const entries = [...term.symbols];
@@ -801,7 +832,7 @@ function locate(store: any, pattern: any, members: Map<string, Members>, name: s
       const [kind, body] = only(item);
       if (kind !== "as_adjacency") continue;
       const relation = pattern.symbols.get(other).schema.adjacencies.get(body.get("name")).relation;
-      for (const entry of body.get("mutations")[0].get("insert").get("entries") as Map<string, any>[]) {
+      for (const entry of verbsOf(body).filter(([verb]) => verb === "insert").flatMap(([, entries]) => entries)) {
         const parts: Map<string, any>[] = entry.get("mutations");
         const link = parts.find((part) => part.has("as_link")
           && part.get("as_link").get("mutations")[0].get("set").get("ref")?.get("symbol") === name)?.get("as_link").get("name");
@@ -823,7 +854,8 @@ function locate(store: any, pattern: any, members: Map<string, Members>, name: s
 function identifies(store: any, schema: any, member: Map<string, any>): boolean {
   const [kind, body] = only(member);
   if (kind === "as_property") return body.get("name") === "name" && meta(store, schema);
-  return kind === "as_adjacency" && schema.adjacencies.get(body.get("name")).owner;
+  return kind === "as_adjacency" && schema.adjacencies.get(body.get("name")).owner
+    && verbsOf(body).some(([verb]) => verb === "insert");
 }
 
 /** A pattern's spec, by symbol: the members of each, its items in order. */
@@ -843,9 +875,9 @@ function only(item: Map<string, any>): [string, any] {
   return [...item][0] as [string, any];
 }
 
-/** Whether what a spec gives of an object holds of `target`: its properties' values, and its adjacencies' entries.
- * Finding the object of a symbol (`partial`, the frame as bound so far), an entry linking a symbol not yet bound is left
- * out. */
+/** Whether what a spec gives of an object holds of `target`: its properties' values, the entries it inserts held, and
+ * those it removes absent, none where it clears the adjacency. Finding the object of a symbol (`partial`, the frame as
+ * bound so far), an entry linking a symbol not yet bound is left out. */
 function holds(store: any, target: any, schema: any, members: Members, frame: Frame, partial: Frame | null): boolean {
   const visitor = reader(store, target);
   for (const member of members) {
@@ -861,9 +893,14 @@ function holds(store: any, target: any, schema: any, members: Members, frame: Fr
     }
     const relation = schema.adjacencies.get(name).relation;
     const held = [...visitor[name]];
-    for (const entry of body.get("mutations")[0].get("insert").get("entries")) {
-      if (partial !== null && symbolRefs(entry).some((ref) => !partial.has(ref.get("symbol")))) continue;
-      if (match(store, relation, held, entry, frame) === null) return false;
+    const unmatched = [...held];
+    for (const [verb, entries] of verbsOf(body)) {
+      if (verb === "clear" && held.length > 0) return false;
+      for (const entry of entries) {
+        if (partial !== null && symbolRefs(entry).some((ref) => !partial.has(ref.get("symbol")))) continue;
+        if (verb === "insert" && match(store, relation, unmatched, entry, frame) === null) return false;
+        if (verb === "remove" && removedOf(store, relation, held, [entry], frame).length > 0) return false;
+      }
     }
   }
   return true;
@@ -882,7 +919,7 @@ function symbolRefs(entry: Map<string, any>): Map<string, any>[] {
         for (const member of held.get("def").get("mutations")) {
           const [memberKind, memberBody] = only(member);
           if (memberKind === "as_adjacency") {
-            for (const nested of memberBody.get("mutations")[0].get("insert").get("entries")) found.push(...symbolRefs(nested));
+            for (const [, nested] of verbsOf(memberBody)) for (const given of nested) found.push(...symbolRefs(given));
           }
         }
       }
@@ -965,11 +1002,40 @@ function write(store: any, target: any, schema: any, members: Members, frame: Fr
       continue;
     }
     const adjacency = schema.adjacencies.get(name);
-    const held = [...reader(store, target)[name]];
-    for (const entry of body.get("mutations")[0].get("insert").get("entries")) {
-      if (match(store, adjacency.relation, held, entry, frame) === null) insert(store, target, schema, name, adjacency, entry, frame);
+    for (const [verb, entries] of verbsOf(body)) {
+      const held = [...reader(store, target)[name]];
+      if (verb !== "insert") {
+        remove(store, target, schema, name, verb === "clear" ? null : entries, held, frame);
+        continue;
+      }
+      for (const entry of entries) {
+        if (match(store, adjacency.relation, held, entry, frame) === null) {
+          insert(store, target, schema, name, adjacency, entry, frame);
+        }
+      }
     }
   }
+}
+
+/** The positions of the entries `held` that agree with one of the entries a spec removes. */
+function removedOf(store: any, relation: any, held: any[], entries: Map<string, any>[], frame: Frame): number[] {
+  return held.flatMap((candidate, index) =>
+    (entries.some((entry) => matches(store, relation, candidate, entry, frame)) ? [index] : []));
+}
+
+/** Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's removal,
+ * or every entry where it gives null (`clear`); through the object's builder, which removes the entries it holds at
+ * those positions, so that removing an owning entry deletes what it owned (Decided, 48). */
+function remove(store: any, target: any, schema: any, name: string, entries: Map<string, any>[] | null, held: any[],
+  frame: Frame): void {
+  const relation = schema.adjacencies.get(name).relation;
+  const removed = entries === null ? held.map((_, index) => index) : removedOf(store, relation, held, entries, frame);
+  if (removed.length === 0) return;
+  const builder = writer(store, schema, target);
+  const member = builder[name];
+  const written = [...member];
+  for (const index of removed) member.remove(written[index]);
+  builder.update();
 }
 
 /** The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal entry a
@@ -998,8 +1064,11 @@ function insert(store: any, target: any, schema: any, name: string, adjacency: a
   for (const item of entry.get("mutations")) {
     const [kind, body] = only(item);
     if (kind === "as_property") {
-      const prop = adjacency.relation.entry.properties.get(body.get("name"));
-      values.set(body.get("name"), Plain._decode(prop.schema, body.get("mutations")[0].get("set").get("value"), [], store));
+      const verb = body.get("mutations")[0];
+      if (verb.has("set")) { // a property cleared: the entry is inserted without it
+        const prop = adjacency.relation.entry.properties.get(body.get("name"));
+        values.set(body.get("name"), Plain._decode(prop.schema, verb.get("set").get("value"), [], store));
+      }
       continue;
     }
     const target = body.get("mutations")[0].get("set");

@@ -177,6 +177,10 @@ class OfAdjacency(Iterable["OfEntry"], Protocol):
         """Removes every entry that agrees with `spec`."""
         ...
 
+    def clear(self) -> Self:
+        """Removes every entry."""
+        ...
+
     def __call__(self, spec: Callback[OfAdjacency]) -> Any: ...
 
 

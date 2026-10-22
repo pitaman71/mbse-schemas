@@ -3,8 +3,9 @@
 Schemas are data. Every schema is an object in its store, of a plain schema of schemas (`store.Schemas.OfObject`, ...),
 the store's own. A module defines its schemas in a module-scope `install(txn)`: one upsert, each schema a symbol of its
 kind, found by its name, else made, its spec the same fluent calls its builder takes. Run again, an install writes
-nothing; another adds to what it finds. So installs design a schema, extend one that exists, refine one, or generate
-schemas from anything a program holds; the builders remove a member or make a new version beside a schema.
+nothing; another adds to what it finds, or removes from it. So installs design a schema, extend one that exists or
+remove its members, refine one, or generate schemas from anything a program holds; the builders make a new version
+beside a schema.
 
 ## A complete program
 
@@ -26,6 +27,15 @@ def aged(txn):
     return txn.uid("crm.aged/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({"Contact": S.OfObject})
         .spec([lambda _: _.Contact.name("crm.Contact").properties({"age": S.OfInt})])]))])
+
+
+def unaged(txn):
+    """Remove a member: an install's spec removes each entry agreeing with a template, as the adjacency's visitor does;
+    run again, the entry is absent and nothing is written."""
+    S = txn.Schemas
+    return txn.uid("crm.unaged/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
+        .symbols({"Contact": S.OfObject})
+        .spec([lambda _: _.Contact.name("crm.Contact").properties(lambda a: a.remove(lambda e: e.name("age")))])]))])
 
 
 def customers(txn):
@@ -54,10 +64,8 @@ store.transaction(aged)
 Contact = store.registered("crm.Contact")
 assert list(Contact.properties) == ["given_name", "age"]
 
-# Remove a member: an install only adds, so the builders remove it; the adjacency's visitor removes the entries agreeing
-# with a template.
-with store.transaction():  # every write to a store is made within a transaction
-    store.Schemas.OfObject(Contact, lambda o: o.properties(lambda adv: adv.remove(lambda e: e.name("age"))))
+store.transaction(unaged)
+store.transaction(unaged)  # run again: nothing to remove
 assert list(Contact.properties) == ["given_name"]
 
 # A new version beside the old: a named schema's path is its name, so clone it under another, in the store; a
@@ -104,6 +112,15 @@ function aged(txn: any): any {
     .spec([(_: any) => _.Contact.name("crm.Contact").properties({ age: S.OfInt })])]))]);
 }
 
+/** Remove a member: an install's spec removes each entry agreeing with a template, as the adjacency's visitor does; run
+ * again, the entry is absent and nothing is written. */
+function unaged(txn: any): any {
+  const S = txn.Schemas;
+  return txn.uid("crm.unaged/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({ Contact: S.OfObject })
+    .spec([(_: any) => _.Contact.name("crm.Contact").properties((a: any) => a.remove((e: any) => e.name("age")))])]))]);
+}
+
 /** A refinement: the members of the schema it refines, and its own; its objects are that schema's objects too. */
 function customers(txn: any): any {
   const S = txn.Schemas;
@@ -129,9 +146,8 @@ store.transaction(aged);
 const Contact = store.registered("crm.Contact");
 check([...Contact.properties.keys()].join() === "given_name,age");
 
-// Remove a member: an install only adds, so the builders remove it; the adjacency's visitor removes the entries agreeing
-// with a template.
-store.transaction(() => store.Schemas.OfObject(Contact, (o: any) => o.properties((adv: any) => adv.remove((e: any) => e.name("age")))));
+store.transaction(unaged);
+store.transaction(unaged); // run again: nothing to remove
 check([...Contact.properties.keys()].join() === "given_name");
 
 // A new version beside the old: a named schema's path is its name, so clone it under another, in the store; a

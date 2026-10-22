@@ -1139,6 +1139,8 @@ def _checked_members(store: Any, schema: Any, members: PlainData, where: tuple, 
                 relation = schema.adjacencies[name].relation
                 for k, verb in enumerate(verbs):
                     ((verb_kind, verb_body),) = verb.items()
+                    if verb_kind not in ("insert", "remove", "clear"):
+                        raise KeyError(verb_kind)
                     for e, entry in enumerate([] if verb_kind == "clear" else verb_body["entries"]):  # clear: none
                         entry["mutations"] = [item for m, item in enumerate(entry["mutations"]) if _checked_entry(
                             store, name, relation, item, (*at, kind, "mutations", k, verb_kind, "entries", e, "mutations",

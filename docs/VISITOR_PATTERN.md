@@ -225,6 +225,7 @@ adv.as_iterable(cb: Specs.Callback[Iterator[Visitors.OfEntry]]) -> Visitors.OfAd
 # these methods permit modification of the container values
 adv.insert(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
 adv.remove(spec: Specs.Callback[Visitors.OfEntry]) -> Visitors.OfAdjacency: ...
+adv.clear() -> Visitors.OfAdjacency: ...  # every entry removed
 
 # This version only applies to relations that are
 # neither dict-like nor array-like in the current

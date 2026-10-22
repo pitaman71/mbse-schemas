@@ -148,11 +148,12 @@ behind, so that moving them to installs means porting them to the store first:
   - the README's example and the TypeScript package's, and the skill: each complete program defines its schemas in an
     install, the cheat sheets add the install beside the builder calls a spec makes, and the guidance (SKILL.md, 8;
     modeling.md, schemas.md) teaches installs; removing a member and cloning a version stay the builders', since an
-    install only adds (4j) and does not clone.
+    install only adds (4j) and does not clone. (4j has since built removing: an install's spec removes a member,
+    `properties(lambda a: a.remove(lambda e: e.name("age")))`, and the skill teaches it; cloning stays the builders'.)
   - the tutorials, in both languages: each case study's schemas an install, a second install adding to them where a
     case extends a schema (tutorials 2, 4, 5 and 9); tutorial 2's three steps are one install whose symbols link each
     other; tutorial 9's evolutions are installs, its version a builder's clone, and its table lists removing through a
-    transaction as designed, not built (4j); its union and intersection, symbols of an install, are named
+    transaction as designed, not built (4j; built since, and the table and an install removing a member say so); its union and intersection, symbols of an install, are named
     (`crm.Reach`, `crm.Stamps`). Converted by three agents from a brief and tutorial 1, reviewed and re-executed.
   - the test suites, in both languages: each suite's shared fixture an install, each case's own schemas an install in
     its cell, run with `store.transaction(install)` and read back with `store.registered`; helpers that built schemas

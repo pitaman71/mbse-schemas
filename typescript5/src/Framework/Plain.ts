@@ -1277,6 +1277,7 @@ function checkedMembers(store: any, schema: any, members: unknown, where: Where,
         const relation = schema.adjacencies.get(name).relation;
         verbs.forEach((verb: Map<string, any>, k: number) => {
           const [verbKind, verbBody] = [...verb][0]!;
+          if (!["insert", "remove", "clear"].includes(verbKind)) throw new TypeError(SPEC);
           (verbKind === "clear" ? [] : verbBody.get("entries")).forEach((e: Map<string, any>, n: number) => { // clear: none
             e.set("mutations", e.get("mutations").filter((item: Map<string, any>, i: number) => checkedEntry(store, name,
               relation, item, [...at, kind, "mutations", k, verbKind, "entries", n, "mutations", i], symbols, ignored)));

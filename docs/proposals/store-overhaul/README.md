@@ -141,6 +141,24 @@ As the user decided (2026-10-22), on what remains after 4i, item by item as they
     is built "needs design, may come up after" it.
 30. **Open-world modeling, parametrics and the meta-schemas as linked objects** (FRAMEWORK.md, Open questions;
     META_SCHEMAS.md): "needs design, not particularly urgent at the moment".
+31. **4l: the dataclass adapter writes an install** ("sounds good"), so that it depends on the transaction's spec, not
+    on the builders 4k rewrites, and may be built before 4k. It is called inside the caller's own module-scope
+    install, which gives it the transaction, its uid set by the caller:
+
+    ```python
+    def install(txn):
+        """The order-entry schemas, read from their dataclasses."""
+        return FromDataclass.install(txn.uid("models/1"), lambda m: m.name("models"), Order, Line)
+    ```
+
+    `FromDataclass.install(txn, module, *classes)` returns `txn.mutations([...])`, as a written install does. `module`
+    is a `Specs.Callback[Visitors.OfObject]` written on the module's symbol, of `txn.Schemas.OfModule`, found by its
+    name or made, as a snapshot's module is (4f-6); the adapter adds an entry of its `schemas` for each class, linking
+    the class's symbol under the class's name. Each class, and each relation the adapter infers, is a symbol of the
+    install, since a definition in place is linked once only (Installing schemas, Decided, 4). Called outside a
+    transaction, a factory returning an install, was offered and set aside: it departs from the module-scope
+    `install(txn)`, has no transaction to name the store's schemas from, and would make up the uid. Still to settle in
+    4l: whether `FromDataclass.model(...)`, which returns schema objects made outside any store, goes.
 
 ## Order of work
 
@@ -547,8 +565,8 @@ so that main stays current and no branch waits on another.
        but defer deleting objects to a later phase";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
-     - the dataclass adapter building through a store's builders, not `_register` (DC-03; 4f-3), which the plan
-       pointed to a `TODO.md` that does not exist: 4l, after 4k;
+     - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to
+       a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31);
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
        the executor refuses (87): step 5, in mbse-expressions, as 87 says;
      - helpers that build models through the builders, which P-019 forbids ("Do not invent another DSL by wrapping

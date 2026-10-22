@@ -606,6 +606,9 @@ so that main stays current and no branch waits on another.
        which the executor refuses before it runs (4f-2): 4j, after 4i, built (4j, as built, above). Deleting an object no entry owns (designed, not
        built; tutorial 9) is deferred past step 4, as the user decided (2026-10-22): "4j : implement removing entries,
        but defer deleting objects to a later phase";
+     - parameters as a module, `Parametrics`, installed before use, in place of every kind's names only
+       (docs/PARAMETRICS.md, as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
+       4k or any other 4*", in two stages, 4m-1 and 4m-2;
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
      - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to

@@ -141,4 +141,9 @@ As the user decided (2026-10-21), on the questions above:
     install, the cheat sheets add the install beside the builder calls a spec makes, and the guidance (SKILL.md, 8;
     modeling.md, schemas.md) teaches installs; removing a member and cloning a version stay the builders', since an
     install only adds (4j) and does not clone.
+  - the tutorials, in both languages: each case study's schemas an install, a second install adding to them where a
+    case extends a schema (tutorials 2, 4, 5 and 9); tutorial 2's three steps are one install whose symbols link each
+    other; tutorial 9's evolutions are installs, its version a builder's clone, and its table lists removing through a
+    transaction as designed, not built (4j); its union and intersection, symbols of an install, are named
+    (`crm.Reach`, `crm.Stamps`). Converted by three agents from a brief and tutorial 1, reviewed and re-executed.
 

@@ -15,28 +15,6 @@ import { Builders as B } from "../Framework/index.js";
 
 export const CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"] as const;
 
-/** Writes a container's elements, each a scalar or, given a function, through its `Visitors.OfAny`. */
-function write(pairs: Iterable<readonly [unknown, unknown]>) {
-  return (container: any) => {
-    for (const [index, value] of pairs) {
-      const element = container.at(index);
-      if (typeof value === "function") value(element);
-      else element.as_scalar(value);
-    }
-    return container;
-  };
-}
-
-/** A Spec writing the elements of the container a property holds. */
-function put(pairs: Iterable<readonly [unknown, unknown]>) {
-  return (prop: any) => prop.as_value((a: any) => a.as_container(write(pairs)));
-}
-
-/** Each value with its position, as a bigint. */
-function enumerate(values: unknown[]): [bigint, unknown][] {
-  return values.map((value, i) => [BigInt(i), value]);
-}
-
 /** The case's root, `Corpus.Root` (`rooted`), holding its data: a store's snapshot holds what its singletons reach. */
 function hold(s: any, objects: unknown[]): void {
   const holding = (adjacency: any): any => {
@@ -362,7 +340,7 @@ export function build(): Map<string, [B.Store, unknown[]]> {
     const deck = s.Deck((d: any) => d.title("contacts"));
     const cards = [
       s.Card((c: any) => c.name("Ann").home((p: any) => p.as_object((r: any) => r.number("+1 555 0100").label("home").extensions(
-        put([[0n, "12"]])))).reach((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.email(
+        [(x: any) => x.as_scalar("12")]))).reach((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.email(
         (r: any) => r.address("ann@example.com"))))).ident((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.number(7n))))),
       s.Card((c: any) => c.name("Bo").reach((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.phone(
         (r: any) => r.number("+44 20 7946 0000"))))).ident((p: any) => p.as_value((a: any) => a.as_union((u: any) => u.code("B-2"))))
@@ -379,19 +357,35 @@ export function build(): Map<string, [B.Store, unknown[]]> {
   s.transaction(lists);
   s.transaction(rooted);
   s.transaction(() => { // the case's data, one transaction
-    const board = s.Board((r: any) => (
-      r.name("rack").tags(put(enumerate(["", "日本語 🚀", "a"]))).blobs(put(enumerate([new Uint8Array(), new Uint8Array([0, 255])])))
-        .grid(put(enumerate([[1n, -(2n ** 70n)], [], [0n]]).map(([i, row]) => [i, (e: any) => e.as_container(write(enumerate(row as bigint[])))])))
-        .readings(put([[0n, (e: any) => e.as_union((u: any) => u.value(-0.0))], [1n, (e: any) => e.as_union((u: any) => u.note("off"))],
-          [2n, (e: any) => e.as_union((u: any) => u.value(Infinity))]]))
-        .sockets(put([[0n, (e: any) => e.as_object((o: any) => o.name("in").pins(put([[0n, "1"], [1n, "2"]])))],
-          [1n, (e: any) => e.as_object((o: any) => o.name("out"))]]))
-        .banks(put([[0n, (e: any) => e.as_object((b: any) => b)], [1n, (e: any) => e.as_object((b: any) => b.sockets(put(
-          [[0n, (x: any) => x.as_object((o: any) => o.name("spare").pins(put([[0n, "9"]])))]])))]]))
-        .matrix(put([[[2n, 1n], 0n], [[1n, 1n], 1n], [[1n, 2n], 0n], [[2n, 2n], 1n]]))
-        .cells(put([[5n, 6n], [6n, 7n], [0n, 0n]]))
-        .attrs(put([["gain", 1.5], ["", -0.0]]))
-        .weights(put([[0.5, "half"], [-2.5, "neg"]]))));
+    const board = s.Board((r: any) => r
+      .name("rack")
+      .tags([(x: any) => x.as_scalar(""), (x: any) => x.as_scalar("日本語 🚀"), (x: any) => x.as_scalar("a")])
+      .blobs([(x: any) => x.as_scalar(new Uint8Array()), (x: any) => x.as_scalar(new Uint8Array([0, 255]))])
+      .grid([
+        (x: any) => x.as_container([(y: any) => y.as_scalar(1n), (y: any) => y.as_scalar(-(2n ** 70n))]),
+        (x: any) => x.as_container([]),
+        (x: any) => x.as_container([(y: any) => y.as_scalar(0n)]),
+      ])
+      .readings([
+        (x: any) => x.as_union((u: any) => u.value(-0.0)),
+        (x: any) => x.as_union((u: any) => u.note("off")),
+        (x: any) => x.as_union((u: any) => u.value(Infinity)),
+      ])
+      .sockets([
+        (x: any) => x.as_object((o: any) => o.name("in").pins([(y: any) => y.as_scalar("1"), (y: any) => y.as_scalar("2")])),
+        (x: any) => x.as_object((o: any) => o.name("out")),
+      ])
+      .banks([
+        (x: any) => x.as_object((b: any) => b),
+        (x: any) => x.as_object((b: any) => b.sockets([
+          (y: any) => y.as_object((o: any) => o.name("spare").pins([(z: any) => z.as_scalar("9")]))])),
+      ])
+      .matrix(new Map<unknown, unknown>([[[2n, 1n], (x: any) => x.as_scalar(0n)], [[1n, 1n], (x: any) => x.as_scalar(1n)],
+        [[1n, 2n], (x: any) => x.as_scalar(0n)], [[2n, 2n], (x: any) => x.as_scalar(1n)]]))
+      .cells(new Map<unknown, unknown>([[5n, (x: any) => x.as_scalar(6n)], [6n, (x: any) => x.as_scalar(7n)],
+        [0n, (x: any) => x.as_scalar(0n)]]))
+      .attrs(new Map<unknown, unknown>([["gain", (x: any) => x.as_scalar(1.5)], ["", (x: any) => x.as_scalar(-0.0)]]))
+      .weights(new Map<unknown, unknown>([[0.5, (x: any) => x.as_scalar("half")], [-2.5, (x: any) => x.as_scalar("neg")]])));
     hold(s, [board]);
     cases.set("lists", [s, [board]]);
   });

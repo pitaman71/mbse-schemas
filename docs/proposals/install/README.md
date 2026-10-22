@@ -156,4 +156,8 @@ As the user decided (2026-10-21), on the questions above:
   - a definition is made by the builder that the adjacency linking it declares, where that builder builds its kind, as
     a builder's member makes one: a pattern's `requires` makes a constraint, whose result is the store's `Schemas.OfBool`
     (INS-02).
+  - the corpus's data helpers (`_put`, `_write`) and University's `enroll` written out (P-019): a container's elements
+    given to its property as a list, or a mapping by index, each a callback writing it through its `Visitors.OfAny`
+    (VISITOR_PATTERN.md, the iterable shorthand), as the user pointed out ("Why would we need to invent any syntax? I
+    think these already work"). The corpora are unchanged, byte for byte.
 

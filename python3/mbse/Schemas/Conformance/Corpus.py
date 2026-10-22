@@ -15,23 +15,6 @@ from mbse.Schemas.Framework import Builders as B
 
 CASES = ["address_book", "scalars", "family", "enrollment", "yaml_strings", "embedded", "lists", "module"]
 
-def _write(pairs):
-    """Writes a container's elements, each a scalar or, given a callable, through its `Visitors.OfAny`."""
-
-    def write(container):
-        for index, value in pairs:
-            element = container.at(index)
-            value(element) if callable(value) else element.as_scalar(value)
-        return container
-
-    return write
-
-
-def _put(pairs):
-    """A Spec writing the elements of the container a property holds."""
-    return lambda prop: prop.as_value(lambda a: a.as_container(_write(pairs)))
-
-
 def _hold(s, objects):
     """The case's root, `Corpus.Root` (`rooted`), holding its data: a store's snapshot holds what its singletons reach."""
 
@@ -353,7 +336,7 @@ def build():
         deck = s.Deck(lambda d: d.title("contacts"))
         cards = [
             s.Card(lambda c: c.name("Ann").home(lambda p: p.as_object(lambda r: r.number("+1 555 0100").label("home").extensions(
-                _put([(0, "12")])))).reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.email(
+                [lambda x: x.as_scalar("12")]))).reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.email(
                     lambda r: r.address("ann@example.com"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.number(7))))),
             s.Card(lambda c: c.name("Bo").reach(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.phone(
                 lambda r: r.number("+44 20 7946 0000"))))).ident(lambda p: p.as_value(lambda a: a.as_union(lambda u: u.code("B-2"))))
@@ -370,20 +353,34 @@ def build():
     s.transaction(lists)
     s.transaction(rooted)
     with s.transaction():  # the case's data, one transaction
-        board = s.Board(lambda r: (
-            r.name("rack").tags(_put(enumerate(["", "日本語 🚀", "a"]))).blobs(_put(enumerate([b"", b"\x00\xff"])))
-            .grid(_put([(i, lambda e, row=row: e.as_container(_write(enumerate(row))))
-                        for i, row in enumerate([[1, -(2**70)], [], [0]])]))
-            .readings(_put([(0, lambda e: e.as_union(lambda u: u.value(-0.0))), (1, lambda e: e.as_union(lambda u: u.note("off"))),
-                            (2, lambda e: e.as_union(lambda u: u.value(math.inf)))]))
-            .sockets(_put([(0, lambda e: e.as_object(lambda o: o.name("in").pins(_put([(0, "1"), (1, "2")])))),
-                           (1, lambda e: e.as_object(lambda o: o.name("out")))]))
-            .banks(_put([(0, lambda e: e.as_object(lambda b: b)), (1, lambda e: e.as_object(lambda b: b.sockets(_put(
-                [(0, lambda x: x.as_object(lambda o: o.name("spare").pins(_put([(0, "9")]))))]))))]))
-            .matrix(_put([((2, 1), 0), ((1, 1), 1), ((1, 2), 0), ((2, 2), 1)]))
-            .cells(_put([(5, 6), (6, 7), (0, 0)]))
-            .attrs(_put([("gain", 1.5), ("", -0.0)]))
-            .weights(_put([(0.5, "half"), (-2.5, "neg")]))))
+        board = s.Board(lambda r: r
+            .name("rack")
+            .tags([lambda x: x.as_scalar(""), lambda x: x.as_scalar("日本語 🚀"), lambda x: x.as_scalar("a")])
+            .blobs([lambda x: x.as_scalar(b""), lambda x: x.as_scalar(b"\x00\xff")])
+            .grid([
+                lambda x: x.as_container([lambda y: y.as_scalar(1), lambda y: y.as_scalar(-(2**70))]),
+                lambda x: x.as_container([]),
+                lambda x: x.as_container([lambda y: y.as_scalar(0)]),
+            ])
+            .readings([
+                lambda x: x.as_union(lambda u: u.value(-0.0)),
+                lambda x: x.as_union(lambda u: u.note("off")),
+                lambda x: x.as_union(lambda u: u.value(math.inf)),
+            ])
+            .sockets([
+                lambda x: x.as_object(lambda o: o.name("in").pins([lambda y: y.as_scalar("1"), lambda y: y.as_scalar("2")])),
+                lambda x: x.as_object(lambda o: o.name("out")),
+            ])
+            .banks([
+                lambda x: x.as_object(lambda b: b),
+                lambda x: x.as_object(lambda b: b.sockets([
+                    lambda y: y.as_object(lambda o: o.name("spare").pins([lambda z: z.as_scalar("9")]))])),
+            ])
+            .matrix({(2, 1): lambda x: x.as_scalar(0), (1, 1): lambda x: x.as_scalar(1), (1, 2): lambda x: x.as_scalar(0),
+                     (2, 2): lambda x: x.as_scalar(1)})
+            .cells({5: lambda x: x.as_scalar(6), 6: lambda x: x.as_scalar(7), 0: lambda x: x.as_scalar(0)})
+            .attrs({"gain": lambda x: x.as_scalar(1.5), "": lambda x: x.as_scalar(-0.0)})
+            .weights({0.5: lambda x: x.as_scalar("half"), -2.5: lambda x: x.as_scalar("neg")}))
         _hold(s, [board])
         cases["lists"] = (s, [board])
 

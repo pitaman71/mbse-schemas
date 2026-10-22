@@ -95,24 +95,18 @@ const { fall, mia, noah, validate } = store.transaction(() => { // the data: wri
 
   const noah = store.Student((s: any) => s.name("Noah"));
 
-  function enroll(student: Instance, props: Record<string, unknown>): void {
-    const spec = (x: any) => {
-      x.course(cs101).term(fall);
-      for (const [key, value] of Object.entries(props)) x[key](value);
-      return x;
-    };
-    store.Student(student, (s: any) => s.enrollments((a: any) => a.insert(spec)));
-  }
-
-  enroll(noah, { score: 0.0 });
-  enroll(noah, { score: -0.0 }); // floats compare by bit pattern: -0.0 is a different entry
-  enroll(noah, { score: NaN });
-  enroll(noah, { score: Number("NaN") }); // all NaNs are equal: elided
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(0.0))));
+  // floats compare by bit pattern: -0.0 is a different entry
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(-0.0))));
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(NaN))));
+  // all NaNs are equal: elided
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(Number("NaN")))));
   assert(entries(Student, noah, "enrollments").length === 3);
 
   const zoe = store.Student((s: any) => s.name("Zoe"));
-  enroll(zoe, { credits: 1n });
-  enroll(zoe, { credits: true }); // the builder does not validate scalar types, and true is a different value from 1n
+  store.Student(zoe, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(1n))));
+  // the builder does not validate scalar types, and true is a different value from 1n
+  store.Student(zoe, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(true))));
 
   const values: unknown[] = [...zoe.enrollments].map((e: any) => e.credits.get());
   assert(values.length === 2 && same(sortedStrings(new Set(values.map((v) => typeof v))), ["bigint", "boolean"]));

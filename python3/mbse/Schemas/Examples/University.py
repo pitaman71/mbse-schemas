@@ -95,25 +95,18 @@ with store.transaction():  # the data: written within one transaction
     noah = store.Student(lambda s: s.name('Noah'))
 
 
-    def enroll(student, **props):
-        def spec(x):
-            x.course(cs101).term(fall)
-            for key, value in props.items():
-                getattr(x, key)(value)
-            return x
-
-        store.Student(student, lambda s: s.enrollments(lambda a: a.insert(spec)))
-
-
-    enroll(noah, score=0.0)
-    enroll(noah, score=-0.0)  # floats compare by bit pattern: -0.0 is a different entry
-    enroll(noah, score=math.nan)
-    enroll(noah, score=float('nan'))  # all NaNs are equal: elided
+    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(0.0))))
+    # floats compare by bit pattern: -0.0 is a different entry
+    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(-0.0))))
+    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(math.nan))))
+    # all NaNs are equal: elided
+    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(float('nan')))))
     assert len(entries(Student, noah, 'enrollments')) == 3
 
     zoe = store.Student(lambda s: s.name('Zoe'))
-    enroll(zoe, credits=1)
-    enroll(zoe, credits=True)  # the builder does not validate scalar types, and True is a different value from 1
+    store.Student(zoe, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(1))))
+    # the builder does not validate scalar types, and True is a different value from 1
+    store.Student(zoe, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(True))))
 
 
     values = [e.credits.get() for e in zoe.enrollments]

@@ -88,6 +88,13 @@ As the user decided (2026-10-21), on the questions above:
    the tutorials, the examples, the corpus, the skill and the README define their schemas in installs: "that's an
    acceptable compromise".
 
+As the user decided (2026-10-22), on finding mbse-expressions and mbse-programs pinned at 0.10.0, twelve releases
+behind, so that moving them to installs means porting them to the store first:
+
+7. The dependents move to installs at 4h, as part of their port to the store ("1."), not in 4i-4: 4i-4 is done once
+   this repository's schemas are installs. Chosen over porting them to 0.22 and installs before 4j, which 4j and 4k
+   would have changed again.
+
 ## Stages
 
 - **4i-1, defining schemas by transaction**: the executor and the spec recorders cover every kind and member the drafts
@@ -125,9 +132,9 @@ As the user decided (2026-10-21), on the questions above:
   EXT-02 checks framework schemas (a refinement of a refinement declaring a name, the store's own refining
   `Schemas.OfObject`), and EXT-03 extends one in an imperative scope.
 - **4i-4, everything else migrates**: the corpus, the examples, the README, the skill, the tutorials and every test
-  notebook define their schemas in a module-scope `install(txn)`, in batches, each with both gates at 100%; then the
-  dependents, mbse-expressions and mbse-programs.
-  As built so far:
+  notebook define their schemas in a module-scope `install(txn)`, in batches, each with both gates at 100%. The
+  dependents, mbse-expressions and mbse-programs, move to installs at 4h, as part of their port (Decided, 7).
+  As built:
   - the conformance corpus: each case's schemas a module-scope install written out (`rooted`, `address_book`, ...,
     `patterns`), its schema helpers (`_text`, `_list`, `_basics`) gone; each case runs its installs, then its data in a
     transaction of its own. The corpora are unchanged, byte for byte, in both languages;

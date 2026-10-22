@@ -543,14 +543,16 @@ so that main stays current and no branch waits on another.
    - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
      convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
      extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,
-     the framework's own modules, the tests, the tutorials and the dependents, migrates. Not to be passed over: the
+     the framework's own modules, the tests and the tutorials, migrates; the dependents at 4h, in their port (Installing
+     schemas, Decided, 7). Not to be passed over: the
      user, on finding it unscheduled after 4f, "There is no gap. You just decided to ignore Decided 86. It doesn't have
      to be done now, but soon. One of the last things that must be done for schemas to be stabilized." Built after 4f
      and before 4h; how the meta-schemas themselves are installed, which a transaction's symbols are typed by, is to be
      proposed for the user's review when it starts. Proposed and decided in [Installing schemas](../install/README.md)
      (the framework's own modules drafted there, a bootstrap reading them, "everything" migrating), built in four
-     stages, 4i-1 to 4i-4, listed there.
-   - **4h, the last release**, and the dependents: mbse-expressions refines `OfExpression` and `OfConstraint`;
+     stages, 4i-1 to 4i-4, listed there; done.
+   - **4h, the last release**, and the dependents, ported to the store, their schemas installs (Installing schemas,
+     Decided, 7): mbse-expressions refines `OfExpression` and `OfConstraint`;
      mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, is left without it.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
    and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included; released), each landing the branch on main. 4i

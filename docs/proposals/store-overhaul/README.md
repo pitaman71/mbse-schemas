@@ -157,8 +157,9 @@ As the user decided (2026-10-22), on what remains after 4i, item by item as they
     the class's symbol under the class's name. Each class, and each relation the adapter infers, is a symbol of the
     install, since a definition in place is linked once only (Installing schemas, Decided, 4). Called outside a
     transaction, a factory returning an install, was offered and set aside: it departs from the module-scope
-    `install(txn)`, has no transaction to name the store's schemas from, and would make up the uid. Still to settle in
-    4l: whether `FromDataclass.model(...)`, which returns schema objects made outside any store, goes.
+    `install(txn)`, has no transaction to name the store's schemas from, and would make up the uid.
+    `FromDataclass.model(...)`, which returns schema objects made outside any store, goes: "yes remove
+    FromDataclass.model". The order: "Do 4j, 4l, then release".
 
 ## Order of work
 

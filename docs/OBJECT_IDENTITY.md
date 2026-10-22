@@ -674,6 +674,74 @@ As the user decided (2026-10-21), on step 4f's proposal (Store overhaul, 4f), ea
      imperative scope writes reaches the wire through a later snapshot. (Offered against a transaction derived from
      its writes at commit.)
 
+## Excluding Imperative Visitor expressions
+
+STATUS: not designed, planned, or implemented yet
+
+This trifurcated close-clause design of the builder is becoming 
+a conflict with an unstated carry-over principle from a previous
+incarnation: that any builder caller can call a single finisher
+function `done` without needing to know if the object is being
+located, upserted, updated, cloned, etc.
+
+Currenty the builder's caller has to call one of three methods
+to finish the build: `Builder.update`, `Builder.clone`, `Builder.create`. 
+
+This means the object identity is a function of context rather than a
+function only of the schema and the presence or absence of upsertable 
+objects in the store.
+
+The visitor API remains amenable to the original model where the
+specification and creation of an upsertable object use the same
+expression, and the schema encodes all of the ways by which 
+object identity must be inferred from context and enforced
+by builders.
+
+This would mean:
+- re-consolidating `Builder.update`, `Builder.clone`, `Builder.create` 
+  under `Builder.done`. 
+- Modify object builders so that, in `done()`, identity as specified
+  in the schema is enforced.
+- carefully analyzing all of the locations where those methods are 
+  currently being called, then determining categorically if any of
+  those calls have an ambiguity that cannot be resolved through the 
+  schema
+- when a builder is used in a spec context, forbidding apparent 
+  R-M-W access across properties. This might be achievable with
+  Specs.Callback invokes the callback with a `Writer` instead of a
+  `Visitor`. 
+
+This also exposes that the `Visitor` expressions, by virtue of accidentally
+allowing RMW clauses, cannot be made delcarative. 
+
+Also need to review for visitors how builder changes report updates
+to the parent. This usually takes the form of:
+- providing the existing value and an "on_done" callback as optional
+  builder constructor arguments
+- providing a kind-specific set of mutator callbacks to the builder
+- employing some fancy proxy code
+
+We may need to either
+- split `Visitor` into two completely separate `Writer` and `Reader` classes
+- replace writeable-builder syntax entirely with constraints, which means we 
+  must be execute property-assigning constraints in a perfomant manner
+
+### Adjacent concern: the dataclass adapter's module name
+
+`FromDataclass.install(txn, module, *classes)` (Store overhaul, 4l) names
+each class `<module>.<Class>`, so it needs the module's name before it
+records the spec. It reads the name by calling `module` once on a
+`ModuleBuilder` made outside any store, never created, and refuses the
+root module, which has no name. The callback so runs twice: once on that
+builder, once in the spec.
+
+Reading the name back from the recorded spec instead
+(`_.Module.name.get()`, then naming the classes with it) avoids the
+builder outside a store, but is itself a read-modify-write inside a spec:
+it reads one recorded value to write others, and relies on spec items
+being recorded in order. Left as built (2026-10-22); revisit with the
+single finisher and a `Writer` for specs.
+
 ## Open questions
 
 None at present.

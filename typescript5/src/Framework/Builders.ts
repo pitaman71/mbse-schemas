@@ -2496,7 +2496,7 @@ export namespace OfAny {
 
 // --- For Plain, which writes and reads schema objects through their builders ---
 
-export { builderFor as _builder_for, ModuleData as _ModuleData, Prop as _Prop };
+export { builderFor as _builder_for, Members as _Members, ModuleData as _ModuleData, Prop as _Prop };
 
 /** The schema object a visitor reads: a link's referent, where a builder builds it, or a builder's own; null for any other visitor. */
 export function _linked(visitor: unknown): unknown {

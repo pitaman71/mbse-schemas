@@ -979,6 +979,17 @@ function match(store: any, relation: any, held: any[], entry: Map<string, any>, 
   return index < 0 ? null : held.splice(index, 1)[0];
 }
 
+/** A builder of an object a spec defines where an adjacency `name` of an object of `schema` links it: the one that
+ * adjacency's member declares, where it builds `defined`'s kind (a pattern's `requires`, a constraint, whose result is
+ * the store's `Schemas.OfBool`), as a builder's member does; else `defined`'s own. */
+function defining(store: any, schema: any, name: string, defined: any): any {
+  const owner = store._meta_builder_class_of(schema);
+  const member = owner !== null ? owner._table.get(name) : undefined;
+  const builder: any = member instanceof Builders._Members && member.build !== null ? member._builderClass() : null;
+  if (builder !== null && store._meta[builder._meta] === defined) return new builder(null, true, store);
+  return writer(store, defined);
+}
+
 /** Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most. */
 function insert(store: any, target: any, schema: any, name: string, adjacency: any, entry: Map<string, any>,
   frame: Frame): void {
@@ -995,7 +1006,7 @@ function insert(store: any, target: any, schema: any, name: string, adjacency: a
     if (target.has("def")) {
       const definition = target.get("def");
       const defined = store.registered(definition.get("schema"));
-      const made = writer(store, defined).create();
+      const made = defining(store, schema, name, defined).create();
       write(store, made, defined, definition.get("mutations"), frame);
       links.set(body.get("name"), made);
     } else {

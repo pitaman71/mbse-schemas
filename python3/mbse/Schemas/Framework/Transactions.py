@@ -895,6 +895,20 @@ def _match(store: Any, relation: Any, held: list[Any], entry: Any, frame: Frame)
     return None
 
 
+def _defining(store: Any, schema: Any, name: str, defined: Any) -> Any:
+    """A builder of an object a spec defines where an adjacency `name` of an object of `schema` links it: the one that
+    adjacency's member declares, where it builds `defined`'s kind (a pattern's `requires`, a constraint, whose result is
+    the store's `Schemas.OfBool`), as a builder's member does; else `defined`'s own."""
+    from . import Builders
+
+    owner = store._meta_builder_class_of(schema)
+    member = owner._members_.get(name) if owner is not None else None
+    builder = member.build() if isinstance(member, Builders._Members) and member.build is not None else None
+    if builder is not None and getattr(store._meta, builder._meta, None) is defined:
+        return builder(None, True, store)
+    return _writer(store, defined)
+
+
 def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, entry: Any, frame: Frame) -> None:
     """Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most."""
     links: dict[str, Any] = {}
@@ -909,7 +923,7 @@ def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, ent
         if "def" in given:
             definition = given["def"]
             defined = store.registered(definition["schema"])
-            made = _writer(store, defined).create()
+            made = _defining(store, schema, name, defined).create()
             _write(store, made, defined, definition["mutations"], frame)
             links[body["name"]] = made
         else:

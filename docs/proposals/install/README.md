@@ -146,4 +146,14 @@ As the user decided (2026-10-21), on the questions above:
     other; tutorial 9's evolutions are installs, its version a builder's clone, and its table lists removing through a
     transaction as designed, not built (4j); its union and intersection, symbols of an install, are named
     (`crm.Reach`, `crm.Stamps`). Converted by three agents from a brief and tutorial 1, reviewed and re-executed.
+  - the test suites, in both languages: each suite's shared fixture an install, each case's own schemas an install in
+    its cell, run with `store.transaction(install)` and read back with `store.registered`; helpers that built schemas
+    or data through the builders written out at each use (P-019). What stays imperative is what an install cannot do or
+    a passage about the builders themselves (Decided, 6): a builder's refusal, a clone, a rename, a schema a case builds
+    wrong on purpose or with no name and no link, and SCH's cases; BLD and STO keep the builders, their fixtures
+    installs. A schema with no name of its own that a case used standalone is named where an install has to find it
+    (PRX-04's `Dollars`, CMP-08's `Other`, MUT-06's `crm.Filing`, ...). Converted by four agents from a brief, reviewed.
+  - a definition is made by the builder that the adjacency linking it declares, where that builder builds its kind, as
+    a builder's member makes one: a pattern's `requires` makes a constraint, whose result is the store's `Schemas.OfBool`
+    (INS-02).
 

@@ -84,6 +84,14 @@ As the user decided (2026-10-23):
    the frame's `entries`. "As before, do not modify the executor or other code that uses paths at this time": the
    executor's frames carry neither; a service writes them through the builders, and `References.resolve` gives a
    frame's bindings.
+8. A pattern's symbol may be given a reference instead of a schema, "(a) allow a symbol to have a reference instead of a
+   schema" (2026-10-23), so that a query starts from one object (CAP-008): no syntax bound a symbol to a given object
+   since the spec replaced locators (Object identity, Decided, 76). It generalizes 77 ("singletons are denoted by their
+   schema"): a symbol given a `References.OfObject` binds what it designates, one object, or none where the store holds
+   none. Chosen over a spec item asserting identity (`_.x.is_([ref])`), which would range over the symbol's schema
+   first. Planned: `References.install` extends `Schemas.OfSymbol` with `reference`, a symbol having exactly one of
+   `schema` and `reference`; `.symbols({"x": ref})` records it, the symbol's members those of the schema of the object
+   it designates when recorded.
 
 ## Fixed by the agent, for the user's review
 

@@ -732,9 +732,6 @@ it is fixed here:
 
 ## Open questions
 
-- **`References.OfObject` is a union of one branch**, `path` (Resolved, References, 2), which `validate()` refuses ("a
-  union needs at least two branches"); `Schemas.OfSymbol` reports it too, through its `reference` (Resolved,
-  References, 7). Whether a union of one branch is valid, or `OfObject` gains another branch, is not decided.
 - **Where constraints attach.** A specification is constraints attached to the parts of a system they constrain, each
   held by a property named `requires` ([MBSE.md](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of)); mbse-patterns'
   predicates already hold theirs so. Which scopes a constraint attaches to (a schema, a property, a relation, an
@@ -797,7 +794,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
      prototype" (2026-10-23), since Object identity, Decided, 61 and 63, which gave an upsert-made counted object a
      durable identity, "are trying to create durable references to counted objects that by design should not be
      necessary or exist" (40, 55); retiring them from the executor is tech debt (TODO.md), "the purpose of this phase is
-     to create durable references for client code". `References.OfObject` is a union whose one branch is `path`
+     to create durable references for client code". `References.OfObject` is a value object whose one property is `path`
      (`Paths.OfRoot`: a singleton, an owned object, a schema object). A frame or an entry that binds or links a counted
      object has no reference either.
   3. A frame's reference has no pattern: "take pattern out of frame ref entirely"; it "maps symbol names to

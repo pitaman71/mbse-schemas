@@ -3,7 +3,7 @@
  *
  * Three value schemas, which every store holds, its own, as it holds `Paths`:
  *
- * - `References.OfObject`, a singleton or other non-counted reference object: a union whose one branch, `path`, is a
+ * - `References.OfObject`, a singleton or other non-counted reference object: a value object whose one property, `path`, is a
  *   singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
  * - `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`, and `variables`, each
  *   of its variables' values; and what it witnesses: `assigns`, objects' property values (`References.OfProperties`),
@@ -37,12 +37,12 @@ import * as Transactions from "./Transactions.js";
 export function install(txn: any): any {
   const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
   return txn.uid("mbse.Schemas.References/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
-    .symbols({OfObject: S.OfUnion, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject,
+    .symbols({OfObject: S.OfObject, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject,
       OfSymbol: S.OfObject})
     .spec([
-      (_: any) => _.OfObject.name("References.OfObject").branches([
-        (t: any) => t.name("path").schema([txn.Paths.OfRoot]), // a singleton, an owned object, a schema object
-      ]),
+      (_: any) => _.OfObject.name("References.OfObject").properties({
+        path: txn.Paths.OfRoot, // a singleton's, an owned object's or a schema object's
+      }),
       (_: any) => _.OfFrame.name("References.OfFrame").properties({
         binds: S.OfContainer((c: any) => c.index([S.OfStr]).element([_.OfObject])),
         variables: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfAny((a: any) => a)])),

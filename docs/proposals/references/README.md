@@ -24,7 +24,7 @@ bootstrap):
   `binds` and `variables`). No pattern: "take pattern out of frame ref entirely". "A stream of those is what is passed
   by the mutation executor from call to call and what will be transferred from services to UI."
 - **`References.OfObject`**: "a singleton or other non-counted reference object", by its path (`Paths.OfRoot`, as
-  today): a union whose one branch is `path`.
+  today): a value object whose one property is `path`.
 
   A counted object has no reference, an upsert's included: it has no identity beyond the document that writes it, and
   nothing finds it except through what links it (Object identity, Decided, 40 and 55). A frame or an entry that binds
@@ -95,7 +95,8 @@ As the user decided (2026-10-23):
 
 ## Fixed by the agent, for the user's review
 
-- Each schema is a value object (as a path is); `OfObject` a union of one branch, `path`, so that its wire form
+- Each schema is a value object (as a path is); `OfObject` holds one property, `path` (first a union of one branch,
+  which validation refuses; made a value object, as the user decided: "yes, do that"), so that its wire form
   (`{"path": ...}`) holds.
 - `References` is held by every store, read by the bootstrap after `Paths`, as framework schemas are; not installed
   before use as `Parametrics` is, since what it designates is the framework's own (paths, upserts, entries).
@@ -145,9 +146,9 @@ As the user decided (2026-10-23):
     the reference designates nothing. Its spec is checked and written against the schema of the object bound.
   - **On the wire**, a symbol given a reference is `{"reference": {"path": ...}}` in place of `{"schema": [...]}`,
     the reference written as any `References.OfObject` value.
-  - **`References.OfObject` fails `validate()`**: a union of one branch, which validation refuses ("a union needs at
-    least two branches"). It did before; `Schemas.OfSymbol` now reports it too, through its `reference` (BLD-01 records
-    it). Allowing a union of one branch, or giving `OfObject` another branch, is the user's to decide (open).
+  - **`References.OfObject` failed `validate()`** as a union of one branch ("a union needs at least two branches"),
+    `Schemas.OfSymbol` reporting it through its `reference`; it is now a value object of one property, `path`, its wire
+    form unchanged, as the user decided ("yes, do that"), and every framework schema validates clean (BLD-01).
 
 ## Stages, as built
 

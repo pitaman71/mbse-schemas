@@ -799,7 +799,10 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
      object has no reference either.
   3. A frame's reference has no pattern: "take pattern out of frame ref entirely"; it "maps symbol names to
      `References.OfObject` and variable names to values" (`binds`, `variables`). A stream of them "is what is passed by
-     the mutation executor from call to call and what will be transferred from services to UI".
+     the mutation executor from call to call and what will be transferred from services to UI". A frame is also a
+     witness: `assigns`, the property values an object holds (`References.OfProperties`: the object's reference and
+     its property values), and `entries`, relation entries (`References.OfEntry`), each by its objects' references,
+     "by its identity not symbol"; the executor's frames carry neither.
   4. Paths stay for now: "temporarily leave Paths as having overlapping function with References, mark them as
      deprecated where they appear in the docs, tutorials, examples in favor of References, and log tech debt to
      eliminate Paths later". The wire's `$ref` keeps writing a path; the corpora do not change.

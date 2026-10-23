@@ -75,6 +75,15 @@ As the user decided (2026-10-23):
    removal is tech debt.
 5. An entry is designated "by all links and properties".
 6. Built "right now": 4n, before 4k and 4h.
+7. A frame is also a witness, "for property values" and "to a relation + adjacency link" (2026-10-23): "We need to
+   allow Frames to act as a witness for property values". `References.OfProperties` holds an object, "by its identity
+   not symbol" (a `References.OfObject`), and a map of its property names to the values assigned; a frame holds them as
+   `assigns`, a property ("(b)": a frame stays a value, so `assigns` is a container, not an adjacency). Its witnessed
+   entries are `References.OfEntry` as built ("Keep OfEntry as is. Refer to linked objects by their identity not
+   symbols"), its relation given by path ("yes given by path"), no adjacency ("no, adjacency is not needed"), held as
+   the frame's `entries`. "As before, do not modify the executor or other code that uses paths at this time": the
+   executor's frames carry neither; a service writes them through the builders, and `References.resolve` gives a
+   frame's bindings.
 
 ## Fixed by the agent, for the user's review
 

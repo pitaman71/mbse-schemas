@@ -5,7 +5,10 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
 - `References.OfObject`, a singleton or other non-counted reference object: a union whose one branch, `path`, is a
   singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
 - `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`, and `variables`, each
-  of its variables' values;
+  of its variables' values; and what it witnesses: `assigns`, objects' property values (`References.OfProperties`),
+  and `entries`, relation entries (`References.OfEntry`);
+- `References.OfProperties`, property values an object is witnessed to hold: its `object`, a `References.OfObject`,
+  and its `properties`, each its value;
 - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
 
@@ -32,7 +35,7 @@ def install(txn: Any) -> Any:
     a store, it finds each by its name and writes nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.References/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
-        .symbols({"OfObject": S.OfUnion, "OfFrame": S.OfObject, "OfEntry": S.OfObject})
+        .symbols({"OfObject": S.OfUnion, "OfFrame": S.OfObject, "OfProperties": S.OfObject, "OfEntry": S.OfObject})
         .spec([
             lambda _: _.OfObject.name("References.OfObject").branches([
                 lambda t: t.name("path").schema([txn.Paths.OfRoot]),  # a singleton, an owned object, a schema object
@@ -40,6 +43,12 @@ def install(txn: Any) -> Any:
             lambda _: _.OfFrame.name("References.OfFrame").properties({
                 "binds": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject])),
                 "variables": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
+                "assigns": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfProperties])),  # witnessed values
+                "entries": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfEntry])),  # witnessed entries
+            }),
+            lambda _: _.OfProperties.name("References.OfProperties").properties({
+                "object": _.OfObject,
+                "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
             }),
             lambda _: _.OfEntry.name("References.OfEntry").properties({
                 "relation": txn.Paths.OfRoot,  # the relation's path

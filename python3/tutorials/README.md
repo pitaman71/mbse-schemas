@@ -1,7 +1,7 @@
 <!-- nav -->
 [← Why the mbse repositories exist](../../MBSE.md) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
 
-# Tutorial: the schemas framework in nine case studies
+# Tutorial: the schemas framework in ten case studies
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
@@ -43,6 +43,7 @@ Expressions, which constraints will be made of, live in the separate
 | 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON; the Norway problem; YAML 1.2 loading; no type coercion |
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-class code | Walking schemas as data; reading any object through the visitor protocol |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
+| 10 | [Asking the store](10_Asking_The_Store.ipynb) | Questions about the data, and the changes that follow from the answers | Transactions as queries: frames; `map` over patterns and specs; a symbol given a reference; absence as a filter; `reduce` and `partition`; writing from frames; handing frames on as references |
 
 ## The ideas at a glance
 
@@ -57,6 +58,7 @@ Expressions, which constraints will be made of, live in the separate
 | `to_dict` per class, nested | One flat snapshot shape keyed by identities, with schema-named references | Shared objects once, cycles safe, kinds preserved | 6 |
 | Lenient parsing | Exact types, strict JSON, YAML 1.2 | The same text means the same thing in every language | 6, 7 |
 | Reflection over classes | Visitors: every object reads through one protocol, whatever its schema | One protocol for serializers, validators and your tools | 2, 8 |
+| Loops over objects, then writes | A transaction: a pattern's frames, filtered by a spec, then written from | Asking and writing are one expression, and run again it writes nothing new | 10 |
 
 ---
 

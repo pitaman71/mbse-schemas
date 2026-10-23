@@ -609,6 +609,8 @@ so that main stays current and no branch waits on another.
      - parameters as a module, `Parametrics`, installed before use, in place of every kind's names only
        (docs/PARAMETRICS.md, as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
        4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built), released as 0.24.0;
+     - references to objects, relation entries and frames, one format (`References`; [References](../references/README.md)):
+       4n, "right now", before 4k and 4h; Paths overlap it meanwhile, deprecated, their removal tech debt;
      - Parametrics' bindings' adjacencies, `values` and `objects`: dropped, no stage, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;

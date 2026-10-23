@@ -142,6 +142,9 @@ submitted, replayed by executing each in order; a transaction's imperative scope
 - What an entry links is nested where it has no path, a term linked from one place or a schema object with no name of
   its own, and tagged with its kind where the link is a kind union (`{"upsert": ...}`), or with its schema's name where
   several schemas fill the link (`{"Schemas.OfUnion": ...}`); anything else is `{"$ref": path}`.
+  Paths are deprecated in favor of References (FRAMEWORK.md, Resolved, References): a request or a response that
+  designates an object, a relation entry or a frame carries a `References.OfObject`, `OfEntry` or `OfFrame` value,
+  written as any value is. The wire keeps writing `$ref` as a path until Paths are removed.
 - A pattern's spec is written as recorded: for each symbol, the mutations of the object it binds (`Mutations.OfPattern`).
 
 ## Documents

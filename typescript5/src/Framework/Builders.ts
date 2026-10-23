@@ -29,6 +29,7 @@
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
+import * as References from "./References.js";
 import * as PlainModule from "./Plain.js";
 import type * as Proposals from "./Proposals.js";
 import * as Transactions from "./Transactions.js";
@@ -1809,10 +1810,11 @@ function bootModule(made: Map<string, unknown>, module: string): any {
   });
 }
 
-/** Reads an install (`Schemas.install`, `Paths.install`, `Mutations.install`) when a store is made, which holds nothing
- * yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read as they are built, its one
- * upsert making each symbol's schema object through its kind's builder, then writing each spec item through those
- * builders. `made` holds what the installs read before made, by name, which `txn.Schemas.OfStr` and its kin name. */
+/** Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Mutations.install`) when a store is
+ * made, which holds nothing yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read
+ * as they are built, its one upsert making each symbol's schema object through its kind's builder, then writing each
+ * spec item through those builders. `made` holds what the installs read before made, by name, which
+ * `txn.Schemas.OfStr` and its kin name. */
 class Bootstrap {
   readonly held = new Map<string, BootSymbol>();
   readonly face: any;
@@ -1992,8 +1994,10 @@ export class Store extends Proxies.OfStore {
     const made = new Map<string, unknown>(); // its own, as the framework's installs define them, read by the bootstrap
     this._meta = bootstrap(S.install, made) as Plain; // its plain schemas of schemas and basic scalars
     const paths = bootstrap(Paths.install, made);
+    const references = bootstrap(References.install, made);
     const mutations = bootstrap(Mutations.install, made);
-    const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths)] as (ObjectData | RelationData)[];
+    const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths),
+      ...Object.values(references)] as (ObjectData | RelationData)[];
     for (const schema of framework) this._register(schema);
     const reached: unknown[] = [...framework];
     while (reached.length > 0) { // each with what it holds: framework schemas share their unnamed ones, never written

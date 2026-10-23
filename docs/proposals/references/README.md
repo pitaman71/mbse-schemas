@@ -79,3 +79,44 @@ As the user decided (2026-10-23):
 - `References` is held by every store, read by the bootstrap after `Paths`, as framework schemas are; not installed
   before use as `Parametrics` is, since what it designates is the framework's own (paths, upserts, entries).
 - The operations' names, `of` and `resolve`, after `Paths.of` and `store.held`.
+- Settled in building it (4n), the simplest choice consistent with the code:
+  - The `upserted` branch's schema is a value object of its own, `References.OfUpserted` (`frame`, `key`, `symbol`);
+    `References.OfFrame` holds its symbols in one property, `binds`, a container of `References.OfObject` by symbol, as
+    the example above writes it (`f.binds({...})`).
+  - `References.OfEntry` holds `relation`, a `Paths.OfRoot`; `links`, a container of `References.OfObject` by link;
+    and `properties`, a container of values of any schema by property (an unrestricted `OfAny`, as
+    `Parametrics.BindsValue` holds a value), so that a property of any schema is held, each tagged on the wire by its
+    schema (`{"since": {"int": 2020}}`).
+  - How the executor records what an upsert made: where it creates a counted object, it records, weakly by the object
+    (`store._made_by`), the upsert's key, the symbol and the frame that reached it, its objects, not their references;
+    `of` computes their references when asked, so a path is read off the owners as they are then. `resolve` resolves
+    the frame's references, then finds the object through the index the executor keeps for 102
+    (`Transactions._upsert_index`: the key, the symbol and the frame's objects), so a reference resolves while the
+    object is held, and to the same object after the transaction runs again, which finds it there. An upsert without a
+    key gives a reference without one.
+  - A document is read as an upsert keyed by its uid (102), so a counted object read from a document with a uid has an
+    `upserted` reference (an empty frame, the uid, its symbol) while it is held; one a builder writes outright (an
+    imperative scope) has none, and `of` refuses it: "a counted 'crm.Note' that no upsert made has no reference: nothing
+    names it (make it a singleton's, an owner's or an upsert's)" (`LookupError`). This narrows "A counted object a
+    document writes outright still has no reference", for the user's review.
+  - `of` takes the store whose schemas the reference is a value of, and refuses another store's object ("the object
+    belongs to another store", `TypeError`) and anything not an object, an entry or a frame (`TypeError`); an entry of
+    a relation with no name of its own has no path, so `of` refuses it as `Paths.of` does (`LookupError`). A frame is
+    a mapping of symbols to objects, a `Map` in TypeScript, as `store.transaction` gives it back.
+  - `resolve` takes a reference of the store's own schemas (one read from the wire is read with the store's
+    `References.*` schema first), refusing anything else (`TypeError`). It gives an object, the entry the store holds
+    now (an update may rewrite an object's entries: entries compare by value, and the one held is given back), or a
+    frame; None where the store holds nothing it designates: a path to nothing, an upsert no index holds, a frame or an
+    entry one of whose objects is not held, an entry no relation entry agrees with, link for link and property for
+    property, or a reference giving no links.
+
+## Stages, as built
+
+- **4n**, one stage, both languages: `Framework/References.py` and `typescript5/src/Framework/References.ts`
+  (exported as `References`, beside `Paths`), `install(txn)` read by the bootstrap after `Paths` (every store holds the
+  four schemas: `References.OfObject`, `OfUpserted`, `OfFrame`, `OfEntry`), `of` and `resolve`; the executor records
+  what made each counted object an upsert creates (`store._made_by`), and its upsert index is one function,
+  `Transactions._upsert_index`, which `resolve` shares. Paths are marked deprecated in favor of References in
+  OBJECT_IDENTITY.md, SERIALIZATION.md, FRAMEWORK.md (and its Resolved entry, References), tutorial 6 and the skill
+  (python.md and typescript.md, a section each). No example used Paths. The wire and the corpora are unchanged. REF-01
+  to REF-07 cover it, in both languages.

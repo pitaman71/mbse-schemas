@@ -403,7 +403,8 @@ A transaction is a flat sequence of mutations. Mutations may be nested; transact
   is `"0"`, and reading a document builds its counted objects anew (55, 102). A schema object is referred to by its path
   too, from the root module, the singleton `"."` (Object identity, Decided, 80 and 81); one with no name of its own has
   none, and is defined where the one object that links it links it (`Mutations.OfObject.Def`).
-- Paths name only reference objects, never values or entries.
+- Paths name only reference objects, never values or entries. They are deprecated in favor of References (Resolved,
+  References), which designate objects, relation entries and frames alike; the wire still writes a path.
 - A value object is written nested, as a mapping of its properties and its adjacencies, without a key. Union and intersection values are written the
   same way, keyed by branch or part name: a union value `{"phone": {"number": "1"}}` has exactly one key, and decoding
   rejects any other count; an intersection value `{"stamp": {...}, "audit": {...}}` has a key per part, and a missing
@@ -782,6 +783,29 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **References** (step 4n of the store overhaul; [References](proposals/references/README.md)), as the user proposed
+  and decided (2026-10-23), from writing client code whose requests start from "an identifier for an object or relation
+  entry": "I believe these are all downstream of there not being a consolidated well-defined format for object and
+  relation entry references." The rule, every point of it:
+  1. Three value schemas, `References.OfObject` ("instances designate a singleton or other non-counted reference
+     object"), `References.OfEntry` ("instances designate a relation entry") and `References.OfFrame`, in
+     `Framework/References.py` and `.ts`, every store holding them, its own.
+  2. An upserted object's reference is the frame that reached the upsert, the upsert's key and the symbol it was made
+     for, "as you drafted": `References.OfObject` is a union of `path` (`Paths.OfRoot`: a singleton, an owned object,
+     a schema object) and `upserted` (`frame`, `key`, `symbol`). A counted object nothing names (one a builder writes
+     outright) has no reference.
+  3. A frame's reference has no pattern: "take pattern out of frame ref entirely"; it binds each symbol to a
+     `References.OfObject`.
+  4. Paths stay for now: "temporarily leave Paths as having overlapping function with References, mark them as
+     deprecated where they appear in the docs, tutorials, examples in favor of References, and log tech debt to
+     eliminate Paths later". The wire's `$ref` keeps writing a path; the corpora do not change.
+  5. An entry is designated "by all links and properties": its relation's path, each link a `References.OfObject`,
+     each property its value.
+  6. Built "right now": 4n, before 4k and 4h.
+
+  `References.of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back;
+  `References.resolve(store, reference)` gives what it designates, or None where the store holds none. What the agent
+  fixed in building it, for the user's review, is in the proposal (Fixed by the agent).
 - **Mappings for keyed adjacencies** (step 4e of the store overhaul; [Schema extension](SCHEMA_EXTENSION.md),
   Injection), as the user proposed and decided ("I like your idea", "yes that seems sensible"): an adjacency whose
   relation has exactly two links and one property may be given a mapping in place of the peer-shorthand list. For such

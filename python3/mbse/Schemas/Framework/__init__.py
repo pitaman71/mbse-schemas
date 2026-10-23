@@ -11,8 +11,8 @@ https://github.com/pitaman71/mbse-schemas.
 """
 
 from . import (JSON, YAML, Builders, Comparison, Errors, Mutations, Parametrics, Paths, Plain, Proposals, Proxies, Reachable,
-               Readers, Schemas, Specs, Stores, Transactions, Validators, Visitors)
+               Readers, References, Schemas, Specs, Stores, Transactions, Validators, Visitors)
 
 __all__ = ["Errors", "Schemas", "Builders", "Specs", "Visitors", "Readers", "Proxies", "Reachable", "Validators",
-           "Comparison", "Plain", "JSON", "YAML", "Mutations", "Paths", "Parametrics", "Stores", "Transactions",
-           "Proposals"]
+           "Comparison", "Plain", "JSON", "YAML", "Mutations", "Paths", "References", "Parametrics", "Stores",
+           "Transactions", "Proposals"]

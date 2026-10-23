@@ -688,14 +688,14 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
             if schema.singleton is not None:
                 grown.append({**partial, name: store.singleton(schema.singleton)})
                 continue
-            index = (key, name, tuple((bound, Proxies._key_of(_reader(store, target)))
-                                      for bound, target in sorted(frame.items())))
             if upsert and Proxies._counted_schema(schema) and not _meta(store, schema):  # found only by what made it (102)
+                index = _upsert_index(store, key, name, frame)
                 held = store._upserted.get(index)
                 made = held() if held is not None else None
                 if made is None:
                     made = _writer(store, schema).create()
                     store._upserted[index] = weakref.ref(made)
+                    store._made_by[made] = (key, name, dict(frame))  # its reference (`References.of`)
                 grown.append({**partial, name: made})
                 continue
             own = members.get(name, [])
@@ -720,6 +720,12 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
     return [bound for bound in frames
             if all(_holds(store, bound[name], pattern.symbols[name].schema, items, bound, None)
                    for name, items in members.items())]
+
+
+def _upsert_index(store: Any, key: str | None, name: str, frame: Frame) -> tuple[Any, ...]:
+    """What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the
+    frame that reached it, each as it is told apart in memory."""
+    return key, name, tuple((bound, Proxies._key_of(_reader(store, target))) for bound, target in sorted(frame.items()))
 
 
 def _registered(store: Any, schema: Any, member: Any, frame: Frame) -> list[Any]:

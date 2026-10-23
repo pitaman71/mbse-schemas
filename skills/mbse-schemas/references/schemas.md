@@ -187,7 +187,8 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 - **A named schema's path is its name.** `store.Schemas.OfObject(Contact)` cannot clone it into the same store; a
   version beside it is a builder's clone under a new name, in a module of its own (`crm.v2.Contact`): a module and a
   schema do not share a path. Renaming one (`.name(...)` in an update) moves it to the module its new name gives.
-  `Paths.of(schema)` gives its path, and `store.held(path)` the schema object at one.
+  `Paths.of(schema)` gives its path, and `store.held(path)` the schema object at one (deprecated, for
+  `References.of(store, schema)` and `References.resolve`).
 - **Name what you share.** A schema object with no name of its own (an unnamed value object, container or relation) has
   no path: one schema object alone may link it, and the store refuses a second ("name it to share it").
 - **Extending changes the schema in place.** Objects of an extended schema gain the member, absent until written. To keep

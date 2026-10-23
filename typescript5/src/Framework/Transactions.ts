@@ -754,13 +754,13 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
         grown.push(new Map([...partial, [name, store.singleton(schema.singleton)]]));
         continue;
       }
-      const index = JSON.stringify([key, name, sortedStrings([...frame.keys()])
-        .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
       if (upsert && Proxies._counted_schema(schema) && !meta(store, schema)) { // found only by what made it (102)
+        const index = _upsert_index(store, key, name, frame);
         let made = store._upserted.get(index)?.deref();
         if (made === undefined) {
           made = writer(store, schema).create();
           store._upserted.set(index, new WeakRef(made));
+          store._made_by.set(made, [key, name, new Map(frame)]); // its reference (`References.of`)
         }
         grown.push(new Map([...partial, [name, made]]));
         continue;
@@ -791,6 +791,13 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
   }
   return frames.filter((bound) => [...members].every(([name, items]) =>
     holds(store, bound.get(name), pattern.symbols.get(name).schema, items, bound, null)));
+}
+
+/** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
+ * that reached it, each as it is told apart in memory. */
+export function _upsert_index(store: any, key: unknown, name: string, frame: Frame): string {
+  return JSON.stringify([key, name, sortedStrings([...frame.keys()])
+    .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
 }
 
 /** The schema object registered under the name a spec gives, where it is of the meta-schema `schema`, a module by its

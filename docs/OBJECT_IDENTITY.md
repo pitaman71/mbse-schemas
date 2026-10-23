@@ -200,6 +200,12 @@ document applies it as a transaction. A document that must carry owned objects t
 
 ## Paths as data
 
+> **Deprecated in favor of References** (store overhaul 4n; [References](proposals/references/README.md)): a reference
+> to an object, a relation entry or a frame is a `References.OfObject`, `OfEntry` or `OfFrame`, made by
+> `References.of(store, x)` and resolved by `References.resolve(store, reference)`; an object's path is one branch of
+> `References.OfObject`. Paths stay, overlapping, until their removal, which is tech debt; the wire's `$ref` still
+> writes a path.
+
 `Paths.OfX` are nestable value objects:
 
 - `Paths.OfRoot` bears two properties: `singleton`, a globally unique singleton name, and `next`, a

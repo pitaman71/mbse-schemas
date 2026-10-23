@@ -44,7 +44,9 @@ marked `.owner(True)` and keyed by the entry's key properties, whose naming patt
 other object is counted: it has no identity beyond the document that writes it, which numbers it, and reading a
 document always builds it anew. Own an object by a singleton, through a keyed relation, where it must be found again
 or updated in place by loading. A program never writes an identity: it reads an owned object's path, `Paths.of(obj)`,
-and finds the object by its keys (`adjacency({"name": "DEF-693"})`).
+and finds the object by its keys (`adjacency({"name": "DEF-693"})`). To designate an object, a relation entry or a
+frame in a request or a response, use a reference, `References.of(store, x)`, resolved by `References.resolve`; paths
+are deprecated in favor of references.
 
 **A container is a list of values.** Its elements belong to their one owner (a contact's own phone numbers, a
 container of text), so it is a property, copied and written with it. Data that several objects share is an object,

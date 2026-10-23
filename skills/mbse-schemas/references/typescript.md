@@ -180,7 +180,8 @@ store.crm.Card((c: any) => c.reach((p: any) => p.phone(spec)));  // a branch: a 
 obj.reach.phone.number.get();                                // read through them, as through as_value and as_union
 obj.as_properties; obj.as_adjacencies((a: any) => a);      // schema unaware: the properties set, every adjacency
 obj.as_schema();                                           // what every visitor has: its schema
-Paths.of(obj);                                             // a singleton's or an owned object's path; a counted one has none
+References.of(store, obj);                                 // a reference to an object, an entry or a frame (below)
+Paths.of(obj);                                             // deprecated, for References: a singleton's or owned object's path
 store.Instances.wts.Features.dir({ name: "DEF-693" });     // a singleton by its global name; a lookup by keys on any adjacency
 Proxies.owner_of(valueObject);                             // the object a value object belongs to
 
@@ -197,6 +198,22 @@ JSON.ToJSON(store)(...); JSON.FromJSON(store)(...); YAML.ToYAML(store)(...); YAM
 Validators.Validate(store)(schema, obj); Validators.Validate(store).Reachable(schema, root);
 new Comparison.OfObject(schema, a).compare(new Comparison.OfObject(schema, b));   // -1, 0, 1 or null
 ```
+
+## References
+
+As in Python: a reference to an object, a relation entry or a frame is a value of the store's `References` schemas,
+written and read as any value is; Paths are deprecated in favor of them. A frame is a `Map`, and `resolve` gives
+`null` where the store holds nothing the reference designates.
+
+```typescript fragment
+const frames = store.transaction(notes);              // notes: a map over persons, then an upsert keyed "notes/1"
+const ref = References.of(store, frames[0].get("note")); // {"upserted": {"frame": ..., "key": "notes/1", "symbol": "note"}}
+References.of(store, ada); References.of(store, entry); References.of(store, frames[0]); // an object, an entry, a frame
+const text = JSON.ToJSON(store)(ref.as_schema(), ref); // carried in a response, read back in a request
+References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text)); // the note, or null
+```
+
+A counted object nothing names (one a builder writes outright) has no reference: `References.of` throws `LookupError`.
 
 ## Traps
 

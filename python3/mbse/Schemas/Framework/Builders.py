@@ -1493,11 +1493,11 @@ class _BootModule:
 
 
 class _Bootstrap:
-    """Reads an install (`Schemas.install`, `Paths.install`, `Mutations.install`) when a store is made, which holds
-    nothing yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read as they are
-    built, its one upsert making each symbol's schema object through its kind's builder, then writing each spec item
-    through those builders. `made` holds what the installs read before made, by name, which `txn.Schemas.OfStr` and its
-    kin name."""
+    """Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Mutations.install`) when a store is
+    made, which holds nothing yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read
+    as they are built, its one upsert making each symbol's schema object through its kind's builder, then writing each
+    spec item through those builders. `made` holds what the installs read before made, by name, which
+    `txn.Schemas.OfStr` and its kin name."""
 
     def __init__(self, made: dict[str, Any]):
         self._made = made
@@ -1594,13 +1594,15 @@ class Store(Proxies.OfStore):
         # those with none, held while what links them is (docs/OBJECT_IDENTITY.md, Decided, 94): a term's pattern goes
         # with its transaction
         self._unnamed: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
-        from . import Mutations, Paths
+        from . import Mutations, Paths, References
 
         made: dict[str, Any] = {}  # its own, as the framework's installs define them, read by the bootstrap
         self._meta = _bootstrap(S.install, made)  # its plain schemas of schemas and basic scalars
         self._paths = _bootstrap(Paths.install, made)
+        self._references = _bootstrap(References.install, made)
         self._mutations = _bootstrap(Mutations.install, made)
-        framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values())
+        framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values(),
+                     *vars(self._references).values())
         for schema in framework:
             self._register(schema)
         reached = list(framework)

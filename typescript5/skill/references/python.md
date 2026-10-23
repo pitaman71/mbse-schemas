@@ -156,7 +156,8 @@ store.crm.Card(lambda c: c.reach(lambda p: p.phone(spec)))  # a branch: a proper
 obj.reach.phone.number.get()                                # read through them, as through as_value and as_union
 obj.as_properties; obj.as_adjacencies(lambda a: a)          # schema unaware: the properties set, every adjacency
 obj.as_schema()                                             # what every visitor has: its schema
-Paths.of(obj)                                               # a singleton's or an owned object's path; a counted one has none
+References.of(store, obj)                                   # a reference to an object, an entry or a frame (below)
+Paths.of(obj)                                               # deprecated, for References: a singleton's or owned object's path
 store.Instances.wts.Features.dir({"name": "DEF-693"})       # a singleton by its global name; a lookup by keys on any adjacency
 Proxies.owner_of(value_object)                              # the object a value object belongs to
 
@@ -183,6 +184,25 @@ store.transaction(install)         # run again, it writes nothing
 store.registered("crm.Contact")    # crm.Contact, crm.Address, crm.ContactAddresses: named after the module
 ToDataclass.model({n: store.registered(f"crm.{n}") for n in ("Contact", "Address")})   # {"Contact": class, ...}; ToDataclass(schema, name)
 ```
+
+## References
+
+A request or a response that designates an object, a relation entry or a frame carries a reference, a value of the
+store's `References` schemas, written and read as any value is. `References.OfObject` is a path (a singleton, an owned
+object, a schema object) or, for a counted object an upsert made, what made it: the frame that reached the upsert, its
+key and the symbol. `References.OfEntry` is a relation's path and all an entry's links and properties;
+`References.OfFrame` binds each symbol to a `References.OfObject`. Paths are deprecated in favor of them.
+
+```python fragment
+frames = store.transaction(notes)                     # notes: a map over persons, then an upsert keyed "notes/1"
+ref = References.of(store, frames[0]["note"])         # {"upserted": {"frame": ..., "key": "notes/1", "symbol": "note"}}
+References.of(store, ada); References.of(store, entry); References.of(store, frames[0])   # an object, an entry, a frame
+text = JSON.ToJSON(store)(ref.as_schema(), ref)       # carried in a response, read back in a request
+References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text))   # the note, or None
+```
+
+A counted object nothing names (one a builder writes outright) has no reference: `References.of` raises `LookupError`.
+Make it a singleton's, an owner's or an upsert's where it must be designated.
 
 ## Traps
 

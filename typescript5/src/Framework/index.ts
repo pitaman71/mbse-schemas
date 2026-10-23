@@ -23,6 +23,7 @@ export * as Plain from "./Plain.js";
 export * as Proposals from "./Proposals.js";
 export * as Proxies from "./Proxies.js";
 export * as Readers from "./Readers.js";
+export * as References from "./References.js";
 export * as Reachable from "./Reachable.js";
 export * as Repr from "./Repr.js";
 export * as Schemas from "./Schemas.js";

@@ -123,6 +123,8 @@ class OfStore(Stores.Catalog):
         self._committed = _Committed(self)  # what it holds as committed
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
         self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
+        # what made each of them, weakly: the upsert's key, the symbol and the frame (`References.of`)
+        self._made_by: weakref.WeakKeyDictionary[Any, tuple[Any, str, dict[str, Any]]] = weakref.WeakKeyDictionary()
 
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
         """A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its

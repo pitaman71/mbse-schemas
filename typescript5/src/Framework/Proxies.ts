@@ -194,6 +194,8 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   readonly _keys = new Map<string, number>(); // the last number a key's pattern gave, by relation, owner and key
   /** The counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63). */
   readonly _upserted = new Map<string, WeakRef<object>>();
+  /** What made each of them, weakly: the upsert's key, the symbol and the frame (`References.of`). */
+  readonly _made_by = new WeakMap<object, [unknown, string, Map<string, unknown>]>();
 
   /** How deep in building an expression, or in making the store, a write is (`_written`). */
   _expressing = 0;
@@ -3093,7 +3095,7 @@ export function _isVisitor(value: unknown): boolean {
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty, makeProperty as _makeProperty,
   isFunction as _isFunction, visit as _visit, noun as _noun, withArticle as _withArticle, isObjectData as _isObjectData,
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
-  addEntry as _add_entry, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single,
+  addEntry as _add_entry, sameStore as _same_store, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single,
   built as _built };
 
 /** Internal classes, exposed for protocol conformance tests. */

@@ -1,5 +1,5 @@
 <!-- nav -->
-[← 9 · When requirements change: evolving schemas (TypeScript)](../typescript5/tutorials/09_When_Requirements_Change.ipynb) · [Home](../README.md) · [Equality →](EQUALITY.md)
+[← 10 · Asking the store: mutations as queries (TypeScript)](../typescript5/tutorials/10_Asking_The_Store.ipynb) · [Home](../README.md) · [Equality →](EQUALITY.md)
 
 # Schemas Framework
 
@@ -1581,4 +1581,4 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 ---
 
 <!-- nav -->
-[← 9 · When requirements change: evolving schemas (TypeScript)](../typescript5/tutorials/09_When_Requirements_Change.ipynb) · [Home](../README.md) · [Equality →](EQUALITY.md)
+[← 10 · Asking the store: mutations as queries (TypeScript)](../typescript5/tutorials/10_Asking_The_Store.ipynb) · [Home](../README.md) · [Equality →](EQUALITY.md)

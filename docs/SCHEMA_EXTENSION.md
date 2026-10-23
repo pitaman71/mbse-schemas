@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Parametrics : Revisited](PARAMETRICS.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
+[← Notation](PARAMETRICS.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
 
 # Schema extension
 
@@ -256,4 +256,4 @@ As the user decided (2026-10-15), on the questions put to them:
 ---
 
 <!-- nav -->
-[← Parametrics : Revisited](PARAMETRICS.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)
+[← Notation](PARAMETRICS.md) · [Home](../README.md) · [Serialization →](SERIALIZATION.md)

@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Reference Object Identity](OBJECT_IDENTITY.md) · [Home](../README.md) · [Parametrics : Revisited →](PARAMETRICS.md)
+[← Reference Object Identity](OBJECT_IDENTITY.md) · [Home](../README.md) · [Notation →](PARAMETRICS.md)
 
 # Open-world modeling
 
@@ -173,4 +173,4 @@ Each item is built in both implementations, with the same names and messages, an
 ---
 
 <!-- nav -->
-[← Reference Object Identity](OBJECT_IDENTITY.md) · [Home](../README.md) · [Parametrics : Revisited →](PARAMETRICS.md)
+[← Reference Object Identity](OBJECT_IDENTITY.md) · [Home](../README.md) · [Notation →](PARAMETRICS.md)

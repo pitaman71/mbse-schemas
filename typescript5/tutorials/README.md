@@ -1,7 +1,7 @@
 <!-- nav -->
-[← 9 · When requirements change: evolving schemas (Python)](../../python3/tutorials/09_When_Requirements_Change.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
+[← 10 · Asking the store: mutations as queries (Python)](../../python3/tutorials/10_Asking_The_Store.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
 
-# Tutorial: the schemas framework in nine case studies (TypeScript)
+# Tutorial: the schemas framework in ten case studies (TypeScript)
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
@@ -49,6 +49,7 @@ Expressions, which constraints will be made of, live in the separate
 | 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON with exact integers; the Norway problem; YAML 1.2 loading; no type coercion |
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-type code | Walking schemas as data; reading any object through the visitor protocol |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
+| 10 | [Asking the store](10_Asking_The_Store.ipynb) | Questions about the data, and the changes that follow from the answers | Transactions as queries: frames as `Map`s; `map` over patterns and specs; a symbol given a reference; absence as a filter; `reduce` and `partition`; writing from frames; handing frames on as references |
 
 ## Differences from the Python tutorial
 
@@ -59,4 +60,4 @@ Where the TypeScript binding differs from Python's (`BigInt` for integers, `.equ
 ---
 
 <!-- nav -->
-[← 9 · When requirements change: evolving schemas (Python)](../../python3/tutorials/09_When_Requirements_Change.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
+[← 10 · Asking the store: mutations as queries (Python)](../../python3/tutorials/10_Asking_The_Store.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)

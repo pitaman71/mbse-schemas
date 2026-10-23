@@ -138,7 +138,7 @@ noticed.
 
 ## Tutorials
 
-`python3/tutorials/` and `typescript5/tutorials/` are the same nine case studies: the same problems, the same
+`python3/tutorials/` and `typescript5/tutorials/` are the same ten case studies: the same problems, the same
 reasoning, in the same order, with the same outputs wherever the bindings agree (every error and validation message
 does). They differ only where the table above does, and the TypeScript notebooks point each difference out. Both are
 run as tests (`uv run pytest`, `npm test`), and both are committed with outputs: Python's from its kernel, TypeScript's

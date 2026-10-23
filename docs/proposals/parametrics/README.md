@@ -191,7 +191,7 @@ As the user decided (2026-10-22), on the questions this draft put:
   (`parameterProblems`, `sameParameters`), the builders' `parameters` member and the module data's go, in both
   languages, from `Schemas.install` too, which the bootstrap reads: the store's own schemas are those less
   `Schemas.HasParameter`. `Schemas.OfParameter` stays, a `description` (its data's `name` field kept, set by nothing
-  now). The extension's adjacency on every kind is named `parameters`, as drafted. A pattern's `validate()` keeps its
+  now, as the user decided: "do not remove it"). The extension's adjacency on every kind is named `parameters`, as drafted. A pattern's `validate()` keeps its
   symbol-and-variable clash; the clashes with parameters are `Parametrics.validate`'s.
 
   Moved to `Parametrics`:

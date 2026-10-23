@@ -608,7 +608,7 @@ so that main stays current and no branch waits on another.
        but defer deleting objects to a later phase";
      - parameters as a module, `Parametrics`, installed before use, in place of every kind's names only
        (docs/PARAMETRICS.md, as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
-       4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built);
+       4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built), released as 0.24.0;
      - Parametrics' bindings' adjacencies, `values` and `objects`: dropped, no stage, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
@@ -658,7 +658,8 @@ so that main stays current and no branch waits on another.
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
    and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included; released), each landing the branch on main. 4i
    follows 0.22.0, as the user decided: "go ahead and release 0.22.0 then go straight to 4i". 0.23.0 after 4i, 4j and 4l, as the user
-   decided: "Do 4j, 4l, then release". 4e builds only the in-memory, sequential executor
+   decided: "Do 4j, 4l, then release". 0.24.0 after 4m, since removing the
+   core's parameters breaks dependents ("yes, proceed"). 4e builds only the in-memory, sequential executor
    (question 11).
 5. **The dependents ported** (Decided, 26): every `mbse-*` repository that depends on mbse-schemas moves to the
    stabilized mbse-schemas, its schemas installs (Installing schemas, Decided, 7). mbse-expressions refines

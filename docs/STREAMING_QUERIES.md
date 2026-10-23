@@ -91,7 +91,10 @@ In some contexts, `schema` may be optional or mandatory.
 A pattern's `spec` says what must hold of a frame: property values the symbols' objects have, and relation entries that
 link them, written in the builders' notation over the frame's symbols, `lambda _: _.bob.name("Bob").knows([_.ada])`. In
 a match it filters; in an upsert it is written where it does not hold. It replaces locators; a symbol whose schema is a
-singleton's binds that singleton ([Object identity](OBJECT_IDENTITY.md), Decided, 76 to 78).
+singleton's binds that singleton ([Object identity](OBJECT_IDENTITY.md), Decided, 76 to 78). A symbol may be given a
+reference in place of a schema, `.symbols({"ada": reference})`: it binds the one object the reference designates, or
+none where the store holds none, and its spec writes the members of that object's schema
+([References](proposals/references/README.md), Decided, 8).
 
 ## Putative objects
 

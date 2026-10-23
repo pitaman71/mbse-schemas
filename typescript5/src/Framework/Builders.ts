@@ -674,10 +674,13 @@ class AdjacencyMember extends Shelled {
     const builderClass: any = members.build !== null ? members._builderClass() : null;
     const plain: any = this._builder._store !== null ? this._builder._store._meta : TEMPLATE;
     const objectMeta = builderClass !== null ? plain[builderClass._meta] : null;
+    const store = this._builder._store;
+    // its class's members, and those its store's extensions added
+    const own = builderClass === null ? new Map() : new Map([...builderClass._table, ...(store?._added.get(builderClass) ?? [])]);
     return items.map(([name, value]) => (them: any) => {
       them[key](name);
       const given = Proxies._deref(value);
-      const takers: [string, boolean, boolean][] = objectMeta === null || isFunction(given) ? [] : [...builderClass._table]
+      const takers: [string, boolean, boolean][] = objectMeta === null || isFunction(given) ? [] : [...own]
         .filter(([memberName]: [string, unknown]) => memberName !== key)
         .map(([memberName, member]: [string, any]): [string, boolean, boolean] => [memberName, member instanceof Members,
           member instanceof Members ? member.links(given)
@@ -1054,18 +1057,37 @@ function hidden(data: any, name: "_extended" | "_pending"): Map<string, any> {
 }
 
 /** A property an extension declares on a plain schema, held on each schema object apart from its fields: a scalar,
- * or a container where its schema is one. */
+ * or a container where its schema is one; a value object, union value or intersection value where its schema is one
+ * (`ValueProp`), as `References.install` gives `Schemas.OfSymbol` its `reference`. */
 function extensionProperty(prop: S.OfProperty.Data): Prop {
   const name = prop.name;
-  const member = new Prop({
-    get: (data) => data._extended?.get(name) ?? null,
-    put: (data, value) => {
+  const options = {
+    get: (data: any) => Proxies._built(data._extended?.get(name) ?? null),
+    put: (data: any, value: unknown) => {
       hidden(data, "_extended").set(name, value);
     },
     container: prop.schema instanceof S.OfContainer.Data,
-  });
+  };
+  const member = prop.schema instanceof S.OfObject.Data || prop.schema instanceof S.OfUnion.Data
+    || prop.schema instanceof S.OfIntersection.Data ? new ValueProp(prop, options) : new Prop(options);
   member.extension = true;
   return member;
+}
+
+/** An extension's property whose value is a value object, a union value or an intersection value: its member is data's
+ * (`Proxies._makeProperty`), over the values the schema object holds apart from its fields, which a builder finalizes
+ * (`_held`). */
+class ValueProp extends Prop {
+  constructor(readonly prop: S.OfProperty.Data, options: ConstructorParameters<typeof Prop>[0]) {
+    super(options);
+  }
+
+  member(builder: Builder): unknown {
+    return Proxies._makeProperty(hidden(builder._working, "_extended"), this.name, this.prop, builder._store, builder._proxy,
+      builder._writable, () => {
+        builder._written.push(this);
+      });
+  }
 }
 
 /** An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
@@ -1273,6 +1295,10 @@ abstract class Builder extends Shelled {
   /** `data`, held by its store where it is built in one, which refuses it where it would share an object with no name of
    * its own. */
   _held(data: any): any {
+    const extended: Map<string, unknown> | undefined = data._extended;
+    for (const member of this._table().values()) { // the values of its extensions' properties, built
+      if (member instanceof ValueProp && extended?.has(member.name)) member.put(data, member.get(data));
+    }
     return settleExtended(this._store === null ? data : this._store._hold(data), this._store);
   }
 
@@ -1321,6 +1347,7 @@ abstract class Builder extends Shelled {
 
   override _member(name: string): unknown {
     const member = this._table().get(name);
+    if (member instanceof ValueProp) return member.member(this); // an extension's: data's member
     if (member instanceof Prop) return callable(new PropertyMember(this, member));
     if (member instanceof Members) return callable(new AdjacencyMember(this, member));
     return makeEmpty(`${repr(name)} is not a member of ${(this.constructor as typeof Builder)._noun}'s builder`);
@@ -1772,14 +1799,26 @@ function bootKind(made: Map<string, unknown>, name: string): any {
 
 /** In a bootstrap, a symbol of an install's pattern: the schema object it makes, written through a builder of it, one
  * for each spec item (`begin`), which the item's calls go to (`face`), and the object itself wherever one is
- * expected. */
+ * expected. Named by an item as a schema an install read before made (`Schemas.OfSymbol`), it is that schema, which
+ * the item, written again, extends. */
 class BootSymbol {
   builder: any = null;
   readonly face: any;
+  /** It names a schema made before: the install extends it. */
+  extends = false;
 
-  constructor(readonly data: any, readonly builderClass: any) {
+  constructor(public data: any, readonly builderClass: any, readonly made: Map<string, unknown>) {
     this.face = new Proxy({}, { get: (_target, part) => this.builder[part] });
     Proxies._named(this.face, () => this.data);
+  }
+
+  /** Whether the item just written named it as a schema made before, which it then is. */
+  extending(): boolean {
+    const existing = this.made.get(this.builder._working.name);
+    if (existing === undefined || existing === this.data) return false;
+    this.data = existing;
+    this.extends = true;
+    return true;
   }
 
   begin(): void {
@@ -1848,7 +1887,7 @@ class Bootstrap {
   symbols(symbols: Record<string, any>): any {
     for (const [name, kind] of Object.entries(symbols)) {
       const builder: any = _META_BUILDERS.get(kind.kindName);
-      this.held.set(name, new BootSymbol(new builder().create(), builder));
+      this.held.set(name, new BootSymbol(new builder().create(), builder, this.made));
     }
     if (TEMPLATE === null) TEMPLATE = this.namespace() as Plain; // the template itself being made: what its builders read
     return this.face;
@@ -1856,17 +1895,27 @@ class Bootstrap {
 
   spec(items: ((frame: any) => unknown)[]): any {
     for (const item of items) {
-      const touched = new Map<string, BootSymbol>();
-      item(bootFrame(this.held, touched));
-      for (const symbol of touched.values()) symbol.builder.update();
+      let touched = this.item(item);
+      if (touched.filter((symbol) => symbol.extending()).length > 0) {
+        touched = this.item(item); // written again, over the schemas it extends
+      }
+      for (const symbol of touched) symbol.builder.update();
     }
     for (const symbol of this.held.values()) this.made.set(symbol.data.name, symbol.data);
     return this.face;
   }
 
-  /** The schema objects the install made, by symbol. */
+  /** Writes one spec item through builders of the objects it touches, which it gives. */
+  item(item: (frame: any) => unknown): BootSymbol[] {
+    const touched = new Map<string, BootSymbol>();
+    item(bootFrame(this.held, touched));
+    return [...touched.values()];
+  }
+
+  /** The schema objects the install made, by symbol; not those it extends. */
   namespace(): Record<string, any> {
-    return Object.fromEntries([...this.held].map(([name, symbol]) => [name, symbol.data]));
+    return Object.fromEntries([...this.held].filter(([, symbol]) => !symbol.extends)
+      .map(([name, symbol]) => [name, symbol.data]));
   }
 }
 
@@ -1994,7 +2043,12 @@ export class Store extends Proxies.OfStore {
     const made = new Map<string, unknown>(); // its own, as the framework's installs define them, read by the bootstrap
     this._meta = bootstrap(S.install, made) as Plain; // its plain schemas of schemas and basic scalars
     const paths = bootstrap(Paths.install, made);
-    const references = bootstrap(References.install, made);
+    const before = new Map<unknown, [Set<string>, Set<string>]>();
+    for (const meta of Object.values(this._meta)) {
+      if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
+    }
+    const references = bootstrap(References.install, made); // which extends `Schemas.OfSymbol`
+    extendBuilders(this, before); // the members it adds
     const mutations = bootstrap(Mutations.install, made);
     const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths),
       ...Object.values(references)] as (ObjectData | RelationData)[];

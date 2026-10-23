@@ -40,6 +40,7 @@ import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
 import * as Proxies from "./Proxies.js";
+import * as References from "./References.js";
 import { repr, sortedStrings, TYPE_NAME } from "./Repr.js";
 import * as S from "./Schemas.js";
 
@@ -84,12 +85,9 @@ class SpecFrame extends Shelled {
   override _member(name: string): unknown {
     const symbol = this._symbols.get(name);
     if (symbol === undefined) return Proxies._makeEmpty(`${repr(name)} is not a symbol of the pattern`);
-    if (symbol.schema === null) {
-      throw new TypeError(`symbol ${repr(name)} has no schema: a spec writes what its object's schema declares`);
-    }
     let state = this._states.get(name);
     if (state === undefined) {
-      state = new State(this._store, symbol.schema, name);
+      state = new State(this._store, _recordedSchema(this._store, name, symbol), name);
       this._states.set(name, state);
     }
     return makeRecorder(state);
@@ -98,6 +96,35 @@ class SpecFrame extends Shelled {
   override _repr(): string {
     return "<frame>";
   }
+}
+
+/** The `References.OfObject` a pattern's symbol is given in place of a schema (`Schemas.OfSymbol`'s `reference`, which
+ * `References.install` adds); null where it is given none. */
+export function _givenReference(symbol: any): any {
+  return Proxies._built(symbol._extended?.get("reference") ?? null);
+}
+
+/** A symbol's reference, refused where it has both a schema and a reference, or neither (References, Decided, 8). */
+export function _exactlyOne(name: string, symbol: any, error: new (message: string) => Error): any {
+  const reference = _givenReference(symbol);
+  if ((reference === null) === (symbol.schema === null)) {
+    const given = reference === null ? "neither a schema nor a reference" : "both a schema and a reference";
+    throw new error(`symbol ${repr(name)} has ${given}: a symbol has exactly one`);
+  }
+  return reference;
+}
+
+/** The schema of the object a symbol binds, by which a spec over it is recorded: its own, or, given a reference, the
+ * schema of the object the reference designates when the spec is recorded, refused where it designates nothing. */
+export function _recordedSchema(store: any, name: string, symbol: any): any {
+  const reference = _exactlyOne(name, symbol, TypeError);
+  if (reference === null) return symbol.schema;
+  const target = References.resolve(store, reference);
+  if (target === null) {
+    throw new LookupError(`symbol ${repr(name)} is given a reference that designates nothing the store holds: a spec `
+      + "writes what its object's schema declares");
+  }
+  return reader(store, target).as_schema();
 }
 
 /** What a spec writes of one object: its properties' values, and the entries of its adjacencies, in order. */
@@ -660,9 +687,11 @@ function unbound(names: Iterable<string>, bound: Set<string>, kind: string): voi
   }
 }
 
-/** Refuses a symbol a transaction cannot bind: one of a kind union, or of no reference object schema. */
+/** Refuses a symbol a transaction cannot bind: one given both a schema and a reference, or neither; one of a kind
+ * union, or of no reference object schema. */
 function symbols(store: any, pattern: any): void {
   for (const [name, symbol] of pattern.symbols) {
+    if (_exactlyOne(name, symbol, ValueError) !== null) continue; // it binds what its reference designates
     const schema = symbol.schema;
     if (!(schema instanceof S.OfObject.Data) || !schema.ref) {
       throw new ValueError(`symbol ${repr(name)} binds no reference object of one schema: transactions bind objects of an `
@@ -739,7 +768,8 @@ function run(store: any, term: any, frames: Frame[]): Frame[] {
 }
 
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
- * spec gives hold: a singleton's to the singleton (77). An upsert creates, where none is found, the object of a symbol,
+ * spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
+ * where the store holds none (References, Decided, 8). An upsert creates, where none is found, the object of a symbol,
  * and writes its spec where it does not hold; a counted object it created before from the same frame, for the same
  * symbol and key, it finds again (63), and finds none otherwise (102). */
 function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unknown = null): Frame[] {
@@ -747,6 +777,12 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
   let frames: Frame[] = [new Map(frame)];
   for (const [name, symbol] of pattern.symbols) {
     if (frame.has(name)) continue;
+    const reference = _givenReference(symbol);
+    if (reference !== null) { // what it designates, or no frame where the store holds none (References, Decided, 8)
+      const target = References.resolve(store, reference);
+      frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
+      continue;
+    }
     const schema = symbol.schema;
     const grown: Frame[] = [];
     for (const partial of frames) {
@@ -789,7 +825,13 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
     return frames;
   }
   return frames.filter((bound) => [...members].every(([name, items]) =>
-    holds(store, bound.get(name), pattern.symbols.get(name).schema, items, bound, null)));
+    holds(store, bound.get(name), schemaIn(store, pattern, name, bound), items, bound, null)));
+}
+
+/** The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's. */
+function schemaIn(store: any, pattern: any, name: string, frame: Frame): any {
+  const schema = pattern.symbols.get(name).schema;
+  return schema === null ? reader(store, frame.get(name)).as_schema() : schema;
 }
 
 /** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
@@ -842,7 +884,7 @@ function locate(store: any, pattern: any, members: Map<string, Members>, name: s
     for (const item of items) {
       const [kind, body] = only(item);
       if (kind !== "as_adjacency") continue;
-      const relation = pattern.symbols.get(other).schema.adjacencies.get(body.get("name")).relation;
+      const relation = schemaIn(store, pattern, other, frame).adjacencies.get(body.get("name")).relation;
       for (const entry of verbsOf(body).filter(([verb]) => verb === "insert").flatMap(([, entries]) => entries)) {
         const parts: Map<string, any>[] = entry.get("mutations");
         const link = parts.find((part) => part.has("as_link")
@@ -986,7 +1028,7 @@ function resolve(store: any, ref: Map<string, any>, frame: Frame): any {
 
 /** Writes a pattern's spec over a frame where it does not hold (Decided, 76). */
 function writeSpec(store: any, pattern: any, frame: Frame): void {
-  for (const [name, members] of membersOf(pattern)) write(store, frame.get(name), pattern.symbols.get(name).schema, members, frame);
+  for (const [name, members] of membersOf(pattern)) write(store, frame.get(name), schemaIn(store, pattern, name, frame), members, frame);
 }
 
 /** Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and the

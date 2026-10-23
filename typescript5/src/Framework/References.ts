@@ -16,15 +16,20 @@
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
  * reference)` gives what a reference designates, or null where the store holds none. A counted object has no reference,
  * nor a frame that binds one: nothing names it (docs/OBJECT_IDENTITY.md, Decided, 40 and 55).
+ *
+ * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
+ * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
+ * `validate(pattern)` refuses a symbol given both, or neither.
  */
 
 import * as Builders from "./Builders.js";
-import { LookupError } from "./Errors.js";
+import { LookupError, ValueError } from "./Errors.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
 import * as Proxies from "./Proxies.js";
 import { repr } from "./Repr.js";
 import * as S from "./Schemas.js";
+import * as Transactions from "./Transactions.js";
 
 /** The reference schemas, defined in the store a transaction writes: `store.transaction(References.install)`. A store
  * is made by it, after `Schemas.install` and `Paths.install`, read by the bootstrap (`Builders`); run again in a store,
@@ -32,7 +37,8 @@ import * as S from "./Schemas.js";
 export function install(txn: any): any {
   const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
   return txn.uid("mbse.Schemas.References/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
-    .symbols({OfObject: S.OfUnion, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject})
+    .symbols({OfObject: S.OfUnion, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject,
+      OfSymbol: S.OfObject})
     .spec([
       (_: any) => _.OfObject.name("References.OfObject").branches([
         (t: any) => t.name("path").schema([txn.Paths.OfRoot]), // a singleton, an owned object, a schema object
@@ -52,7 +58,24 @@ export function install(txn: any): any {
         links: S.OfContainer((c: any) => c.index([S.OfStr]).element([_.OfObject])),
         properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfAny((a: any) => a)])),
       }),
+      // --- The extension: a pattern's symbol given the object it binds in place of a schema (Decided, 8) ---
+      (_: any) => _.OfSymbol.name("Schemas.OfSymbol").properties({ reference: _.OfObject }),
     ])]))]);
+}
+
+/** The problems of a pattern's symbols as `References.install` extends them: a symbol given both a schema and a
+ * reference, or neither; a symbol has exactly one (docs/proposals/references, Decided, 8). */
+export function validate(pattern: unknown): string[] {
+  if (!(pattern instanceof S.OfPattern.Data)) throw new TypeError(`References.validate takes a pattern, not ${repr(pattern)}`);
+  const problems: string[] = [];
+  for (const [name, symbol] of pattern.symbols) {
+    try {
+      Transactions._exactlyOne(name, symbol, ValueError);
+    } catch (error) {
+      problems.push((error as Error).message);
+    }
+  }
+  return problems;
 }
 
 type Callback = (visitor: any) => any;

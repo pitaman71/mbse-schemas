@@ -121,6 +121,34 @@ As the user decided (2026-10-23):
     entry one of whose objects is not held, an entry no relation entry agrees with, link for link and property for
     property, or a reference giving no links.
 
+- Settled in building Decided, 8, the simplest choice consistent with it and the code:
+  - **The bootstrap extends.** `References.install` is read by the bootstrap, which made each symbol's schema object
+    afresh; an item naming a schema an install read before made (`Schemas.OfSymbol`) is now written again over that
+    schema, which it extends, and the builders are given the members it added (`_extend_builders`), as after a
+    transaction. Run again in a store, the install finds `Schemas.OfSymbol` by its name and writes nothing.
+  - **An extension's property may hold a value.** A schema object's builder held scalars and containers only; an
+    extension's property whose schema is a value object, a union or an intersection (`reference`, a
+    `References.OfObject`) is read and written as data's property is (`Proxies._Property`), held apart from the
+    schema object's fields as every extension's property is, and built when the builder finishes.
+  - **The mapping shorthand takes a value.** In `.symbols({"x": ref})`, a value given whole goes to the one member that
+    takes it: a property now takes a value object, union value or intersection value of its own schema
+    (`Proxies._holds`), and the members a store's extensions added count, as the builder's own do.
+  - **Validation is `References.validate(pattern)`**, as `Parametrics.validate(store, defn)` is for parameters: a
+    kind's `validate()` does not see an extension's members. It reports "symbol 'x' has both a schema and a reference:
+    a symbol has exactly one", or "neither a schema nor a reference". The recorder refuses the same (`TypeError`),
+    where a spec writes the symbol's members, and so does the executor's check before a transaction runs
+    (`ValueError`); a spec written over a symbol whose reference designates nothing when it is recorded is refused,
+    "symbol 'x' is given a reference that designates nothing the store holds: a spec writes what its object's schema
+    declares" (`LookupError`), and so is one read from the wire (`DecodeError`, at the spec).
+  - **The executor resolves once per frame.** A symbol given a reference binds what `References.resolve` gives when
+    the term runs, for each frame it receives: a data object or a schema object alike; an upsert creates nothing where
+    the reference designates nothing. Its spec is checked and written against the schema of the object bound.
+  - **On the wire**, a symbol given a reference is `{"reference": {"path": ...}}` in place of `{"schema": [...]}`,
+    the reference written as any `References.OfObject` value.
+  - **`References.OfObject` fails `validate()`**: a union of one branch, which validation refuses ("a union needs at
+    least two branches"). It did before; `Schemas.OfSymbol` now reports it too, through its `reference` (BLD-01 records
+    it). Allowing a union of one branch, or giving `OfObject` another branch, is the user's to decide (open).
+
 ## Stages, as built
 
 - **4n**, one stage, both languages: `Framework/References.py` and `typescript5/src/Framework/References.ts`
@@ -132,3 +160,9 @@ As the user decided (2026-10-23):
   OBJECT_IDENTITY.md, SERIALIZATION.md, FRAMEWORK.md (and its Resolved entry, References), tutorial 6 and the skill
   (python.md and typescript.md, a section each). No example used Paths. The wire and the corpora are unchanged. REF-01
   to REF-07 cover it, in both languages.
+- **Decided, 8**, both languages: `References.install` extends `Schemas.OfSymbol` with `reference`, a
+  `References.OfObject`; `References.validate(pattern)`; a pattern's symbol given a reference
+  (`.symbols({"ada": reference})`) recorded with the members of the schema of what it designates, bound by the
+  executor in a map and an upsert's `exists` to what `References.resolve` gives, one frame, or none; written and read
+  on the wire. The corpora are unchanged. REF-09 covers it, with TXN-09 (the executor's refusals) and TXN-13 (the
+  wire), in both languages.

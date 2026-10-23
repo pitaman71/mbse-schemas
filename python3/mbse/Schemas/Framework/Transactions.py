@@ -78,15 +78,43 @@ class _Frame(Proxies._Unassignable):
         symbol = self._symbols.get(name)
         if symbol is None:
             return Proxies._Empty(f"{name!r} is not a symbol of the pattern")
-        if symbol.schema is None:
-            raise TypeError(f"symbol {name!r} has no schema: a spec writes what its object's schema declares")
         state = self._states.get(name)
         if state is None:
-            state = self._states[name] = _State(self._store, symbol.schema, name)
+            state = self._states[name] = _State(self._store, _recorded_schema(self._store, name, symbol), name)
         return _Recorder(state)
 
     def __repr__(self) -> str:
         return "<frame>"
+
+
+def _given_reference(symbol: Any) -> Any:
+    """The `References.OfObject` a pattern's symbol is given in place of a schema (`Schemas.OfSymbol`'s `reference`,
+    which `References.install` adds); None where it is given none."""
+    return Proxies._built(symbol.__dict__.get("_extended", {}).get("reference"))
+
+
+def _exactly_one(name: str, symbol: Any, error: type[Exception]) -> Any:
+    """A symbol's reference, refused where it has both a schema and a reference, or neither (References, Decided, 8)."""
+    reference = _given_reference(symbol)
+    if (reference is None) == (symbol.schema is None):
+        given = "neither a schema nor a reference" if reference is None else "both a schema and a reference"
+        raise error(f"symbol {name!r} has {given}: a symbol has exactly one")
+    return reference
+
+
+def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
+    """The schema of the object a symbol binds, by which a spec over it is recorded: its own, or, given a reference, the
+    schema of the object the reference designates when the spec is recorded, refused where it designates nothing."""
+    from . import References
+
+    reference = _exactly_one(name, symbol, TypeError)
+    if reference is None:
+        return symbol.schema
+    target = References.resolve(store, reference)
+    if target is None:
+        raise LookupError(f"symbol {name!r} is given a reference that designates nothing the store holds: a spec writes "
+                          "what its object's schema declares")
+    return _reader(store, target).as_schema()
 
 
 class _State:
@@ -590,8 +618,11 @@ def _unbound(symbols: Iterable[str], bound: set[str], kind: str) -> None:
 
 
 def _symbols(store: Any, pattern: Any) -> None:
-    """Refuses a symbol a transaction cannot bind: one of a kind union, or of no reference object schema."""
+    """Refuses a symbol a transaction cannot bind: one given both a schema and a reference, or neither; one of a kind
+    union, or of no reference object schema."""
     for name, symbol in pattern.symbols.items():
+        if _exactly_one(name, symbol, ValueError) is not None:
+            continue  # it binds what its reference designates
         schema = symbol.schema
         if not isinstance(schema, S.OfObject.Data) or not schema.ref:
             raise ValueError(f"symbol {name!r} binds no reference object of one schema: transactions bind objects of an "
@@ -674,13 +705,21 @@ def _run(store: Any, term: Any, frames: list[Frame]) -> list[Frame]:
 
 def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None = None) -> list[Frame]:
     """The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members
-    its spec gives hold: a singleton's to the singleton (77). An upsert creates, where none is found, the object of a
+    its spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
+    where the store holds none (References, Decided, 8). An upsert creates, where none is found, the object of a
     symbol, and writes its spec where it does not hold; a counted object it created before from the same frame, for
     the same symbol and key, it finds again (63), and finds none otherwise (102)."""
+    from . import References
+
     members = _members(pattern)
     frames = [dict(frame)]
     for name, symbol in pattern.symbols.items():
         if name in frame:
+            continue
+        reference = _given_reference(symbol)
+        if reference is not None:  # what it designates, or no frame where the store holds none (References, Decided, 8)
+            target = References.resolve(store, reference)
+            frames = [] if target is None else [{**partial, name: target} for partial in frames]
             continue
         schema = symbol.schema
         grown = []
@@ -717,8 +756,14 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
             _write_spec(store, pattern, bound)
         return frames
     return [bound for bound in frames
-            if all(_holds(store, bound[name], pattern.symbols[name].schema, items, bound, None)
+            if all(_holds(store, bound[name], _schema(store, pattern, name, bound), items, bound, None)
                    for name, items in members.items())]
+
+
+def _schema(store: Any, pattern: Any, name: str, frame: Frame) -> Any:
+    """The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's."""
+    schema = pattern.symbols[name].schema
+    return _reader(store, frame[name]).as_schema() if schema is None else schema
 
 
 def _upsert_index(store: Any, key: str | None, name: str, frame: Frame) -> tuple[Any, ...]:
@@ -766,7 +811,7 @@ def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str,
             (kind, body), = item.items()
             if kind != "as_adjacency":
                 continue
-            relation = pattern.symbols[other].schema.adjacencies[body["name"]].relation
+            relation = _schema(store, pattern, other, frame).adjacencies[body["name"]].relation
             for entry in (entry for verb, entries in _verbs(body) if verb == "insert" for entry in entries):
                 link = next((part["as_link"]["name"] for part in entry["mutations"] if "as_link" in part
                              and part["as_link"]["mutations"][0]["set"].get("ref", {}).get("symbol") == name), None)
@@ -897,7 +942,7 @@ def _resolve(store: Any, ref: dict[str, Any], frame: Frame) -> Any:
 def _write_spec(store: Any, pattern: Any, frame: Frame) -> None:
     """Writes a pattern's spec over a frame where it does not hold (Decided, 76)."""
     for name, members in _members(pattern).items():
-        _write(store, frame[name], pattern.symbols[name].schema, members, frame)
+        _write(store, frame[name], _schema(store, pattern, name, frame), members, frame)
 
 
 def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Frame) -> None:

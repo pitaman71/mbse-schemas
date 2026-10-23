@@ -1105,6 +1105,8 @@ def _checked_spec(store: Any, symbols: dict[str, Any], spec: PlainData, where: t
                   ignored: list[dict[str, str]] | None = None) -> None:
     """Checks a spec read from the wire before anything is written, so that a document refused writes nothing and says
     where: each symbol the pattern's, each member its object's schema's, each value decoded against its schema."""
+    from . import Transactions
+
     if not isinstance(spec, list):
         raise DecodeError("expected a list of what holds of a frame, by symbol", path=path(*where))
     for i, item in enumerate(spec):
@@ -1114,7 +1116,11 @@ def _checked_spec(store: Any, symbols: dict[str, Any], spec: PlainData, where: t
             held = symbols.get(symbol)
             if held is None:
                 raise DecodeError(f"{symbol!r} is not a symbol of the pattern", path=path(*where, i, symbol))
-            _checked_members(store, held.schema, members, (*where, i, symbol), symbols, ignored)
+            try:  # its own schema, or that of the object its reference designates (References, Decided, 8)
+                schema = Transactions._recorded_schema(store, symbol, held)
+            except (TypeError, LookupError) as error:
+                raise DecodeError(str(error), path=path(*where, i, symbol)) from None
+            _checked_members(store, schema, members, (*where, i, symbol), symbols, ignored)
 
 
 def _checked_members(store: Any, schema: Any, members: PlainData, where: tuple, symbols: dict[str, Any],

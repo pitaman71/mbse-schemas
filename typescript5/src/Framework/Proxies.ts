@@ -2474,8 +2474,10 @@ export function _linksThrough(store: any, adjacency: AdjacencySchema, value: unk
   return others.length === 1 && _links(store, relation as RelationSchema, others[0] as string, value);
 }
 
-/** Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type. */
+/** Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type; a value object, union value
+ * or intersection value of `schema` itself. */
 export function _holds(schema: unknown, value: unknown): boolean {
+  if (isRecordData(value)) return innerOf(value)._schema === schema;
   return schema instanceof Schemas.OfScalar.Data && schema.type !== null && Schemas.isScalarOf(schema.type, value);
 }
 

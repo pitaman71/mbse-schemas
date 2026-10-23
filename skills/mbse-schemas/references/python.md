@@ -200,6 +200,9 @@ text = JSON.ToJSON(store)(ref.as_schema(), ref)       # carried in a response, r
 References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text))   # the contact, or None
 ```
 
+A pattern's symbol may be given a reference in place of a schema, `.symbols({"x": ref, "y": Person})`: it binds the one
+object the reference designates, or none, and its spec writes that object's members, `_.x.knows([_.y])`.
+
 A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
 `References.of` raises `LookupError`. Make it a singleton's or an owner's where it must be designated.
 

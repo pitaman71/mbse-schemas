@@ -213,6 +213,9 @@ const text = JSON.ToJSON(store)(ref.as_schema(), ref); // carried in a response,
 References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text)); // the contact, or null
 ```
 
+A pattern's symbol may be given a reference in place of a schema, `.symbols({ x: ref, y: Person })`: it binds the one
+object the reference designates, or none, and its spec writes that object's members, `_.x.knows([_.y])`.
+
 A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
 `References.of` throws `LookupError`.
 

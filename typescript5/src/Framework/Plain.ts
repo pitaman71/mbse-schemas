@@ -1249,7 +1249,13 @@ function checkedSpec(store: any, symbols: Map<string, any>, spec: unknown, where
     for (const [symbol, members] of item as PlainMap) {
       const held = symbols.get(symbol);
       if (held === undefined) throw new DecodeError(`${repr(symbol)} is not a symbol of the pattern`, { path: path(...where, i, symbol) });
-      checkedMembers(store, held.schema, members, [...where, i, symbol], symbols, ignored);
+      let schema: any; // its own schema, or that of the object its reference designates (References, Decided, 8)
+      try {
+        schema = Transactions._recordedSchema(store, symbol, held);
+      } catch (error) { // a TypeError or a LookupError
+        throw new DecodeError((error as Error).message, { path: path(...where, i, symbol) });
+      }
+      checkedMembers(store, schema, members, [...where, i, symbol], symbols, ignored);
     }
   });
 }

@@ -15,6 +15,10 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
 reference)` gives what a reference designates, or None where the store holds none. A counted object has no reference,
 nor a frame that binds one: nothing names it (docs/OBJECT_IDENTITY.md, Decided, 40 and 55).
+
+The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
+binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
+`validate(pattern)` refuses a symbol given both, or neither.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from . import Paths, Plain, Proxies
 from . import Schemas as S
 from .Builders import _builder_for
 
-__all__ = ["install", "of", "resolve"]
+__all__ = ["install", "of", "resolve", "validate"]
 
 
 def install(txn: Any) -> Any:
@@ -35,7 +39,8 @@ def install(txn: Any) -> Any:
     a store, it finds each by its name and writes nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.References/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
-        .symbols({"OfObject": S.OfUnion, "OfFrame": S.OfObject, "OfProperties": S.OfObject, "OfEntry": S.OfObject})
+        .symbols({"OfObject": S.OfUnion, "OfFrame": S.OfObject, "OfProperties": S.OfObject, "OfEntry": S.OfObject,
+                  "OfSymbol": S.OfObject})
         .spec([
             lambda _: _.OfObject.name("References.OfObject").branches([
                 lambda t: t.name("path").schema([txn.Paths.OfRoot]),  # a singleton, an owned object, a schema object
@@ -55,7 +60,25 @@ def install(txn: Any) -> Any:
                 "links": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject])),
                 "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
             }),
+            # --- The extension: a pattern's symbol given the object it binds in place of a schema (Decided, 8) ---
+            lambda _: _.OfSymbol.name("Schemas.OfSymbol").properties({"reference": _.OfObject}),
         ])]))])
+
+
+def validate(pattern: Any) -> list[str]:
+    """The problems of a pattern's symbols as `References.install` extends them: a symbol given both a schema and a
+    reference, or neither; a symbol has exactly one (docs/proposals/references, Decided, 8)."""
+    from . import Transactions
+
+    if not isinstance(pattern, S.OfPattern.Data):
+        raise TypeError(f"References.validate takes a pattern, not {pattern!r}")
+    problems = []
+    for name, symbol in pattern.symbols.items():
+        try:
+            Transactions._exactly_one(name, symbol, ValueError)
+        except ValueError as error:
+            problems.append(str(error))
+    return problems
 
 
 def _object(store: Any, obj: Any) -> Any:

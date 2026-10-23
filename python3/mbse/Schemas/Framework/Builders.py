@@ -546,6 +546,9 @@ class _AdjacencyMember(_Unassignable):
         builder_class = members.build() if members.build is not None else None
         plain = self._builder._store._meta if self._builder._store is not None else _TEMPLATE
         object_meta = getattr(plain, builder_class._meta) if builder_class is not None else None
+        store = self._builder._store
+        own = {} if builder_class is None else {  # its class's members, and those its store's extensions added
+            **builder_class._members_, **(store._added.get(builder_class, {}) if store is not None else {})}
 
         def item(name: Any, value: Any) -> Any:
             def write(them: _Them) -> None:
@@ -555,7 +558,7 @@ class _AdjacencyMember(_Unassignable):
                     (member_name, isinstance(member, _Members),
                      member.links(given) if isinstance(member, _Members) else
                      member_name in object_meta.properties and Proxies._holds(object_meta.properties[member_name].schema, given))
-                    for member_name, member in builder_class._members_.items() if member_name != key]
+                    for member_name, member in own.items() if member_name != key]
                 Proxies._given(them, given, members.link, not _is_function(given) and members.accepts(given), takers)
             return write
 
@@ -964,7 +967,11 @@ class _Builder(_Unassignable, Generic[D]):
 
     def _held(self, data: D) -> D:
         """`data`, held by its store where it is built in one, which refuses it where it would share an object with no
-        name of its own."""
+        name of its own; the values of its extensions' properties built."""
+        extended = data.__dict__.get("_extended", {})
+        for member in self._members_.values():
+            if isinstance(member, _ValueProp) and member.name in extended:
+                member.put(data, member.get(data))
         return _settle_extended(self._store._hold(data) if self._store is not None else data, self._store)
 
     def _edited(self) -> D:
@@ -1023,13 +1030,32 @@ def _schema(field: str = "schema") -> _Members:
 
 def _extension_property(prop: S.OfProperty.Data) -> _Prop:
     """A property an extension declares on a plain schema, held on each schema object apart from its fields: a
-    scalar, or a container where its schema is one."""
+    scalar, or a container where its schema is one; a value object, union value or intersection value where its schema
+    is one (`_ValueProp`), as `References.install` gives `Schemas.OfSymbol` its `reference`."""
     name = prop.name
-    member = _Prop(get=lambda data: data.__dict__.get("_extended", {}).get(name),
-                   put=lambda data, value: data.__dict__.setdefault("_extended", {}).__setitem__(name, value),
-                   container=isinstance(prop.schema, S.OfContainer.Data))
+    get = lambda data: Proxies._built(data.__dict__.get("_extended", {}).get(name))  # noqa: E731
+    put = lambda data, value: data.__dict__.setdefault("_extended", {}).__setitem__(name, value)  # noqa: E731
+    if isinstance(prop.schema, Proxies.RECORD_KINDS):
+        member: _Prop = _ValueProp(prop, get=get, put=put)
+    else:
+        member = _Prop(get=get, put=put, container=isinstance(prop.schema, S.OfContainer.Data))
     member.extension = True
     return member
+
+
+class _ValueProp(_Prop):
+    """An extension's property whose value is a value object, a union value or an intersection value: its member is
+    data's (`Proxies._Property`), over the values the schema object holds apart from its fields, which a builder
+    finalizes (`_held`)."""
+
+    def __init__(self, prop: S.OfProperty.Data, **kwargs: Any):
+        super().__init__(**kwargs)
+        self.prop = prop
+
+    def __get__(self, builder: Any, owner: type | None = None) -> Any:  # an extension's: read through a builder alone
+        values = builder._working.__dict__.setdefault("_extended", {})
+        return Proxies._Property(values, self.name, self.prop, builder._store, builder, builder._writable,
+                                 lambda: builder._written.append(self))
 
 
 def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
@@ -1450,17 +1476,28 @@ class _BootKind(Proxies._Named):
 
 class _BootSymbol(Proxies._Named):
     """In a bootstrap, a symbol of an install's pattern: the schema object it makes, written through a builder of it, one
-    for each spec item (`_begin`), which the item's calls go to, and the object itself wherever one is expected."""
+    for each spec item (`_begin`), which the item's calls go to, and the object itself wherever one is expected. Named
+    by an item as a schema an install read before made (`Schemas.OfSymbol`), it is that schema, which the item, written
+    again, extends."""
 
-    def __init__(self, data: Any, builder: type):
-        self._data, self._builder_class = data, builder
+    def __init__(self, data: Any, builder: type, made: dict[str, Any]):
+        self._data, self._builder_class, self._made = data, builder, made
         self._builder: Any = None
+        self._extends = False  # it names a schema made before, which the install extends
 
     def _resolve(self) -> Any:
         return self._data
 
     def _begin(self) -> None:
         self._builder = self._builder_class(self._data)
+
+    def _extending(self) -> bool:
+        """Whether the item just written named it as a schema made before, which it then is."""
+        existing = self._made.get(self._builder._working.name)
+        if existing is None or existing is self._data:
+            return False
+        self._data, self._extends = existing, True
+        return True
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._builder, name)
@@ -1527,24 +1564,31 @@ class _Bootstrap:
         global _TEMPLATE
         for name, kind in symbols.items():
             builder = _META_BUILDERS[kind._name]()
-            self._symbols[name] = _BootSymbol(builder().create(), builder)
+            self._symbols[name] = _BootSymbol(builder().create(), builder, self._made)
         if _TEMPLATE is None:  # the template itself being made: what its builders read their plain schemas from
             _TEMPLATE = self.namespace()
         return self
 
     def spec(self, items: list[Any]) -> _Bootstrap:
         for item in items:
-            frame = _BootFrame(self._symbols)
-            item(frame)
-            for symbol in frame._touched.values():
+            touched = self._item(item)
+            if [symbol for symbol in touched if symbol._extending()]:
+                touched = self._item(item)  # written again, over the schemas it extends
+            for symbol in touched:
                 symbol._builder.update()
         for symbol in self._symbols.values():
             self._made[symbol._data.name] = symbol._data
         return self
 
+    def _item(self, item: Any) -> list[_BootSymbol]:
+        """Writes one spec item through builders of the objects it touches, which it gives."""
+        frame = _BootFrame(self._symbols)
+        item(frame)
+        return list(frame._touched.values())
+
     def namespace(self) -> SimpleNamespace:
-        """The schema objects the install made, by symbol."""
-        return SimpleNamespace(**{name: symbol._data for name, symbol in self._symbols.items()})
+        """The schema objects the install made, by symbol; not those it extends."""
+        return SimpleNamespace(**{name: symbol._data for name, symbol in self._symbols.items() if not symbol._extends})
 
 
 def _bootstrap(install: Any, made: dict[str, Any]) -> SimpleNamespace:
@@ -1599,7 +1643,9 @@ class Store(Proxies.OfStore):
         made: dict[str, Any] = {}  # its own, as the framework's installs define them, read by the bootstrap
         self._meta = _bootstrap(S.install, made)  # its plain schemas of schemas and basic scalars
         self._paths = _bootstrap(Paths.install, made)
-        self._references = _bootstrap(References.install, made)
+        before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
+                  if isinstance(meta, S.OfObject.Data)}
+        self._references = _bootstrap(References.install, made)  # which extends `Schemas.OfSymbol`
         self._mutations = _bootstrap(Mutations.install, made)
         framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values(),
                      *vars(self._references).values())
@@ -1616,6 +1662,7 @@ class Store(Proxies.OfStore):
                     reached.append(referent)
         self._framework: set[int] = set(self._objects)
         self._added: dict[type, dict[str, Any]] = {}  # the members its extensions added to builders, by builder class
+        _extend_builders(self, before)  # those `References.install` adds
         self._recording = 0  # specs being recorded: within one, `store.Schemas.OfX(cb)` defines where it is linked
         self._modules: dict[str, _ModuleData] = {}  # by path; the root module's is ""
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there

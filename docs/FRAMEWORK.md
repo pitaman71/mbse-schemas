@@ -732,6 +732,9 @@ it is fixed here:
 
 ## Open questions
 
+- **`References.OfObject` is a union of one branch**, `path` (Resolved, References, 2), which `validate()` refuses ("a
+  union needs at least two branches"); `Schemas.OfSymbol` reports it too, through its `reference` (Resolved,
+  References, 7). Whether a union of one branch is valid, or `OfObject` gains another branch, is not decided.
 - **Where constraints attach.** A specification is constraints attached to the parts of a system they constrain, each
   held by a property named `requires` ([MBSE.md](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of)); mbse-patterns'
   predicates already hold theirs so. Which scopes a constraint attaches to (a schema, a property, a relation, an
@@ -809,10 +812,21 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   5. An entry is designated "by all links and properties": its relation's path, each link a `References.OfObject`,
      each property its value.
   6. Built "right now": 4n, before 4k and 4h.
+  7. A pattern's symbol may be given a reference instead of a schema, "(a) allow a symbol to have a reference instead
+     of a schema" (2026-10-23), so that a query starts from one object: no syntax bound a symbol to a given object
+     since the spec replaced locators (Object identity, Decided, 76). It generalizes 77 ("singletons are denoted by
+     their schema"): a symbol given a `References.OfObject` binds what it designates, one object, or none where the
+     store holds none; chosen over a spec item asserting identity (`_.x.is_([ref])`), which would range over the
+     symbol's schema first. `References.install` extends `Schemas.OfSymbol` with `reference`, a symbol having exactly
+     one of `schema` and `reference`; `.symbols({"x": ref})` records it, the symbol's members those of the schema of
+     the object it designates when recorded.
 
   `References.of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back;
-  `References.resolve(store, reference)` gives what it designates, or None where the store holds none. What the agent
-  fixed in building it, for the user's review, is in the proposal (Fixed by the agent).
+  `References.resolve(store, reference)` gives what it designates, or None where the store holds none. A symbol given
+  a reference binds, in a map or an upsert's `exists`, what `References.resolve` gives, one frame for each frame it
+  receives, or none; its spec filters or is written as any symbol's; `References.validate(pattern)` refuses a symbol
+  given both a schema and a reference, or neither. What the agent fixed in building it, for the user's review, is in
+  the proposal (Fixed by the agent).
 - **Mappings for keyed adjacencies** (step 4e of the store overhaul; [Schema extension](SCHEMA_EXTENSION.md),
   Injection), as the user proposed and decided ("I like your idea", "yes that seems sensible"): an adjacency whose
   relation has exactly two links and one property may be given a mapping in place of the peer-shorthand list. For such

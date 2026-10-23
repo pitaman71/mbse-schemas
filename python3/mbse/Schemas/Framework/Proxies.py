@@ -1951,7 +1951,10 @@ def _links_through(store: Any, adjacency: Any, value: Any) -> bool:
 
 
 def _holds(schema: Any, value: Any) -> bool:
-    """Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type."""
+    """Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type; a value object, union
+    value or intersection value of `schema` itself."""
+    if isinstance(value, _RecordData):
+        return value._schema is schema
     return isinstance(schema, Schemas.OfScalar.Data) and type(value) is getattr(schema, "type", None)
 
 

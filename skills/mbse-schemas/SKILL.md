@@ -64,7 +64,8 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    effect when it ends, all of it, or, where it raises, none of it; a write outside one is refused. A schema that
    existed before a transaction changes when it ends. A transaction can also be an expression,
    `store.transaction(lambda t: t.mutations([...]))`, whose terms find objects by a pattern's spec, or create them
-   (`upsert`), so that run again it changes nothing.
+   (`upsert`), so that run again it changes nothing. To find, filter, traverse or write data that way, load
+   [references/queries.md](references/queries.md).
 
 ## Load the reference for your task
 
@@ -74,6 +75,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 | Design new schemas, or extend, version, refine or generate existing ones: schemas as data, built with the builders' fluent calls | [references/schemas.md](references/schemas.md) |
 | Write Python: a complete example, API cheat sheet, traps | [references/python.md](references/python.md) |
 | Write TypeScript: the same example, the differences from Python, cheat sheet, traps | [references/typescript.md](references/typescript.md) |
+| Find, filter, traverse or write data with a transaction's expression: terms, patterns, specs, frames and their references | [references/queries.md](references/queries.md) |
 | Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
 | Constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
 

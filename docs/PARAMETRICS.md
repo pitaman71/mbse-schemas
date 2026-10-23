@@ -27,8 +27,6 @@ REL `mbse-schemas/Parametrics.BindsObject(defn, param: Schemas.OfParameter, obj_
 
 `mbse-schemas/Parametrics.install` extends `Schemas.OfX` with three adjacencies each:
 - `Schemas.OfX.parameters` to `Parametrics.HasParameters`
-- `Schemas.OfX.values` to `Parametrics.BindsValue`
-- `Schemas.OfX.objects` to `Parametrics.BinddsObject`
 
 # Expression Parameters
 

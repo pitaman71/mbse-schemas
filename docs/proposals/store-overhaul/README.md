@@ -609,9 +609,7 @@ so that main stays current and no branch waits on another.
      - parameters as a module, `Parametrics`, installed before use, in place of every kind's names only
        (docs/PARAMETRICS.md, as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
        4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built);
-     - Parametrics' bindings' adjacencies, `values` and `objects`, which the extension mechanism refuses (an extension's
-       adjacency is to a relation of two links and no properties; Schema extension, Decided, 18 and 22): open, for the
-       user's decision (Parametrics as a module, Stages, as built); proposed: a stage 4m-3 once decided, before 4k;
+     - Parametrics' bindings' adjacencies, `values` and `objects`: dropped, no stage, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
        which rewrites how schemas are built;
      - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to

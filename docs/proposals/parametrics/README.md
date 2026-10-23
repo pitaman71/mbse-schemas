@@ -19,8 +19,8 @@ what it stands for. This draft builds the user's model in place of that, and mov
 - Bindings, at the definition that binds them:
   - `Parametrics.BindsValue(defn, param, value)`, `value` an entry property (`Parametrics.value`);
   - `Parametrics.BindsObject(defn, param, obj_ref)`.
-- `Parametrics.install` extends each `Schemas.OfX` (every kind of schema) with three adjacencies: `parameters` to
-  `HasParameters`, `values` to `BindsValue`, `objects` to `BindsObject`.
+- `Parametrics.install` extends each `Schemas.OfX` (every kind of schema) with one adjacency, `parameters` to
+  `HasParameters` (first drafted with `values` to `BindsValue` and `objects` to `BindsObject` besides, since dropped).
 
 ## As drafted
 
@@ -174,7 +174,8 @@ As the user decided (2026-10-22), on the questions this draft put:
   are (EXT-05). A set's entries are data's keyed entries, written sorted by their names (SERIALIZATION.md), so a set
   read back holds its parameters in that order, not as declared.
 
-  *Not built, stopped on for a decision* (open): **the bindings' adjacencies, `values` and `objects`.** The extension
+  *Settled*: **the bindings' adjacencies, `values` and `objects`, go**, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced": a kind's one extension
+  adjacency is `parameters`. Stopped on before that, for a decision: the extension
   mechanism refuses them: an adjacency an extension adds to a meta-schema is to a relation of two links and no
   properties (Schema extension, Decided, 18, as built, and 22: "yes that's a compromise"), and `BindsValue` has an
   entry property and `BindsObject` three links (Decided, 3), so the draft's install raises `TypeError: an extension's

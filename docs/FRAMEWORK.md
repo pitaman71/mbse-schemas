@@ -744,11 +744,6 @@ it is fixed here:
 - **Parametrics**, beyond the proposal (see Parametrics): schema parameters now or later; equality of differently
   written applications that substitute alike (`Matrix(n, n)` and `Square(n)`); and what proxies accept for data
   whose shape depends on an unbound parameter.
-- **Parametrics' bindings** (Store overhaul 4m): `values` (to `BindsValue`, an entry property) and `objects` (to
-  `BindsObject`, three links) are not installed, since an extension's adjacency is to a relation of two links and no
-  properties (Schema extension, Decided, 18 and 22). Extend the mechanism, make bindings objects linked by relations of
-  two links, or leave them unbuilt until something binds ([Parametrics as a module](proposals/parametrics/README.md),
-  Stages, as built).
 
 Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/TestPlan.md`) that need a design decision:
 

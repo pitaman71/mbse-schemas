@@ -2,17 +2,16 @@
 
 Three value schemas, which every store holds, its own, as it holds `Paths`:
 
-- `References.OfObject`, an object: a union of two branches, `path`, a singleton's, an owned object's or a schema
-  object's path (`Paths.OfRoot`), and `upserted`, a counted object an upsert made, by what made it
-  (docs/OBJECT_IDENTITY.md, Decided, 61, 63 and 102): `References.OfUpserted`, the `frame` that reached the upsert, the
-  upsert's `key` and the `symbol` it was made for;
-- `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`;
+- `References.OfObject`, a singleton or other non-counted reference object: a union whose one branch, `path`, is a
+  singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
+- `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`, and `variables`, each
+  of its variables' values;
 - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
-reference)` gives what a reference designates, or None where the store holds none. A counted object a document or a
-builder writes outright has no reference: nothing names it (Decided, 40 and 55).
+reference)` gives what a reference designates, or None where the store holds none. A counted object has no reference,
+nor a frame that binds one: nothing names it (docs/OBJECT_IDENTITY.md, Decided, 40 and 55).
 """
 
 from __future__ import annotations
@@ -33,19 +32,15 @@ def install(txn: Any) -> Any:
     a store, it finds each by its name and writes nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.References/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
-        .symbols({"OfObject": S.OfUnion, "OfUpserted": S.OfObject, "OfFrame": S.OfObject, "OfEntry": S.OfObject})
+        .symbols({"OfObject": S.OfUnion, "OfFrame": S.OfObject, "OfEntry": S.OfObject})
         .spec([
             lambda _: _.OfObject.name("References.OfObject").branches([
                 lambda t: t.name("path").schema([txn.Paths.OfRoot]),  # a singleton, an owned object, a schema object
-                lambda t: t.name("upserted").schema([_.OfUpserted]),  # a counted object an upsert made
             ]),
-            lambda _: _.OfUpserted.name("References.OfUpserted").properties({
-                "frame": _.OfFrame,  # the frame that reached the upsert
-                "key": S.OfStr,  # the upsert's key, where it has one
-                "symbol": S.OfStr,  # the symbol it was made for
-            }),
             lambda _: _.OfFrame.name("References.OfFrame").properties({
-                "binds": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject]))}),
+                "binds": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject])),
+                "variables": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
+            }),
             lambda _: _.OfEntry.name("References.OfEntry").properties({
                 "relation": txn.Paths.OfRoot,  # the relation's path
                 "links": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject])),
@@ -55,18 +50,13 @@ def install(txn: Any) -> Any:
 
 
 def _object(store: Any, obj: Any) -> Any:
-    """A `References.OfObject`'s callback: an object's path, or what upserted it where it is counted."""
+    """A `References.OfObject`'s callback: an object's path; refused for a counted object, which nothing names."""
     target = Proxies._deref(obj)
     if isinstance(target, Proxies._ObjectData):
         Proxies._same_store(store, target)
         if Proxies._counted(target):
-            made = store._made_by.get(target)
-            if made is None:
-                raise LookupError(f"a counted {target._schema_name!r} that no upsert made has no reference: nothing "
-                                  "names it (make it a singleton's, an owner's or an upsert's)")
-            key, symbol, frame = made
-            return lambda o: o.upserted(lambda u: (u if key is None else u.key(key)).symbol(symbol)
-                                        .frame(_frame(store, frame)))
+            raise LookupError(f"a counted {target._schema_name!r} has no reference: nothing names it (make it a "
+                              "singleton's or an owner's)")
     elif _builder_for(target) is None:
         raise TypeError(f"References.of takes an object, a relation entry or a frame, not {target!r}")
     path = Paths.of(target)
@@ -74,8 +64,13 @@ def _object(store: Any, obj: Any) -> Any:
 
 
 def _frame(store: Any, frame: Mapping[str, Any]) -> Any:
-    """A `References.OfFrame`'s callback: each symbol's object's reference."""
-    binds = {name: _object(store, target) for name, target in frame.items()}
+    """A `References.OfFrame`'s callback: each symbol's object's reference; refused where one binds a counted object."""
+    binds = {}
+    for name, target in frame.items():
+        try:
+            binds[name] = _object(store, target)
+        except LookupError as error:
+            raise LookupError(f"symbol {name!r} of the frame: {error}") from None
     return lambda f: f.binds(binds)
 
 
@@ -89,9 +84,9 @@ def _entry(store: Any, entry: Any) -> Any:
 
 
 def of(store: Any, x: Any) -> Any:
-    """The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, or, a counted
-    object, what upserted it, refused where nothing names it; of a relation entry (`References.OfEntry`); of a frame
-    `store.transaction` gave back, a mapping of symbols to objects (`References.OfFrame`)."""
+    """The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, refused for a
+    counted object; of a relation entry (`References.OfEntry`); of a frame `store.transaction` gave back, a mapping of
+    symbols to objects (`References.OfFrame`), refused where it binds a counted object."""
     if isinstance(x, Mapping):
         return store.References.OfFrame(_frame(store, x))
     if isinstance(x, Proxies._Entry):
@@ -112,19 +107,10 @@ def resolve(store: Any, reference: Any) -> Any:
 
 
 def _resolve_object(store: Any, plain: Any) -> Any:
-    from . import Transactions
-
-    if "path" in plain:
-        try:
-            return Plain._by_path(store, plain["path"], ())
-        except Plain.DecodeError:  # a schema object's path whose steps name no entries: nothing has it
-            return None
-    upserted = plain["upserted"]
-    frame = _resolve_frame(store, upserted.get("frame", {}))
-    if frame is None:
+    try:
+        return Plain._by_path(store, plain["path"], ())
+    except Plain.DecodeError:  # a schema object's path whose steps name no entries: nothing has it
         return None
-    held = store._upserted.get(Transactions._upsert_index(store, upserted.get("key"), upserted["symbol"], frame))
-    return held() if held is not None else None
 
 
 def _resolve_frame(store: Any, plain: Any) -> Any:

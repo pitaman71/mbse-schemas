@@ -790,12 +790,16 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   1. Three value schemas, `References.OfObject` ("instances designate a singleton or other non-counted reference
      object"), `References.OfEntry` ("instances designate a relation entry") and `References.OfFrame`, in
      `Framework/References.py` and `.ts`, every store holding them, its own.
-  2. An upserted object's reference is the frame that reached the upsert, the upsert's key and the symbol it was made
-     for, "as you drafted": `References.OfObject` is a union of `path` (`Paths.OfRoot`: a singleton, an owned object,
-     a schema object) and `upserted` (`frame`, `key`, `symbol`). A counted object nothing names (one a builder writes
-     outright) has no reference.
-  3. A frame's reference has no pattern: "take pattern out of frame ref entirely"; it binds each symbol to a
-     `References.OfObject`.
+  2. A counted object has no reference, an upsert's included: "remove References.OfUpserted entirely from the
+     prototype" (2026-10-23), since Object identity, Decided, 61 and 63, which gave an upsert-made counted object a
+     durable identity, "are trying to create durable references to counted objects that by design should not be
+     necessary or exist" (40, 55); retiring them from the executor is tech debt (TODO.md), "the purpose of this phase is
+     to create durable references for client code". `References.OfObject` is a union whose one branch is `path`
+     (`Paths.OfRoot`: a singleton, an owned object, a schema object). A frame or an entry that binds or links a counted
+     object has no reference either.
+  3. A frame's reference has no pattern: "take pattern out of frame ref entirely"; it "maps symbol names to
+     `References.OfObject` and variable names to values" (`binds`, `variables`). A stream of them "is what is passed by
+     the mutation executor from call to call and what will be transferred from services to UI".
   4. Paths stay for now: "temporarily leave Paths as having overlapping function with References, mark them as
      deprecated where they appear in the docs, tutorials, examples in favor of References, and log tech debt to
      eliminate Paths later". The wire's `$ref` keeps writing a path; the corpora do not change.

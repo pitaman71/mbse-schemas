@@ -188,21 +188,20 @@ ToDataclass.model({n: store.registered(f"crm.{n}") for n in ("Contact", "Address
 ## References
 
 A request or a response that designates an object, a relation entry or a frame carries a reference, a value of the
-store's `References` schemas, written and read as any value is. `References.OfObject` is a path (a singleton, an owned
-object, a schema object) or, for a counted object an upsert made, what made it: the frame that reached the upsert, its
-key and the symbol. `References.OfEntry` is a relation's path and all an entry's links and properties;
-`References.OfFrame` binds each symbol to a `References.OfObject`. Paths are deprecated in favor of them.
+store's `References` schemas, written and read as any value is. `References.OfObject` is a path: a singleton, an owned
+object, a schema object. `References.OfEntry` is a relation's path and all an entry's links and properties;
+`References.OfFrame` binds each symbol to a `References.OfObject` and each variable to its value. Paths are deprecated in favor of them.
 
 ```python fragment
-frames = store.transaction(notes)                     # notes: a map over persons, then an upsert keyed "notes/1"
-ref = References.of(store, frames[0]["note"])         # {"upserted": {"frame": ..., "key": "notes/1", "symbol": "note"}}
-References.of(store, ada); References.of(store, entry); References.of(store, frames[0])   # an object, an entry, a frame
+frames = store.transaction(people)                    # people: a map over a book's owned contacts
+ref = References.of(store, frames[0]["contact"])      # {"path": {"singleton": "crm.TheBook", "next": ...}}
+References.of(store, entry); References.of(store, frames[0])   # an entry, a frame
 text = JSON.ToJSON(store)(ref.as_schema(), ref)       # carried in a response, read back in a request
-References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text))   # the note, or None
+References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text))   # the contact, or None
 ```
 
-A counted object nothing names (one a builder writes outright) has no reference: `References.of` raises `LookupError`.
-Make it a singleton's, an owner's or an upsert's where it must be designated.
+A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
+`References.of` raises `LookupError`. Make it a singleton's or an owner's where it must be designated.
 
 ## Traps
 

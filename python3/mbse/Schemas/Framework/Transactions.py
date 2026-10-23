@@ -695,7 +695,6 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
                 if made is None:
                     made = _writer(store, schema).create()
                     store._upserted[index] = weakref.ref(made)
-                    store._made_by[made] = (key, name, dict(frame))  # its reference (`References.of`)
                 grown.append({**partial, name: made})
                 continue
             own = members.get(name, [])

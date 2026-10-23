@@ -206,14 +206,15 @@ written and read as any value is; Paths are deprecated in favor of them. A frame
 `null` where the store holds nothing the reference designates.
 
 ```typescript fragment
-const frames = store.transaction(notes);              // notes: a map over persons, then an upsert keyed "notes/1"
-const ref = References.of(store, frames[0].get("note")); // {"upserted": {"frame": ..., "key": "notes/1", "symbol": "note"}}
-References.of(store, ada); References.of(store, entry); References.of(store, frames[0]); // an object, an entry, a frame
+const frames = store.transaction(people);             // people: a map over a book's owned contacts
+const ref = References.of(store, frames[0].get("contact")); // {"path": {"singleton": "crm.TheBook", "next": ...}}
+References.of(store, entry); References.of(store, frames[0]); // an entry, a frame
 const text = JSON.ToJSON(store)(ref.as_schema(), ref); // carried in a response, read back in a request
-References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text)); // the note, or null
+References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_schema(), text)); // the contact, or null
 ```
 
-A counted object nothing names (one a builder writes outright) has no reference: `References.of` throws `LookupError`.
+A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
+`References.of` throws `LookupError`.
 
 ## Traps
 

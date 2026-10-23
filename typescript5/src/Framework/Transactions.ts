@@ -760,7 +760,6 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
         if (made === undefined) {
           made = writer(store, schema).create();
           store._upserted.set(index, new WeakRef(made));
-          store._made_by.set(made, [key, name, new Map(frame)]); // its reference (`References.of`)
         }
         grown.push(new Map([...partial, [name, made]]));
         continue;
@@ -795,7 +794,7 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
 
 /** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
  * that reached it, each as it is told apart in memory. */
-export function _upsert_index(store: any, key: unknown, name: string, frame: Frame): string {
+function _upsert_index(store: any, key: unknown, name: string, frame: Frame): string {
   return JSON.stringify([key, name, sortedStrings([...frame.keys()])
     .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
 }

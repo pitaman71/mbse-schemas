@@ -194,8 +194,6 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   readonly _keys = new Map<string, number>(); // the last number a key's pattern gave, by relation, owner and key
   /** The counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63). */
   readonly _upserted = new Map<string, WeakRef<object>>();
-  /** What made each of them, weakly: the upsert's key, the symbol and the frame (`References.of`). */
-  readonly _made_by = new WeakMap<object, [unknown, string, Map<string, unknown>]>();
 
   /** How deep in building an expression, or in making the store, a write is (`_written`). */
   _expressing = 0;

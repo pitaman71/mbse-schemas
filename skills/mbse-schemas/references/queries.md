@@ -251,8 +251,11 @@ A pattern's `symbols` maps each symbol name to one of the following:
   ([schemas.md](schemas.md)).
 - **A singleton's schema** (`Book`). The symbol binds the singleton itself, with no spec needed.
 - **A reference** (`References.of(store, bob)`, or one read from a request). The symbol binds the one object the
-  reference designates, and its spec writes that object's members. Where the store holds nothing there, a map gives no
-  frame and an upsert creates nothing. A spec written over such a reference is refused when it is recorded.
+  reference designates, and its spec writes the members of that object's schema. Where the store holds nothing there,
+  a map gives no frame and an upsert creates nothing. The spec is still written: by the schema the reference's path
+  implies, followed through the schemas, so that a store holding only the schemas (a client's) writes it and the
+  store holding the data runs it. A path the schemas cannot follow (an unknown singleton, an adjacency the schema
+  lacks, a link no one schema fills) is refused when the spec is written.
 
 A symbol has exactly one of a schema and a reference. `variables` are refused, as are `requires` (below).
 

@@ -815,8 +815,17 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
      their schema"): a symbol given a `References.OfObject` binds what it designates, one object, or none where the
      store holds none; chosen over a spec item asserting identity (`_.x.is_([ref])`), which would range over the
      symbol's schema first. `References.install` extends `Schemas.OfSymbol` with `reference`, a symbol having exactly
-     one of `schema` and `reference`; `.symbols({"x": ref})` records it, the symbol's members those of the schema of
-     the object it designates when recorded.
+     one of `schema` and `reference`; `.symbols({"x": ref})` records it. The symbol's schema, for writing its spec
+     items, comes from context, as the user decided ("yes, just 1 now"; a client store holds the schemas but not the
+     server's data): where the store holds the object the reference designates, that object's schema; otherwise the
+     schema the reference's path implies, followed through the schemas alone. The path's singleton names a singleton,
+     which exactly one schema declares; each entry step goes through the current schema's adjacency `i` to its
+     relation, and the next schema is the one that declares the `owner()` adjacency `o` on that relation's other link;
+     the last step's schema is the symbol's. Where the path cannot be followed (an unknown singleton, an adjacency the
+     schema lacks, a link no one schema fills), writing a member of the symbol is refused with a message naming the
+     step, and so is such a spec read from the wire (`DecodeError`). Nothing else changes: the wire form, a symbol's
+     exactly-one rule, the executor's binding (it resolves the reference when it runs; a reference to nothing still
+     gives no frame), Paths, counted objects.
 
   `References.of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back;
   `References.resolve(store, reference)` gives what it designates, or None where the store holds none. A symbol given

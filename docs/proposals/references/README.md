@@ -90,8 +90,18 @@ As the user decided (2026-10-23):
    schema"): a symbol given a `References.OfObject` binds what it designates, one object, or none where the store holds
    none. Chosen over a spec item asserting identity (`_.x.is_([ref])`), which would range over the symbol's schema
    first. Planned: `References.install` extends `Schemas.OfSymbol` with `reference`, a symbol having exactly one of
-   `schema` and `reference`; `.symbols({"x": ref})` records it, the symbol's members those of the schema of the object
-   it designates when recorded.
+   `schema` and `reference`; `.symbols({"x": ref})` records it. The symbol's schema, for writing its spec items, comes
+   from context, as the user decided ("yes, just 1 now", 2026-10-23: a client store holds the schemas but not the
+   server's data, and holding a reference to an object the store does not hold is the point, the server binding it
+   when it runs the transaction): where the store holds the object the reference designates, that object's schema;
+   otherwise the schema the reference's path implies, followed through the schemas alone. The path's singleton names a
+   singleton, which exactly one schema declares; each entry step goes through the current schema's adjacency `i` to
+   its relation, and the next schema is the one that declares the `owner()` adjacency `o` on that relation's other
+   link; the last step's schema is the symbol's. Where the path cannot be followed (an unknown singleton, an adjacency
+   the schema lacks, a link no one schema fills), writing a member of the symbol is refused with a message naming the
+   step, and so is such a spec read from the wire (`DecodeError`). Nothing else changes: the wire form, a symbol's
+   exactly-one rule, the executor's binding (it resolves the reference when it runs; a reference to nothing still
+   gives no frame), Paths, counted objects.
 
 ## Fixed by the agent, for the user's review
 
@@ -136,11 +146,23 @@ As the user decided (2026-10-23):
     (`Proxies._holds`), and the members a store's extensions added count, as the builder's own do.
   - **Validation is `References.validate(pattern)`**, as `Parametrics.validate(store, defn)` is for parameters: a
     kind's `validate()` does not see an extension's members. It reports "symbol 'x' has both a schema and a reference:
-    a symbol has exactly one", or "neither a schema nor a reference". The recorder refuses the same (`TypeError`),
-    where a spec writes the symbol's members, and so does the executor's check before a transaction runs
-    (`ValueError`); a spec written over a symbol whose reference designates nothing when it is recorded is refused,
-    "symbol 'x' is given a reference that designates nothing the store holds: a spec writes what its object's schema
-    declares" (`LookupError`), and so is one read from the wire (`DecodeError`, at the spec).
+    a symbol has exactly one", or "neither a schema nor a reference". A pattern's spec refuses the same (`TypeError`),
+    where it writes the symbol's members, and so does the executor's check before a transaction runs
+    (`ValueError`).
+  - **A spec over a symbol given a reference is written by its path** (Decided, 8), through
+    `References._implied(store, path)`, a function of the store's schemas that reads no data, where the store holds
+    nothing the reference designates. Where the path cannot be followed, writing the symbol's member is refused
+    (`LookupError`), "symbol 'x' is given a reference whose path ...: a spec writes what its object's schema declares",
+    the step named: "starts from 'crm.Nope', which no schema declares a singleton"; "steps through 'nope', an
+    adjacency 'crm.Book' does not declare"; "steps through 'contacts' of 'crm.Book', where not exactly one schema
+    declares an adjacency 'book' marked owner() on another link of its relation: found [...]", for none or several.
+    A spec read from the wire is refused the same (`DecodeError`, at the spec). The refusal comes where the spec names
+    the symbol, before any of its members is written. A relation of more than two links counts every link but the
+    adjacency's own as its other link.
+  - **A schema object's path the store does not hold is refused**, "symbol 'x' is given a reference whose path names
+    a schema object the store does not hold": the decision follows a singleton's path through entries; a schema
+    object's path (from the root module, `.`) is not followed through the meta-schemas, since a store holding the
+    schemas holds every schema object a spec could be written over.
   - **The executor resolves once per frame.** A symbol given a reference binds what `References.resolve` gives when
     the term runs, for each frame it receives: a data object or a schema object alike; an upsert creates nothing where
     the reference designates nothing. Its spec is checked and written against the schema of the object bound.
@@ -163,7 +185,9 @@ As the user decided (2026-10-23):
   to REF-07 cover it, in both languages.
 - **Decided, 8**, both languages: `References.install` extends `Schemas.OfSymbol` with `reference`, a
   `References.OfObject`; `References.validate(pattern)`; a pattern's symbol given a reference
-  (`.symbols({"ada": reference})`) recorded with the members of the schema of what it designates, bound by the
+  (`.symbols({"ada": reference})`) whose spec is written with the members of the schema of what it designates, where
+  the store holds it, else of the schema its path implies through the schemas (`References._implied`), so that a
+  store holding only the schemas writes it, bound by the
   executor in a map and an upsert's `exists` to what `References.resolve` gives, one frame, or none; written and read
   on the wire. The corpora are unchanged. REF-09 covers it, with TXN-09 (the executor's refusals) and TXN-13 (the
   wire), in both languages.

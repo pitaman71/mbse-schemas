@@ -1539,4 +1539,4 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
     } });
 }
 
-export { decode as _decode, set as _set, byPath as _by_path };
+export { decode as _decode, set as _set, byPath as _by_path, stepsOf as _steps };

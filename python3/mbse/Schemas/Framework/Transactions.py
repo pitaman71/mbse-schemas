@@ -103,18 +103,23 @@ def _exactly_one(name: str, symbol: Any, error: type[Exception]) -> Any:
 
 
 def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
-    """The schema of the object a symbol binds, by which a spec over it is recorded: its own, or, given a reference, the
-    schema of the object the reference designates when the spec is recorded, refused where it designates nothing."""
+    """The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
+    identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where
+    the store holds it, else the schema its path implies, through the store's schemas alone (References, Decided, 8);
+    refused where the path cannot be followed."""
     from . import References
 
     reference = _exactly_one(name, symbol, TypeError)
     if reference is None:
         return symbol.schema
     target = References.resolve(store, reference)
-    if target is None:
-        raise LookupError(f"symbol {name!r} is given a reference that designates nothing the store holds: a spec writes "
-                          "what its object's schema declares")
-    return _reader(store, target).as_schema()
+    if target is not None:
+        return _reader(store, target).as_schema()
+    try:
+        return References._implied(store, Plain.ToPlain(store)(reference.as_schema(), reference)["path"])
+    except LookupError as error:
+        raise LookupError(f"symbol {name!r} is given a reference whose path {error}: a spec writes what its object's "
+                          "schema declares") from None
 
 
 class _State:

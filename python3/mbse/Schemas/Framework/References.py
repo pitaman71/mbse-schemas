@@ -18,7 +18,9 @@ nor a frame that binds one: nothing names it (docs/OBJECT_IDENTITY.md, Decided, 
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
 binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
-`validate(pattern)` refuses a symbol given both, or neither.
+`validate(pattern)` refuses a symbol given both, or neither. A spec over such a symbol writes the members of the schema
+of the object the reference designates, where the store holds it, else of the schema its path implies, followed through
+the store's schemas alone (Decided, 8), so that a store holding only the schemas writes it.
 """
 
 from __future__ import annotations
@@ -79,6 +81,34 @@ def validate(pattern: Any) -> list[str]:
         except ValueError as error:
             problems.append(str(error))
     return problems
+
+
+def _implied(store: Any, path_plain: Any) -> Any:
+    """The schema of the object a path designates, as the store's schemas imply it, reading no data (Decided, 8): the
+    one schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`,
+    marked owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds
+    what a link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the
+    schema lacks, a link no one schema fills; or a schema object's path, where the store does not hold it."""
+    singleton, steps = Plain._steps(path_plain, ())
+    if singleton == ".":
+        raise LookupError("names a schema object the store does not hold")
+    schemas = [(name, schema) for name, schema in store._schemas.items() if isinstance(schema, S.OfObject.Data)]
+    current = next((schema for _, schema in schemas if schema.singleton == singleton), None)
+    if current is None:
+        raise LookupError(f"starts from {singleton!r}, which no schema declares a singleton")
+    for i, o, _ in steps:
+        adjacency = current.adjacencies.get(i)
+        if adjacency is None:
+            raise LookupError(f"steps through {i!r}, an adjacency {current.name!r} does not declare")
+        found = [(name, schema) for name, schema in schemas if any(
+            a.owner and a.name == o and a.relation is adjacency.relation and a.me != adjacency.me
+            for a in (*schema.adjacencies.values(), *schema.anonymous))]
+        if len(found) != 1:
+            raise LookupError(f"steps through {i!r} of {current.name!r}, where not exactly one schema declares an "
+                              f"adjacency {o!r} marked owner() on another link of its relation: found "
+                              f"{sorted(name for name, _ in found)}")
+        current = found[0][1]
+    return current
 
 
 def _object(store: Any, obj: Any) -> Any:

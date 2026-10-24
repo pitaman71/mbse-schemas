@@ -114,17 +114,21 @@ export function _exactlyOne(name: string, symbol: any, error: new (message: stri
   return reference;
 }
 
-/** The schema of the object a symbol binds, by which a spec over it is recorded: its own, or, given a reference, the
- * schema of the object the reference designates when the spec is recorded, refused where it designates nothing. */
+/** The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
+ * identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where the
+ * store holds it, else the schema its path implies, through the store's schemas alone (References, Decided, 8); refused
+ * where the path cannot be followed. */
 export function _recordedSchema(store: any, name: string, symbol: any): any {
   const reference = _exactlyOne(name, symbol, TypeError);
   if (reference === null) return symbol.schema;
   const target = References.resolve(store, reference);
-  if (target === null) {
-    throw new LookupError(`symbol ${repr(name)} is given a reference that designates nothing the store holds: a spec `
-      + "writes what its object's schema declares");
+  if (target !== null) return reader(store, target).as_schema();
+  try {
+    return References._implied(store, (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path"));
+  } catch (error) {
+    throw new LookupError(`symbol ${repr(name)} is given a reference whose path ${(error as Error).message}: a spec writes `
+      + "what its object's schema declares");
   }
-  return reader(store, target).as_schema();
 }
 
 /** What a spec writes of one object: its properties' values, and the entries of its adjacencies, in order. */

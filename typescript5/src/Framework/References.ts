@@ -19,7 +19,9 @@
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
- * `validate(pattern)` refuses a symbol given both, or neither.
+ * `validate(pattern)` refuses a symbol given both, or neither. A spec over such a symbol writes the members of the schema
+ * of the object the reference designates, where the store holds it, else of the schema its path implies, followed through
+ * the store's schemas alone (Decided, 8), so that a store holding only the schemas writes it.
  */
 
 import * as Builders from "./Builders.js";
@@ -27,7 +29,7 @@ import { LookupError, ValueError } from "./Errors.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
 import * as Proxies from "./Proxies.js";
-import { repr } from "./Repr.js";
+import { repr, sortedStrings } from "./Repr.js";
 import * as S from "./Schemas.js";
 import * as Transactions from "./Transactions.js";
 
@@ -116,6 +118,34 @@ function entryOf(store: any, entry: any): Callback {
   const links = new Map([...entry._links].map(([link, target]: [string, unknown]) => [link, object(store, target)]));
   const properties = new Map(entry._properties);
   return (e: any) => e.relation(relation).links(links).properties(properties);
+}
+
+/** The schema of the object a path designates, as the store's schemas imply it, reading no data (Decided, 8): the one
+ * schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`, marked
+ * owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds what a
+ * link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the schema
+ * lacks, a link no one schema fills; or a schema object's path, where the store does not hold it. */
+export function _implied(store: any, pathPlain: unknown): any {
+  const [singleton, steps] = Plain._steps(pathPlain, []);
+  if (singleton === ".") throw new LookupError("names a schema object the store does not hold");
+  const schemas = ([...store._schemas] as [string, any][]).filter(([, schema]) => schema instanceof S.OfObject.Data);
+  let current = schemas.find(([, schema]) => schema.singleton === singleton)?.[1];
+  if (current === undefined) throw new LookupError(`starts from ${repr(singleton)}, which no schema declares a singleton`);
+  for (const [i, o] of steps) {
+    const adjacency = current.adjacencies.get(i);
+    if (adjacency === undefined) {
+      throw new LookupError(`steps through ${repr(i)}, an adjacency ${repr(current.name)} does not declare`);
+    }
+    const found = schemas.filter(([, schema]) => [...schema.adjacencies.values(), ...schema.anonymous].some((a: any) =>
+      a.owner && a.name === o && a.relation === adjacency.relation && a.me !== adjacency.me));
+    if (found.length !== 1) {
+      throw new LookupError(`steps through ${repr(i)} of ${repr(current.name)}, where not exactly one schema declares an `
+        + `adjacency ${repr(o)} marked owner() on another link of its relation: found `
+        + repr(sortedStrings(found.map(([name]) => name))));
+    }
+    current = found[0]![1];
+  }
+  return current;
 }
 
 /** The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, refused for a counted

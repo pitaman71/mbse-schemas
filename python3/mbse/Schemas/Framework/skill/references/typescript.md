@@ -214,7 +214,9 @@ References.resolve(store, JSON.FromJSON(store)(store.References.OfObject.as_sche
 ```
 
 A pattern's symbol may be given a reference in place of a schema, `.symbols({ x: ref, y: Person })`: it binds the one
-object the reference designates, or none, and its spec writes that object's members, `_.x.knows([_.y])`.
+object the reference designates, or none, and its spec writes the members of that object's schema, `_.x.knows([_.y])`,
+the schema the reference's path implies where the store does not hold the object (a client's store, holding only the
+schemas).
 
 A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
 `References.of` throws `LookupError`.

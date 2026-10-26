@@ -1124,16 +1124,22 @@ function readSnapshot(store: any, transactions: unknown, ignored: Ignored[] | nu
   if (!Array.isArray(transactions)) throw new DecodeError("expected a snapshot, a list of transactions", { path: "$" });
   const kept = ignored ?? []; // ignored, kept or not
   let bound: unknown[] = [];
-  transactions.forEach((given, i) => {
-    const plain = copied(given); // what an extension the store lacks needs is dropped from a copy
-    const terms = plain instanceof Map ? plain.get("mutations") : undefined;
-    const upsert = Array.isArray(terms) && terms.length === 1 && terms[0] instanceof Map ? terms[0].get("upsert") : undefined;
-    if (upsert instanceof Map) upsert.set("key", `\0snapshot ${++snapshots}`);
-    const schema = store.registered("Mutations.OfTransaction");
-    const transaction = (store as any).Mutations.OfTransaction((t: any) => built(store, t, schema, plain, [i], kept));
-    const frames = Transactions._execute(store, transaction, true);
-    bound = [...frames[0]!.values()].filter((target) => Proxies._is_data(target));
-  });
+  store._restoring += 1; // it restores what the store held, its records included: no write of its own (Provenance)
+  try {
+    transactions.forEach((given, i) => {
+      const plain = copied(given); // what an extension the store lacks needs is dropped from a copy
+      const terms = plain instanceof Map ? plain.get("mutations") : undefined;
+      const upsert = Array.isArray(terms) && terms.length === 1 && terms[0] instanceof Map ? terms[0].get("upsert")
+        : undefined;
+      if (upsert instanceof Map) upsert.set("key", `\0snapshot ${++snapshots}`);
+      const schema = store.registered("Mutations.OfTransaction");
+      const transaction = (store as any).Mutations.OfTransaction((t: any) => built(store, t, schema, plain, [i], kept));
+      const frames = Transactions._execute(store, transaction, true);
+      bound = [...frames[0]!.values()].filter((target) => Proxies._is_data(target));
+    });
+  } finally {
+    store._restoring -= 1;
+  }
   return bound;
 }
 

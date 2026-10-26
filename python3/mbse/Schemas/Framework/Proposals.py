@@ -94,8 +94,10 @@ class OfStore:
         return copied[1]
 
     def note(self, target: Any, created: bool) -> None:
-        """Notes a data object a builder created, or wrote (Provenance)."""
-        (self.created if created else self.written)[id(target)] = target
+        """Notes a data object a builder created, or wrote (Provenance); not one a snapshot being read restores, whose
+        records it restores with it."""
+        if not self.store._restoring:
+            (self.created if created else self.written)[id(target)] = target
 
     def deferred_of(self, original: Any) -> Any:
         """The last builder whose update of a schema object waits, in these proposals or those they are over."""

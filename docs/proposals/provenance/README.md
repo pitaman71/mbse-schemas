@@ -233,8 +233,11 @@ What the decisions left open, settled the simplest way consistent with them (202
 3. **Which transactions are recorded** ("every transaction that writes", Decided, 3): those that create or write a
    data object, where `Provenance` was installed when the transaction began. A transaction that writes only schema
    objects (an install, `extend`) is not recorded, nor is `Provenance.install` itself; one that writes nothing (a
-   map, a replay) records nothing. A document or snapshot read outside a transaction opens one, recorded as an
-   imperative scope, since its expression runs within it as a savepoint.
+   map, a replay) records nothing. A document read outside a transaction opens one, recorded as an imperative scope,
+   since its expression runs within it as a savepoint. A store's snapshot read back records nothing of its own, read
+   alone or within a transaction: it restores what the store held, its records included, so that a restart adds no
+   record and gives no object a second `CreatedBy` (corrected in 0.26.1, found by the session coordinating mbse-rest
+   in a restart test; first, a snapshot's read was recorded as an imperative scope, a new record each time; PRV-11).
 4. **What a transaction that does not say records** (Decided, 3): no `uid`, a UUID (version 4) the store makes; no
    `when`, the time at commit, UTC ISO 8601 to the second; no `session`, the session `unknown`, shared by every such
    transaction, whose identity is `unknown`; a session with no `who`, the identity `unknown`. A `session` with no

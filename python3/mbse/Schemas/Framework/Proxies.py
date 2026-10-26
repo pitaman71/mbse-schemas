@@ -115,6 +115,7 @@ class OfStore(Stores.Catalog):
         super().__init__()
         self._building = 0  # how deep in builders a write is: ownership is settled when the outermost one ends
         self._unowned: list[_ObjectData] = []  # objects created since, whose schemas declare an owner
+        self._restoring = 0  # snapshots being read: what they restore is no write of their transaction's (Provenance)
         self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
         self._expressing = 0  # how deep in building an expression, or in making the store, a write is (`_written`)

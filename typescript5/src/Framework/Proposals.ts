@@ -119,8 +119,10 @@ export class OfStore implements Visitors.OfStore {
 
   /** The last builder whose update of a schema object waits, in these proposals or those they are over. */
   /** Notes a data object a builder created, or wrote (Provenance). */
+  /** Notes a data object a builder created, or wrote (Provenance); not one a snapshot being read restores, whose
+   * records it restores with it. */
   note(target: object, created: boolean): void {
-    (created ? this.created : this.written).add(target);
+    if (!this.store._restoring) (created ? this.created : this.written).add(target);
   }
 
   deferred_of(original: object): any {

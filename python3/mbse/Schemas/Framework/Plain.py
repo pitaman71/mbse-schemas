@@ -992,14 +992,19 @@ def _read_snapshot(store: Any, transactions: PlainData, ignored: list[dict[str, 
     transactions = json.loads(json.dumps(transactions))  # what an extension the store lacks needs is dropped from a copy
     ignored = [] if ignored is None else ignored  # ignored, kept or not
     bound: list[Any] = []
-    for i, plain in enumerate(transactions):
-        if isinstance(plain, dict) and isinstance(plain.get("mutations"), list) and len(plain["mutations"]) == 1 \
-                and isinstance(plain["mutations"][0], dict) and isinstance(plain["mutations"][0].get("upsert"), dict):
-            plain["mutations"][0]["upsert"]["key"] = f"\0snapshot {next(_SNAPSHOTS)}"
-        schema = store.registered("Mutations.OfTransaction")
-        transaction = store.Mutations.OfTransaction(lambda t, p=plain, at=(i,): _built(store, t, schema, p, at, ignored))
-        frames = Transactions._execute(store, transaction, joined=True)
-        bound = [target for target in frames[0].values() if isinstance(target, Proxies._ObjectData)]
+    store._restoring += 1  # it restores what the store held, its records included: no write of its own (Provenance)
+    try:
+        for i, plain in enumerate(transactions):
+            if isinstance(plain, dict) and isinstance(plain.get("mutations"), list) and len(plain["mutations"]) == 1 \
+                    and isinstance(plain["mutations"][0], dict) and isinstance(plain["mutations"][0].get("upsert"), dict):
+                plain["mutations"][0]["upsert"]["key"] = f"\0snapshot {next(_SNAPSHOTS)}"
+            schema = store.registered("Mutations.OfTransaction")
+            transaction = store.Mutations.OfTransaction(lambda t, p=plain, at=(i,): _built(store, t, schema, p, at,
+                                                                                            ignored))
+            frames = Transactions._execute(store, transaction, joined=True)
+            bound = [target for target in frames[0].values() if isinstance(target, Proxies._ObjectData)]
+    finally:
+        store._restoring -= 1
     return bound
 
 

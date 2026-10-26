@@ -190,6 +190,7 @@ abstract class Shelled implements Shellable {
 export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore {
   _building = 0; // how deep in builders a write is: ownership is settled when the outermost one ends
   _unowned: Instance[] = []; // objects created since, whose schemas declare an owner
+  _restoring = 0; // snapshots being read: what they restore is no write of their transaction's (Provenance)
   _orphaned: Instance[] = []; // owned objects an owning entry of which was removed since
   readonly _keys = new Map<string, number>(); // the last number a key's pattern gave, by relation, owner and key
   /** The counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63). */

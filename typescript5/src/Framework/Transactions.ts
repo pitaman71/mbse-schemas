@@ -811,8 +811,8 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
       const identifying = own.filter((member) => identifies(store, schema, member));
       const located = identifying.length > 0 ? null : locate(store, pattern, members, name, schema, partial);
       let found: any[];
-      if (located !== null) { // placed by its owner's entry, which a symbol bound before it gives (60)
-        found = located[0] === null ? [] : [located[0]];
+      if (located !== null) { // placed by its owner's entries, which a symbol bound before it gives (60)
+        found = located;
       } else if (identifying.length > 0 && meta(store, schema)) { // a schema object by its name, the store's own included (86)
         found = registeredAs(store, schema, identifying[0]!);
       } else {
@@ -881,10 +881,11 @@ function created(store: any, schema: any, identifying: Members): any {
 }
 
 /** Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's spec
- * bound before it (Decided, 60): `[found]`, the owner's entry agreeing with its properties linking it, or `[null]` where
- * the owner holds none; null where no spec gives such an entry. */
+ * bound before it (Decided, 60): the objects linked by each of the owner's entries agreeing with the properties it
+ * gives, one where they give its keys, every one where they leave them open, none where none agrees; null where no spec
+ * gives such an entry. */
 function locate(store: any, pattern: any, members: Map<string, Members>, name: string, schema: any,
-  frame: Frame): [unknown] | null {
+  frame: Frame): unknown[] | null {
   const owning = [...schema.adjacencies.values(), ...schema.anonymous].filter((a: any) => a.owner);
   for (const [other, items] of members) {
     if (!frame.has(other) || owning.length === 0) continue;
@@ -898,11 +899,10 @@ function locate(store: any, pattern: any, members: Map<string, Members>, name: s
           && part.get("as_link").get("mutations")[0].get("set").get("ref")?.get("symbol") === name)?.get("as_link").get("name");
         if (link === undefined || !owning.some((a: any) => a.relation === relation && a.me === link)) continue;
         const properties = parts.filter((part) => part.has("as_property")).map((part) => part.get("as_property"));
-        for (const held of reader(store, frame.get(other))[body.get("name")]) {
-          if (properties.every((p) => agree(plainOf(store, held[p.get("name")], relation.entry.properties.get(p.get("name"))),
-            given(p.get("mutations")[0])))) return [linked(held[link])];
-        }
-        return [null];
+        return [...reader(store, frame.get(other))[body.get("name")]]
+          .filter((held: any) => properties.every((p) => agree(plainOf(store, held[p.get("name")],
+            relation.entry.properties.get(p.get("name"))), given(p.get("mutations")[0]))))
+          .map((held: any) => linked(held[link]));
       }
     }
   }

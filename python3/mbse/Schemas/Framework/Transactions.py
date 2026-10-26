@@ -747,8 +747,8 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
             own = members.get(name, [])
             identifying = [member for member in own if _identifies(store, schema, member)]
             located = None if identifying else _located(store, pattern, members, name, schema, partial)
-            if located is not None:  # placed by its owner's entry, which a symbol bound before it gives (60)
-                found = [] if located[0] is None else [located[0]]
+            if located is not None:  # placed by its owner's entries, which a symbol bound before it gives (60)
+                found = located
             elif identifying and _meta(store, schema):  # a schema object by its name, the store's own included (86)
                 found = _registered(store, schema, identifying[0], partial)
             else:
@@ -809,8 +809,9 @@ def _created(store: Any, schema: Any, identifying: list[Any]) -> Any:
 
 def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str, schema: Any, frame: Frame) -> Any:
     """Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's
-    spec bound before it (Decided, 60): `(found,)`, the owner's entry agreeing with its properties linking it, or
-    `(None,)` where the owner holds none; None where no spec gives such an entry."""
+    spec bound before it (Decided, 60): the objects linked by each of the owner's entries agreeing with the properties
+    it gives, one where they give its keys, every one where they leave them open, none where none agrees; None where no
+    spec gives such an entry."""
     owning = [a for a in (*schema.adjacencies.values(), *schema.anonymous) if a.owner]
     for other, items in members.items():
         if other not in frame or not owning:
@@ -826,11 +827,9 @@ def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str,
                 if link is None or not any(a.relation is relation and a.me == link for a in owning):
                     continue
                 given = [part["as_property"] for part in entry["mutations"] if "as_property" in part]
-                for held in getattr(_reader(store, frame[other]), body["name"]):
-                    if all(_plain(store, getattr(held, p["name"]), relation.entry.properties[p["name"]])
-                           == _given(p["mutations"][0]) for p in given):
-                        return (_linked(getattr(held, link)),)
-                return (None,)
+                return [_linked(getattr(held, link)) for held in getattr(_reader(store, frame[other]), body["name"])
+                        if all(_plain(store, getattr(held, p["name"]), relation.entry.properties[p["name"]])
+                               == _given(p["mutations"][0]) for p in given)]
     return None
 
 

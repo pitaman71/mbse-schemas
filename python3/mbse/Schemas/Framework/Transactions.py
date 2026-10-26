@@ -532,9 +532,9 @@ def _pattern(term: Any, adjacency: str, kind: str) -> Any:
     pattern = entries[0].pattern
     if pattern.variables:
         raise ValueError(f"{_a(kind)}'s pattern has variables: transactions bind no variables until expressions are "
-                         "evaluated (step 4h)")
+                         "evaluated")
     if pattern.requires:
-        raise ValueError(f"{_a(kind)}'s pattern requires constraints: transactions evaluate no expressions until step 4h")
+        raise ValueError(f"{_a(kind)}'s pattern requires constraints: transactions evaluate no expressions yet")
     return pattern
 
 
@@ -577,10 +577,9 @@ def _check(store: Any, term: Any, bound: set[str]) -> set[str]:
     kind = _kind(store, term)
     if kind == "branch":
         if list(term.requires):
-            raise ValueError("a branch requires constraints: transactions evaluate no expressions until step 4h")
+            raise ValueError("a branch requires constraints: transactions evaluate no expressions yet")
     elif kind in ("map", "reduce") and list(term.variables):
-        raise ValueError(f"{_a(kind)} of variables: transactions bind no variables until expressions are evaluated "
-                         "(step 4h)")
+        raise ValueError(f"{_a(kind)} of variables: transactions bind no variables until expressions are evaluated")
     if kind == "map":
         pattern = _pattern(term, "symbols", kind)
         _symbols(store, pattern)
@@ -602,7 +601,7 @@ def _check(store: Any, term: Any, bound: set[str]) -> set[str]:
         collector = entries[0].collector
         if collector.suffixes is not None or collector.computes is not None or collector.variables:
             raise ValueError("a reduce that collects (`suffixes`, `computes`, `variables`): transactions evaluate no "
-                             "expressions until step 4h; a reduce drops symbols")
+                             "expressions yet; a reduce drops symbols")
         _unbound(collector.symbols, bound, kind)
         bound = bound - set(collector.symbols)
     elif kind == "partition":

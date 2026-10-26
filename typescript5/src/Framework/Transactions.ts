@@ -593,11 +593,10 @@ function patternOf(term: any, adjacency: string, kind: string): any {
   if (entries.length !== 1) throw new ValueError(`${a(kind)} takes one pattern in ${repr(adjacency)}, not ${entries.length}`);
   const pattern = entries[0].pattern;
   if (pattern.variables.size > 0) {
-    throw new ValueError(`${a(kind)}'s pattern has variables: transactions bind no variables until expressions are `
-      + "evaluated (step 4h)");
+    throw new ValueError(`${a(kind)}'s pattern has variables: transactions bind no variables until expressions are evaluated`);
   }
   if (pattern.requires.length > 0) {
-    throw new ValueError(`${a(kind)}'s pattern requires constraints: transactions evaluate no expressions until step 4h`);
+    throw new ValueError(`${a(kind)}'s pattern requires constraints: transactions evaluate no expressions yet`);
   }
   return pattern;
 }
@@ -648,10 +647,10 @@ function check(store: any, term: any, bound: Set<string>): Set<string> {
   const kind = kindOf(store, term);
   if (kind === "branch") {
     if ([...term.requires].length > 0) {
-      throw new ValueError("a branch requires constraints: transactions evaluate no expressions until step 4h");
+      throw new ValueError("a branch requires constraints: transactions evaluate no expressions yet");
     }
   } else if ((kind === "map" || kind === "reduce") && [...term.variables].length > 0) {
-    throw new ValueError(`${a(kind)} of variables: transactions bind no variables until expressions are evaluated (step 4h)`);
+    throw new ValueError(`${a(kind)} of variables: transactions bind no variables until expressions are evaluated`);
   }
   if (kind === "map" || kind === "upsert") {
     const pattern = patternOf(term, kind === "map" ? "symbols" : "exists", kind);
@@ -668,7 +667,7 @@ function check(store: any, term: any, bound: Set<string>): Set<string> {
     const collector = entries[0].collector;
     if (collector.suffixes !== null || collector.computes !== null || collector.variables.length > 0) {
       throw new ValueError("a reduce that collects (`suffixes`, `computes`, `variables`): transactions evaluate no "
-        + "expressions until step 4h; a reduce drops symbols");
+        + "expressions yet; a reduce drops symbols");
     }
     unbound(collector.symbols, bound, kind);
     bound = new Set([...bound].filter((name) => !collector.symbols.includes(name)));

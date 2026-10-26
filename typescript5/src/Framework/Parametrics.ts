@@ -43,9 +43,9 @@ export function install(txn: any): any {
         (t: any) => t.name("parameters"), (t: any) => t.name("parameter")]).properties({ name: S.OfStr }).uniques([
         ["parameters", "name"], ["parameter"]]),
       (_: any) => _.ForValue.name("Parametrics.ForValue").links([
-        (t: any) => t.name("param"), (t: any) => t.name("schema")]).uniques("param"), // a value of that schema
+        (t: any) => t.name("param"), (t: any) => t.name("schema")]).uniques("schema"), // one schema per parameter
       (_: any) => _.ForObject.name("Parametrics.ForObject").links([
-        (t: any) => t.name("param"), (t: any) => t.name("schema")]).uniques("param"), // an object of that schema
+        (t: any) => t.name("param"), (t: any) => t.name("schema")]).uniques("schema"), // one schema per parameter
       (_: any) => _.HasParameters.name("Parametrics.HasParameters").links([
         (t: any) => t.name("defn"), (t: any) => t.name("params")]).uniques([["defn"], ["params"]]),
       (_: any) => _.BindsValue.name("Parametrics.BindsValue").links([

@@ -783,6 +783,35 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **Provenance** ([Provenance](proposals/provenance/README.md)), as the user decided (2026-10-26), from the
+  proposal "I believe adding `Schemas.OfTransaction` will allow the services to handle almost all of transaction
+  bookkeeping, provided locale and/or geolocation provided by the UI for transactions executed for an interactive
+  user session." The rule, every point of it:
+  1. A module of its own, "Make a new module `mbse-schemas.Provenance`", installed before use, as `Parametrics` is:
+     `Provenance.OfTransaction`, `OfSession`, `OfIdentity`, `OfWhere`, `InSession`, `Who`, `CreatedBy`, `ModifiedBy`
+     and their directories, the singletons `Provenance.Transactions`, `Sessions` and `Identities`.
+  2. No expression in the record: "No, but record the transaction's uuid which can be cross-referenced": a record is
+     keyed by its transaction's `uid`.
+  3. Every transaction that writes is recorded; "Use placeholder data as needed and log tech debt to get it right":
+     one without an expression or a session (an imperative scope) gets placeholder data (a `uid` the store makes,
+     `when` at commit, the identity `unknown`), tech debt.
+  4. "yes ISO8601 text for now": `when` is UTC ISO 8601 text until a date domain exists.
+  5. "App code should itself decide which reference object schemas get provenance and which do not": the app's
+     install calls `Provenance.extend(txn, schemas)`, which gives each schema anonymous adjacencies to `CreatedBy` and
+     `ModifiedBy`; the executor links only objects of the schemas extended.
+  6. "The token probably should not be part of the transaction record itself. The session id is part of the
+     transaction record and that can be used to cross-reference token if necessary": a service writes the session's
+     `id` and `who` into the expression before executing and journaling it; neither holds the token.
+  7. "Let's make `Provenance.OfSession` explicit": a session, owned by `Provenance.Sessions`, keyed by its `id`, each
+     transaction linked to its one session by `InSession`.
+  8. "locale, device, who/identity belong to the session. when belongs on the transaction": a session holds its
+     `locale`, `device` and `started`, and one identity through `Who`; a transaction holds its `when` and, "yes, move
+     where to the transaction", its geolocation `where`. `Mutations.OfTransaction` gains `when`, `session` (`id`,
+     `who`, `locale`, `device`) and `where`; the executor writes the records from them at commit, in the same
+     transaction, the session and identity made on demand, so that a replayed journal makes the same records, found
+     again by `uid`.
+  9. "I was not expecting that relation to track the journal, just the tail": `ModifiedBy` holds one entry per object,
+     the latest write, replaced by each later one.
 - **References** (step 4n of the store overhaul; [References](proposals/references/README.md)), as the user proposed
   and decided (2026-10-23), from writing client code whose requests start from "an identifier for an object or relation
   entry": "I believe these are all downstream of there not being a consolidated well-defined format for object and

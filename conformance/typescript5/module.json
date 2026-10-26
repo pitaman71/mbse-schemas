@@ -2305,7 +2305,7 @@
                             "set": {
                               "value": [
                                 [
-                                  "param"
+                                  "schema"
                                 ]
                               ]
                             }
@@ -2412,7 +2412,7 @@
                             "set": {
                               "value": [
                                 [
-                                  "param"
+                                  "schema"
                                 ]
                               ]
                             }

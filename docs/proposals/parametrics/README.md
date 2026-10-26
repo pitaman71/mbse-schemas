@@ -216,3 +216,9 @@ As the user decided (2026-10-22), on the questions this draft put:
   as Store overhaul, Decided, 19 says, ignoring `Schemas.OfParameter`'s `for_value` and `for_object` and the kinds'
   `parameters`, and keeping the rest (the sets, now unlinked, and `Parametrics`' own schemas, which a snapshot writes as
   any store's own).
+
+- **Corrected (2026-10-26):** `ForValue` and `ForObject` were built `.uniques("param")`, which makes the schema
+  determine the parameter, so that a schema could be the value or object schema of one parameter only, against Decided
+  ("*:1": a parameter has one schema, which many share), as FRAMEWORK.md, Cardinality, reads `unique(S)`: the links
+  outside `S` determine `S`. Both are `.uniques("schema")`: a parameter determines its schema. Found by the session
+  coordinating mbse-rest; the corpus's `Grid`, whose `n` and `x` are both for a value of `OfInt`, held the case.

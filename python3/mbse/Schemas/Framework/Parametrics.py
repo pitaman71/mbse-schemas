@@ -47,9 +47,9 @@ def install(txn: Any) -> Any:
                 lambda t: t.name("parameters"), lambda t: t.name("parameter")]).properties({"name": S.OfStr}).uniques([
                 ["parameters", "name"], ["parameter"]]),
             lambda _: _.ForValue.name("Parametrics.ForValue").links([
-                lambda t: t.name("param"), lambda t: t.name("schema")]).uniques("param"),  # a value of that schema
+                lambda t: t.name("param"), lambda t: t.name("schema")]).uniques("schema"),  # one schema per parameter
             lambda _: _.ForObject.name("Parametrics.ForObject").links([
-                lambda t: t.name("param"), lambda t: t.name("schema")]).uniques("param"),  # an object of that schema
+                lambda t: t.name("param"), lambda t: t.name("schema")]).uniques("schema"),  # one schema per parameter
             lambda _: _.HasParameters.name("Parametrics.HasParameters").links([
                 lambda t: t.name("defn"), lambda t: t.name("params")]).uniques([["defn"], ["params"]]),
             lambda _: _.BindsValue.name("Parametrics.BindsValue").links([

@@ -812,6 +812,13 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
      again by `uid`.
   9. "I was not expecting that relation to track the journal, just the tail": `ModifiedBy` holds one entry per object,
      the latest write, replaced by each later one.
+  Built (2026-10-26), both languages, as [Provenance, Stages, as built](proposals/provenance/README.md#stages-as-built)
+  says: `Provenance.install(txn)`, `Provenance.extend(txn, schemas)`, a transaction of its own after the app's install
+  (`store.transaction(lambda t: Provenance.extend(t, [t.work.Comment]))`), `Mutations.OfTransaction`'s `when`,
+  `session` and `where` on the wire, and the store's record of each transaction that creates or writes an object, at
+  its commit, within it. What the decisions left open is settled in [Fixed by the agent, for the user's
+  review](proposals/provenance/README.md#fixed-by-the-agent-for-the-users-review); the placeholder records are tech
+  debt (TODO.md).
 - **References** (step 4n of the store overhaul; [References](proposals/references/README.md)), as the user proposed
   and decided (2026-10-23), from writing client code whose requests start from "an identifier for an object or relation
   entry": "I believe these are all downstream of there not being a consolidated well-defined format for object and

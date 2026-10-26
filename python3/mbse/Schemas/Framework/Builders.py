@@ -1762,12 +1762,15 @@ class Store(Proxies.OfStore):
     def _transacting(self) -> Iterator[Any]:
         """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
         its plain schema (`_extend_builders`): a module's install extends a store's own schemas (docs/proposals/install,
-        Decided, 5)."""
+        Decided, 5). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`)."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
+        from . import Provenance
+
         try:
             with super()._transacting() as proposals:
                 yield proposals
+                Provenance._record(self, proposals)  # at its commit, within it
         finally:
             _extend_builders(self, before)
 

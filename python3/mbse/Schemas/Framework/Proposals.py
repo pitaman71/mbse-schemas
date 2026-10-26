@@ -28,6 +28,10 @@ class OfStore:
         self.values_: dict[int, tuple[Any, dict[str, Any]]] = {}  # each holder's values, by its id
         self.entries_: dict[int, tuple[Any, dict[Hashable, dict[Hashable, Any]]]] = {}  # each holder's entry tables
         self.deferred: dict[int, Any] = {}  # each schema object's last builder, whose update waits for commit
+        # the data objects its builders created, and those they wrote, by id: what Provenance records (`note`)
+        self.created: dict[int, Any] = {}
+        self.written: dict[int, Any] = {}
+        self.expression: Any = None  # the transaction's expression, where it has one: its record's data (Provenance)
         outer = base if isinstance(base, OfStore) else None
         # the schema objects held when the transaction began, by id: those its updates of wait for its commit
         self.existing: set[int] = outer.existing if outer is not None else store._existing()
@@ -89,6 +93,10 @@ class OfStore:
         copied = self.entries_[id(holder)] = (holder, {key: dict(table) for key, table in below.items()})
         return copied[1]
 
+    def note(self, target: Any, created: bool) -> None:
+        """Notes a data object a builder created, or wrote (Provenance)."""
+        (self.created if created else self.written)[id(target)] = target
+
     def deferred_of(self, original: Any) -> Any:
         """The last builder whose update of a schema object waits, in these proposals or those they are over."""
         found = self.deferred.get(id(original))
@@ -111,6 +119,8 @@ class OfStore:
                 raise
         else:
             self.base.deferred.update(self.deferred)  # in order: each waits for the transaction's commit
+            self.base.created.update(self.created)
+            self.base.written.update(self.written)
         for holder, values in self.values_.values():
             into = self.base.values(holder, True)
             into.clear()

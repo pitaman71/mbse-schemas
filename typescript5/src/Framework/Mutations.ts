@@ -42,7 +42,7 @@ export function install(txn: any): any {
       AsProperty: S.OfObject, AsObject: S.OfObject, EntryAsProperty: S.OfObject, EntryAsLink: S.OfObject,
       Entry: S.OfObject, AsAdjacency: S.OfObject, AdjacencyInsert: S.OfObject,
       AdjacencyRemove: S.OfObject, AdjacencyClear: S.OfObject, OfPattern: S.OfContainer, Spec: S.OfObject,
-      OfTerm: S.OfUnion, OfTransaction: S.OfObject, OfMap: S.OfObject, OfReduce: S.OfObject,
+      OfTerm: S.OfUnion, OfTransaction: S.OfObject, Session: S.OfObject, Where: S.OfObject, OfMap: S.OfObject, OfReduce: S.OfObject,
       OfPartition: S.OfObject, OfBranch: S.OfObject, OfUpdate: S.OfObject, OfUpsert: S.OfObject,
       HasRoot: S.OfRelation, Then: S.OfRelation, MapsSymbols: S.OfRelation, MapsVariables: S.OfRelation,
       ReducesSymbols: S.OfRelation, ReducesVariables: S.OfRelation, Branching: S.OfRelation,
@@ -202,8 +202,19 @@ export function install(txn: any): any {
         (t: any) => t.name("term"), (t: any) => t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
       (_: any) => _.Exists.name("Mutations.Exists").links([
         (t: any) => t.name("term"), (t: any) => t.name("pattern").schema([S.OfPattern])]).uniques([["pattern"]]),
+      (_: any) => _.Session.name("Mutations.OfTransaction.Session").properties({ // what Provenance records
+        id: S.OfStr, // the service's: what it knows a validated token by
+        who: S.OfStr, // the service's: the identity the token gave, by name
+        locale: S.OfStr, // an interactive session's, the client's, e.g. "en-GB"
+        device: S.OfStr, // the client's
+      }),
+      (_: any) => _.Where.name("Mutations.OfTransaction.Where").properties({ // the client's geolocation, where given
+        latitude: S.OfFloat, longitude: S.OfFloat }),
       (_: any) => _.OfTransaction.name("Mutations.OfTransaction").ref(true).properties({
         uid: S.OfStr, // given by the program (42)
+        when: S.OfStr, // the service's: when it executes, UTC ISO 8601 text (Provenance)
+        session: _.Session, // the session it is executed in (Provenance)
+        where: _.Where, // where it was initiated from (Provenance)
       }).adjacencies({
         mutations: (a: any) => a.relation([_.HasRoot]).me("transaction"), // its one root term
       }),

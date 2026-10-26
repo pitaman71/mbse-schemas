@@ -2961,14 +2961,14 @@ class _ObjectBuilder extends Shelled {
     noArguments("create", args);
     if (this._source !== null) throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     this._notSingleton("create");
-    return this._store._writing(() => this._write(this._new()));
+    return this._store._writing(() => this._noted(this._write(this._new()), true));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
     if (this._source === null) throw new ValueError("clone() is only valid with a source instance");
     this._notSingleton("clone");
-    return this._store._writing(() => this._write(this._new()));
+    return this._store._writing(() => this._noted(this._write(this._new()), true));
   }
 
   /** A new object of the builder's schema; one whose schema declares an owner is given it when the outermost write
@@ -2990,8 +2990,14 @@ class _ObjectBuilder extends Shelled {
       }
       const written = this._write(this._source!, rewritten);
       reorder(tables, rewritten);
-      return written;
+      return this._noted(written, false);
     });
+  }
+
+  /** An object it created or wrote, noted in the proposals of the transaction open, if any (Provenance). */
+  _noted(target: Instance, created: boolean): Instance {
+    this._store._proposals?.note(target, created);
+    return target;
   }
 
   _notSingleton(method: string): void {

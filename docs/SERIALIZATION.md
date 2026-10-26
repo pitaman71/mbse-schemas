@@ -146,6 +146,18 @@ submitted, replayed by executing each in order; a transaction's imperative scope
   designates an object, a relation entry or a frame carries a `References.OfObject`, `OfEntry` or `OfFrame` value,
   written as any value is. The wire keeps writing `$ref` as a path until Paths are removed.
 - A pattern's spec is written as recorded: for each symbol, the mutations of the object it binds (`Mutations.OfPattern`).
+- What a store with `Provenance` installed records of the transaction ([Provenance](proposals/provenance/README.md);
+  FRAMEWORK.md, Resolved, Provenance), properties of `Mutations.OfTransaction` written as any are, after its `uid` and
+  each left out where unset: `when`, UTC ISO 8601 text, set by the service; `session`, a
+  `Mutations.OfTransaction.Session` value, its `id` and `who` set by the service, its `locale` and `device` by the
+  client; and `where`, a `Mutations.OfTransaction.Where` value, its `latitude` and `longitude`, set by the client. A
+  journal holds them with the expression, so that replaying it makes the same records; neither holds the token.
+
+```json
+{"uid": "6f1c4e2a-0000-4000-8000-000000000007", "when": "2026-10-26T14:30:05Z",
+ "session": {"id": "tab-7f3a", "who": "ada", "locale": "en-GB"}, "where": {"latitude": 51.5, "longitude": -0.125},
+ "mutations": [...]}
+```
 
 ## Documents
 

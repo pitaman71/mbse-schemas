@@ -571,7 +571,11 @@ export function _execute(store: any, transaction: any, joined = false): Frame[] 
   const root = next(transaction, "mutations");
   if (root !== null) check(store, root, new Set());
   const write = (): Frame[] => (root === null ? [new Map()] : run(store, root, [new Map()]));
-  return joined ? store._joined(write) : store._transacting(write); // a decoder's: a savepoint of the one open
+  if (joined) return store._joined(write); // a decoder's: a savepoint of the one open
+  return store._transacting(() => {
+    store._proposals.expression = transaction; // what its record gives (Provenance)
+    return write();
+  });
 }
 
 /** The term a term's adjacency of one entry links (91): a transaction's root, a term's next; null where it holds none. */

@@ -29,6 +29,7 @@
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
+import * as Provenance from "./Provenance.js";
 import * as References from "./References.js";
 import * as PlainModule from "./Plain.js";
 import type * as Proposals from "./Proposals.js";
@@ -2270,14 +2271,18 @@ export class Store extends Proxies.OfStore {
 
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
    * plain schema (`extendBuilders`): a module's install extends a store's own schemas (docs/proposals/install,
-   * Decided, 5). */
+   * Decided, 5). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`). */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
     try {
-      return super._transacting(write);
+      return super._transacting(() => {
+        const written = write();
+        Provenance._record(this, this._proposals!); // at its commit, within it
+        return written;
+      });
     } finally {
       extendBuilders(this, before);
     }

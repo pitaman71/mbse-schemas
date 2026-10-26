@@ -221,6 +221,25 @@ schemas).
 A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
 `References.of` throws `LookupError`.
 
+## Provenance
+
+As in Python: `Provenance.install`, then `Provenance.extend` with the schemas whose history the app wants; a service
+sets `when` and the session's `id` and `who`, a client its `locale` and `device`, and `where`; an object's records are
+read from the record's side.
+
+```typescript fragment
+store.transaction(Provenance.install);
+store.transaction((t: any) => Provenance.extend(t, [t.work.Comment]));
+store.transaction((t: any) => t.uid(uid).when("2026-10-26T14:30:05Z")
+  .session((s: any) => s.id("tab-7f3a").who("ada").locale("en-GB"))
+  .where((w: any) => w.latitude(51.5).longitude(-0.125))
+  .mutations([...]));
+store.transaction((t: any) => t.mutations([(mu: any) => mu.map((m: any) => m.symbols([(p: any) => p
+  .symbols({ c: References.of(store, comment), t: store.Provenance.OfTransaction, i: store.Provenance.OfIdentity,
+    s: store.Provenance.OfSession })
+  .spec([(_: any) => _.t.created([_.c]), (_: any) => _.t.session([_.s]), (_: any) => _.s.who([_.i])])]))]));
+```
+
 ## Traps
 
 The traps of [Python](python.md#traps) hold here too, in TypeScript's terms:

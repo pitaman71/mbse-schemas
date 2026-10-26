@@ -2354,14 +2354,14 @@ class _ObjectBuilder(_Unassignable):
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
         self._not_singleton("create")
         with self._store._writing():
-            return self._write(self._new())
+            return self._noted(self._write(self._new()), True)
 
     def clone(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
         self._not_singleton("clone")
         with self._store._writing():
-            return self._write(self._new())
+            return self._noted(self._write(self._new()), True)
 
     def _new(self) -> _ObjectData:
         """A new object of the builder's schema; one whose schema declares an owner is given it when the outermost write
@@ -2381,7 +2381,14 @@ class _ObjectBuilder(_Unassignable):
                 _discard_linking(adjacency.relation, adjacency.me, self._source)
             written = self._write(self._source, rewritten)
             _reorder(orders, rewritten)
-        return written
+        return self._noted(written, False)
+
+    def _noted(self, target: _ObjectData, created: bool) -> _ObjectData:
+        """An object it created or wrote, noted in the proposals of the transaction open, if any (Provenance)."""
+        proposals = self._store._proposals
+        if proposals is not None:
+            proposals.note(target, created)
+        return target
 
     def _not_singleton(self, method: str) -> None:
         if self._schema.singleton is not None:

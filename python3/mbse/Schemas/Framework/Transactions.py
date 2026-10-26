@@ -505,7 +505,11 @@ def _execute(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
     root = _next(transaction, "mutations")
     if root is not None:
         _check(store, root, set())
-    with store._joined() if joined else store._transacting():  # a decoder's: a savepoint of the one open
+    if joined:  # a decoder's: a savepoint of the one open
+        with store._joined():
+            return [{}] if root is None else _run(store, root, [{}])
+    with store._transacting() as proposals:
+        proposals.expression = transaction  # what its record gives (Provenance)
         return [{}] if root is None else _run(store, root, [{}])
 
 

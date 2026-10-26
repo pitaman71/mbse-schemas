@@ -34,6 +34,12 @@ export class OfStore implements Visitors.OfStore {
   readonly entries_ = new Map<object, Tables>();
   /** Each schema object's last builder, whose update waits for commit. */
   readonly deferred = new Map<object, any>();
+  /** The data objects its builders created: what Provenance records (`note`). */
+  readonly created = new Set<object>();
+  /** The data objects its builders wrote: what Provenance records (`note`). */
+  readonly written = new Set<object>();
+  /** The transaction's expression, where it has one: its record's data (Provenance). */
+  expression: unknown = null;
   /** How many schema objects the store held when the transaction began: those its updates of wait for its commit. */
   readonly existing: number;
   /** The store's registries, restored where the proposals are aborted. */
@@ -112,6 +118,11 @@ export class OfStore implements Visitors.OfStore {
   }
 
   /** The last builder whose update of a schema object waits, in these proposals or those they are over. */
+  /** Notes a data object a builder created, or wrote (Provenance). */
+  note(target: object, created: boolean): void {
+    (created ? this.created : this.written).add(target);
+  }
+
   deferred_of(original: object): any {
     const found = this.deferred.get(original);
     if (found === undefined && this.base instanceof OfStore) return this.base.deferred_of(original);
@@ -133,6 +144,8 @@ export class OfStore implements Visitors.OfStore {
       }
     } else {
       for (const [original, builder] of this.deferred) this.base.deferred.set(original, builder); // in order
+      for (const target of this.created) this.base.created.add(target);
+      for (const target of this.written) this.base.written.add(target);
     }
     for (const [holder, values] of this.values_) {
       const into = this.base.values(holder, true);

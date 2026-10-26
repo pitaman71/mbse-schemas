@@ -79,7 +79,7 @@ lambda _: _.OfSession.name("Provenance.OfSession").ref(True).properties({
 lambda _: _.InSession.name("Provenance.InSession").links([
     lambda t: t.name("transaction"),
     lambda t: t.name("session"),
-]).uniques("transaction"),    # one session per transaction
+]).uniques("session"),        # one session per transaction
 lambda _: _.InTransactions.name("Provenance.InTransactions").links([
     lambda t: t.name("directory"),
     lambda t: t.name("transaction"),
@@ -98,15 +98,15 @@ lambda _: _.OfTransaction.name("Provenance.OfTransaction").ref(True).properties(
 lambda _: _.Who.name("Provenance.Who").links([
     lambda t: t.name("session"),
     lambda t: t.name("identity"),
-]).uniques("session"),        # one identity per session
+]).uniques("identity"),       # one identity per session
 lambda _: _.CreatedBy.name("Provenance.CreatedBy").links([
     lambda t: t.name("object"),
     lambda t: t.name("transaction"),
-]).uniques("object"),         # one creating transaction per object
+]).uniques("transaction"),    # one creating transaction per object
 lambda _: _.ModifiedBy.name("Provenance.ModifiedBy").links([
     lambda t: t.name("object"),
     lambda t: t.name("transaction"),
-]).uniques("object"),         # one per object: the latest write, replaced by the next
+]).uniques("transaction"),    # one per object: the latest write, replaced by the next
 ```
 
 `Provenance.OfIdentity` and its directory `Provenance.Identities` follow the same pattern, keyed by `name`.
@@ -189,10 +189,76 @@ As the user decided (2026-10-26):
 9. **`ModifiedBy` is the tail**: "I was not expecting that relation to track the journal, just the tail": one entry per
    object, the latest write, replaced by each later one.
 
-## Corrected in moving it here
+## Stages, as built
 
-Written in the workspace's `proposals/transaction-records` by the session coordinating mbse-rest, mbse-react and
-mbse-dynamodb, with the user, and moved here to be built (2026-10-26). Its draft's `uniques` clauses were inverted
-against Decided 7 to 9: `uniques("x")` makes each `x` appear in at most one entry (as `Parametrics.ForValue`'s
-`uniques("param")` gives a parameter one schema), so `InSession` is unique on `transaction`, `Who` on `session`, and
-`CreatedBy` and `ModifiedBy` on `object`, as the decisions' wording says; corrected above, for the user's review.
+- **One stage**, both languages (2026-10-26): `Framework/Provenance.py` and `typescript5/src/Framework/Provenance.ts`,
+  exported as `Provenance` beside `Parametrics`. `Provenance.install(txn)` writes out the schemas of the model above
+  (P-019), with `Provenance.OfIdentity` and its directory, `Provenance.IdentityDirectory` (the singleton
+  `Provenance.Identities`, keyed by `name` through `Provenance.InIdentities`), on the pattern of the sessions'; the
+  identity has the adjacency `sessions` (`Who`, from its end) and no property, its name its directory entry's key.
+  `Provenance.extend(txn, schemas)` gives the transaction that extends each schema named, as an install does:
+
+  ```python
+  store.transaction(work.install)          # the app's own schemas
+  store.transaction(Provenance.install)
+  store.transaction(lambda t: Provenance.extend(t, [t.work.Comment]))   # those whose history it wants
+  ```
+
+  `Mutations.OfTransaction` gains `when` (text), `session` (a `Mutations.OfTransaction.Session` value: `id`, `who`,
+  `locale`, `device`) and `where` (a `Mutations.OfTransaction.Where` value: `latitude`, `longitude`), written and read
+  on the wire as any property is (SERIALIZATION.md, Transactions on the wire); the corpora are unchanged. The store's
+  builders note in a transaction's proposals each data object they create or write (`Proposals.OfStore.note`); the
+  executor gives the proposals its expression; and the store, after a transaction's body and before its proposals
+  commit, records it (`Provenance._record`), where `Provenance` was installed when it began. The records are written
+  through the store's own entries, as it settles owners, since transactions do not nest. PRV-01 to PRV-10 cover it,
+  in both languages; MUT-01 counts the two new mutation schemas.
+
+Reading an object's records, from the record's side, since its adjacencies to them are anonymous: a map whose symbol
+is given the object's reference (References, Decided, 8), as in the example above, `_.t.created([_.c])` for the
+transaction that created it, `_.t.modified([_.c])` for the latest that wrote it.
+
+## Fixed by the agent, for the user's review
+
+What the decisions left open, settled the simplest way consistent with them (2026-10-26):
+
+1. **`extend`'s form**: `Provenance.extend(txn, schemas)` gives a transaction, as `install` does, run on its own:
+   `store.transaction(lambda t: Provenance.extend(t, [t.work.Comment]))`; each schema a schema object or its path. An
+   app's install is a transaction of its own, so the extension follows it rather than being a fragment of it. It is
+   refused (`LookupError`) where `Provenance` is not installed, and (`TypeError`) for what is not a reference object
+   schema; run again, it writes nothing.
+2. **What counts as written**: an object a builder creates (or clones) or updates within the transaction, the
+   executor's included, which writes a spec only where it does not hold; an entry added from another object's side
+   does not write the object at its other end. An object created and written in one transaction gets `CreatedBy`
+   alone; one written that has no `CreatedBy` (made before its schema was extended) gets `ModifiedBy` alone.
+3. **Which transactions are recorded** ("every transaction that writes", Decided, 3): those that create or write a
+   data object, where `Provenance` was installed when the transaction began. A transaction that writes only schema
+   objects (an install, `extend`) is not recorded, nor is `Provenance.install` itself; one that writes nothing (a
+   map, a replay) records nothing. A document or snapshot read outside a transaction opens one, recorded as an
+   imperative scope, since its expression runs within it as a savepoint.
+4. **What a transaction that does not say records** (Decided, 3): no `uid`, a UUID (version 4) the store makes; no
+   `when`, the time at commit, UTC ISO 8601 to the second; no `session`, the session `unknown`, shared by every such
+   transaction, whose identity is `unknown`; a session with no `who`, the identity `unknown`. A `session` with no
+   `id` is refused (`ValueError`), and the transaction with it.
+5. **The session's `started`**: the `when` of the transaction that first records it, not the clock, so that a replay
+   makes the same session.
+6. **A session found again** keeps its `locale` and `device` as first recorded; a later transaction's are not written.
+   Named with another `who` than its identity's, the transaction is refused (`ValueError`): a session has one identity.
+7. **A record found again by its `uid`** (a replay that writes, or another expression under the same uid) is not
+   rewritten: its `when`, `where` and session stay as first recorded, and the objects the transaction writes are
+   linked to it; a `ModifiedBy` that links it already is left.
+8. **The schemas of the expression's members** are `Mutations.OfTransaction.Session` and
+   `Mutations.OfTransaction.Where`, Mutations' own, since a store holds Mutations from the start and `Provenance` only
+   once installed; the executor copies `where` into a `Provenance.OfWhere`.
+
+## Tech debt
+
+- **Placeholder records** (Decided, 3): an imperative scope's record, and that of an expression naming no `uid`,
+  `when` or session, has placeholder data, a random `uid`, the clock's `when` and the shared session `unknown`, so it is
+  neither reproducible nor attributable. Logged in the workspace's TODO.md, "Provenance: placeholder records of
+  imperative scopes".
+
+## Moved here
+
+Moved here from the workspace's proposals/transaction-records (2026-10-26). A correction first made to its uniques in
+moving it was itself wrong and is withdrawn: unique(S) means the links and properties outside S determine S
+(FRAMEWORK.md, Cardinality), so the clauses stand as drafted.

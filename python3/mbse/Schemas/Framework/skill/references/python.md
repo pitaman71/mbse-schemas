@@ -208,6 +208,31 @@ schemas).
 A counted object has no reference, an upsert's included, nor a frame or an entry that binds or links one:
 `References.of` raises `LookupError`. Make it a singleton's or an owner's where it must be designated.
 
+## Provenance
+
+`Provenance`, installed before use, records who changed what, when and from where: a record of each transaction that
+creates or writes an object (`Provenance.OfTransaction`, keyed by its `uid`), its session and the session's identity;
+and, for the reference object schemas the app chooses, `CreatedBy` and `ModifiedBy` (the latest write only) linking
+each object to its records. The record comes from the transaction's expression, so a replayed journal makes the same
+records; a service sets `when` and the session's `id` and `who` (from the token it validated, never the token), a
+client the session's `locale` and `device`, and `where`. An imperative scope gets placeholder data.
+
+```python fragment
+store.transaction(Provenance.install)                       # after the app's own install
+store.transaction(lambda t: Provenance.extend(t, [t.work.Comment]))    # the schemas whose history it wants
+store.transaction(lambda t: t.uid(uid).when("2026-10-26T14:30:05Z")   # UTC ISO 8601 text
+    .session(lambda s: s.id("tab-7f3a").who("ada").locale("en-GB").device("phone"))
+    .where(lambda w: w.latitude(51.5).longitude(-0.125))
+    .mutations([...]))
+store.transaction(lambda t: t.mutations([lambda mu: mu.map(lambda m: m.symbols([lambda p: p   # an object's records
+    .symbols({"c": References.of(store, comment), "t": store.Provenance.OfTransaction,
+              "s": store.Provenance.OfSession, "i": store.Provenance.OfIdentity})
+    .spec([lambda _: _.t.created([_.c]), lambda _: _.t.session([_.s]), lambda _: _.s.who([_.i])])]))]))
+```
+
+An object's adjacencies to its records are anonymous: read them from the record's side, as above (`_.t.modified([_.c])`
+for the latest write). The identity's name and the record's uid are their directory entries' keys.
+
 ## Traps
 
 - `True` is not an `int`, and `1.0` is not an `int`. Validation reports `expected int, got bool`.

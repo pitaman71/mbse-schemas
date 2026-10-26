@@ -21,6 +21,7 @@ export * as Parametrics from "./Parametrics.js";
 export * as Paths from "./Paths.js";
 export * as Plain from "./Plain.js";
 export * as Proposals from "./Proposals.js";
+export * as Provenance from "./Provenance.js";
 export * as Proxies from "./Proxies.js";
 export * as Readers from "./Readers.js";
 export * as References from "./References.js";

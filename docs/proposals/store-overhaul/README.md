@@ -669,12 +669,14 @@ so that main stays current and no branch waits on another.
      proposed for the user's review when it starts. Proposed and decided in [Installing schemas](../install/README.md)
      (the framework's own modules drafted there, a bootstrap reading them, "everything" migrating), built in four
      stages, 4i-1 to 4i-4, listed there; done, released as 0.23.0.
-   - **4h, the last release** of step 4: mbse-schemas stabilized. The dependents are step 5's (Decided, 26).
+   - **4h, the last release** of step 4: mbse-schemas stabilized, released as 0.25.0 (with 4n, References). The
+     dependents are step 5's (Decided, 26).
    Releases (question 8, renumbered by the reorder, proposed for the user's review): 0.20.0 after 4c, 0.21.0 after 4d
    and 4g (released), 0.22.0 after 4e and 4f (4f-5 and 4f-6 included; released), each landing the branch on main. 4i
    follows 0.22.0, as the user decided: "go ahead and release 0.22.0 then go straight to 4i". 0.23.0 after 4i, 4j and 4l, as the user
    decided: "Do 4j, 4l, then release". 0.24.0 after 4m, since removing the
-   core's parameters breaks dependents ("yes, proceed"). 4e builds only the in-memory, sequential executor
+   core's parameters breaks dependents ("yes, proceed"). 0.25.0, 4h, after 4n and Decided 32 took 4k out of step 4
+   ("yes", to releasing it as the stabilizing release). 4e builds only the in-memory, sequential executor
    (question 11).
 5. **The dependents ported** (Decided, 26): every `mbse-*` repository that depends on mbse-schemas moves to the
    stabilized mbse-schemas, its schemas installs (Installing schemas, Decided, 7). mbse-expressions refines

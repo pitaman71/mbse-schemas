@@ -623,7 +623,8 @@ As the user decided (2026-10-20), on how 4e-1 builds them:
     through the overlay, so that a schema object the transaction creates is found by the frames after it. A change to a
     schema object that exists is seen only once its transaction commits: a transaction that adds a property to a schema
     writes no object with it, a second one does. (Offered against writing a schema object at once with an undo record,
-    and against an overlay of every schema field read, which would intercept each read of a schema object.)
+    and against an overlay of every schema field read, which would intercept each read of a schema object.) Kept as
+    the lasting rule (2026-10-26; Store overhaul, Decided, 32): "yes keep the commit-time rule and log 4k as tech debt".
 
 97. A kind union ("yes, a kind union"): a relation's link may have as its schema a union of reference object schemas,
     whose branches name the kinds (`Mutations.OfTerm`: `map`, `reduce`, `partition`, `update`, `upsert`). An entry's

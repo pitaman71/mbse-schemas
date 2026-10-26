@@ -161,6 +161,18 @@ As the user decided (2026-10-22), on what remains after 4i, item by item as they
     `FromDataclass.model(...)`, which returns schema objects made outside any store, goes: "yes remove
     FromDataclass.model". The order: "Do 4j, 4l, then release".
 
+As the user decided (2026-10-26), on 4k, after a survey of how schema objects are read (about 300 field reads in each
+language; the public read API, `as_schema()`, `store.registered(...)` and field reads, unchanged by any option short of
+retiring the dataclasses):
+
+32. **The commit-time rule is kept, and 4k is tech debt**: "yes keep the commit-time rule and log 4k as tech debt". A
+    change to a schema object that existed before a transaction is seen only once that transaction commits (Object
+    identity, Decided, 96, now the lasting rule, not a limitation awaiting 4k); data that uses the change is written in
+    a transaction after it, as an install's data and a snapshot's (Decided, 101) are. Reading schema objects through the
+    store (the survey's options: through read-only builders; schema objects as store data; or schema state copied on
+    write through `Visitors.OfStore`, with what a user's own reads see within a transaction) is tech debt, internal,
+    to be done without changing that rule (TODO.md). Step 4 so ends with 4h.
+
 ## Order of work
 
 Each step lands on main as its own release, with both gates at 100%, the corpora regenerated and conformance passing,
@@ -613,8 +625,8 @@ so that main stays current and no branch waits on another.
        4n, "right now", before 4k and 4h; built (References, Stages, as built); Paths overlap it meanwhile, deprecated,
        their removal tech debt (no stage yet: the workspace's TODO.md, "Eliminate Paths");
      - Parametrics' bindings' adjacencies, `values` and `objects`: dropped, no stage, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced";
-     - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): 4k, after 4i,
-       which rewrites how schemas are built;
+     - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): first 4k; taken
+       out of step 4 as tech debt (Decided, 32; TODO.md), the commit-time rule kept;
      - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to
        a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31); built, released as 0.23.0. **4l, as built**:
        `FromDataclass.install(txn, module, *classes)` returns `txn.mutations([...])`, one upsert whose symbols are the

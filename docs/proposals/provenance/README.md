@@ -1,7 +1,7 @@
 # Provenance: transaction records (a proposal, decided)
 
 Services built on mbse-schemas need to know who changed what, when and from where: a comment shows its author and
-the time it was posted (the workspace's VISUALIZATION.md, CAP-015 and CAP-016), and an audit trail answers for every write. Today a
+the time it was posted (mbse-basis CAP-015 and CAP-016), and an audit trail answers for every write. Today a
 service cannot do that bookkeeping well: the executor alone knows which objects a transaction creates or changes,
 and nothing it keeps outlives the transaction. A transaction's expression (`Mutations.OfTransaction`) is a counted
 object that goes when the program drops it (Object identity, Decided, 94), and the journal holds expressions, not
@@ -53,7 +53,7 @@ links validate. The app decides which of its reference object schemas have a his
 
 ## Examples
 
-The schemas, as `Provenance.install` would define them (written out, P-019), a module of mbse-schemas installed
+The schemas, as `Provenance.install` would define them (written out, PRI-019), a module of mbse-schemas installed
 before use, as `Parametrics` is (`store.transaction(Provenance.install)`):
 
 ```python
@@ -193,7 +193,7 @@ As the user decided (2026-10-26):
 
 - **One stage**, both languages (2026-10-26): `Framework/Provenance.py` and `typescript5/src/Framework/Provenance.ts`,
   exported as `Provenance` beside `Parametrics`. `Provenance.install(txn)` writes out the schemas of the model above
-  (P-019), with `Provenance.OfIdentity` and its directory, `Provenance.IdentityDirectory` (the singleton
+  (PRI-019), with `Provenance.OfIdentity` and its directory, `Provenance.IdentityDirectory` (the singleton
   `Provenance.Identities`, keyed by `name` through `Provenance.InIdentities`), on the pattern of the sessions'; the
   identity has the adjacency `sessions` (`Who`, from its end) and no property, its name its directory entry's key.
   `Provenance.extend(txn, schemas)` gives the transaction that extends each schema named, as an install does:

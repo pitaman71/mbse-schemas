@@ -3,7 +3,7 @@ README.md beside it).
 
 What changes: `schemas(Text, Int, Path, Bool, Pattern, Collector, Expression)`, which builds them with the builders and
 is handed what it uses, becomes `install(txn)`, which defines them in the store a transaction writes, in the builders'
-fluent syntax (P-019), and names what it uses from the transaction (`txn.Schemas.OfStr`, `txn.Paths.OfRoot`, 78). The
+fluent syntax (PRI-019), and names what it uses from the transaction (`txn.Schemas.OfStr`, `txn.Paths.OfRoot`, 78). The
 schemas are the same, by the same names, and `Mutations.Payload` is named (README.md).
 """
 

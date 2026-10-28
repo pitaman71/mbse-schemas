@@ -26,7 +26,7 @@ export class NotImplementedError extends Error {
   override name = "NotImplementedError";
 }
 
-/** A write that a visitor's mode, or the value, forbids: refused, never silently lost (mbse-basis P-002). The one raise
+/** A write that a visitor's mode, or the value, forbids: refused, never silently lost (mbse-basis PRI-002). The one raise
  * of the visitor protocol; a `TypeError`, as in Python. */
 export class ReadOnlyError extends TypeError {
   override name = "ReadOnlyError";

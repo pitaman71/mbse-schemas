@@ -220,7 +220,7 @@ A key's value is a bool, an int or text, so that `properties` is written bare (`
 would not be told apart from an int or text on the wire. Every store holds the path schemas, its own, as it holds its
 mutation schemas.
 
-A path has no shorthand: it is written as the nested value object it is, as any value is (mbse-basis P-019). The
+A path has no shorthand: it is written as the nested value object it is, as any value is (mbse-basis PRI-019). The
 definition the Ownership example places, on the wire, its unions tagged by branch:
 
 ```json
@@ -236,7 +236,7 @@ As the user decided (2026-10-16), on the questions put to them:
 
 1. A suffix is looked up by `as_instance`: "yes use as_instance". A suffix need not be an identifier (`FEA-001`, `Anna
    Baker`, a UUID), so `store.Instances.<path>.as_instance(suffix)` takes it as a string: the one place an object's
-   identity references it (mbse-basis P-015, Exceptions); the path is attributes. (How a path given as data reaches
+   identity references it (mbse-basis PRI-015, Exceptions); the path is attributes. (How a path given as data reaches
    `as_instance`, now that an identity is a path rather than a suffix, is open; see below.) (Superseded by 26: a path's
    step is looked up by calling its adjacency with the entry's keys.)
 2. Namespaces are modules: "Use Schemas.OfModule instead of Schemas.Namespace".
@@ -294,7 +294,7 @@ assumptions about reentrancy":
     values: `store.Instances.wts.Features.dir({ name: 'DEF-693' }).clauses({ name: 'C-1' })` (in Python,
     `.dir({'name': 'DEF-693'})`). `store.Instances.<singleton>` is the root; each call is one `Paths.OfEntry`.
 27. Lookup is on any adjacency ("on any adjacency I should think"), not only under `store.Instances`: an object's
-    adjacency called with a mapping of the entry's keys gives the object that entry links. And mbse-basis P-015
+    adjacency called with a mapping of the entry's keys gives the object that entry links. And mbse-basis PRI-015
     "reverts to its original form. Code expressions that name a reference object use Paths, not string lookup": its
     `as_instance` exception (1) is withdrawn.
 28. A lookup with keys no entry has raises: "adjacency is called with keys no entry has -> raise".

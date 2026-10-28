@@ -69,7 +69,7 @@ TypeScript core, the wire format (Modules and Plain through the meta-schemas, mo
 call sites, and the docs; phase 3, the old builders removed, the corpora regenerated, every gate passed.
 
 0. **Decisions recorded** (this document; FRAMEWORK.md, Resolved; mbse-expressions' EXPRESSIONS.md, Resolved;
-   mbse-basis V-025).
+   mbse-basis VOC-025).
 1. **Adjacencies that project**: `OfRelation.Data.keys(me)` and `key(me)`; an adjacency member stays a tuple (a frozen
    array) of its entries, with `project(name)` and `at(key)`; entries written sorted by their key; `Paths` reading
    `unique(S)` the right way round.
@@ -186,7 +186,7 @@ at least one time to make schema objects references. all of them.").
 
 - **Kinds.** `Schemas.OfScalar`, `OfObject`, `OfUnion`, `OfIntersection`, `OfContainer` and `OfAny` are the schemas of
   values: only such a schema is anything's schema, refined, indexed, contained or allowed. `OfRelation`, `OfPredicate`
-  and `OfModule` are not schemas of values (mbse-basis V-026: schema, never "type"). Every kind has the properties `name` and `description`, each kind declaring
+  and `OfModule` are not schemas of values (mbse-basis VOC-026: schema, never "type"). Every kind has the properties `name` and `description`, each kind declaring
   them itself (its `parameters` are `Parametrics`', an extension installed before use, since Store overhaul 4m;
   [Parametrics as a module](proposals/parametrics/README.md)): there are no abstract bases (`Schemas.Schema`, `Type` and `Typed` are gone since 0.17.0;
   [Store overhaul](proposals/store-overhaul/README.md), Decided, 20 and 21).

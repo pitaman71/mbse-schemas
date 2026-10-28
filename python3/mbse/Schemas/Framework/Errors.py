@@ -16,7 +16,7 @@ _IDENTIFIER = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*")
 
 
 class ReadOnlyError(TypeError):
-    """A write that a visitor's mode, or the value, forbids: refused, never silently lost (mbse-basis P-002)."""
+    """A write that a visitor's mode, or the value, forbids: refused, never silently lost (mbse-basis PRI-002)."""
 
 
 class DecodeError(ValueError):

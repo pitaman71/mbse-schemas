@@ -683,6 +683,11 @@ so that main stays current and no branch waits on another.
    `OfExpression` and `OfConstraint`, evaluates what the executor refuses (87), and redrafts its framework model (below);
    mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, moves to `OfPattern`
    (STREAMING_QUERIES.md). Each is proposed for the user's review when it starts.
+   As the user decided (2026-10-28), mbse-patterns is re-scoped, not ported as it stands ("mbse-patterns should be
+   rescoped as recommended"): what it did with predicates is mbse-schemas' `OfPattern` now, so it takes up what
+   TODO.md gives it beside them (generators, characterizers, patterns as distributions over constraints), proposed
+   when it starts. The order: mbse-expressions first, which the others depend on; then mbse-patterns and
+   mbse-programs; mbse-codegen-python last.
 
 ### Example: a transaction, as 4e would build it
 

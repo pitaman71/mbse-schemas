@@ -66,7 +66,7 @@ Specs.Callback[V in Visitors.Of*] = Visitors.DataType[V] | Callable[[V], V]
 - A visitor hands its mode to the child visitors it hands over (`<propName>`, `as_value`, `as_scalar`, `<adjName>`,
   `as_adjacencies`, ...); a value object is writable only under a builder that is constructing or cloning it; a link's
   target (`<linkName>`) is read-only through an entry (Seams).
-- A write through a read-only visitor raises: refuse, never silently lose (mbse-basis P-002).
+- A write through a read-only visitor raises: refuse, never silently lose (mbse-basis PRI-002).
 - Writer methods return nothing: a write that the visitor's mode, or the value itself, forbids raises. A write that
   loses nothing does not: inserting an entry equal to one a set relation holds elides it, and removing where no entry
   agrees removes nothing.

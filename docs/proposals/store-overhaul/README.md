@@ -15,7 +15,7 @@ elsewhere (below, "Decided here"), and cites those that are.
 - **Object identity** ([Object identity, Decided](../../OBJECT_IDENTITY.md#decided)): `Schema@Path/Suffix`, a module
   path (the schema by default) and a suffix, `Schema@` written only in `Exists` (Object identity, Decided, 8); `store.Instances.<path>
   .as_instance(suffix)`; `Schemas.OfIdentity` an object.
-- **P-015** (mbse-basis): a concrete reference is programmatic; `as_instance` "is the one and only one api location
+- **PRI-015** (mbse-basis): a concrete reference is programmatic; `as_instance` "is the one and only one api location
   where the identity of an object can be used to reference the object".
 
 ## Levels
@@ -89,7 +89,7 @@ As the user decided (2026-10-16), on the questions put to them:
     (`Schemas.OfScalar`), never level 3. (This revises "(b)", chosen when level 2 and 3 were not yet told apart.)
 15. **Reading a path gives the schema it names** ("yes"): `store.Schemas.OfInt` (level 1), `store.Schemas.OfScalar`
     (level 2); called, a path builds through it, as `store.Schemas.OfScalar(...)` does. So code links and extends
-    schemas without `Builders.Meta`, and with no string (P-015).
+    schemas without `Builders.Meta`, and with no string (PRI-015).
 16. **Code names a store's schema by the store's path**, "(a)": `.schema([store.Schemas.OfInt])`, each use naming its
     store, rather than a path rooted in no store.
 17. **One store, which registers by building**: asked what `register` does now and whether a store of proxies is still
@@ -106,7 +106,7 @@ As the user decided (2026-10-16), on the questions put to them:
     such a schema are ignored, each kept, with its path and why, in the list given to `Snapshot(log, ignored)`. What an
     extension builds is written and read like any schema; a member another schema lacks is still a malformed snapshot.
 20. **A schema's parameters are names only**, "Names only (Recommended)": a parameter is a declared name (`T`), a
-    symbol (P-015) standing for a schema; its `type` goes with the value parameters, which move to mbse-expressions, and
+    symbol (PRI-015) standing for a schema; its `type` goes with the value parameters, which move to mbse-expressions, and
     `Parameters.Bind` and `Parameters.Apply` (12) bind parameters later.
 21. **`Schemas.Meta` is deferred**, "Defer it (Recommended)": nothing reads level 3 yet, so 13 is built when something
     needs to name a meta-schema.
@@ -433,7 +433,7 @@ so that main stays current and no branch waits on another.
 
        `ToPlain(store).Transaction(tx)` writes one, `FromPlain(store).Transaction(plain)` builds its expression, which
        `store.transaction(...)` executes. A journal is a list of them, replayed by executing each in order.
-     - **The spec's verbs become the mutation schemas** (P-018: "ToPlain writes a log as it writes any value"): an
+     - **The spec's verbs become the mutation schemas** (PRI-018: "ToPlain writes a log as it writes any value"): an
        object's `as_property` and `as_adjacency`; an adjacency's `insert`, `remove` and `clear`; an entry's `as_link`
        and `as_property`; a link's `set` (a `ref` by symbol or path, or a `def`) and `clear`; and the value verbs as
        they are. The log's top-level verbs go (`exists`, `as_property` with its `ref`, a relation's `insert`, `remove`,
@@ -649,7 +649,7 @@ so that main stays current and no branch waits on another.
        DC is rewritten to the API (DC-03's gap closed), with DC-08 for the install.
      - evaluating expressions, a pattern's `requires` and variables, a branch's `requires`, a collecting reduce, which
        the executor refuses (87): step 5, in mbse-expressions, as 87 says;
-     - helpers that build models through the builders, which P-019 forbids ("Do not invent another DSL by wrapping
+     - helpers that build models through the builders, which PRI-019 forbids ("Do not invent another DSL by wrapping
        builder syntax"), beyond the schema helpers 4i-4 removes with installs: the corpus's data helpers (`_put`,
        `_write`), and test helpers that build mutations or data (MUT's `entry` and `spec`, and their kin): written out in
        fluent syntax, in 4i-4, beside the installs (done: the corpus's, University's and the test suites');

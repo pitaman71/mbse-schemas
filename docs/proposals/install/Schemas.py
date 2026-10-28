@@ -1,7 +1,7 @@
 """Schemas: schema elements (a draft of 4i, for review; see README.md beside it).
 
 What changes: the plain schemas of schemas (level 2) and the basic scalars, which `Builders._plain()` builds today, are
-defined here, by `install(txn)`, written in the builders' fluent syntax (P-019). Level 3, the dataclasses below
+defined here, by `install(txn)`, written in the builders' fluent syntax (PRI-019). Level 3, the dataclasses below
 (`OfObject.Data`, ...), is unchanged.
 """
 

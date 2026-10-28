@@ -658,7 +658,7 @@ resolving constraints.
 
 ### Built
 
-- **`Schemas.OfParameter` is an element**, like a property: a `name` and a `description`, a symbol (mbse-basis P-015)
+- **`Schemas.OfParameter` is an element**, like a property: a `name` and a `description`, a symbol (mbse-basis PRI-015)
   standing for what is bound where the definition is referred to (Store overhaul, Decided, 20: "Names only"). It is not
   a kind of schema, since no property's value is a parameter; a parameter compares by what it holds.
 - **`Parametrics`, installed before use** (`store.transaction(Parametrics.install)`; Store overhaul 4m): a set of
@@ -904,7 +904,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - `Catalog.schema` names the kind it refuses: "'X' is a pattern; no pattern builder is exposed", "a value schema"
     for a union, an intersection or a container.
 - **Schema, never "type"** (0.19.0; [Store overhaul, Decided, 24](proposals/store-overhaul/README.md#decided-here);
-  mbse-basis V-026), as the user decided: "the term "type" has no meaning in mbse-*". What has a schema names it
+  mbse-basis VOC-026), as the user decided: "the term "type" has no meaning in mbse-*". What has a schema names it
   `schema`: `.schema([X])` (a property, a symbol, a branch, a part), the data's `schema` field, `OfAny`'s `schemas`, and
   `Schemas.HasSchema` linking `member` to `schema` (`Schemas.Typing`, linking `typed` to `schema`, until then); the
   messages say schema ("a reference object schema cannot be a property's schema", "a value of any schema"), and a
@@ -928,7 +928,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 - **Parameters are names only** (0.17.0; [Store overhaul, Decided, 20 and
   21](proposals/store-overhaul/README.md#decided-here)), as the user decided. A schema's parameters are "Names only
-  (Recommended)": a parameter is a declared name, a symbol (mbse-basis P-015) standing for a schema; its `type` goes
+  (Recommended)": a parameter is a declared name, a symbol (mbse-basis PRI-015) standing for a schema; its `type` goes
   with the value parameters, which move to mbse-expressions, and `Parameters.Bind` and `Parameters.Apply` (Store
   overhaul, Decided, 12) bind parameters later. `Schemas.Meta` is "Defer it (Recommended)": nothing reads level 3
   yet. Carried out with [Schema extension](SCHEMA_EXTENSION.md), Decided, 5 to 7 (`requires` "moves out of
@@ -1053,7 +1053,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     "apply arguments is probably an adjacency because expression terms are ref objects".
 
 - **Refinement, identities and relations** (2026-10-14), as the user decided, for mbse-expressions' framework and
-  dialects as model (mbse-basis P-018):
+  dialects as model (mbse-basis PRI-018):
   - refinement: the user is "open to adding Schemas.Refines as a relation all its own"; "Refinement across the scalar
     vs. container vs. object boundary fails validation"; an "instance of a refinement is an instance of what it
     refines"; "narrowing allowed if it can be statically confirmed by validation". A one-part intersection, which the
@@ -1338,7 +1338,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     `insert`, `remove`), whose `remove` removes "all that match"; relation operations are the visitor protocol's, not
     an expression dialect's ("Relation operators do not belong in Expressions.Basic. They never did");
   - anything that has a builder has a `Spec`, "a callable taking and returning that builder", or "an instance of the
-    built object" (mbse-basis P-004, amended);
+    built object" (mbse-basis PRI-004, amended);
   - `OfScalar` "completely displaces" `OfNative`, in `Schemas` and `Visitors`: a module writes `{"scalar": {"format":
     ..., "token": ...}}` (superseded since 0.18.0: a scalar has no token; Store overhaul, Decided, 22);
   - a reference object is named by its global name if it has one, otherwise by "a UUID on creation by `.create()` or
@@ -1368,7 +1368,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
   - a predicate's `requires` is one `Schemas.Form` ("one form"; Superseded by Parameters are names only (0.17.0): `requires` is mbse-patterns').
   - a member is written by calling it, never by assignment: "refuse all direct writes to properties and adjacencies"
     on a builder, as on a data instance, so that assigning to any visitor's member raises `AttributeError` in both
-    languages rather than being silently lost (mbse-basis P-002);
+    languages rather than being silently lost (mbse-basis PRI-002);
   - scalar equality stays idiomatic, the user's concern being "the loss of language-idiomatic equality between scalars
     including strings", and their decision the recommendation they accepted ("I accept your recommendation"): in Python
     a scalar visitor compares, orders and hashes as its value (`card.name == "Ada"`, `card.age < 40`), sugar over
@@ -1383,7 +1383,7 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     and every callback is always called ("If they don't always call the callback, there is no way to set the value"),
     the visitor it is given reporting an absent value, or a value of another kind, as empty.
 
-  It supersedes: mbse-basis P-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
+  It supersedes: mbse-basis PRI-004 as it stood (amended); here, "Objects outside snapshots are named by paths (0.8.2)",
   The meta-schemas overhaul's "we can keep paths", and decision C in mbse-expressions; and, in the sections above, what
   the reverse protocol built (`accept`, `Plain`'s writers and `Validators`' and `Comparison`'s recorders implementing
   `Visitors`, `Bindings.accept`, `Reflection`'s `accept`), value objects that links target, and `Paths`. It is built:

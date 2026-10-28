@@ -7,7 +7,7 @@ created, and its spec written where it does not hold. Run again, an install find
 given more, it extends it.
 
 The two drafts beside this file show the framework's own modules in that form, each schema written out in the
-builders' fluent syntax (mbse-basis P-019: "Do not invent another DSL by wrapping builder syntax"), with no helper that
+builders' fluent syntax (mbse-basis PRI-019: "Do not invent another DSL by wrapping builder syntax"), with no helper that
 builds part of the model and no table that generates it:
 
 - [Schemas.py](Schemas.py): the plain schemas of schemas (level 2) and the basic scalars, which `Builders._plain()`
@@ -157,7 +157,7 @@ behind, so that moving them to installs means porting them to the store first:
     (`crm.Reach`, `crm.Stamps`). Converted by three agents from a brief and tutorial 1, reviewed and re-executed.
   - the test suites, in both languages: each suite's shared fixture an install, each case's own schemas an install in
     its cell, run with `store.transaction(install)` and read back with `store.registered`; helpers that built schemas
-    or data through the builders written out at each use (P-019). What stays imperative is what an install cannot do or
+    or data through the builders written out at each use (PRI-019). What stays imperative is what an install cannot do or
     a passage about the builders themselves (Decided, 6): a builder's refusal, a clone, a rename, a schema a case builds
     wrong on purpose or with no name and no link, and SCH's cases; BLD and STO keep the builders, their fixtures
     installs. A schema with no name of its own that a case used standalone is named where an install has to find it
@@ -165,7 +165,7 @@ behind, so that moving them to installs means porting them to the store first:
   - a definition is made by the builder that the adjacency linking it declares, where that builder builds its kind, as
     a builder's member makes one: a pattern's `requires` makes a constraint, whose result is the store's `Schemas.OfBool`
     (INS-02).
-  - the corpus's data helpers (`_put`, `_write`) and University's `enroll` written out (P-019): a container's elements
+  - the corpus's data helpers (`_put`, `_write`) and University's `enroll` written out (PRI-019): a container's elements
     given to its property as a list, or a mapping by index, each a callback writing it through its `Visitors.OfAny`
     (VISITOR_PATTERN.md, the iterable shorthand), as the user pointed out ("Why would we need to invent any syntax? I
     think these already work"). The corpora are unchanged, byte for byte.

@@ -21,7 +21,7 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 - **One vocabulary across the mbse repositories.** A kind's or schema's named members are *properties*, never
   "fields" (a field is only the host language's class member that holds one), and what describes a value is its
-  *schema*, never its "type" (a type is only the host language's, qualified as such; mbse-basis V-026). An element
+  *schema*, never its "type" (a type is only the host language's, qualified as such; mbse-basis VOC-026). An element
   of an expression tree is a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a
   bare "node" in code, docs or messages. What a specification requires is a *constraint*, never a "rule"; a constraint is checked,
   resolved or generated from, never executed ([MBSE.md, What a specification is made

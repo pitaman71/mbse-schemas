@@ -173,6 +173,8 @@ A transaction's frame stream starts as one frame, empty, the cross product of no
 
 Normally the symbols and variables injected by every ancestor term in a mutation expression (`OfMap`, `OfReduce`, `OfUpsert`'s `exists`) are accumulated during recursive evaluation and passed through to descendants. There are three mutation kinds which route and/or multiplex the frame stream: `Mutations.OfPartition`, `Mutations.OfMap`, and `Mutations.OfReduce`
 
+Map and reduce are meant in MapReduce's sense, so that a transaction can be sharded and run in parallel ([Object identity](OBJECT_IDENTITY.md), Decided, 52 to 57): a map works on each frame alone, emitting zero or more, and may be sharded freely; a reduce groups frames by what remains bound to them and folds each group with a collector that is commutative or associative, as MapReduce's reduce and combiner do, so that partial folds combine across shards.
+
 `Mutations.OfMap` programmatically expands each frame in the consumed frame stream into zero or more frames in the produced frame stream. 
 
 ```python

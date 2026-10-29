@@ -66,7 +66,7 @@ twin = store.crm.Person(ada)                                   # clone
   sets `ref`: write `.ref(True)` too). An int width is `[B.Form.Builder().kind("literal").attributes({"value": 8}).create()]`.
 - `S.OfScalar.Data(int)` and the other `S.OfX.Data` constructors remain, unchanged.
 
-## Formatting (mbse-basis P-019)
+## Formatting (mbse-basis PRI-019)
 
 Models as data are written in fluent builder syntax, never wire format or pseudocode. In notebooks and examples: wrap a
 builder chain in parentheses, one clause per line, one item per line in a list with a trailing comma; a short chain may

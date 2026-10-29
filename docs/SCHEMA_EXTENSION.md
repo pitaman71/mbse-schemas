@@ -53,7 +53,7 @@ What the check would accept and refuse:
 - **Names:** an added member may not take a name the schema already has, its inherited members included (through
   `refines`), nor one another extension added, nor one a schema refining it declares (a refinement inherits the
   extension).
-- **Existing objects** gain the member, absent until written. In declaration order (mbse-basis P-001) added members
+- **Existing objects** gain the member, absent until written. In declaration order (mbse-basis PRI-001) added members
   follow the schema's own, in the order they were added.
 - **Per process.** An extension modifies the extended schema itself, framework schemas included
   (`Builders.Meta.Scalar`, one object every store in the process shares), so it holds for every store in the process.
@@ -184,7 +184,7 @@ As the user decided (2026-10-15), on the questions put to them:
    As built, for 5 to 7: since 0.17.0 mbse-schemas has no `requires`, `OfApply`, arguments, terms or `Form`, nor
    widths (Store overhaul, Step 2, as built); their homes in mbse-expressions and mbse-patterns are still to be built.
 8. Scalar values, formal parameters and intrinsics: see section 2.
-9. "printers and parsers go through Visitor just like everything else" (mbse-basis P-018); only intrinsics'
+9. "printers and parsers go through Visitor just like everything else" (mbse-basis PRI-018); only intrinsics'
    implementations are code, each found through its named reference object (`AsIntrinsic`).
 10. "free variables are just free variables": each dialect (Python, Excel, MATLAB, ...) "selectively permit[s] access
     to global context by free vars".

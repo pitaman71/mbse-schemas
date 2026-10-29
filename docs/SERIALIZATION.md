@@ -10,7 +10,7 @@
 
 ## Mutations : Implementation
 
-- Mutations are schema-governed like everything else (P-018): each verb and noun has a meta-schema, and ToPlain writes
+- Mutations are schema-governed like everything else (PRI-018): each verb and noun has a meta-schema, and ToPlain writes
   them as it writes any value.
 - `Mutations/OfX.{py,ts}` must be built as the first step and can be tested as a unit.
 - then the snapshot, two transactions (Snapshots, below)

@@ -120,8 +120,52 @@ function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
   return found.length > 0 ? [true, found[0] as PlainData] : [false, null];
 }
 
-/** A value of any schema as plain data, and whether there is one: restricted, written bare as the schema it holds;
- * unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name. */
+/** The kinds a restricted `OfAny`'s value is wrapped by, `{kind: {schema: value}}`, each by its name on the wire. */
+const WRAPPERS: [Function, string][] = [[Schemas.OfScalar.Data, "scalar"], [Schemas.OfObject.Data, "object"],
+  [Schemas.OfUnion.Data, "union"], [Schemas.OfIntersection.Data, "intersection"], [Schemas.OfContainer.Data, "container"]];
+const KIND_NAMES = sortedStrings(WRAPPERS.map(([, name]) => name));
+
+/** The name of the kind a restricted `OfAny`'s value is wrapped by. */
+function kindOf(schema: unknown): string {
+  return (WRAPPERS.find(([kind]) => schema instanceof kind) as [Function, string])[1];
+}
+
+/** Whether plain data reads as a restricted `OfAny`'s wrapper: a mapping of one key, a kind's name. */
+function isWrapper(plain: unknown): boolean {
+  return plain instanceof Map && plain.size === 1 && KIND_NAMES.includes([...plain.keys()][0] as string);
+}
+
+/** The schemas of a restricted `OfAny` that take the plain form of `plain`, written bare. */
+function fitting(schema: Schemas.OfAny.Value, plain: unknown): unknown[] {
+  const form = formOf(plain);
+  return schema.schemas.filter((t) => form !== null && Schemas.plain_forms(t).has(form));
+}
+
+/** The registered name of a value's schema, which a value of any schema is tagged or wrapped by. */
+function registeredName(ref: Ref, own: any): string {
+  try {
+    return (ref.store as Visitors.OfStore).name_of(own);
+  } catch { // a store's name_of refuses an unregistered schema
+    throw new TypeError(`a value of any schema is of a registered schema; ${repr(own.name)} is not registered`);
+  }
+}
+
+/** A restricted `OfAny`'s value, of its schema `own`, written as `plain`: bare where that is the shorthand, exactly one
+ * of its schemas taking that plain form, and it does not read as a wrapper; else wrapped by its kind and schema, a
+ * scalar by its tag (`{"scalar": {"str": "x"}}`), a container by its kind only where it is the one container schema
+ * (`{"container": [...]}`), any other by its registered name (`{"object": {"crm.Phone": {...}}}`). */
+function wrapped(schema: Schemas.OfAny.Value, own: any, plain: PlainData, ref: Ref): PlainData {
+  if (fitting(schema, plain).length === 1 && !isWrapper(plain)) return plain;
+  const kind = kindOf(own);
+  if (kind === "scalar") return new Map([[kind, new Map([[own.tag as string, plain]])]]);
+  if (kind === "container" && schema.schemas.filter((t) => t instanceof Schemas.OfContainer.Data).length === 1) {
+    return new Map([[kind, plain]]);
+  }
+  return new Map([[kind, new Map([[registeredName(ref, own), plain]])]]);
+}
+
+/** A value of any schema as plain data, and whether there is one: restricted, as the schema it holds, bare or wrapped
+ * (`wrapped`); unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name. */
 function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, PlainData] {
   const found: any[] = [];
   read.as_scalar((s: any) => {
@@ -145,17 +189,11 @@ function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, P
     if (own === undefined) { // builders do not check scalars' values; proxies refuse a value of another schema
       throw new TypeError(`a value of any schema holds one of its schemas; ${typeName(value)} is not one`);
     }
-    return anyValue(read, own, ref);
+    return [true, wrapped(schema, own, anyValue(read, own, ref)[1], ref)];
   }
   const own = value.as_schema();
-  if (restricted.length > 0) return [true, anyValue(read, own, ref)[1]];
-  let name: string;
-  try {
-    name = (ref.store as Visitors.OfStore).name_of(own);
-  } catch { // a store's name_of refuses an unregistered schema
-    throw new TypeError(`a value of any schema is of a registered schema; ${repr(own.name)} is not registered`);
-  }
-  return [true, new Map([[name, anyValue(read, own, ref)[1]]])];
+  if (restricted.length > 0) return [true, wrapped(schema, own, anyValue(read, own, ref)[1], ref)];
+  return [true, new Map([[registeredName(ref, own), anyValue(read, own, ref)[1]]])];
 }
 
 /** The names of a container's int indices, where its index is a value object of ints; null otherwise. */
@@ -569,8 +607,8 @@ class DecodedRecord {
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 }
 
-/** A decoded value of an unrestricted `OfAny`'s registered schema, `name`: built standalone, through the store's
- * builder, and assigned as a value. */
+/** A decoded value of an `OfAny`'s registered schema, `name`, unrestricted or restricted to others of its kind: built
+ * standalone, through the store's builder, and assigned as a value. */
 class Assigned {
   constructor(readonly name: string, readonly value: unknown, readonly store: Visitors.OfStore) {}
 
@@ -632,18 +670,69 @@ function formOf(plain: unknown): string | null {
   return Array.isArray(plain) ? "list" : null;
 }
 
-/** A value of any schema: restricted, of the one schema whose plain form it takes; unrestricted, a mapping of its schema, a
- * basic scalar's tag or a schema's registered name, to its value. */
-function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Visitors.OfStore | null): unknown {
-  if (schema.schemas.length > 0) {
-    const form = formOf(plain);
-    const fits = schema.schemas.filter((t) => form !== null && Schemas.plain_forms(t).has(form));
-    if (fits.length !== 1) {
-      throw new DecodeError(`a value of any schema takes the plain form of one of its schemas, got ${typeName(plain)}`,
-        { path: path(...where) });
-    }
-    return decode(fits[0] as Schemas.OfAny.Data, plain, where, store);
+/** The name a restricted `OfAny`'s wrapper names one of its schemas by: a scalar's tag, else its registered name; null
+ * where it has none. */
+function named(schema: unknown, store: Visitors.OfStore | null): string | null {
+  if (schema instanceof Schemas.OfScalar.Data) return schema.tag;
+  try {
+    return (store as Visitors.OfStore).name_of(schema);
+  } catch { // a store's name_of refuses an unregistered schema
+    return null;
   }
+}
+
+/** A restricted `OfAny`'s value, decoded as its schema `held`: where the restriction holds other schemas of its kind,
+ * which a Spec would not tell apart, built standalone through the store's builder of its registered name and assigned as
+ * a value. */
+function restricted(schema: Schemas.OfAny.Value, held: unknown, decoded: unknown, store: Visitors.OfStore | null): unknown {
+  if (held instanceof Schemas.OfScalar.Data || schema.schemas.filter((t) => kindOf(t) === kindOf(held)).length === 1) {
+    return decoded;
+  }
+  const name = named(held, store);
+  return name === null ? decoded : new Assigned(name, decoded, store as Visitors.OfStore);
+}
+
+/** A restricted `OfAny`'s value, never guessed: wrapped, of the schema its kind and name give, which must be one of its
+ * schemas; bare, the shorthand, only where exactly one of its schemas takes its plain form. */
+function decodeRestricted(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Visitors.OfStore | null): unknown {
+  if (isWrapper(plain)) {
+    const [kind, body] = [...(plain as PlainMap)][0] as [string, unknown];
+    const ofKind = schema.schemas.filter((t) => kindOf(t) === kind);
+    if (ofKind.length === 0) {
+      throw new DecodeError(`no ${kind} schema is one of this value's schemas`, { path: path(...where, kind) });
+    }
+    if (kind === "container" && ofKind.length === 1) return decode(ofKind[0] as Schemas.OfAny.Data, body, [...where, kind], store);
+    if (!(body instanceof Map) || body.size !== 1) {
+      throw new DecodeError(`a value wrapped as ${repr(kind)} is {schema: value}`, { path: path(...where, kind) });
+    }
+    const [name, value] = [...body][0] as [string, unknown];
+    const held = ofKind.find((t) => named(t, store) === name);
+    if (held === undefined) {
+      throw new DecodeError(`${repr(name)} is not one of this value's ${kind} schemas`, { path: path(...where, kind, name) });
+    }
+    return restricted(schema, held, decode(held as Schemas.OfAny.Data, value, [...where, kind, name], store), store);
+  }
+  const fits = fitting(schema, plain);
+  if (plain instanceof Map && plain.size === 1 && fits.length === 0) {
+    throw new DecodeError(`a value of any schema is wrapped by its kind, one of ${repr(KIND_NAMES)}, got ${repr([...plain.keys()][0])}`,
+      { path: path(...where) });
+  }
+  if (fits.length > 1) {
+    throw new DecodeError(`several of this value's schemas take a bare ${typeName(plain)}: it is wrapped by its kind and schema, never guessed`,
+      { path: path(...where) });
+  }
+  if (fits.length === 0) {
+    throw new DecodeError(`a value of any schema takes the plain form of one of its schemas, got ${typeName(plain)}`,
+      { path: path(...where) });
+  }
+  return restricted(schema, fits[0], decode(fits[0] as Schemas.OfAny.Data, plain, where, store), store);
+}
+
+/** A value of any schema: restricted, wrapped by its kind and schema or bare where that is unambiguous
+ * (`decodeRestricted`); unrestricted, a mapping of its schema, a basic scalar's tag or a schema's registered name, to its
+ * value. */
+function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Visitors.OfStore | null): unknown {
+  if (schema.schemas.length > 0) return decodeRestricted(schema, plain, where, store);
   if (!(plain instanceof Map) || plain.size !== 1) {
     throw new DecodeError("a value of any schema is {schema: value}, its schema a basic scalar's tag or a registered schema's name",
       { path: path(...where) });

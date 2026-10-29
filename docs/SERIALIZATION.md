@@ -181,6 +181,31 @@ gives what holds of each.
   read, so that each read makes new counted objects; one under a uid, read again while what it made is held, finds
   those (Decided, 102). Its spec is checked against its symbols' schemas before it runs.
 
+## A restricted `OfAny` on the wire
+
+A value of an `OfAny` restricted to several schemas is never guessed from the shape of its data (FRAMEWORK.md,
+Resolved, "A restricted `OfAny` never guesses its schema"; mbse-basis PRI-025, PRI-026, CAP-069, CAP-070). It is
+written wrapped by its kind, then its schema:
+
+| Kind | Wrapped | Bare, the shorthand |
+|---|---|---|
+| a scalar, by its basic scalar's tag | `{"scalar": {"str": "x"}}`, `{"scalar": {"bytes": "AQ=="}}`, `{"scalar": {"float": "NaN"}}` | `1`, `1.5`, `true` |
+| a value object, by its registered name | `{"object": {"crm.Phone": {"number": "+44"}}}` | `{"number": "+44"}` |
+| a union value, an intersection value | `{"union": {"Code": {"n": 2}}}`, `{"intersection": {"Stamp": {...}}}` | `{"n": 2}` |
+| a container, the restriction's one container schema | `{"container": ["dog", "cat"]}` | `["dog", "cat"]` |
+| a container, one of several | `{"container": {"Tags": ["dog", "cat"]}}` | `["dog", "cat"]` |
+
+- The writer writes the bare shorthand where exactly one of the restriction's schemas takes the plain form written
+  (`Schemas.plain_forms`: a float may be text, `"NaN"`; bytes are base64 text; a dense tensor may be a mapping), and
+  that form does not read as a wrapper (a mapping of one key, `scalar`, `object`, `union`, `intersection` or
+  `container`); otherwise the wrapper. Among Bool, Int, Float, Str and Bytes, `1`, `1.5` and `true` are bare, and
+  text, bytes and a non-finite float wrapped.
+- The reader, knowing the expected schema, always accepts the wrapper, whose kind and schema must be of the
+  restriction, and accepts the bare shorthand only where exactly one of the restriction's schemas takes its plain
+  form; anything else is refused, at its path, never guessed.
+- An unrestricted `OfAny` is unchanged (mbse-basis CAP-071, not designed): its value is tagged by one level,
+  `{"int": 1}`, `{"crm.Phone": {...}}`.
+
 ## Order : Subsequent Snapshots
 
 In anticipation for journal formatting, a stateful instance of ToPlain may be retainable. Subsequent snapshots can be sent as mutation logs without having to re-send modules and schemas. As built, a journal is a list of transactions, as submitted (Transactions on the wire, above).

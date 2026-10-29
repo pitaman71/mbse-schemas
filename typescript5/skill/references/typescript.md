@@ -138,7 +138,7 @@ store.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").sc
 store.Schemas.OfContainer((c: any) => c.index([Int]).element([Text]));   // a list: a container by position, a property's schema
 store.Schemas.OfContainer((c: any) => c.index([Cell]).element([Float]).layout("sparse"));  // a tensor by a value object of ints
 obj.tags.as_value((v: any) => v.as_container((c: any) => c.at(0n)));  // elements by index, each a Visitors.OfAny
-store.Schemas.OfAny((a: any) => a.schemas([Int, Phone]));      // a value of any of these schemas, written bare; none: any
+store.Schemas.OfAny((a: any) => a.schemas([Int, Phone]));      // a value of any of these schemas: bare where one fits it, else {"object": {"Phone": ...}}; none: any
 store.Phone((p: any) => p.number("1"));                    // a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate();                                         // the schema's own problems, [] when valid
 

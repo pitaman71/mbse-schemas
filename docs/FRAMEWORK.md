@@ -19,7 +19,9 @@ proxies as the in-memory representation.
 The schema elements include:
 
 - `OfAny` : where a schema of any kind is expected; `Schemas.OfAny.Value`, the kind of a value of any schema, unrestricted
-            or restricted to the schemas an `OfAny.Builder` selects (Resolved, "`OfAny` returns")
+            or restricted to the schemas an `OfAny.Builder` selects (Resolved, "`OfAny` returns"), its value wrapped on
+            the wire by its kind and schema where a bare one would be ambiguous (Resolved, "A restricted `OfAny` never
+            guesses its schema")
 - `OfScalar` : a scalar value, of one of the five basic scalars a store holds, `Schemas.OfBool`, `Schemas.OfInt`,
                `Schemas.OfFloat`, `Schemas.OfStr` and `Schemas.OfBytes` (see Scalars below). In Python their
                host types are `bool`, `int`, `float`, `str` and `bytes`.
@@ -783,6 +785,67 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **A restricted `OfAny` never guesses its schema** (0.26.3), as the user decided, in mbse-basis
+  [PRI-025: never guess the schema](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-025), [PRI-026: serialization through the visitor
+  protocol](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-026), [CAP-069: wire format shorthand
+  (scalars)](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md#CAP-069) and [CAP-070: wire format shorthand
+  (containers)](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md#CAP-070). The rules, every point of them:
+  1. "Never guess the schema": what a value is, is never inferred from the shape of its data. A reader tracks the
+     expected schema as context while traversing wire data, and the wire names a value's schema wherever that context
+     leaves it open (PRI-025).
+  2. "serialization is handled via visitor protocol", and a reader tracks the expected schema as context while
+     traversing wire data. "The wire format *usually* tracks each recursion by the writer while traversing in-memory
+     data which has the effect of wrapping unions explicitly. Shorthands permit these wrappers to be skipped in cases
+     where the correct behavior can be unambiguously and trivially inferred from context by a reader that already
+     knows the expected schema. This makes the format more concise and resilient to errors from humans and agents in
+     the loop." (PRI-026)
+  3. "in the scalar case of a `Schemas.OfAny` that represents a specific scalar (such as `Schemas.OfScalar` ->
+     `Schemas.OfInt`) the wire format may omit the implied union wrapper(s) e.g. `1` instead of
+     `{ "scalar": { "int": 1 } }` provided the written form unambiguously aligns with the schema (e.g. `scalar` -> `int`)
+     and the reader must tolerate this optionality of representation": from `OfAny` through `OfScalar` to `OfInt`, "up
+     to 2 wrapper levels" (CAP-069).
+  4. "in the container case of a `Schemas.OfAny` that represents a specific container (e.g. `Schemas.OfContainer`)
+     the wire format may omit the implied union wrapper `[ "dog", "cat", "mouse" ]` instead of
+     `{ "container": [ "dog", "cat", "mouse" ] }` and the reader must tolerate this optionality of representation"
+     (CAP-070).
+  5. An unrestricted `OfAny` ([CAP-071](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md#CAP-071)) is not designed, and is left as
+     it was: tagged by one level, `{"int": 1}`, `{"Phone": {...}}`.
+
+  As built, for an `OfAny` restricted to any number of schemas, of any kinds ([Serialization, A restricted `OfAny` on
+  the wire](SERIALIZATION.md#a-restricted-ofany-on-the-wire)):
+  - **The writer** wraps a value by its kind, then its schema: `{"scalar": {"str": "x"}}`,
+    `{"object": {"crm.Phone": {...}}}`, `{"union": {"Code": {...}}}`, `{"intersection": {"Stamp": {...}}}`, a scalar
+    named by its basic scalar's tag and any other schema by its registered name; unless the shorthand is trivially
+    unambiguous: exactly one of the restriction's schemas takes the plain form written (`Schemas.plain_forms`), so
+    that `1`, `1.5` and `true` stay bare among Bool, Int, Float, Str and Bytes, while `"x"`, bytes (base64 text) and a
+    non-finite float (`"NaN"`) are wrapped; and the bare form does not itself read as a wrapper (a mapping of one key,
+    a kind's name: a value object whose one property is `object` is wrapped). Path keys (Bool, Int, Str) stay bare,
+    and no corpus changed.
+  - **The kind names** are `scalar`, `object`, `union`, `intersection` and `container`, `Visitors.OfAny`'s
+    `as_<kind>` without `as_`, as CAP-069 and CAP-070 name two of them.
+  - **A container**: CAP-070's example omits the schema level, `{"container": [...]}`; that form is written where
+    the restriction leaves one container schema, and where it holds several, the schema is wrapped too,
+    `{"container": {"Tags": [...]}}`. Every other kind always names its schema, as CAP-069 has
+    `{"scalar": {"int": 1}}`.
+  - **The reader**, knowing the expected schema, always accepts the wrapper, checking that its kind and schema are of
+    the restriction, and accepts the bare shorthand only where exactly one of the restriction's schemas takes its
+    plain form; otherwise it refuses, never guessing, with these messages, identical in both languages, at the path of
+    the value: "several of this value's schemas take a bare str: it is wrapped by its kind and schema, never guessed";
+    "a value of any schema takes the plain form of one of its schemas, got list"; "a value of any schema is wrapped by
+    its kind, one of ['container', 'intersection', 'object', 'scalar', 'union'], got 'tensor'" (a mapping of one key
+    where none of its schemas is a mapping); "no object schema is one of this value's schemas"; "'Cell' is not one of
+    this value's object schemas"; "a value wrapped as 'union' is {schema: value}".
+  - A value read as one of several schemas of its kind is built standalone, through the store's builder of its
+    registered name, and assigned as a value, as an unrestricted `OfAny`'s is, since a Spec would not tell which of
+    them to build (this also reads a bare list where the restriction holds a list and a dict by text).
+  - **Validation** no longer refuses a restriction whose schemas share a plain form: the wrapper tells them apart.
+    This supersedes, in "`OfAny` returns" below, "a restricted one is invalid where two of its types share a plain
+    form that cannot be told apart"; "a value is written bare where only one of those types fits its plain form,
+    tagged otherwise" (now wrapped by kind and schema, not tagged by schema alone); and "where the restriction leaves
+    one object schema the value can be, it is written bare" (now bare where that schema is the only one taking a
+    mapping). A value of a schema of no name that would have to be wrapped by its schema is refused when written, as
+    an unrestricted `OfAny`'s is ("a value of any schema is of a registered schema").
+
 - **Provenance** ([Provenance](proposals/provenance/README.md)), as the user decided (2026-10-26), from the
   proposal "I believe adding `Schemas.OfTransaction` will allow the services to handle almost all of transaction
   bookkeeping, provided locale and/or geolocation provided by the UI for transactions executed for an interactive
@@ -1182,22 +1245,25 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     inferred from its schema, in which case wrapping the value over the wire is just wasted characters", the
     situation being, of those put to the user, "(b)": an `OfAny` may be restricted to a set of types
     (`t.as_scalar(int).as_scalar(str).as_object(Phone)`), and a value is written bare where only one of those types
-    fits its plain form, tagged otherwise;
+    fits its plain form, tagged otherwise (*superseded*: wrapped by its kind and schema, Resolved, "A restricted
+    `OfAny` never guesses its schema");
   - "a value object of any [type] must be a registered schema", so that its name can be written and read back;
   - values of any type compare and validate under the kind and type they hold: equal only under the same kind and
     type, otherwise incomparable, as Equality has values of different kinds; validation checks each value against
     the kind it says it is ("yes");
   - an unrestricted `OfAny` always tags, since every type is possible ("yes");
   - a restricted one is invalid where two of its types share a plain form that cannot be told apart, as a flat union
-    is where its branches are not told apart by type ("yes");
+    is where its branches are not told apart by type ("yes"; *superseded*: valid, the wrapper tells them apart,
+    Resolved, "A restricted `OfAny` never guesses its schema");
   - a value of a type outside the restriction is refused when written and when read ("yes - but for open-world, which
     we are not yet undertaking, this would require different handling");
   - a value object is tagged by its schema's registered name, `{"crm.Phone": {...}}`, as a scalar is by its token's
     name (since 0.18.0, its basic scalar's tag), but "only when the value object's schema is not clear from the parent schema": where the restriction leaves
-    one object schema the value can be, it is written bare.
+    one object schema the value can be, it is written bare (*superseded*: bare where that schema is the only one
+    taking a mapping, Resolved, "A restricted `OfAny` never guesses its schema").
   - "The common case is that a schema path through OfAny will already be configured with a subschema before any
-    objects are created with that schema": a restricted `OfAny`, whose values are written bare and built through the
-    visitors as any value of their type is, with nothing added to them. "The idea of assigning a value to OfAny where
+    objects are created with that schema": a restricted `OfAny`, whose values are written bare (where unambiguous,
+    since 0.26.3) and built through the visitors as any value of their type is, with nothing added to them. "The idea of assigning a value to OfAny where
     that schema has not yet been restricted has secondary value as a step towards open-world, which we are not fully
     undertaking at this time"; it "does require tagging over the wire and extra arguments or fluent clauses along the
     way. But be careful not to clutter the api supporting this secondary scenario": an unrestricted `OfAny` takes a

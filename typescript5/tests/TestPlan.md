@@ -61,7 +61,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 4 | as in Python |
 | `23_Containers.ipynb` | CNT | 7 | as in Python; an index of several ints is an array, `[1n, 2n]`, not a tuple; a container's size is `length`, not `len()`; the writer's option is `ToPlain(store, { flat: true })` |
-| `24_Any.ipynb` | ANY | 5 | as in Python; `OfAny.Value` is constructed with an array of schemas, `new S.OfAny.Value([Int], { description })` |
+| `24_Any.ipynb` | ANY | 6 | as in Python; `OfAny.Value` is constructed with an array of schemas, `new S.OfAny.Value([Int], { description })` |
 | `25_Builders.ipynb` | BLD | 13 | as in Python; builders, their members and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; a name starting with `_` reads as `undefined` on a visitor, and throws `AttributeError` on the store and its paths, whose protocol probes read as `undefined`; a path's `as_schema()` gives the schema it names; a map is given as a `Map` or a record; a schema object in a message is `<ScalarData object>`; a few assertions cover TypeScript's branches (a clause of one name beside a clause of several, removing by a template of container properties, a meta-schema missing, a link given a link, a term of a dialect, a refinement's own index, an argument for an undeclared parameter, an unnamed relation of three links, a visitor's default `repr`) |
 | `26_Mutations.ipynb` | MUT | 6 | as in Python; a link's `def` is spelt `.def`, which Python reaches through `getattr`; plain mappings are `Map`s, ints `bigint`s, and `Mutations.SCHEMAS` is an array |
 | `27_Snapshots.ipynb` | SNP | 5 | as in Python; builders and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; plain mappings are `Map`s, ints `bigint`s; a snapshot written again is compared as its JSON text, `unique` clauses as sorted lists |
@@ -73,7 +73,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `33_References.ipynb` | REF | 9 | as in Python; a frame is a `Map`, and `resolve` gives `null` where Python gives None |
 | `34_Provenance.ipynb` | PRV | 11 | as in Python; a frame is a `Map`, and an unset property reads as `null` or `undefined` where Python reads None |
 
-Total: 266 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
+Total: 267 cases, the sum of the rows above, with the same IDs in the same order as the Python suites. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

@@ -81,9 +81,46 @@ def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[boo
     return (True, found[0]) if found else (False, None)
 
 
+_WRAPPERS = ((Schemas.OfScalar.Data, "scalar"), (Schemas.OfObject.Data, "object"), (Schemas.OfUnion.Data, "union"),
+             (Schemas.OfIntersection.Data, "intersection"), (Schemas.OfContainer.Data, "container"))
+"""The kinds a restricted `OfAny`'s value is wrapped by, `{kind: {schema: value}}`, each by its name on the wire."""
+_KIND_NAMES = sorted(name for _, name in _WRAPPERS)
+_FORMS = {bool: "bool", int: "int", float: "float", str: "text", dict: "mapping", list: "list"}
+
+
+def _kind_of(schema: Any) -> str:
+    """The name of the kind a restricted `OfAny`'s value is wrapped by."""
+    return next(name for kind, name in _WRAPPERS if isinstance(schema, kind))
+
+
+def _wrapper(plain: PlainData) -> bool:
+    """Whether plain data reads as a restricted `OfAny`'s wrapper: a mapping of one key, a kind's name."""
+    return isinstance(plain, dict) and len(plain) == 1 and next(iter(plain)) in _KIND_NAMES
+
+
+def _fitting(schema: Schemas.OfAny.Value, plain: PlainData) -> list[Any]:
+    """The schemas of a restricted `OfAny` that take the plain form of `plain`, written bare."""
+    return [t for t in schema.schemas if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
+
+
+def _wrapped(schema: Schemas.OfAny.Value, own: Any, plain: PlainData, ref: Ref) -> PlainData:
+    """A restricted `OfAny`'s value, of its schema `own`, written as `plain`: bare where that is the shorthand, exactly
+    one of its schemas taking that plain form, and it does not read as a wrapper; else wrapped by its kind and schema,
+    a scalar by its tag (`{"scalar": {"str": "x"}}`), a container by its kind only where it is the one container schema
+    (`{"container": [...]}`), any other by its registered name (`{"object": {"crm.Phone": {...}}}`)."""
+    if len(_fitting(schema, plain)) == 1 and not _wrapper(plain):
+        return plain
+    kind = _kind_of(own)
+    if kind == "scalar":
+        return {kind: {own.tag: plain}}
+    if kind == "container" and sum(isinstance(t, Schemas.OfContainer.Data) for t in schema.schemas) == 1:
+        return {kind: plain}
+    return {kind: {ref.name_of(own): plain}}
+
+
 def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tuple[bool, PlainData]:
-    """A value of any schema as plain data, and whether there is one: restricted, written bare as the schema it holds;
-    unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name."""
+    """A value of any schema as plain data, and whether there is one: restricted, as the schema it holds, bare or
+    wrapped (`_wrapped`); unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name."""
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
     for select in ("as_object", "as_union", "as_intersection", "as_container"):
@@ -98,9 +135,10 @@ def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tu
         own = next((t for t in restricted if isinstance(t, Schemas.OfScalar.Data) and t.type is type(value)), None)
         if own is None:  # builders do not check scalars' values; proxies refuse a value of another schema
             raise TypeError(f"a value of any schema holds one of its schemas; {type(value).__name__} is not one")
-        return _any(read, own, ref)
+        return True, _wrapped(schema, own, _any(read, own, ref)[1], ref)
     own = value.as_schema()
-    return True, {ref.name_of(own): _any(read, own, ref)[1]} if not restricted else _any(read, own, ref)[1]
+    return True, {ref.name_of(own): _any(read, own, ref)[1]} if not restricted else _wrapped(
+        schema, own, _any(read, own, ref)[1], ref)
 
 
 def _tensor(schema: Schemas.OfContainer.Data) -> list[str] | None:
@@ -348,8 +386,8 @@ class _Record(NamedTuple):
 
 
 class _Assigned(NamedTuple):
-    """A decoded value of an unrestricted `OfAny`'s registered schema, `name`: built standalone, through the store's
-    builder, and assigned as a value."""
+    """A decoded value of an `OfAny`'s registered schema, `name`, unrestricted or restricted to others of its kind: built
+    standalone, through the store's builder, and assigned as a value."""
 
     name: str
     value: Any
@@ -407,18 +445,63 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: A
     return _Record(schema, values)
 
 
-_FORMS = {bool: "bool", int: "int", float: "float", str: "text", dict: "mapping", list: "list"}
+def _named(schema: Any, store: Any) -> str | None:
+    """The name a restricted `OfAny`'s wrapper names one of its schemas by: a scalar's tag, else its registered name;
+    None where it has none."""
+    if isinstance(schema, Schemas.OfScalar.Data):
+        return schema.tag
+    try:
+        return store.name_of(schema)
+    except LookupError:
+        return None
+
+
+def _restricted(schema: Schemas.OfAny.Value, held: Any, decoded: Any, store: Any) -> Any:
+    """A restricted `OfAny`'s value, decoded as its schema `held`: where the restriction holds other schemas of its
+    kind, which a Spec would not tell apart, built standalone through the store's builder of its registered name and
+    assigned as a value."""
+    if isinstance(held, Schemas.OfScalar.Data) or [_kind_of(t) for t in schema.schemas].count(_kind_of(held)) == 1:
+        return decoded
+    name = _named(held, store)
+    return decoded if name is None else _Assigned(name, decoded, store)
+
+
+def _decode_restricted(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
+    """A restricted `OfAny`'s value, never guessed: wrapped, of the schema its kind and name give, which must be one of
+    its schemas; bare, the shorthand, only where exactly one of its schemas takes its plain form."""
+    if _wrapper(plain):
+        ((kind, body),) = plain.items()
+        of_kind = [t for t in schema.schemas if _kind_of(t) == kind]
+        if not of_kind:
+            raise DecodeError(f"no {kind} schema is one of this value's schemas", path=path(*where, kind))
+        if kind == "container" and len(of_kind) == 1:
+            return _decode(of_kind[0], body, (*where, kind), store)
+        if not isinstance(body, dict) or len(body) != 1:
+            raise DecodeError(f"a value wrapped as {kind!r} is {{schema: value}}", path=path(*where, kind))
+        ((name, value),) = body.items()
+        held = next((t for t in of_kind if _named(t, store) == name), None)
+        if held is None:
+            raise DecodeError(f"{name!r} is not one of this value's {kind} schemas", path=path(*where, kind, name))
+        return _restricted(schema, held, _decode(held, value, (*where, kind, name), store), store)
+    fits = _fitting(schema, plain)
+    if isinstance(plain, dict) and len(plain) == 1 and not fits:
+        raise DecodeError(f"a value of any schema is wrapped by its kind, one of {_KIND_NAMES}, got {next(iter(plain))!r}",
+                          path=path(*where))
+    if len(fits) > 1:
+        raise DecodeError(f"several of this value's schemas take a bare {type(plain).__name__}: it is wrapped by its kind "
+                          "and schema, never guessed", path=path(*where))
+    if not fits:
+        raise DecodeError(f"a value of any schema takes the plain form of one of its schemas, got "
+                          f"{type(plain).__name__}", path=path(*where))
+    return _restricted(schema, fits[0], _decode(fits[0], plain, where, store), store)
 
 
 def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
-    """A value of any schema: restricted, of the one schema whose plain form it takes; unrestricted, a mapping of its schema,
-    a basic scalar's tag or a schema's registered name, to its value."""
+    """A value of any schema: restricted, wrapped by its kind and schema or bare where that is unambiguous
+    (`_decode_restricted`); unrestricted, a mapping of its schema, a basic scalar's tag or a schema's registered name,
+    to its value."""
     if schema.schemas:
-        fits = [t for t in schema.schemas if _FORMS.get(type(plain)) in Schemas.plain_forms(t)]
-        if len(fits) != 1:
-            raise DecodeError(f"a value of any schema takes the plain form of one of its schemas, got "
-                              f"{type(plain).__name__}", path=path(*where))
-        return _decode(fits[0], plain, where, store)
+        return _decode_restricted(schema, plain, where, store)
     if not isinstance(plain, dict) or len(plain) != 1:
         raise DecodeError("a value of any schema is {schema: value}, its schema a basic scalar's tag or a registered "
                           "schema's name", path=path(*where))

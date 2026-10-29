@@ -114,7 +114,7 @@ store.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").schema
 store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))   # a list: a container by position, a property's schema
 store.Schemas.OfContainer(lambda c: c.index([Cell]).element([Float]).layout("sparse"))  # a tensor by a value object of ints
 obj.tags.as_value(lambda v: v.as_container(lambda c: c.at(0)))  # elements by index, each a Visitors.OfAny
-store.Schemas.OfAny(lambda a: a.schemas([Int, Phone]))          # a value of any of these schemas, written bare; none: any
+store.Schemas.OfAny(lambda a: a.schemas([Int, Phone]))          # a value of any of these schemas: bare where one fits it, else {"object": {"Phone": ...}}; none: any
 store.Phone(lambda p: p.number("1"))                        # a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate()                                           # the schema's own problems, [] when valid
 

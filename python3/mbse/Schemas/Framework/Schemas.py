@@ -738,8 +738,9 @@ def _shown_type(schema: Any) -> str:
 @dataclass(eq=False)
 class _AnyValueData:
     """A value of any schema: of one of `schemas`, where they are given (an `OfAny` restricted to them), else of any
-    schema. Restricted, a value is written bare, its schema the one whose plain form it takes; unrestricted, it is
-    tagged with its schema, a basic scalar's tag or a registered schema's name."""
+    schema. Restricted, a value is wrapped by its kind and schema (`{"scalar": {"str": "x"}}`), or written bare where
+    exactly one of the schemas takes its plain form; unrestricted, it is tagged with its schema, a basic scalar's tag or
+    a registered schema's name."""
 
     schemas: tuple[Any, ...] = ()  # OfAny.Data each
     name: str | None = None
@@ -748,20 +749,13 @@ class _AnyValueData:
     @_once
     def validate(self) -> list[str]:
         problems = _name_problems(self.name) + _description_problems(self.description)
-        valid = []
-        for schema in self.schemas:
+        for schema in self.schemas:  # schemas that share a plain form are told apart by the wrapper on the wire
             if not isinstance(schema, _KINDS):
                 problems.append(f"an OfAny holds schemas, got {schema!r}")
             elif isinstance(schema, _AnyValueData):
                 problems.append("an OfAny holds schemas of other kinds, not an OfAny")
             else:
-                valid.append(schema)
                 problems += [f"{_shown_type(schema)}: {p}" for p in _validate(schema)]
-        for i, a in enumerate(valid):
-            for b in valid[i + 1:]:
-                if plain_forms(a) & plain_forms(b):
-                    problems.append(f"an OfAny's schemas {_shown_type(a)} and {_shown_type(b)} are not told apart on the "
-                                    "wire")
         return problems
 
 

@@ -1130,8 +1130,9 @@ function shownType(schema: unknown): string {
 }
 
 /** A value of any schema: of one of `schemas`, where they are given (an `OfAny` restricted to them), else of any
- * schema. Restricted, a value is written bare, its schema the one whose plain form it takes; unrestricted, it is tagged
- * with its schema, a basic scalar's tag or a registered schema's name. */
+ * schema. Restricted, a value is wrapped by its kind and schema (`{"scalar": {"str": "x"}}`), or written bare where
+ * exactly one of the schemas takes its plain form; unrestricted, it is tagged with its schema, a basic scalar's tag or
+ * a registered schema's name. */
 class AnyValueData {
   schemas: AnyData[];
   name: string | null;
@@ -1153,23 +1154,11 @@ class AnyValueData {
 
   private problems(): string[] {
     const problems = [...nameProblems(this.name), ...descriptionProblems(this.description)];
-    const valid: AnyData[] = [];
-    for (const schema of this.schemas as unknown[]) {
+    for (const schema of this.schemas as unknown[]) { // schemas that share a plain form are told apart by the wrapper on the wire
       if (!isAnyData(schema)) problems.push(`an OfAny holds schemas, got ${repr(schema)}`);
       else if (schema instanceof AnyValueData) problems.push("an OfAny holds schemas of other kinds, not an OfAny");
-      else {
-        valid.push(schema);
-        problems.push(...validateSchema(schema).map((p) => `${shownType(schema)}: ${p}`));
-      }
+      else problems.push(...validateSchema(schema).map((p) => `${shownType(schema)}: ${p}`));
     }
-    valid.forEach((a, i) => {
-      for (const b of valid.slice(i + 1)) {
-        const forms = plain_forms(b);
-        if ([...plain_forms(a)].some((form) => forms.has(form))) {
-          problems.push(`an OfAny's schemas ${shownType(a)} and ${shownType(b)} are not told apart on the wire`);
-        }
-      }
-    });
     return problems;
   }
 }

@@ -224,6 +224,10 @@ each a list of one entry callback whose call chooses the term: `lambda mu: mu.ma
 Any term may come first, except that a term may refer only to symbols that a term before it binds. A symbol that a
 frame already binds keeps that object: a later pattern that names it refers to it and does not bind it again.
 
+Map and reduce are meant in MapReduce's sense, not as a list's `map`: a map works on each frame alone and may give
+none, one or many, so that a transaction can be sharded and run in parallel; a reduce groups what remains and folds
+each group with a collector that is commutative or associative.
+
 | Term | Takes | What it does with each frame |
 |---|---|---|
 | `map` | `symbols([pattern])`, `then` | Binds each symbol the frame lacks, in the order declared, to every object of the symbol's schema that the store reaches from its singletons, one frame for each match. Only frames where the spec holds go on, so a map multiplies frames by its matches. A map with no spec gives the cross product. |

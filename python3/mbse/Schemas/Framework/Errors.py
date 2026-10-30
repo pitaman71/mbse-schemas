@@ -3,7 +3,7 @@
 Mistakes in the calling program raise Python's built-in exceptions. A write that a visitor's mode, or the value,
 forbids raises `ReadOnlyError`, a `TypeError`: the one raise of the visitor protocol. Problems in data being decoded
 raise `DecodeError`, which carries a one-line reason and, where known, a location: a line and column in text, or a
-path in plain data. See FRAMEWORK.md, "Decoding errors".
+path in plain data. See [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](../../../../../mbse-basis/docs/capabilities/CAP-159.md).
 """
 
 from __future__ import annotations

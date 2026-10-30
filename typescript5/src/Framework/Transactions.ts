@@ -3,7 +3,7 @@
  * object identity 38 to 97 in [FEA-030: transactions](../../../../mbse-basis/docs/features/FEA-030.md)).
  *
  * A pattern's `spec` says what must hold of a frame: the property values the objects its symbols bind have, and the
- * relation entries that link them (Decided, 76). It is written in the builders' own notation, over the frame, whose
+ * relation entries that link them (object identity 76 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)). It is written in the builders' own notation, over the frame, whose
  * members are the pattern's symbols, each a visitor of the object it binds that records mutations rather than writing
  * objects (58, 95):
  *
@@ -29,7 +29,7 @@
  * nothing.
  *
  * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
- * schemas, each found by its name, so that a transaction defines and extends schemas (Decided, 86).
+ * schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md#decided)).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -104,7 +104,7 @@ export function _givenReference(symbol: any): any {
   return Proxies._built(symbol._extended?.get("reference") ?? null);
 }
 
-/** A symbol's reference, refused where it has both a schema and a reference, or neither (References, Decided, 8). */
+/** A symbol's reference, refused where it has both a schema and a reference, or neither (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)). */
 export function _exactlyOne(name: string, symbol: any, error: new (message: string) => Error): any {
   const reference = _givenReference(symbol);
   if ((reference === null) === (symbol.schema === null)) {
@@ -116,7 +116,7 @@ export function _exactlyOne(name: string, symbol: any, error: new (message: stri
 
 /** The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
  * identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where the
- * store holds it, else the schema its path implies, through the store's schemas alone (References, Decided, 8); refused
+ * store holds it, else the schema its path implies, through the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)); refused
  * where the path cannot be followed. */
 export function _recordedSchema(store: any, name: string, symbol: any): any {
   const reference = _exactlyOne(name, symbol, TypeError);
@@ -280,7 +280,7 @@ function makeRecordedProperty(recorder: Recorder, name: string): any {
 /** An adjacency of a recorded object: its entries inserted, removed or cleared, recorded, as a builder's adjacency takes
  * them (`insert(cb)`, `remove(cb)`, `clear()`). Called with a callback, it visits through it; with an iterable, the peer
  * shorthand, each item an entry's callback or the object to link; with a mapping, where its relation has two links and
- * one property, each item an entry keyed by that property (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
+ * one property, each item an entry keyed by that property (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md#decided)). */
 class RecordedAdjacency extends Shelled {
   readonly [TYPE_NAME] = "_RecordedAdjacency";
   readonly _schema: any;
@@ -708,7 +708,7 @@ function symbols(store: any, pattern: any): void {
 }
 
 /** Whether `schema` is a meta-schema: its objects are schema objects (`Schemas.OfObject`, ...), written by their builders
- * (Decided, 86). */
+ * (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md#decided)). */
 function meta(store: any, schema: any): boolean {
   return store._meta_builder(store.name_of(schema)) !== null;
 }
@@ -776,7 +776,7 @@ function run(store: any, term: any, frames: Frame[]): Frame[] {
 
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
  * spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
- * where the store holds none (References, Decided, 8). An upsert creates, where none is found, the object of a symbol,
+ * where the store holds none (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a symbol,
  * and writes its spec where it does not hold; a counted object it created before from the same frame, for the same
  * symbol and key, it finds again (63), and finds none otherwise (102). */
 function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unknown = null): Frame[] {
@@ -785,7 +785,7 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
   for (const [name, symbol] of pattern.symbols) {
     if (frame.has(name)) continue;
     const reference = _givenReference(symbol);
-    if (reference !== null) { // what it designates, or no frame where the store holds none (References, Decided, 8)
+    if (reference !== null) { // what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))
       const target = References.resolve(store, reference);
       frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
       continue;
@@ -881,7 +881,7 @@ function created(store: any, schema: any, identifying: Members): any {
 }
 
 /** Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's spec
- * bound before it (Decided, 60): the objects linked by each of the owner's entries agreeing with the properties it
+ * bound before it (object identity 60 in [CAP-139: upserts find before they create](../../../../mbse-basis/docs/capabilities/CAP-139.md#decided)): the objects linked by each of the owner's entries agreeing with the properties it
  * gives, one where they give its keys, every one where they leave them open, none where none agrees; null where no spec
  * gives such an entry. */
 function locate(store: any, pattern: any, members: Map<string, Members>, name: string, schema: any,
@@ -1033,7 +1033,7 @@ function resolve(store: any, ref: Map<string, any>, frame: Frame): any {
   return found;
 }
 
-/** Writes a pattern's spec over a frame where it does not hold (Decided, 76). */
+/** Writes a pattern's spec over a frame where it does not hold (object identity 76 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)). */
 function writeSpec(store: any, pattern: any, frame: Frame): void {
   for (const [name, members] of membersOf(pattern)) write(store, frame.get(name), schemaIn(store, pattern, name, frame), members, frame);
 }
@@ -1085,7 +1085,7 @@ function removedOf(store: any, relation: any, held: any[], entries: Map<string, 
 
 /** Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's removal,
  * or every entry where it gives null (`clear`); through the object's builder, which removes the entries it holds at
- * those positions, so that removing an owning entry deletes what it owned (Decided, 48). */
+ * those positions, so that removing an owning entry deletes what it owned (object identity 48 in [CAP-121: owned objects deleted in cascade](../../../../mbse-basis/docs/capabilities/CAP-121.md#decided)). */
 function remove(store: any, target: any, schema: any, name: string, entries: Map<string, any>[] | null, held: any[],
   frame: Frame): void {
   const relation = schema.adjacencies.get(name).relation;

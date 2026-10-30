@@ -79,7 +79,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 | Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
 | Constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
 
-Deeper material is in the repository: `docs/FRAMEWORK.md` holds every decision and open question, and nine tutorial case
+Deeper material: every decision and open question is in mbse-basis (https://github.com/pitaman71/mbse-basis, features FEA-025 to FEA-034), and nine tutorial case
 studies explain the reasoning. The references link to the exact notebook or section you need. Links use
 `https://github.com/pitaman71/mbse-schemas/blob/main/<path>`; in a checkout, `<path>` is relative to the repository
 root.

@@ -6,8 +6,8 @@ are built in a store (`Builders.Store`); its writes are mutation expressions ove
 held apart from it until they commit (`Proposals`), and written on the wire as transactions, a store's snapshot two.
 
 For AI agents: read `skill/SKILL.md` next to this file first. It says when to use this package, the practices that
-prevent most mistakes, and which reference to load for a task. The design is in docs/FRAMEWORK.md at
-https://github.com/pitaman71/mbse-schemas.
+prevent most mistakes, and which reference to load for a task. The design is in mbse-basis, features FEA-025 to FEA-034, at
+https://github.com/pitaman71/mbse-basis.
 """
 
 from . import (JSON, YAML, Builders, Comparison, Errors, Mutations, Parametrics, Paths, Plain, Proposals, Provenance, Proxies,

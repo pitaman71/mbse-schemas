@@ -58,5 +58,5 @@ A document is one transaction, one upsert (object identity 51 in [CAP-128: graph
 |---|---|
 | Identities, references, why the schema isn't stored, injected builders | [tutorial 6, Saving and loading](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/06_Saving_And_Loading.ipynb) |
 | JSON and YAML details, the Norway problem | [tutorial 7, JSON and YAML](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/07_JSON_And_YAML.ipynb) |
-| What decoding accepts, and every decoding error | [FRAMEWORK.md, Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md#serialization) |
+| What decoding accepts, and every decoding error | [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-159.md) |
 | Store snapshots both languages must read identically | [conformance/](https://github.com/pitaman71/mbse-schemas/blob/main/conformance/README.md) |

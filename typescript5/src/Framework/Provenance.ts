@@ -1,6 +1,6 @@
 /**
  * Provenance: the records of the transactions a store executes, who executed them, when and from where
- * ([CAP-134: transactions recorded with provenance](../../../../mbse-basis/docs/capabilities/CAP-134.md); FRAMEWORK.md, Resolved, Provenance).
+ * ([CAP-134: transactions recorded with provenance](../../../../mbse-basis/docs/capabilities/CAP-134.md)).
  *
  * Normal schemas, installed before use: `store.transaction(Provenance.install)`. `Provenance.OfTransaction` is the
  * record of one executed transaction, owned by the singleton `Provenance.Transactions`, keyed by the transaction's
@@ -25,7 +25,7 @@ import { repr } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 
 /** The placeholder of a transaction that names no session, or no identity: its session's `id`, its identity's `name`
- * (Decided, 3; tech debt). */
+ * (provenance 3 in [CAP-134: transactions recorded with provenance](../../../../mbse-basis/docs/capabilities/CAP-134.md#decided); tech debt). */
 export const UNKNOWN = "unknown";
 
 /** The records of executed transactions, their sessions and identities, defined in the store a transaction writes:
@@ -196,7 +196,7 @@ function given(store: any, value: unknown, name: string): any {
  * made with its `started`, `locale` and `device`, and its identity through `Who`, found by its name, else made; and
  * `InSession`. Each object of a schema `extend` extended is linked by `CreatedBy` where the transaction created it,
  * else by `ModifiedBy`, the one it held replaced. An imperative scope has no expression: its record has placeholder
- * data (Decided, 3), a `uid` the store makes, `when` at commit, the session and identity `unknown`. */
+ * data (provenance 3 in [CAP-134: transactions recorded with provenance](../../../../mbse-basis/docs/capabilities/CAP-134.md#decided)), a `uid` the store makes, `when` at commit, the session and identity `unknown`. */
 export function _record(store: any, proposals: Proposals.OfStore): void {
   if (!proposals.saved.get(store._schemas)!.some(([name]) => name === "Provenance.OfTransaction")) return;
   const created = [...proposals.created];

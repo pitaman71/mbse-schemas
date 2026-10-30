@@ -9,7 +9,7 @@ symbols are the objects the document holds, numbered in the order it meets them,
 is referred to by its path. Reading one executes it, within the open transaction as a savepoint, and gives its root. A
 store is written as its snapshot (`ToPlain(store).Snapshot()`): two transactions, its schemas, then its data, which
 `FromPlain(store).Snapshot` executes in order. A transaction's expression is written nested
-(`ToPlain(store).Transaction`). See docs/SERIALIZATION.md, Transactions on the wire, Documents and Snapshots.
+(`ToPlain(store).Transaction`). See [CAP-129: journals replayed by execution](../../../../../mbse-basis/docs/capabilities/CAP-129.md), [CAP-128: graphs sent as one-transaction documents](../../../../../mbse-basis/docs/capabilities/CAP-128.md) and [CAP-127: snapshots made of transactions](../../../../../mbse-basis/docs/capabilities/CAP-127.md).
 
 The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
 store's builders (`Visitors.OfObject`).
@@ -608,8 +608,8 @@ _Decoded = dict[str, tuple[dict[str, Any], Rows]]
 
 
 def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
-    """A schema object's path as plain data: each step's adjacency and the name its entry gives (docs/OBJECT_IDENTITY.md,
-    Decided, 81). `DecodeError` where it is not one."""
+    """A schema object's path as plain data: each step's adjacency and the name its entry gives (object
+    identity 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)). `DecodeError` where it is not one."""
     singleton, steps = _steps(path_plain, where)
     if singleton != "." or any(o != "" or set(keys) != {"name"} or not isinstance(keys["name"], str)
                                for _, o, keys in steps):
@@ -701,7 +701,7 @@ def _put(element: Any, value: Any) -> None:
 
 
 def _schema_path(steps: list[tuple[str, str]]) -> PlainData:
-    """A schema object's path as plain data (docs/OBJECT_IDENTITY.md, Decided, 81): from the root module, the singleton
+    """A schema object's path as plain data (object identity 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)): from the root module, the singleton
     `"."`, each step through a keyed adjacency, by name."""
     nested: PlainData = {"target": {}}
     for i, name in reversed(steps):
@@ -709,11 +709,11 @@ def _schema_path(steps: list[tuple[str, str]]) -> PlainData:
     return {"singleton": ".", "next": nested}
 
 
-# --- Documents, snapshots and transactions on the wire (docs/SERIALIZATION.md) ---
+# --- Documents, snapshots and transactions on the wire ([CAP-128: graphs sent as one-transaction documents](../../../../../mbse-basis/docs/capabilities/CAP-128.md), [CAP-127: snapshots made of transactions](../../../../../mbse-basis/docs/capabilities/CAP-127.md), [CAP-129: journals replayed by execution](../../../../../mbse-basis/docs/capabilities/CAP-129.md)) ---
 
 
 class _Document:
-    """A Reachable document, or an object's: one transaction (docs/OBJECT_IDENTITY.md, Decided, 51, 55; Store overhaul,
+    """A Reachable document, or an object's: one transaction (object identity 51, 55 in [CAP-128: graphs sent as one-transaction documents](../../../../../mbse-basis/docs/capabilities/CAP-128.md#decided); Store overhaul,
     4f), one upsert whose symbols are the objects the document holds, named by their number in the order it meets them,
     the root `"0"`: the root, and, for Reachable, the counted objects reachable from it through the objects the document
     holds. Its spec gives each object's properties and its named adjacencies' entries, each entry once, from the first
@@ -825,7 +825,7 @@ _READS = itertools.count(1)  # documents read with no uid of their own, each key
 def _read_document(store: Any, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
     """Reads a document (`_Document`): executes its transaction, within the store's open one as a savepoint, else as a
     transaction of its own, and gives its root, the object its symbol `"0"` binds. A document with no uid is keyed afresh
-    by each read, so that reading it gives new counted objects (Decided, 55)."""
+    by each read, so that reading it gives new counted objects (object identity 55 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     from . import Transactions
 
     schema = Proxies._deref(schema)  # a path names its schema
@@ -851,7 +851,7 @@ def _read_document(store: Any, schema: Schemas.OfObject.Data, plain: PlainData) 
 
 
 class _StoreSnapshot:
-    """A store's snapshot: two transactions (docs/OBJECT_IDENTITY.md, Decided, 45, 101; Store overhaul, 4f-4), each one
+    """A store's snapshot: two transactions (object identity 45, 101 in [CAP-127: snapshots made of transactions](../../../../../mbse-basis/docs/capabilities/CAP-127.md#decided); Store overhaul, 4f-4), each one
     upsert, the first of its schemas, the second of its data, so that a schema the store held before is extended when
     the first commits, before the second's data uses it. The first's symbols are its schemas with a name of their own,
     each a symbol of its meta-schema, found by its name (86); the second's, every object its singletons reach, and what
@@ -1092,7 +1092,7 @@ def _read_snapshot(store: Any, transactions: PlainData, ignored: list[dict[str, 
 
 
 class _Expression:
-    """A transaction's expression as the wire carries it, nested (docs/OBJECT_IDENTITY.md, Decided, 56; Store overhaul,
+    """A transaction's expression as the wire carries it, nested (object identity 56 in [CAP-129: journals replayed by execution](../../../../../mbse-basis/docs/capabilities/CAP-129.md#decided); Store overhaul,
     4f): an object as a mapping of its properties and its named adjacencies' entries. An entry of a relation of one
     other link and no properties is written as what it links, the peer shorthand; of one other link and one property
     (a name), its adjacency as a mapping of that property to what it links; any other as a mapping of its other links
@@ -1204,7 +1204,7 @@ def _checked_spec(store: Any, symbols: dict[str, Any], spec: PlainData, where: t
             held = symbols.get(symbol)
             if held is None:
                 raise DecodeError(f"{symbol!r} is not a symbol of the pattern", path=path(*where, i, symbol))
-            try:  # its own schema, or that of the object its reference designates (References, Decided, 8)
+            try:  # its own schema, or that of the object its reference designates (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))
                 schema = Transactions._recorded_schema(store, symbol, held)
             except (TypeError, LookupError) as error:
                 raise DecodeError(str(error), path=path(*where, i, symbol)) from None
@@ -1398,13 +1398,13 @@ class ToPlain:
         return _Document(self._store, self._flat).run(schema, value, False, uid)
 
     def Reachable(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, uid: str | None = None) -> PlainData:
-        """A document of `value` and the counted objects reachable from it (`_Document`; Object identity, Decided, 51):
+        """A document of `value` and the counted objects reachable from it (`_Document`; object identity 51 in [CAP-128: graphs sent as one-transaction documents](../../../../../mbse-basis/docs/capabilities/CAP-128.md#decided)):
         one transaction, under `uid` where given."""
         return _Document(self._store, self._flat).run(schema, value, True, uid)
 
     def Snapshot(self) -> list[PlainData]:
-        """The store's snapshot (`_StoreSnapshot`): two transactions, its schemas, then its data (docs/SERIALIZATION.md,
-        Snapshots)."""
+        """The store's snapshot (`_StoreSnapshot`): two transactions, its schemas, then its data ([CAP-127: snapshots made of transactions](../../../../../mbse-basis/docs/capabilities/CAP-127.md))
+        ."""
         return _StoreSnapshot(self._store).run()
 
     def Transaction(self, transaction: Any) -> PlainData:

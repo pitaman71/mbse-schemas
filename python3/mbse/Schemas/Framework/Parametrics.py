@@ -1,5 +1,5 @@
-"""Parametrics: the parameters of definitions, what each can be bound to, and their bindings ([CAP-112: parameters declared by an installed module](../../../../../mbse-basis/docs/capabilities/CAP-112.md);
-[CAP-112: parameters declared by an installed module](../../../../../mbse-basis/docs/capabilities/CAP-112.md)).
+"""Parametrics: the parameters of definitions, what each can be bound to, and their bindings ([CAP-112: parameters modeled as schema data](../../../../../mbse-basis/docs/capabilities/CAP-112.md);
+[CAP-171: parameters attached to every schema kind by extension](../../../../../mbse-basis/docs/capabilities/CAP-171.md)).
 
 Normal schemas and one extension, installed before use: `store.transaction(Parametrics.install)`. A parameter is a
 `Schemas.OfParameter`, a name and a description; `Parametrics.OfParameters` is a set of named parameters, holding each

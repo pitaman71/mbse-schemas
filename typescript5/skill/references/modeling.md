@@ -57,7 +57,7 @@ without is open, its entries a list, equal entries kept. `.uniques([])`, one cla
 
 **Cardinality comes from `unique(S)`.** The links and properties outside `S` determine `S`, so they form a key. Pick
 from the patterns in
-[FRAMEWORK.md, Cardinality](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md#cardinality):
+[CAP-155: `unique` clauses on relation schemas govern relation cardinality](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-155.md):
 ownership, keyed ownership, directory, and global ID directory.
 
 **Union or intersection?** Both have named members, and their values are records keyed by those names. A union value
@@ -81,4 +81,4 @@ with a new schema.
 | Self-relations, cycles, links filled by several kinds | [tutorial 4, A family tree](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/04_A_Family_Tree.ipynb) |
 | `unique(...)`, maps as relations | [tutorial 5, A price list](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/05_A_Price_List.ipynb) |
 | Optional fields, versions, directories, unions and intersections | [tutorial 9, When requirements change](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/09_When_Requirements_Change.ipynb) |
-| Every element and decision | [FRAMEWORK.md, Elements](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md#elements) |
+| Every element and decision | [CAP-109: schemas as linked objects in modules](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-109.md#the-kinds) |

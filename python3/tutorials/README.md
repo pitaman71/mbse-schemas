@@ -9,8 +9,8 @@ most of its choices (no lists, no mandatory fields, no automatic validation, no 
 
 It's written for Python programmers who build applications with structured data: records, relationships, files and
 APIs. A TypeScript port with the same case studies is in
-the [TypeScript tutorial](../../typescript5/tutorials/README.md). You don't need to have read the [design
-document](../../docs/FRAMEWORK.md), but it's the reference for everything here.
+the [TypeScript tutorial](../../typescript5/tutorials/README.md). You don't need to have read the design
+([the schema-driven data features](../../../mbse-basis/docs/features/README.md#schema-driven-data)), but it's the reference for everything here.
 
 ## Running the notebooks
 

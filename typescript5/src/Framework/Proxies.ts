@@ -235,7 +235,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     return this._proposals === null ? this._transacting(write) : this._proposing(write); // within one, a savepoint
   }
 
-  /** Building a transaction's expression, the one write allowed outside a transaction (Decided, 94); making the store; and
+  /** Building a transaction's expression, the one write allowed outside a transaction (object identity 94 in [CAP-138: mutation expressions over frame streams](../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)); making the store; and
    * a transaction's commit. */
   _expression<T>(write: () => T): T {
     this._expressing += 1;
@@ -634,7 +634,7 @@ function valuesOf(holder: { _ownValues: Values }): Values {
 }
 
 /** A data object's or a value object's property values, to write through its store, which refuses a write outside a
- * transaction (Decided, 44); a value object's not yet placed, its builder's own. */
+ * transaction (object identity 44 in [CAP-124: writes all-or-nothing in transactions](../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)); a value object's not yet placed, its builder's own. */
 function writableValues(holder: { _ownValues: Values }): Values {
   const store = storeFor(holder);
   return store === null ? holder._ownValues : store.values(holder, true);
@@ -1029,7 +1029,7 @@ function makeScalar(values: Values, name: string, schema: unknown, writable: boo
 }
 
 /** Refuses a scalar written as a value of a restricted `OfAny` whose host type is not exactly that of one of its scalar
- * schemas (FRAMEWORK.md, Resolved, "`OfAny` returns"): a bool is not an int. */
+ * schemas ("`OfAny` returns", [CAP-157: values of any schema, restricted or not](../../../../mbse-basis/docs/capabilities/CAP-157.md#decided)): a bool is not an int. */
 function restrictedScalar(restriction: Schemas.OfAny.Value | null, value: unknown, label: string): void {
   if (restriction === null || restriction.schemas.length === 0 || value === null || value === undefined) return;
   if (!restriction.schemas.some((t) => t instanceof Schemas.OfScalar.Data && Schemas.isScalarOf(t.type, value))) {
@@ -2495,8 +2495,8 @@ export function _holds(schema: unknown, value: unknown): boolean {
   return schema instanceof Schemas.OfScalar.Data && schema.type !== null && Schemas.isScalarOf(schema.type, value);
 }
 
-/** Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (FRAMEWORK.md, Resolved,
- * Mappings for keyed adjacencies): a callback is called with it; any other value goes to the one member that accepts
+/** Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (mappings
+ * for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md#decided)): a callback is called with it; any other value goes to the one member that accepts
  * it, the entry's link (`linkTakes`) or one of the linked object's properties and adjacencies (`members`, each a name,
  * and whether it is an adjacency and takes the value). */
 export function _given(them: any, value: unknown, link: string, linkTakes: boolean,
@@ -2607,7 +2607,7 @@ class _AdjacencyBuilder extends Shelled {
   }
 
   /** A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its value
-   * given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
+   * given to the entry (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md#decided)). */
   _keyed(items: [unknown, unknown][]): unknown[] {
     const relation = this._schema.relation as RelationSchema;
     const store: any = innerOf(this._builder)._store;

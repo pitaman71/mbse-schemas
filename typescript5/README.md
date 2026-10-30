@@ -6,7 +6,7 @@
 TypeScript implementation of the schemas framework, equivalent to `../python3`. The core (`src/Framework`) uses no
 Node APIs, so it runs in Node, browsers and Deno. New to the framework? Start with the tutorial,
 [the tutorial](tutorials/README.md): ten case studies, from a contact card to asking the store. The design is in
-the [framework design document](../docs/FRAMEWORK.md); the [test plan](tests/TestPlan.md) includes the deliberate
+mbse-basis, [the schema-driven data features](../../mbse-basis/docs/features/README.md#schema-driven-data); the [test plan](tests/TestPlan.md) includes the deliberate
 language differences.
 
 ```sh

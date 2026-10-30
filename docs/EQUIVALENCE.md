@@ -3,7 +3,7 @@
 
 # Equivalence of the implementations
 
-`python3/` and `typescript5/` implement the same framework (`FRAMEWORK.md`). This document defines what
+`python3/` and `typescript5/` implement the same framework ([the schema-driven data features](../../mbse-basis/docs/features/README.md#schema-driven-data)). This document defines what
 "equivalent" means for them, how it is checked, where they deliberately differ, and how to keep them equivalent.
 
 ## What equivalent means
@@ -134,7 +134,7 @@ noticed.
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
 | Adapters | `Adapters.Dataclasses`, between dataclasses and object schemas | none yet | an adapter translates its language's own type declarations, so each language has its own adapters and its own suite for them | DC-01..07 |
 
-`FRAMEWORK.md` ("Language bindings") summarizes the same mapping for readers of the design.
+The framework design's "Language bindings" summarized the same mapping; this document is now its one home.
 
 ## Tutorials
 
@@ -161,7 +161,7 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
   porting; the recorder went with the visitor protocol's rewrite, which reads through the visitors themselves.
 
-Normalizing decoding errors (see FRAMEWORK.md, "Decoding errors") found more, all fixed and tested in both:
+Normalizing decoding errors (see [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](../../mbse-basis/docs/capabilities/CAP-159.md)) found more, all fixed and tested in both:
 
 - Python decoded JSON bytes with `surrogatepass`, accepting encoded lone surrogates that TypeScript's decoder
   rejected, and TypeScript's UTF-32 decoder accepted surrogate code points. Both now decode strictly (JSN-09).

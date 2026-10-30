@@ -16,8 +16,8 @@ Each decision is in its item's Decided now:
 - [FEA-024: expressions as data](../../mbse-basis/docs/features/FEA-024.md#decided): 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 20, 21, 22
 - [CAP-116: framework schemas extended, checked](../../mbse-basis/docs/capabilities/CAP-116.md#decided): 1, 2, 16, 17, 18, 19, 23
 - [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/capabilities/CAP-109.md#decided): 3
-- [CAP-112: parameters declared by an installed module](../../mbse-basis/docs/capabilities/CAP-112.md#decided): 14
-- [CAP-114: bindings substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md#decided): 15
+- [CAP-112: parameters modeled as schema data](../../mbse-basis/docs/capabilities/CAP-112.md#decided): 14
+- [CAP-114: parameter bindings are substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md#decided): 15
 
 ---
 

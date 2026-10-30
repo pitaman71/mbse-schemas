@@ -21,7 +21,7 @@
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
  * `validate(pattern)` refuses a symbol given both, or neither. A spec over such a symbol writes the members of the schema
  * of the object the reference designates, where the store holds it, else of the schema its path implies, followed through
- * the store's schemas alone (Decided, 8), so that a store holding only the schemas writes it.
+ * the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)), so that a store holding only the schemas writes it.
  */
 
 import * as Builders from "./Builders.js";
@@ -60,7 +60,7 @@ export function install(txn: any): any {
         links: S.OfContainer((c: any) => c.index([S.OfStr]).element([_.OfObject])),
         properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfAny((a: any) => a)])),
       }),
-      // --- The extension: a pattern's symbol given the object it binds in place of a schema (Decided, 8) ---
+      // --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
       (_: any) => _.OfSymbol.name("Schemas.OfSymbol").properties({ reference: _.OfObject }),
     ])]))]);
 }
@@ -120,7 +120,7 @@ function entryOf(store: any, entry: any): Callback {
   return (e: any) => e.relation(relation).links(links).properties(properties);
 }
 
-/** The schema of the object a path designates, as the store's schemas imply it, reading no data (Decided, 8): the one
+/** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)): the one
  * schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`, marked
  * owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds what a
  * link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the schema

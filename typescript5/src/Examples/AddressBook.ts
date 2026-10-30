@@ -1,6 +1,4 @@
 // Address book example
-//
-// Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
 import { Builders, JSON, Plain, Proxies } from "@mbse/schemas/Framework";
 import { ValueError } from "@mbse/schemas/Framework/Errors";

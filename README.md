@@ -136,7 +136,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 | Read | For |
 |---|---|
 | [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Ten case studies, from a contact card to evolving schemas and querying the store, in Python and in TypeScript. Start here. |
-| [Framework design](docs/FRAMEWORK.md) | The design: every element and decision, plus the open questions |
+| [Schema-driven data](../mbse-basis/docs/features/README.md#schema-driven-data) | The design, in mbse-basis: every element and decision, plus the open questions |
 | [CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
 | [Equivalence](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [Python test plan](python3/tests/TestPlan.md), [TypeScript test plan](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
@@ -146,7 +146,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 ## Repository layout
 
 ```
-docs/               the design (FRAMEWORK.md), how values compare ([CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md)), and how the two implementations
+docs/               redirect stubs to the design in mbse-basis, how values compare ([CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md)), and how the two implementations
                     are kept equivalent (EQUIVALENCE.md)
 python3/            Python implementation: mbse/Schemas/Framework, Adapters (Python only), examples, tests (Jupyter
                     notebooks), tutorials
@@ -178,7 +178,7 @@ least one phone", and queries over a store are [mbse-patterns](https://github.co
 depends on both. Generated bindings (typed code per schema) will be separate repositories too, one per target language
 (e.g. mbse-cpp, mbse-python, mbse-typescript, mbse-systemverilog), each depending on this one.
 
-Designed but not built yet (see `docs/FRAMEWORK.md`): object deletion.
+Designed but not built yet: see the unmet capabilities among [the schema-driven data features](../mbse-basis/docs/features/README.md#schema-driven-data).
 
 ---
 

@@ -1,7 +1,7 @@
 /**
  * Builders: schema builders as visitors of their meta-schemas, which model schemas as reference objects and relations,
  * and the store they are built in. They replace the builders and meta-schemas in `Schemas`, which stay beside them
- * while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` is unchanged.
+ * while call sites migrate ([CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md)); `Schemas.OfX.Data` is unchanged.
  *
  * Every schema object is a reference object: a kind of schema, each of its members (a property, an adjacency, a symbol,
  * a branch or a part), and a parameter. A property of a schema object holds a value (a name, a flag); every
@@ -9,7 +9,7 @@
  * member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Schemas.Refines`), and so on
  * (`plainSchemas`, below): each store builds its own (docs/proposals/store-overhaul, Levels).
  *
- * Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
+ * Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as [CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md)
  * gives it: a member for each property (`osv.<propName>`, a `Visitors.OfProperty`) and for each adjacency
  * (`osv.<adjName>`, a `Visitors.OfAdjacency`, whose entries' links are members, `env.<linkName>`). Called with a
  * `Specs.Callback`, a member writes or visits through it and returns the builder. Its other methods are named `as_*`.
@@ -68,7 +68,7 @@ export function _heldBy(data: unknown): Store | undefined {
 }
 
 /** Whether a schema object has a name of its own, which gives its path: a module or a named schema. Anything else has a
- * path only as a member of an object that has one (docs/OBJECT_IDENTITY.md, Decided, 81). */
+ * path only as a member of an object that has one (object identity 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)). */
 export function _named(data: unknown): boolean {
   return _namable(data) && Boolean((data as { name?: string | null }).name);
 }
@@ -424,7 +424,7 @@ function isSchema(value: unknown): boolean {
 }
 
 /** Refuses a link, from a schema object built in a store, to a schema object that store does not hold: a reference
- * object no store built is strictly forbidden, and one another store built is that store's (FRAMEWORK.md, Resolved). */
+ * object no store built is strictly forbidden, and one another store built is that store's ([CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)). */
 function checkHeld(builder: any, link: string, referent: unknown): void {
   const store = builder._store;
   if (store !== null && store !== undefined && builderFor(referent) !== null && !store.holds(referent)) {
@@ -460,7 +460,7 @@ class Members {
   readonly owned: boolean;
   readonly name_of: (data: any, referent: any) => string | null;
   readonly rename: (data: any, referent: any, name: string) => void;
-  /** Whether an extension may add entries to it, after those it holds (docs/SCHEMA_EXTENSION.md). */
+  /** Whether an extension may add entries to it, after those it holds ([CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md)). */
   readonly extensible: boolean;
   /** An extension's: its relation, its object's link, and the other. */
   extension: [S.OfRelation.Data, string, string] | null = null;
@@ -524,7 +524,7 @@ class Records extends Members {
 }
 
 /** Whether `held` has a branch or a part equal to `record`: of its name, its schema and its description. Its relation is
- * a set, so that adding it again is elided (FRAMEWORK.md, Cardinality). */
+ * a set, so that adding it again is elided ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](../../../../mbse-basis/docs/capabilities/CAP-155.md)). */
 function holdsRecord(held: readonly any[], record: any): boolean {
   return held.some((other) => other.name === record.name && other.schema === record.schema
     && other.description === record.description);
@@ -667,7 +667,7 @@ class AdjacencyMember extends Shelled {
   }
 
   /** A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its value
-   * given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies). */
+   * given to the entry (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md#decided)). */
   _keyed(items: [unknown, unknown][]): unknown[] {
     const schema = this.as_schema();
     let key = "name"; // a bootstrap's, before its plain schema is made: keyed by `name`
@@ -1392,7 +1392,7 @@ export class PropertyBuilder extends MemberBuilder {
   static override _meta = "OfProperty";
   static override _noun = "a property";
   static override _table = extendTable(MemberBuilder._table, {
-    pattern: new Prop(), // a key's naming pattern (docs/OBJECT_IDENTITY.md, Decided, 13)
+    pattern: new Prop(), // a key's naming pattern (object identity 13 in [CAP-120: owned objects named and placed when built](../../../../mbse-basis/docs/capabilities/CAP-120.md#decided))
   });
 }
 
@@ -1426,7 +1426,7 @@ export class AdjacencyBuilder extends Builder {
   static override _table = extendTable(Builder._table, {
     description: new Prop(),
     me: new Prop(), // the name of the link it fills
-    owner: new Prop(), // it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14)
+    owner: new Prop(), // it points back to its object's owner (object identity 14 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))
     relation: new Members("relation", { accepts: isA(S.OfRelation.Data), build: "RelationBuilder", ...one("relation") }),
   });
 }
@@ -1558,7 +1558,7 @@ export class AnyValueBuilder extends KindBuilder {
 }
 
 /** A pattern: its symbols, then its variables, by name, in declaration order, and its constraints, in order, which it
- * owns (docs/OBJECT_IDENTITY.md, Decided, 66). */
+ * owns (object identity 66 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)). */
 export class PatternBuilder extends KindBuilder {
   static override _data = S.OfPattern.Data;
   static override _meta = "OfPattern";
@@ -1571,7 +1571,7 @@ export class PatternBuilder extends KindBuilder {
       ...inOrder("requires") }),
   });
 
-  /** What must hold of a frame (docs/OBJECT_IDENTITY.md, Decided, 76, 95): each callback given, in order, is handed the
+  /** What must hold of a frame (object identity 76, 95 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)): each callback given, in order, is handed the
    * frame, whose members are the symbols declared so far, each the visitor of the object it binds, which records what it
    * is given; its record, a `Mutations.OfPattern` as plain data, is added to the pattern's. */
   spec(specs: unknown): any {
@@ -1606,7 +1606,7 @@ export class ConstraintBuilder extends ExpressionBuilder {
 }
 
 /** A collector: its pattern, the names of the symbols and variables it collects, how its fold may be ordered, the
- * suffixes of their duplicates, and what it computes (docs/STREAMING_QUERIES.md). */
+ * suffixes of their duplicates, and what it computes ([FEA-027: mutations as queries](../../../../mbse-basis/docs/features/FEA-027.md)). */
 export class CollectorBuilder extends KindBuilder {
   static override _data = S.OfCollector.Data;
   static override _meta = "OfCollector";
@@ -1858,7 +1858,7 @@ function bootModule(made: Map<string, unknown>, module: string): any {
 }
 
 /** Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Mutations.install`) when a store is
- * made, which holds nothing yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read
+ * made, which holds nothing yet to run it as a transaction ([CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md#the-bootstrap)): its terms are read
  * as they are built, its one upsert making each symbol's schema object through its kind's builder, then writing each
  * spec item through those builders. `made` holds what the installs read before made, by name, which
  * `txn.Schemas.OfStr` and its kin name. */
@@ -2032,19 +2032,19 @@ function clashes(schema: S.OfObject.Data, names: (string | null)[]): string[] {
  * `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with an
  * object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
  * held by the store: a named schema is registered under its name, so that the store builds its objects next, and is
- * found by its path, as each member of it is (docs/OBJECT_IDENTITY.md, Decided, 80 and 81); a schema object with no
+ * found by its path, as each member of it is (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)); a schema object with no
  * name of its own has no path, and is linked by one object alone. The store is a `Proxy`: a name it lacks starts a schema's name,
  * except JavaScript's protocol probes (`then`, ...), and one starting with `_` throws `AttributeError`.
  *
  * A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
- * ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
+ * ...) and mutation schemas, which no other store shares (schema extension 23 in [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)); it changes them, as
  * any schema it holds before an extension begins, only through `extend`, which only adds members. */
 export class Store extends Proxies.OfStore {
   /** `store.moduleName.[...moduleName].schemaName(...)`, each a path (`_Path`); dynamic by design. */
   [name: string]: any;
   /** The schema objects it holds. */
   readonly _objects = new Set<unknown>();
-  /** Those with no name of their own, held while what links them is (docs/OBJECT_IDENTITY.md, Decided, 94): a term's
+  /** Those with no name of their own, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's
    * pattern goes with its transaction. */
   readonly _unnamed = new WeakSet<object>();
   /** What links each object with no name of its own, and how. */
@@ -2107,7 +2107,7 @@ export class Store extends Proxies.OfStore {
   }
 
   /** The schema object whose path is `path`, a `Paths.OfRoot` value (`Paths.of`) or its plain form; null where the store
-   * holds none (docs/OBJECT_IDENTITY.md, Decided, 81). */
+   * holds none (object identity 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)). */
   held(path: any): any {
     const plain = typeof path?.as_schema === "function" ? PlainModule.ToPlain(null as any)(path.as_schema(), path) : path;
     let steps: [string, string][];
@@ -2138,7 +2138,7 @@ export class Store extends Proxies.OfStore {
   /** The steps of a schema object's path from the root module, each the adjacency it goes through and the entry's name:
    * a module's and a named schema's, its name's parts, through each module that defines the next; a member's, its
    * owner's, then the adjacency that owns it and its name there. Null where it has none: an object with no name of its
-   * own, and what such an object holds (Decided, 80 and 81). */
+   * own, and what such an object holds (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)). */
   _path(data: any): [string, string][] | null {
     if (data instanceof ModuleData && !data.name) return [];
     if (_named(data)) {
@@ -2171,8 +2171,8 @@ export class Store extends Proxies.OfStore {
   }
 
   /** Records what links each object with no name of its own that `data` links (or will, its builder's working copy
-   * `source`), refused where another links it already: it is written nested in the one object that links it (Decided,
-   * 81). */
+   * `source`), refused where another links it already: it is written nested in the one object that links it (object
+   * identity 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)). */
   _link(data: unknown, source: unknown = null): void {
     for (const [referent, members] of this._referents(source ?? data)) {
       if (_named(referent) || this.framework(referent)) continue;
@@ -2185,7 +2185,7 @@ export class Store extends Proxies.OfStore {
     }
   }
 
-  /** Executes a transaction (docs/OBJECT_IDENTITY.md, Decided, 85 to 97): a `Mutations.OfTransaction`, or a callback
+  /** Executes a transaction (object identity 85 to 97 in [CAP-138: mutation expressions over frame streams](../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)): a `Mutations.OfTransaction`, or a callback
    * building one, its root term given through `mutations`. Every write it makes is held apart until it ends, and dropped
    * where it throws. Gives the frames its chain of terms ends with, each the objects its symbols bind, by symbol. Given a
    * function of no arguments, a transaction's imperative scope (98), `store.transaction(() => { ... })`, within which
@@ -2198,7 +2198,7 @@ export class Store extends Proxies.OfStore {
   }
 
   /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
-   * before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now. */
+   * before it began (object identity 96 in [CAP-124: writes all-or-nothing in transactions](../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)). What it would link is checked now. */
   _defers(builder: Builder): boolean {
     const proposals = this._proposals;
     if (proposals === null || !this._existed(builder._original, proposals)) return false;
@@ -2277,7 +2277,7 @@ export class Store extends Proxies.OfStore {
     return this._objects.has(data) || this._unnamed.has(data as object);
   }
 
-  /** The store's owned objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
+  /** The store's owned objects by their paths (object identity 26 in [CAP-119: owned objects found by path](../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)): `store.Instances.<a
    * singleton's global name>` is the singleton, whose adjacencies called with keys continue the path. */
   get Instances(): any {
     return makeInstances(this, "");
@@ -2297,8 +2297,8 @@ export class Store extends Proxies.OfStore {
   }
 
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
-   * plain schema (`extendBuilders`): a module's install extends a store's own schemas (docs/proposals/install,
-   * Decided, 5). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`). */
+   * plain schema (`extendBuilders`): a module's install extends a store's own schemas (install
+   * D5 in [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`). */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
@@ -2316,10 +2316,10 @@ export class Store extends Proxies.OfStore {
   }
 
   /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under
-   * a name it neither has, nor a refinement of it declares (docs/SCHEMA_EXTENSION.md, Decided, 1): any transaction may
-   * extend one (docs/proposals/install, Decided, 5). The entries of an extension's relations, which are its store's own,
+   * a name it neither has, nor a refinement of it declares (schema extension 1 in [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)): any transaction may
+   * extend one (install D5 in [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)). The entries of an extension's relations, which are its store's own,
    * change freely. Of any schema it holds, it refuses an update that adds a branch or a part under a name another of
-   * them has for another schema (FRAMEWORK.md, Resolved, "A union's branch names are unique"). */
+   * them has for another schema ("A union's branch names are unique", [CAP-153: unions and intersections of named branches and parts](../../../../mbse-basis/docs/capabilities/CAP-153.md#decided)). */
   _permit(builder: any): void {
     const original = builder._original;
     const problems = [...(this.framework(original) ? extensionProblems(builder) : []), ...renamedRecords(builder)];
@@ -2388,7 +2388,7 @@ export class Store extends Proxies.OfStore {
   }
 
   /** A builder of a schema object of the meta-schema registered as `name`, new or `target` updated, as a link builds one
-   * (docs/OBJECT_IDENTITY.md, Decided, 97); null where `name` is not a meta-schema. */
+   * (object identity 97 in [CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)); null where `name` is not a meta-schema. */
   _meta_builder(name: string, target: unknown = null): any {
     const local = name.startsWith("Schemas.") ? name.slice("Schemas.".length) : "";
     const kind = _META_BUILDERS.get(local);
@@ -2435,7 +2435,7 @@ export class Store extends Proxies.OfStore {
  * where an object is expected, it is the schema it names (`.schema([store.Schemas.OfInt])`); `as_schema()` gives it. */
 /** `store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives. An
  * owned object is found from it through its owners' adjacencies, called with keys; a counted object only by visiting
- * what links it (docs/OBJECT_IDENTITY.md, Decided, 40). */
+ * what links it (object identity 40 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)). */
 function makeInstances(store: Store, name: string): any {
   const find = (): unknown => {
     throw new LookupError(`no singleton named ${repr(name)}: an owned object is found through its owners' adjacencies, `
@@ -2472,7 +2472,7 @@ function makePath(store: Store, name: string): any {
 }
 
 /** What a callback building a transaction is given (`store.transaction(install)`): the transaction's builder, whose
- * members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (docs/OBJECT_IDENTITY.md, Decided, 78). */
+ * members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (object identity 78 in [CAP-124: writes all-or-nothing in transactions](../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)). */
 function makeTransaction(store: Store, builder: any): any {
   const txn: any = new Proxy({}, {
     get: (_target, part) => {
@@ -2637,7 +2637,7 @@ export function _linked_data(visitor: unknown): unknown {
 }
 
 // `Schemas.OfX.Builder` is this: a schema builder is a `Visitors.OfObject` over its plain schema, its store's
-// `Schemas.OfX` (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
+// `Schemas.OfX` ([CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided): "Schemas.OfX.Builder must implement Visitors.OfX").
 for (const [namespace, own] of [[S.OfScalar, OfScalar], [S.OfObject, OfObject], [S.OfProperty, OfProperty],
   [S.OfAdjacency, OfAdjacency], [S.OfRelation, OfRelation], [S.OfSymbol, OfSymbol], [S.OfParameter, OfParameter],
   [S.OfUnion, OfUnion], [S.OfIntersection, OfIntersection], [S.OfContainer, OfContainer], [S.OfAny, OfAny],

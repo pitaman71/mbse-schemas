@@ -1,4 +1,4 @@
-"""Mutations: the schemas of the mutations a transaction applies (docs/SERIALIZATION.md, Transactions on the wire).
+"""Mutations: the schemas of the mutations a transaction applies ([CAP-129: journals replayed by execution](../../../../../mbse-basis/docs/capabilities/CAP-129.md#transactions-on-the-wire), [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#mutations-the-vocabulary)).
 
 Mutations are schema-governed like everything else: each verb and noun here is a schema, every store holds them, and
 ToPlain writes them as it writes any value. `install(txn)` defines them in the store a transaction writes, as every

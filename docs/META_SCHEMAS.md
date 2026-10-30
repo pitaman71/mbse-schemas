@@ -15,7 +15,7 @@ Not moved: a record superseded by what was built, which [CAP-109: schemas as lin
 
 ## Plan
 
-Now in [CAP-107: one visitor protocol reads and writes data](../../mbse-basis/docs/capabilities/CAP-107.md), [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/capabilities/CAP-109.md), [CAP-108: containers of any index and element](../../mbse-basis/docs/capabilities/CAP-108.md), [CAP-110: a store's schemas read as one module](../../mbse-basis/docs/capabilities/CAP-110.md).
+Now in [CAP-107: one visitor protocol reads and writes data](../../mbse-basis/docs/capabilities/CAP-107.md), [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/capabilities/CAP-109.md), [CAP-108: relations as scalable containers](../../mbse-basis/docs/capabilities/CAP-108.md), [CAP-110: a store's schemas read as one module](../../mbse-basis/docs/capabilities/CAP-110.md).
 
 ## The meta-schemas and their builders, as built
 
@@ -39,7 +39,7 @@ Now in [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/cap
 
 ## Open questions
 
-Now in [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/capabilities/CAP-109.md), [CAP-108: containers of any index and element](../../mbse-basis/docs/capabilities/CAP-108.md), [CAP-110: a store's schemas read as one module](../../mbse-basis/docs/capabilities/CAP-110.md), [CAP-114: bindings substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md).
+Now in [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/capabilities/CAP-109.md), [CAP-108: relations as scalable containers](../../mbse-basis/docs/capabilities/CAP-108.md), [CAP-110: a store's schemas read as one module](../../mbse-basis/docs/capabilities/CAP-110.md), [CAP-114: parameter bindings are substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md).
 
 ---
 

@@ -171,7 +171,7 @@ retiring the dataclasses):
     a transaction after it, as an install's data and a snapshot's (Decided, 101) are. Reading schema objects through the
     store (the survey's options: through read-only builders; schema objects as store data; or schema state copied on
     write through `Visitors.OfStore`, with what a user's own reads see within a transaction) is tech debt, internal,
-    to be done without changing that rule (TODO.md). Step 4 so ends with 4h.
+    to be done without changing that rule ([CAP-126: schema objects read through the store protocol](../../../../mbse-basis/docs/capabilities/CAP-126.md)). Step 4 so ends with 4h.
 
 ## Order of work
 
@@ -577,7 +577,7 @@ so that main stays current and no branch waits on another.
      e.name("nickname")))`, as tutorial 9 and the skill show.
 
      The semantics, fixed by the agent and approved by the user (2026-10-22: "approved"), the builders' new `clear()`
-     included; a spec that clears then inserts is tech debt ("note as tech debt"; TODO.md):
+     included; a spec that clears then inserts is tech debt ("note as tech debt"; [CAP-174: a spec that clears then inserts holds when re-run](../../../../mbse-basis/docs/capabilities/CAP-174.md)):
      - `remove` removes from the adjacency each entry that agrees with an entry given: every link and property the
        removal gives equals the entry's. In a keyed adjacency (entries keyed by `name`), an entry given by its name
        removes that entry. An entry given that matches none removes nothing, and is no error.
@@ -623,10 +623,10 @@ so that main stays current and no branch waits on another.
        4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built), released as 0.24.0;
      - references to objects, relation entries and frames, one format (`References`; [CAP-130: references to objects, entries and frames](../../../../mbse-basis/docs/capabilities/CAP-130.md)):
        4n, "right now", before 4k and 4h; built (References, Stages, as built); Paths overlap it meanwhile, deprecated,
-       their removal tech debt (no stage yet: the workspace's TODO.md, "Eliminate Paths");
+       their removal tech debt (no stage yet: [CAP-132: paths retired for references](../../../../mbse-basis/docs/capabilities/CAP-132.md));
      - Parametrics' bindings' adjacencies, `values` and `objects`: dropped, no stage, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced";
      - schema objects read field by field, outside the visitor protocol (tech debt retained in 4e-3): first 4k; taken
-       out of step 4 as tech debt (Decided, 32; TODO.md), the commit-time rule kept;
+       out of step 4 as tech debt (Decided, 32; [CAP-126: schema objects read through the store protocol](../../../../mbse-basis/docs/capabilities/CAP-126.md)), the commit-time rule kept;
      - the dataclass adapter defining its schemas in a store, not outside one (DC-03; 4f-3), which the plan pointed to
        a `TODO.md` that does not exist: 4l, independent of 4k, as an install (Decided, 31); built, released as 0.23.0. **4l, as built**:
        `FromDataclass.install(txn, module, *classes)` returns `txn.mutations([...])`, one upsert whose symbols are the
@@ -685,7 +685,7 @@ so that main stays current and no branch waits on another.
    ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md)). Each is proposed for the user's review when it starts.
    As the user decided (2026-10-28), mbse-patterns is re-scoped, not ported as it stands ("mbse-patterns should be
    rescoped as recommended"): what it did with predicates is mbse-schemas' `OfPattern` now, so it takes up what
-   TODO.md gives it beside them (generators, characterizers, patterns as distributions over constraints), proposed
+   [FEA-023: patterns over data](../../../../mbse-basis/docs/features/FEA-023.md) gives it beside them (generators, characterizers, patterns as distributions over constraints: [CAP-072: distributions in predicates](../../../../mbse-basis/docs/capabilities/CAP-072.md), [CAP-073: distributions fit from data](../../../../mbse-basis/docs/capabilities/CAP-073.md)), proposed
    when it starts. The order: mbse-expressions first, which the others depend on; then mbse-patterns and
    mbse-programs; mbse-codegen-python last.
 
@@ -740,7 +740,7 @@ selected container is now written, empty until written further, as a proxy's is 
 Found, for the user:
 
 - **The dataclass adapter** builds its schemas outside any store, so its test registers them with the private
-  `_register` until the adapter builds through a store's builders (TODO.md).
+  `_register` until the adapter builds through a store's builders; met by 4l's `FromDataclass.install` ([CAP-162: Python dataclasses translated to and from schemas](../../../../mbse-basis/docs/capabilities/CAP-162.md)).
 - **An empty inner container read into an object that exists** is treated as omitted and keeps what the object held
   (`[[], ['b']]` read over `[['a'], []]` gives `[['a'], ['b']]`): reading into a store that holds the object merges
   element by element, and an empty container is not told from an absent one.

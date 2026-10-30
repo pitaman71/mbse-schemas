@@ -6,14 +6,14 @@ elsewhere (below, "Decided here"), and cites those that are.
 
 ## The decisions it carries out
 
-- **Extension is per store, and no schema object is shared across stores** ([Schema extension, Decided,
-  23](../../SCHEMA_EXTENSION.md#decided)): "MBSE does not currently support cross-store references for any kind or any
+- **Extension is per store, and no schema object is shared across stores** (Schema extension, Decided, 23 in
+  [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)): "MBSE does not currently support cross-store references for any kind or any
   purpose, for now, period." There is no framework store and no `Builders.extend`.
-- **What leaves mbse-schemas** (Schema extension, Decided, 5 to 7, 14): `requires`, `OfApply` and its arguments
+- **What leaves mbse-schemas** (Schema extension, Decided, 5 to 7 in [FEA-024: expressions as data](../../../../mbse-basis/docs/features/FEA-024.md#decided), and 14 in [CAP-112: parameters modeled as schema data](../../../../mbse-basis/docs/capabilities/CAP-112.md#decided)): `requires`, `OfApply` and its arguments
   (`ArgumentTerm`), `Form` and terms in schemas, a scalar's `bits` and `bytes`, and the value parameters, all to
   mbse-expressions or mbse-patterns.
-- **Object identity** ([Object identity, Decided](../../OBJECT_IDENTITY.md#decided)): `Schema@Path/Suffix`, a module
-  path (the schema by default) and a suffix, `Schema@` written only in `Exists` (Object identity, Decided, 8); `store.Instances.<path>
+- **Object identity** ([FEA-026: deterministic object identity](../../../../mbse-basis/docs/features/FEA-026.md), its capabilities' Decided): `Schema@Path/Suffix`, a module
+  path (the schema by default) and a suffix, `Schema@` written only in `Exists` (Object identity, Decided, 8 in [CAP-119: owned objects found by path](../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)); `store.Instances.<path>
   .as_instance(suffix)`; `Schemas.OfIdentity` an object.
 - **PRI-015** (mbse-basis): a concrete reference is programmatic; `as_instance` "is the one and only one api location
   where the identity of an object can be used to reference the object".
@@ -31,7 +31,7 @@ As the user confirmed ("that is correct and worth recording as you explained"), 
 
 Level 3 is code: "meta-schemas return to being completely static dataclasses, never read or written just exchanged by
 reference". A level-2 schema refers to its level-3 dataclass as an object refers to its class; no store holds one, so
-their being one per process does not share a schema object across stores (Schema extension, Decided, 23).
+their being one per process does not share a schema object across stores (Schema extension, Decided, 23 in [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)).
 
 What mbse-schemas has called the meta-schemas until now (`Builders.Meta.Object`, named `Schemas.Object`, and so on) is
 level 2. **Every extension adds to level 2, never to level 3**: `HasDomain` adds `domains` to `Schemas.OfScalar`,
@@ -55,7 +55,7 @@ As the user decided (2026-10-16), on the questions put to them:
    and `HasPart`, each entry carrying the member's name and description and linking its type.
 5. **Properties stay objects**: "properties remain an object because they can have a description too".
 6. **Modules are an ordinary schema**: "`Meta.Module` : normal schema `Schemas.OfModule`", which is also the namespace
-   of identities (Object identity, Decided, 2).
+   of identities (Object identity, Decided, 2 in [CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)).
 7. **`Argument`, `Term` and `Form` go** in this overhaul: "drop whenever you think is best".
 8. **The basic scalars are the five instances of `Schemas.OfScalar`**: "normal schema `Schemas.OfBool`,
    `Schemas.OfBytes` ... which become variants of `Schemas.OfScalar`", read with the levels ("yes"): each a level-1
@@ -69,7 +69,7 @@ As the user decided (2026-10-16), on the questions put to them:
     kind, not once on a base of every kind (which would need a union to declare adjacencies).
 11. **Building and serialization stay as they are**: "building / serialization should be almost untouched other than
     identity itself".
-12. **A type parameter is applied by binding it**, not by `OfApply` ([Parametrics](../../PARAMETRICS.md)), in two
+12. **A type parameter is applied by binding it**, not by `OfApply` ([CAP-114: parameter bindings are substituted and checked](../../../../mbse-basis/docs/capabilities/CAP-114.md)), in two
     steps:
     - `store.Parameters.Bind(lambda b: b.target(positive).formal(Symbols.T).actual(...))` "constructs an object and
       returns it. The object represents the substitution without actually applying it": one parameter, its `formal`,
@@ -81,7 +81,7 @@ As the user decided (2026-10-16), on the questions put to them:
       `as_adjacencies`, through the target's own structure.
 13. **`Schemas.Meta` is a module**, holding the meta-schemas as its instances: "Make `Meta` a module, put the meta schema
     (as instances) underneath it", "Actually `Schemas.Meta`". A meta-schema's identity is `Schemas.Meta/OfObject`, its
-    module path `Schemas.Meta` (Object identity, Decided, 2 and 3), and `store.Schemas.Meta.OfObject` reads it.
+    module path `Schemas.Meta` (Object identity, Decided, 2 in [CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided) and 3 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)), and `store.Schemas.Meta.OfObject` reads it.
 14. **Building is through the plain schema's own name**: "`store.Schemas.Object(...)` should be
     `store.Schemas.OfObject(...)`". Calling `store.Schemas.OfObject(lambda o: ...)` builds an object schema (level 1),
     an instance of `Schemas.OfObject` (level 2); the level-2 schemas are named `Schemas.OfObject`, `Schemas.OfScalar`,
@@ -132,15 +132,15 @@ As the user decided (2026-10-22), on what remains after 4i, item by item as they
 26. **Step 5 ports the dependents**: "If we do not have a step 5 defined yet, it should be focused on porting all of
     the `mbse-*` dependencies over to the stabilized `mbse-schemas`." The dependents leave 4h for it.
 27. **Deferred**: subsequent snapshots and optimizing the installs' size ("1, 3. correct, defer"). Deleting an object
-    no entry owns, and the meta-schemas as linked objects (META_SCHEMAS.md, phase 5) with generated code (phase 6):
+    no entry owns, and the meta-schemas as linked objects ([CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md), phase 5) with generated code (phase 6):
     "not sure the case exists, will exist, or should exist". 4j removes entries only: "4j : implement removing
     entries, but defer deleting objects to a later phase".
 28. **Bindings are lazy**: "parameter, argument bindings of any kind are super lazy", settling Open, 1, when a binding
     is applied.
-29. **Where constraints attach** (FRAMEWORK.md, Open questions): "not built yet, coming soon". Parametrics beyond what
+29. **Where constraints attach** ([CAP-166: constraints attached where they constrain](../../../../mbse-basis/docs/capabilities/CAP-166.md)): "not built yet, coming soon". Parametrics beyond what
     is built "needs design, may come up after" it.
-30. **Open-world modeling, parametrics and the meta-schemas as linked objects** (FRAMEWORK.md, Open questions;
-    META_SCHEMAS.md): "needs design, not particularly urgent at the moment".
+30. **Open-world modeling, parametrics and the meta-schemas as linked objects** ([FEA-020: refinable models](../../../../mbse-basis/docs/features/FEA-020.md), [CAP-163: parameters bound, applied and generated beyond mbse-schemas](../../../../mbse-basis/docs/capabilities/CAP-163.md);
+    [CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md)): "needs design, not particularly urgent at the moment".
 31. **4l: the dataclass adapter writes an install** ("sounds good"), so that it depends on the transaction's spec, not
     on the builders 4k rewrites, and may be built before 4k. It is called inside the caller's own module-scope
     install, which gives it the transaction, its uid set by the caller:
@@ -182,7 +182,7 @@ so that main stays current and no branch waits on another.
    schemas when it is made (level 3 is static code), and the module-level `Builders.Meta` goes. The level-2 schemas are
    named `Schemas.OfX` and built through them (14); a path given where an object is expected is the schema it names,
    and `as_schema()` gives it (15, 16). A builder of a level-1 schema finds its members through its store's level-2
-   schema, so the members an extension adds (Schema extension, Decided, 18) are each store's own, not added to a shared
+   schema, so the members an extension adds (Schema extension, Decided, 18 in [CAP-116: framework schemas extended, checked](../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)) are each store's own, not added to a shared
    class. `Builders.extend` and the framework store go; `store.extend` is the only extension, and the schemas a store
    was made holding change only through it (their entries are the store's own, as 0.12.1 kept them). EXT is
    rewritten: an extension extends one store, and round trips between stores with the same extensions.
@@ -192,7 +192,7 @@ so that main stays current and no branch waits on another.
    builds a schema, `store.Schemas.Object(...)` and its kin (1854 in 87 files), which becomes
    `store.Schemas.OfObject(...)`; the wire's schema keys (`Schemas.OfObject/crm.Contact`).
 2. **What leaves (0.17.0).** `Argument`, `Term`, `Form`, `OfApply`, `requires`, `bits` and `bytes`, and the value
-   parameters (7; Schema extension, Decided, 5 to 7). `Meta.Schema`, `Meta.Type` and `Meta.Typed` go (2, 3), and
+   parameters (7; Schema extension, Decided, 5 to 7 in [FEA-024: expressions as data](../../../../mbse-basis/docs/features/FEA-024.md#decided)). `Meta.Schema`, `Meta.Type` and `Meta.Typed` go (2, 3), and
    `Schemas.Meta` (13) is built, holding level 3's names.
    *Breaks*: PAR (parametrics) and every test of forms, widths, applications and predicates' `requires`.
 2a. **One store (0.15.0).** `register` leaves the public API and `Proxies.OfStore` with it (17); a test's "another
@@ -205,8 +205,8 @@ so that main stays current and no branch waits on another.
 3b. **Schema, never "type" (0.19.0).** The rename 24 lists, in both languages, messages and documents included.
    *Breaks*: every `.schema([...])` (1671 in 126 files), `OfAny`'s `types`, the wire's `Schemas.HasSchema` entries and the
    `HasBranch` and `HasPart` link, and every message that said type.
-4. **Object identity, patterns and mutation expressions.** As [Object identity](../../OBJECT_IDENTITY.md) (Decided, 1 to
-   63) and [Mutations as queries](../../STREAMING_QUERIES.md) now describe them: three modes of identity (a singleton by
+4. **Object identity, patterns and mutation expressions.** As [FEA-026: deterministic object identity](../../../../mbse-basis/docs/features/FEA-026.md) (Object identity, Decided, 1 to
+   63, in its capabilities) and [FEA-027: mutations as queries](../../../../mbse-basis/docs/features/FEA-027.md) now describe them: three modes of identity (a singleton by
    its global name, an owned object by its path, a counted object by nothing beyond a document, or, created by an
    upsert, by its frame, key and symbol); patterns (`Schemas.OfPattern`) replacing predicates; mutations as expressions
    over streams of frames, every write in a transaction; `as_identity` gone. Worked on the branch `object-identity`,
@@ -247,15 +247,15 @@ so that main stays current and no branch waits on another.
        `Corpus.Root`, so. YAML quotes the key `'n'`, which a YAML 1.1 reader takes for false;
      - the tutorials retell case study 6 with counted contacts and addresses, numbered, and point to owned objects for
        lasting names; case study 8's audit log labels linked objects by their values.
-   Done in this order, so that `Schemas` is stable early (Object identity, Decided, 68): 4d, 4g, then 4e and 4f.
-   - **4d, patterns** (STREAMING_QUERIES.md, Patterns and Spec; Value expressions and constraints; Object identity,
-     Decided, 66, 67, 76 to 78): `Schemas.OfPattern`, `OfVariable`, `OfExpression` and its boolean variant `OfConstraint`
+   Done in this order, so that `Schemas` is stable early (Object identity, Decided, 68 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)): 4d, 4g, then 4e and 4f.
+   - **4d, patterns** ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md); Object identity,
+     Decided, 66, 67, 76 and 77 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided), 78 in [CAP-124: writes all-or-nothing in transactions](../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)): `Schemas.OfPattern`, `OfVariable`, `OfExpression` and its boolean variant `OfConstraint`
      (placeholders mbse-expressions refines), `OfCollector` (rejected by validation where it declares neither
      `.commutative()` nor `.associative()`, 62); built, validated and written as every schema is. `Schemas.OfPredicate`
      goes (67). A symbol is found as a singleton by its schema, or through its pattern's `spec` (76, 77), which
      replaced the locators a first build made (64 to 75, superseded). Done, released as 0.21.0; `spec` is built in 4e, with the
      mutation builders that record it. As built
-     (FRAMEWORK.md, Resolved, Patterns, has the choices made for the user's review):
+     ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided), "Patterns", has the choices made for the user's review):
      - the meta-schemas `Schemas.OfPattern`, `OfVariable`, `OfExpression` and `OfCollector`; the relations
        `Schemas.HasVariable`, `Requiring`, `Matching`, `Resulting` and `Computing`, `HasSymbol` now a pattern's;
      - `store.Schemas.OfConstraint(...)` builds an expression of the store's `OfBool`; a pattern's `requires` builds
@@ -277,7 +277,7 @@ so that main stays current and no branch waits on another.
        refusing a second ("... with no name of its own is linked by one schema object alone, and another links it
        already: name it to share it"); a clone has its own of each. A name is registered once, of any kind, and a module
        and a schema do not share a path ("the path 'crm.Contact' names another schema object already"), so tutorial 9
-       and the skill version as `crm.v2.Contact` (Object identity, Decided, 83);
+       and the skill version as `crm.v2.Contact` (Object identity, Decided, 83 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided));
      - `validate()` refused a value schema that holds itself (72), which made the framework's own `Paths` and
        `Mutations` invalid; 72 was then removed (82), and a value schema may hold itself again;
      - a log refers to a schema object by its path and defines it by its path, its kind and its properties
@@ -301,7 +301,7 @@ so that main stays current and no branch waits on another.
        an entry builder have its branches as members, each building an object of its kind through the link, or linking
        one given. A link that declares a reference object schema builds that one, and a data link to a schema object
        (a term's pattern) builds it with its meta-schema's builder (`Store._meta_builder`);
-     - mappings for keyed adjacencies (FRAMEWORK.md, Resolved), in the schema builders, the proxies and specs;
+     - mappings for keyed adjacencies ([CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md)), in the schema builders, the proxies and specs;
      - the terms (93): `Mutations.OfTransaction` (`uid`, `mutations`), the kind union `Mutations.OfTerm` (`map`,
        `reduce`, `partition`, `update`, `upsert`), `OfMap` and `OfReduce` (`symbols`, `variables`, `then`),
        `OfPartition` (`first`, `last`, `branches`, `none`, `then`), `OfBranch` (`requires`, `then`), `OfUpdate`
@@ -389,7 +389,7 @@ so that main stays current and no branch waits on another.
      decode there leaves what it wrote before the refusal to the transaction, which the caller may let raise (4e-3
      makes the join a savepoint, which drops it). One transaction was first open at a time across every store; each
      store has its own now (Decided, 99), its overlay kept on the store.
-   - **4e-3, `Visitors.OfStore` and `Proposals`** (Object identity, Decided, 100): `Stores.Store` renamed
+   - **4e-3, `Visitors.OfStore` and `Proposals`** (Object identity, Decided, 100 in [CAP-149: data accessed through the store protocol](../../../../mbse-basis/docs/capabilities/CAP-149.md#decided)): `Stores.Store` renamed
      `Visitors.OfStore` and `Proxies._Store` `Proxies.OfStore`; every data access through the protocol; the overlay
      refactored into `Proposals`, which implements it over a store or over another `Proposals` (a savepoint), the
      decoders writing within a savepoint of the transaction open. Tech debt, retained: schema objects are read field by
@@ -416,7 +416,7 @@ so that main stays current and no branch waits on another.
      it, owned objects and singletons referred to by path. The corpora are regenerated, the JSON byte-identical between
      the languages.
 
-     Proposed and approved (Object identity, Decided, 101 to 103):
+     Proposed and approved (Object identity, Decided, 101 in [CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md#decided), 102 in [CAP-139: upserts find before they create](../../../../mbse-basis/docs/capabilities/CAP-139.md#decided), 103 in [CAP-125: imperative transaction scope](../../../../mbse-basis/docs/capabilities/CAP-125.md#decided)):
      - **A transaction on the wire is its expression, nested.** A document is read by executing it, so its own form
        cannot be a transaction: each term is written where the one before links it (`mutations`, `then`, `branches`,
        `none`), a relation of one other link written as that link's object, the peer shorthand the builders take; each
@@ -475,7 +475,7 @@ so that main stays current and no branch waits on another.
        interpreted by another's, which no kind has. A pattern's `spec` is not yet a property of `Schemas.OfPattern`,
        so a snapshot left it out until 4f-5, which writes it.
      - **4f-2, as built**: `Plain.ToPlain(store).Transaction(tx)` writes a transaction's expression nested
-       (SERIALIZATION.md, Transactions on the wire), generically from the schemas of its terms and of the schema
+       ([CAP-129: journals replayed by execution](../../../../mbse-basis/docs/capabilities/CAP-129.md#transactions-on-the-wire)), generically from the schemas of its terms and of the schema
        objects they link; `Plain.FromPlain(store).Transaction(plain)` builds it through the store's builders, each
        nested object defined through its link by name (`e.branch(cb)`), its kind (`e.upsert(cb)`), or, where several
        schemas fill the link, its schema's builder (`{"Schemas.OfUnion": ...}`); a pattern's builder takes a spec as
@@ -484,7 +484,7 @@ so that main stays current and no branch waits on another.
        that removes entries or clears an entry's link or property, which only one read from the wire can give; a term
        linked from two places is refused when written. TXN-13 covers it.
      - **4f-3, as built**: `Plain.ToPlain(store).Reachable(schema, root, uid)` and `.OfObject` write a document, one
-       transaction (SERIALIZATION.md, Documents), built as an expression and written as a transaction on the wire; the
+       transaction ([CAP-128: graphs sent as one-transaction documents](../../../../mbse-basis/docs/capabilities/CAP-128.md#documents)), built as an expression and written as a transaction on the wire; the
        old `{"root", "objects"}` form and its decoder are gone. `FromPlain(store).Reachable` and `.OfObject` read it
        through `FromPlain(store).Transaction` and execute it with `Transactions._execute(store, tx, joined=True)`,
        within the open transaction as a savepoint, the root's schema checked within it. The reader checks a pattern's
@@ -511,7 +511,7 @@ so that main stays current and no branch waits on another.
          owned objects is a store's snapshot (51), which 4f-4 makes of transactions.
        - The read-time messages for an entry name the adjacency (`an entry of 'out' has no link 'colour'`), which an
          unnamed relation lacks.
-     - **4f-4, as built**: `Plain.ToPlain(store).Snapshot()` writes two transactions (SERIALIZATION.md, Snapshots), each
+     - **4f-4, as built**: `Plain.ToPlain(store).Snapshot()` writes two transactions ([CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md#snapshots-in-order)), each
        one upsert: the store's schemas, each named schema object a symbol of its meta-schema, an unnamed one defined
        where it is linked; then its data, each singleton and what the singletons reach, in the order met, a symbol.
        Each entry is written once, from the first symbol holding it. `Plain.FromPlain(store).Snapshot(snapshot,
@@ -572,7 +572,7 @@ so that main stays current and no branch waits on another.
      entry's property cleared, where the executor refused them (4f-2). A spec writes them in the calls a builder's
      adjacency takes, `_.ada.knows(lambda a: a.remove(lambda e: e.known(_.bob)))` and `a.clear()`, recorded as
      `Mutations.OfAdjacency.Remove` and `Clear`; a builder's adjacency, data's and a schema object's, gains `clear()`
-     (`Visitors.OfAdjacency`, VISITOR_PATTERN.md), so that both take the same calls. An install removes a member of
+     (`Visitors.OfAdjacency`, [CAP-107: one visitor protocol reads and writes data](../../../../mbse-basis/docs/capabilities/CAP-107.md)), so that both take the same calls. An install removes a member of
      the store's own schemas, `_.Contact.name("crm.Contact").properties(lambda a: a.remove(lambda e:
      e.name("nickname")))`, as tutorial 9 and the skill show.
 
@@ -594,7 +594,7 @@ so that main stays current and no branch waits on another.
        holds"): removal applies to the store's own schemas and to data. Where the member is absent, the spec holds and
        nothing is written, so nothing is refused.
      - Removing an owning entry deletes what it owned, cascading, as a builder's removal does (Object identity,
-       Decided, 48). Deleting an object no entry owns stays deferred (Decided, 27).
+       Decided, 48 in [CAP-121: owned objects deleted in cascade](../../../../mbse-basis/docs/capabilities/CAP-121.md#decided)). Deleting an object no entry owns stays deferred (Decided, 27).
 
      Found while building it, for the user's review:
      - A spec's verbs apply in the order it gives them, each where it does not hold. A spec that clears an adjacency and
@@ -619,7 +619,7 @@ so that main stays current and no branch waits on another.
        built; tutorial 9) is deferred past step 4, as the user decided (2026-10-22): "4j : implement removing entries,
        but defer deleting objects to a later phase";
      - parameters as a module, `Parametrics`, installed before use, in place of every kind's names only
-       (docs/PARAMETRICS.md, as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
+       ([CAP-112: parameters modeled as schema data](../../../../mbse-basis/docs/capabilities/CAP-112.md), as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
        4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built), released as 0.24.0;
      - references to objects, relation entries and frames, one format (`References`; [References](../references/README.md)):
        4n, "right now", before 4k and 4h; built (References, Stages, as built); Paths overlap it meanwhile, deprecated,
@@ -655,10 +655,10 @@ so that main stays current and no branch waits on another.
        fluent syntax, in 4i-4, beside the installs (done: the corpus's, University's and the test suites');
      - a journal, settled: a list of transactions on the wire, replayed by executing each, with no call of its own, is
        the journal, built as designed (the user: "journal as a transaction list: yes that is built as designed");
-     - subsequent snapshots (SERIALIZATION.md, step 3; META_SCHEMAS.md, "not built yet"): after step 4, as the user
+     - subsequent snapshots ([CAP-164: subsequent snapshots sent as transactions](../../../../mbse-basis/docs/capabilities/CAP-164.md), "not built yet"): after step 4, as the user
        decided ("after 4"); deferred (Decided, 27);
      - deleting an object no entry owns: deferred, whether it is needed at all open (Decided, 27).
-   - **4i, `install`** (Object identity, Decided, 86: "`store.extend` is basically replaced by this new `install`
+   - **4i, `install`** (Object identity, Decided, 86 in [CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md#decided): "`store.extend` is basically replaced by this new `install`
      convention"): every module that defines schemas does so in a module-scope `install(txn)`, its definitions and
      extensions symbols of meta-schemas that an upsert finds by name or creates; `store.extend` goes, and every caller,
      the framework's own modules, the tests and the tutorials, migrates; the dependents in their port, step 5 (Installing
@@ -682,7 +682,7 @@ so that main stays current and no branch waits on another.
    stabilized mbse-schemas, its schemas installs (Installing schemas, Decided, 7). mbse-expressions refines
    `OfExpression` and `OfConstraint`, evaluates what the executor refuses (87), and redrafts its framework model (below);
    mbse-programs' corpora become Reachable transactions; mbse-patterns, built on `OfPredicate`, moves to `OfPattern`
-   (STREAMING_QUERIES.md). Each is proposed for the user's review when it starts.
+   ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md)). Each is proposed for the user's review when it starts.
    As the user decided (2026-10-28), mbse-patterns is re-scoped, not ported as it stands ("mbse-patterns should be
    rescoped as recommended"): what it did with predicates is mbse-schemas' `OfPattern` now, so it takes up what
    TODO.md gives it beside them (generators, characterizers, patterns as distributions over constraints), proposed
@@ -802,7 +802,7 @@ wording. The corpora change in every relation key and link that said type.
 
 ## Step 4a, as built
 
-`Schemas.OfAdjacency` has `owner`, validated as Object identity, Decided, 14 says: a relation of two links, with a
+`Schemas.OfAdjacency` has `owner`, validated as Object identity, Decided, 14 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided) says: a relation of two links, with a
 clause holding the owner's link and not the owned's and one holding the owned's and not the owner's. A property has
 `pattern`, validated as a naming pattern on text. The keyed relations between schema objects (`HasProperty`, ...,
 `Defines`) mark their members' ends `owner()`; `Schemas.HasInstance` links an object schema to its objects, keyed by
@@ -812,7 +812,7 @@ a singleton. Nothing else changes: objects keep their identities until 4b, and t
 
 ## Step 4b, as built
 
-Data objects are identified by their paths (Object identity, Decided, 31 to 36). An object whose schema declares an
+Data objects are identified by their paths (Object identity, Decided, 31 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided), 32 and 35 in [CAP-119: owned objects found by path](../../../../mbse-basis/docs/capabilities/CAP-119.md#decided), 33 and 34 in [CAP-120: owned objects named and placed when built](../../../../mbse-basis/docs/capabilities/CAP-120.md#decided), 36 in [CAP-128: graphs sent as one-transaction documents](../../../../mbse-basis/docs/capabilities/CAP-128.md#decided)). An object whose schema declares an
 `owner()` adjacency is owned at build: when the outermost builder's write ends, one created without an owner is given
 the one singleton that can own it, its keys the next its naming patterns give past every number held, and otherwise
 the write raises, naming the ownership missing (IDN-05). An object whose schema declares none is its schema's, through
@@ -843,7 +843,7 @@ Points settled while building, for the user's review:
    is left open. Under object identity (step 4), a path's builder given an identity the store holds visits that object,
    and otherwise makes one; the present code clones on `store.crm.Contact(obj)` until then.
 2. *Settled by 22.*
-3. *Settled by Object identity, Decided, 8:* `Schema@` only in `Exists`, one directory per module. Step 4 then tells
+3. *Settled by Object identity, Decided, 8 ([CAP-119: owned objects found by path](../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)):* `Schema@` only in `Exists`, one directory per module. Step 4 then tells
    apart what shares a `ModulePath/Suffix` today across kinds: a predicate's parameter and symbol of one name
    (`crm.Kinds.x`), and a module named as a schema is (`crm.Contact`, holding `crm.Contact.v2`).
 4. **A path given to a link.** Your `e.domain(Int32)` passed a path. With `as_instance`, a link is given the instance
@@ -854,14 +854,14 @@ Points settled while building, for the user's review:
    object is linked by giving the object, or, in a transaction, the symbol a pattern binds to it. Still open: whether a
    link should also find one by a path.
 5. *Superseded by 8.*
-6. *Settled by Object identity, Decided, 58*: a mutation's builders are those a property call with a callback gives.
-7. *Settled by Object identity, Decided, 55 and 61*: a counted object is numbered within the document that writes it,
+6. *Settled by Object identity, Decided, 58 ([CAP-138: mutation expressions over frame streams](../../../../mbse-basis/docs/capabilities/CAP-138.md#decided))*: a mutation's builders are those a property call with a callback gives.
+7. *Settled by Object identity, Decided, 55 ([CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)) and 61 ([CAP-139: upserts find before they create](../../../../mbse-basis/docs/capabilities/CAP-139.md#decided))*: a counted object is numbered within the document that writes it,
    or, created by an upsert, identified by its frame, key and symbol; nothing re-states a transaction's index.
 8. *Approved*: 0.20.0 after 4c, 0.21.0 after 4f, 0.22.0 after 4g, each landing the branch on main; renumbered by the
    reorder to 0.21.0 after 4d and 4g, 0.22.0 after 4e and 4f (Order of work, Releases).
 9. *Settled*: a transaction is a mutation expression only. The store's builders do not write inside one on their own
    (a `.build(...)` handing the callback the store was proposed and refused: it "circumvents the entire streaming query
-   language"); writes are made by the property builders a term's pattern gives (Object identity, Decided, 58), which are
+   language"); writes are made by the property builders a term's pattern gives (Object identity, Decided, 58 in [CAP-138: mutation expressions over frame streams](../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)), which are
    the same fluent calls:
 
    ```python
@@ -881,7 +881,7 @@ Points settled while building, for the user's review:
    (`.symbol`, `.path(... .start(...).step(...))` and `.object` are names for 4e to settle.) Every test, tutorial,
    example and skill block that builds moves into such expressions in 4e.
 10. *Settled*: `Schemas.OfPredicate` goes, in 4d ("OfPredicate goes away, consider that decided"; Object identity,
-    Decided, 67).
+    Decided, 67 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)).
 11. *Agreed*: 4e builds only the in-memory, sequential executor; distributed execution, and with it shards, is later
     work, the design (56, 57, 62) keeping it possible.
 12. *Settled*: "if returning something is useful for testing purposes, do it. Regular programs probably will not."

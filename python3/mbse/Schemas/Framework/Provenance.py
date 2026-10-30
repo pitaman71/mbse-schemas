@@ -1,5 +1,5 @@
 """Provenance: the records of the transactions a store executes, who executed them, when and from where
-([CAP-134: transactions recorded with provenance](../../../../../mbse-basis/docs/capabilities/CAP-134.md); FRAMEWORK.md, Resolved, Provenance).
+([CAP-134: transactions recorded with provenance](../../../../../mbse-basis/docs/capabilities/CAP-134.md)).
 
 Normal schemas, installed before use: `store.transaction(Provenance.install)`. `Provenance.OfTransaction` is the record
 of one executed transaction, owned by the singleton `Provenance.Transactions`, keyed by the transaction's `uid`: its
@@ -29,7 +29,7 @@ __all__ = ["install", "extend"]
 
 UNKNOWN = "unknown"
 """The placeholder of a transaction that names no session, or no identity: its session's `id`, its identity's `name`
-(Decided, 3; tech debt)."""
+(provenance 3 in [CAP-134: transactions recorded with provenance](../../../../../mbse-basis/docs/capabilities/CAP-134.md#decided); tech debt)."""
 
 
 def install(txn: Any) -> Any:
@@ -184,7 +184,7 @@ def _record(store: Any, proposals: Any) -> None:
     else made with its `started`, `locale` and `device`, and its identity through `Who`, found by its name, else made;
     and `InSession`. Each object of a schema `extend` extended is linked by `CreatedBy` where the transaction created
     it, else by `ModifiedBy`, the one it held replaced. An imperative scope has no expression: its record has
-    placeholder data (Decided, 3), a `uid` the store makes, `when` at commit, the session and identity `unknown`."""
+    placeholder data (provenance 3 in [CAP-134: transactions recorded with provenance](../../../../../mbse-basis/docs/capabilities/CAP-134.md#decided)), a `uid` the store makes, `when` at commit, the session and identity `unknown`."""
     if "Provenance.OfTransaction" not in proposals.saved["_schemas"]:
         return
     created = list(proposals.created.values())

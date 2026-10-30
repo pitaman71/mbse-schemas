@@ -2,7 +2,7 @@
 object identity 38 to 97 in [FEA-030: transactions](../../../../../mbse-basis/docs/features/FEA-030.md)).
 
 A pattern's `spec` says what must hold of a frame: the property values the objects its symbols bind have, and the
-relation entries that link them (Decided, 76). It is written in the builders' own notation, over the frame, whose
+relation entries that link them (object identity 76 in [CAP-137: patterns of symbols, variables and specs](../../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)). It is written in the builders' own notation, over the frame, whose
 members are the pattern's symbols, each a visitor of the object it binds that records mutations rather than writing
 objects (58, 95):
 
@@ -27,7 +27,7 @@ by symbol. A spec holds where the entries it inserts are held and those it remov
 where every link and property the removal gives agrees with it, so that run again, a spec that removes writes nothing.
 
 A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
-schemas, each found by its name, so that a transaction defines and extends schemas (Decided, 86).
+schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../../mbse-basis/docs/capabilities/CAP-115.md#decided)).
 """
 
 from __future__ import annotations
@@ -94,7 +94,7 @@ def _given_reference(symbol: Any) -> Any:
 
 
 def _exactly_one(name: str, symbol: Any, error: type[Exception]) -> Any:
-    """A symbol's reference, refused where it has both a schema and a reference, or neither (References, Decided, 8)."""
+    """A symbol's reference, refused where it has both a schema and a reference, or neither (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))."""
     reference = _given_reference(symbol)
     if (reference is None) == (symbol.schema is None):
         given = "neither a schema nor a reference" if reference is None else "both a schema and a reference"
@@ -105,7 +105,7 @@ def _exactly_one(name: str, symbol: Any, error: type[Exception]) -> Any:
 def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
     """The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
     identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where
-    the store holds it, else the schema its path implies, through the store's schemas alone (References, Decided, 8);
+    the store holds it, else the schema its path implies, through the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided));
     refused where the path cannot be followed."""
     from . import References
 
@@ -257,8 +257,8 @@ class _RecordedAdjacency(Proxies._Unassignable):
     """An adjacency of a recorded object: its entries inserted, removed or cleared, recorded, as a builder's adjacency
     takes them (`insert(cb)`, `remove(cb)`, `clear()`). Called with a callback, it visits through it;
     with an iterable, the peer shorthand, each item an entry's callback or the object to link; with a mapping, where
-    its relation has two links and one property, each item an entry keyed by that property (FRAMEWORK.md, Resolved,
-    Mappings for keyed adjacencies)."""
+    its relation has two links and one property, each item an entry keyed by that property (mappings
+    for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md#decided))."""
 
     def __init__(self, recorder: _Recorder, name: str):
         object.__setattr__(self, "_recorder", recorder)
@@ -639,7 +639,7 @@ def _symbols(store: Any, pattern: Any) -> None:
 
 def _meta(store: Any, schema: Any) -> bool:
     """Whether `schema` is a meta-schema: its objects are schema objects (`Schemas.OfObject`, ...), written by their
-    builders (Decided, 86)."""
+    builders (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../../mbse-basis/docs/capabilities/CAP-115.md#decided))."""
     return store._meta_builder(store.name_of(schema)) is not None
 
 
@@ -714,7 +714,7 @@ def _run(store: Any, term: Any, frames: list[Frame]) -> list[Frame]:
 def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None = None) -> list[Frame]:
     """The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members
     its spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
-    where the store holds none (References, Decided, 8). An upsert creates, where none is found, the object of a
+    where the store holds none (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a
     symbol, and writes its spec where it does not hold; a counted object it created before from the same frame, for
     the same symbol and key, it finds again (63), and finds none otherwise (102)."""
     from . import References
@@ -725,7 +725,7 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
         if name in frame:
             continue
         reference = _given_reference(symbol)
-        if reference is not None:  # what it designates, or no frame where the store holds none (References, Decided, 8)
+        if reference is not None:  # what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))
             target = References.resolve(store, reference)
             frames = [] if target is None else [{**partial, name: target} for partial in frames]
             continue
@@ -809,7 +809,7 @@ def _created(store: Any, schema: Any, identifying: list[Any]) -> Any:
 
 def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str, schema: Any, frame: Frame) -> Any:
     """Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's
-    spec bound before it (Decided, 60): the objects linked by each of the owner's entries agreeing with the properties
+    spec bound before it (object identity 60 in [CAP-139: upserts find before they create](../../../../../mbse-basis/docs/capabilities/CAP-139.md#decided)): the objects linked by each of the owner's entries agreeing with the properties
     it gives, one where they give its keys, every one where they leave them open, none where none agrees; None where no
     spec gives such an entry."""
     owning = [a for a in (*schema.adjacencies.values(), *schema.anonymous) if a.owner]
@@ -947,7 +947,7 @@ def _resolve(store: Any, ref: dict[str, Any], frame: Frame) -> Any:
 
 
 def _write_spec(store: Any, pattern: Any, frame: Frame) -> None:
-    """Writes a pattern's spec over a frame where it does not hold (Decided, 76)."""
+    """Writes a pattern's spec over a frame where it does not hold (object identity 76 in [CAP-137: patterns of symbols, variables and specs](../../../../../mbse-basis/docs/capabilities/CAP-137.md#decided))."""
     for name, members in _members(pattern).items():
         _write(store, frame[name], _schema(store, pattern, name, frame), members, frame)
 
@@ -994,7 +994,7 @@ def _remove(store: Any, target: Any, schema: Any, name: str, entries: list[Any] 
             frame: Frame) -> None:
     """Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's
     removal, or every entry where it gives None (`clear`); through the object's builder, which removes the entries it
-    holds at those positions, so that removing an owning entry deletes what it owned (Decided, 48)."""
+    holds at those positions, so that removing an owning entry deletes what it owned (object identity 48 in [CAP-121: owned objects deleted in cascade](../../../../../mbse-basis/docs/capabilities/CAP-121.md#decided))."""
     relation = schema.adjacencies[name].relation
     removed = range(len(held)) if entries is None else _removed(store, relation, held, entries, frame)
     if not removed:

@@ -1,6 +1,4 @@
 # Address book example
-#
-# Lines marked PROPOSED use syntax that FRAMEWORK.md does not define yet.
 
 from mbse.Schemas.Framework import Builders, Plain, JSON
 

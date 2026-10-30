@@ -1,6 +1,6 @@
 """Builders: schema builders as visitors of their meta-schemas, which model schemas as reference objects and
 relations, and the store they are built in. They replace the builders and meta-schemas in `Schemas`, which stay beside
-them while call sites migrate (docs/META_SCHEMAS.md, Plan); `Schemas.OfX.Data` is unchanged.
+them while call sites migrate ([CAP-109: schemas as linked objects in modules](../../../../../mbse-basis/docs/capabilities/CAP-109.md)); `Schemas.OfX.Data` is unchanged.
 
 Every schema object is a reference object: a kind of schema, each of its members (a property, an adjacency, a symbol,
 a branch or a part), and a parameter. A property of a schema object holds a value (a name, a flag); every
@@ -9,7 +9,7 @@ member to its schema (`Schemas.HasSchema`), a refinement to what it refines (`Sc
 (`Schemas.install`): each store makes its own, reading the framework's installs when it is made (the bootstrap, below;
 docs/proposals/store-overhaul, Levels).
 
-Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as VISITOR_PATTERN.md
+Each `Schemas.OfX.Builder` is a writable `Visitors.OfObject` over its plain schema (`Schemas.OfX`), as [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md)
 gives it: a member for each property (`osv.<propName>`, a `Visitors.OfProperty`) and for each adjacency
 (`osv.<adjName>`, a `Visitors.OfAdjacency`, whose entries' links are members, `env.<linkName>`). Called with a
 `Specs.Callback`, a member writes or visits through it and returns the builder. Its other methods are named `as_*`. The
@@ -72,7 +72,7 @@ def _visit(cb: Any, visitor: Any) -> None:
 
 def _named(data: Any) -> bool:
     """Whether a schema object has a name of its own, which gives its path: a module or a named schema. Anything else
-    has a path only as a member of an object that has one (docs/OBJECT_IDENTITY.md, Decided, 81)."""
+    has a path only as a member of an object that has one (object identity 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided))."""
     return isinstance(data, (*S._DEFINED, _ModuleData)) and bool(data.name)
 
 
@@ -349,7 +349,7 @@ def _is_schema(value: Any) -> bool:
 
 def _check_held(builder: Any, link: str, referent: Any) -> None:
     """Refuses a link, from a schema object built in a store, to a schema object that store does not hold: a reference
-    object no store built is strictly forbidden, and one another store built is that store's (FRAMEWORK.md, Resolved)."""
+    object no store built is strictly forbidden, and one another store built is that store's ([CAP-109: schemas as linked objects in modules](../../../../../mbse-basis/docs/capabilities/CAP-109.md#decided))."""
     store = builder._store
     if store is not None and _builder_for(referent) is not None and not store.holds(referent):
         raise TypeError(f"link {link!r} cannot link {referent!r}: the store does not hold it; build it in the store, or "
@@ -366,7 +366,7 @@ class _Members:
     referent belongs to the schema object alone (keyed ones do), so that a clone of it has clones of them. `names`, for
     a keyed adjacency whose data keeps its entries' names apart from its referents (a module's), reads and writes them:
     `(name_of(data, referent), rename(data, referent, name))`. `extensible`: an extension may add entries to it, after
-    those it holds (docs/SCHEMA_EXTENSION.md)."""
+    those it holds ([CAP-116: framework schemas extended, checked](../../../../../mbse-basis/docs/capabilities/CAP-116.md))."""
 
     name: str
 
@@ -416,7 +416,7 @@ class _Records(_Members):
 
 def _holds_record(held: list[Any], record: Any) -> bool:
     """Whether `held` has a branch or a part equal to `record`: of its name, its schema and its description. Its relation is
-    a set, so that adding it again is elided (FRAMEWORK.md, Cardinality)."""
+    a set, so that adding it again is elided ([CAP-155: relations of named links, keyed by `unique` clauses](../../../../../mbse-basis/docs/capabilities/CAP-155.md))."""
     return any(other.name == record.name and other.schema is record.schema and other.description == record.description
                for other in held)
 
@@ -541,7 +541,7 @@ class _AdjacencyMember(_Unassignable):
 
     def _keyed(self, mapping: Mapping[Any, Any]) -> list[Any]:
         """A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its
-        value given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies)."""
+        value given to the entry (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md#decided))."""
         schema = self.as_schema()
         if schema is None and self._members.keyed:  # a bootstrap's, before its plain schema is made: keyed by `name`
             key = "name"
@@ -1154,7 +1154,7 @@ class _MemberBuilder(_Builder[D]):
 class PropertyBuilder(_MemberBuilder[S.OfProperty.Data]):
     _data, _meta, _noun = S.OfProperty.Data, "OfProperty", "a property"
 
-    pattern = _Prop()  # a key's naming pattern (docs/OBJECT_IDENTITY.md, Decided, 13)
+    pattern = _Prop()  # a key's naming pattern (object identity 13 in [CAP-120: owned objects named and placed when built](../../../../../mbse-basis/docs/capabilities/CAP-120.md#decided))
 
 
 class ParameterBuilder(_Builder[S.OfParameter.Data]):
@@ -1182,7 +1182,7 @@ class AdjacencyBuilder(_Builder[S.OfAdjacency.Data]):
 
     description = _Prop()
     me = _Prop()  # the name of the link it fills
-    owner = _Prop()  # it points back to its object's owner (docs/OBJECT_IDENTITY.md, Decided, 14)
+    owner = _Prop()  # it points back to its object's owner (object identity 14 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))
     relation = _Members("relation", accepts=lambda v: isinstance(v, S.OfRelation.Data), build=lambda: RelationBuilder,
                         **_one("relation"))
 
@@ -1298,7 +1298,7 @@ def _is_expression(value: Any) -> bool:
 
 class PatternBuilder(_KindBuilder[S.OfPattern.Data]):
     """A pattern: its symbols, then its variables, by name, in declaration order, and its constraints, in order, which
-    it owns (docs/OBJECT_IDENTITY.md, Decided, 66)."""
+    it owns (object identity 66 in [CAP-137: patterns of symbols, variables and specs](../../../../../mbse-basis/docs/capabilities/CAP-137.md#decided))."""
 
     _data, _meta, _noun = S.OfPattern.Data, "OfPattern", "a pattern"
 
@@ -1311,7 +1311,7 @@ class PatternBuilder(_KindBuilder[S.OfPattern.Data]):
 
     @property
     def spec(self) -> Callable[[Any], PatternBuilder]:
-        """What must hold of a frame (docs/OBJECT_IDENTITY.md, Decided, 76, 95): each callback given, in order, is
+        """What must hold of a frame (object identity 76, 95 in [CAP-137: patterns of symbols, variables and specs](../../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)): each callback given, in order, is
         handed the frame, whose members are the symbols declared so far, each the visitor of the object it binds, which
         records what it is given; its record, a `Mutations.OfPattern` as plain data, is added to the pattern's."""
 
@@ -1350,7 +1350,7 @@ class ConstraintBuilder(ExpressionBuilder):
 
 class CollectorBuilder(_KindBuilder[S.OfCollector.Data]):
     """A collector: its pattern, the names of the symbols and variables it collects, how its fold may be ordered, the
-    suffixes of their duplicates, and what it computes (docs/STREAMING_QUERIES.md)."""
+    suffixes of their duplicates, and what it computes ([FEA-027: mutations as queries](../../../../../mbse-basis/docs/features/FEA-027.md))."""
 
     _data, _meta, _noun = S.OfCollector.Data, "OfCollector", "a collector"
 
@@ -1540,7 +1540,7 @@ class _BootModule:
 
 class _Bootstrap:
     """Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Mutations.install`) when a store is
-    made, which holds nothing yet to run it as a transaction (docs/proposals/install, The bootstrap): its terms are read
+    made, which holds nothing yet to run it as a transaction ([CAP-115: schemas defined by idempotent installs](../../../../../mbse-basis/docs/capabilities/CAP-115.md#the-bootstrap)): its terms are read
     as they are built, its one upsert making each symbol's schema object through its kind's builder, then writing each
     spec item through those builders. `made` holds what the installs read before made, by name, which
     `txn.Schemas.OfStr` and its kin name."""
@@ -1634,17 +1634,17 @@ class Store(Proxies.OfStore):
     a `Specs.Callback[Visitors.OfX]`, it creates an object; with an object and a callback, it updates the object; with
     an object alone, it clones it. It returns the object. A schema object built here, and each member built with it, is
     held by the store: a named schema is registered under its name, so that the store builds its objects next, and is
-    found by its path, as each member of it is (docs/OBJECT_IDENTITY.md, Decided, 80 and 81); a schema object with no
+    found by its path, as each member of it is (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)); a schema object with no
     name of its own has no path, and is linked by one object alone.
 
     A store is made holding its own plain schemas of schemas (`Schemas.OfObject`, ...), basic scalars (`Schemas.OfInt`,
-    ...) and mutation schemas, which no other store shares (docs/SCHEMA_EXTENSION.md, Decided, 23); it changes them, as
+    ...) and mutation schemas, which no other store shares (schema extension 23 in [CAP-116: framework schemas extended, checked](../../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)); it changes them, as
     any schema it holds before an extension begins, only through `extend`, which only adds members."""
 
     def __init__(self) -> None:
         super().__init__()
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
-        # those with none, held while what links them is (docs/OBJECT_IDENTITY.md, Decided, 94): a term's pattern goes
+        # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
         self._unnamed: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
         from . import Mutations, Paths, References
@@ -1680,7 +1680,7 @@ class Store(Proxies.OfStore):
 
     def held(self, path: Any) -> Any:
         """The schema object whose path is `path`, a `Paths.OfRoot` value (`Paths.of`) or its plain form; None where the
-        store holds none (docs/OBJECT_IDENTITY.md, Decided, 81)."""
+        store holds none (object identity 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided))."""
         from . import Plain
 
         if not isinstance(path, dict):
@@ -1709,7 +1709,7 @@ class Store(Proxies.OfStore):
         """The steps of a schema object's path from the root module, each the adjacency it goes through and the entry's
         name: a module's and a named schema's, its name's parts, through each module that defines the next; a member's,
         its owner's, then the adjacency that owns it and its name there. None where it has none: an object with no name
-        of its own, and what such an object holds (Decided, 80 and 81)."""
+        of its own, and what such an object holds (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided))."""
         if isinstance(data, _ModuleData) and data.name is None:
             return []
         if _named(data):
@@ -1741,7 +1741,7 @@ class Store(Proxies.OfStore):
     def _link(self, data: Any, source: Any = None) -> None:
         """Records what links each object with no name of its own that `data` links (or will, its builder's working copy
         `source`), refused where another links it already: it is written nested in the one object that links it
-        (Decided, 81)."""
+        (object identity 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided))."""
         for referent, members in self._referents(data if source is None else source):
             if _named(referent) or self.framework(referent):
                 continue
@@ -1770,8 +1770,8 @@ class Store(Proxies.OfStore):
     @contextlib.contextmanager
     def _transacting(self) -> Iterator[Any]:
         """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
-        its plain schema (`_extend_builders`): a module's install extends a store's own schemas (docs/proposals/install,
-        Decided, 5). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`)."""
+        its plain schema (`_extend_builders`): a module's install extends a store's own schemas (install
+        D5 in [CAP-116: framework schemas extended, checked](../../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`)."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         from . import Provenance
@@ -1785,11 +1785,11 @@ class Store(Proxies.OfStore):
 
     def _permit(self, builder: _Builder[Any]) -> None:
         """Refuses a builder's update of a schema the store was made holding that does more than add members to it,
-        each under a name it neither has nor inherits, nor a refinement of it declares (docs/SCHEMA_EXTENSION.md,
-        Decided, 1): any transaction may extend one (docs/proposals/install, Decided, 5). The entries of an extension's
+        each under a name it neither has nor inherits, nor a refinement of it declares (schema
+        extension 1 in [CAP-116: framework schemas extended, checked](../../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)): any transaction may extend one (install D5 in [CAP-116: framework schemas extended, checked](../../../../../mbse-basis/docs/capabilities/CAP-116.md#decided)). The entries of an extension's
         relations, which are its store's own, change freely. Of any schema it holds, it refuses an update that adds a branch
-        or a part under a name another of them has for another schema (FRAMEWORK.md, Resolved, "A union's branch names
-        are unique")."""
+        or a part under a name another of them has for another schema ("A
+        union's branch names are unique", [CAP-153: unions and intersections of named branches and parts](../../../../../mbse-basis/docs/capabilities/CAP-153.md#decided))."""
         original = builder._original
         problems = (_extension_problems(builder) if self.framework(original) else []) + _renamed_records(builder)
         if problems:
@@ -1816,7 +1816,7 @@ class Store(Proxies.OfStore):
 
     @property
     def Instances(self) -> _Instances:
-        """The store's owned objects by their paths (docs/OBJECT_IDENTITY.md, Decided, 26): `store.Instances.<a
+        """The store's owned objects by their paths (object identity 26 in [CAP-119: owned objects found by path](../../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)): `store.Instances.<a
         singleton's global name>` is the singleton, whose adjacencies called with keys continue the path."""
         return _Instances(self, "")
 
@@ -1856,7 +1856,7 @@ class Store(Proxies.OfStore):
         return data
 
     def transaction(self, spec: Any = None) -> Any:
-        """Executes a transaction (docs/OBJECT_IDENTITY.md, Decided, 85 to 97): a `Mutations.OfTransaction`, or a
+        """Executes a transaction (object identity 85 to 97 in [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)): a `Mutations.OfTransaction`, or a
         callback building one, its root term given through `mutations`. Every write it makes is held apart until it
         ends, and dropped where it raises. Gives the frames its chain of terms ends with, each the objects its symbols
         bind, by symbol. With no `spec`, a transaction's imperative scope (98), `with store.transaction(): ...`, within
@@ -1878,7 +1878,7 @@ class Store(Proxies.OfStore):
 
     def _defers(self, builder: _Builder[Any]) -> bool:
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
-        existed before it began (docs/OBJECT_IDENTITY.md, Decided, 96). What it would link is checked now."""
+        existed before it began (object identity 96 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)). What it would link is checked now."""
         proposals = self._proposals
         if proposals is None or id(builder._original) not in proposals.existing:
             return False
@@ -1920,7 +1920,7 @@ class Store(Proxies.OfStore):
 
     def _meta_builder(self, name: str, target: Any = None) -> Any:
         """A builder of a schema object of the meta-schema registered as `name`, new or `target` updated, as a link
-        builds one (docs/OBJECT_IDENTITY.md, Decided, 97); None where `name` is not a meta-schema."""
+        builds one (object identity 97 in [CAP-109: schemas as linked objects in modules](../../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)); None where `name` is not a meta-schema."""
         local = name[len("Schemas."):] if name.startswith("Schemas.") else ""
         kind, registered = _META_BUILDERS.get(local), self._schemas.get(name)
         if kind is None or registered is None or registered is not getattr(self._meta, local, None):
@@ -2041,7 +2041,7 @@ def _clashes(schema: S.OfObject.Data, names: list[Any]) -> list[str]:
 class _Instances(_Unassignable):
     """`store.Instances.<path>`: a dotted name, each part an attribute, until it names a singleton, which it gives. An
     owned object is found from it through its owners' adjacencies, called with keys; a counted object only by visiting
-    what links it (docs/OBJECT_IDENTITY.md, Decided, 40)."""
+    what links it (object identity 40 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
 
     def __init__(self, store: Store, name: str):
         self._store, self._name = store, name
@@ -2095,8 +2095,8 @@ class _Path(_Unassignable, Proxies._Named):
 
 class _Transaction(_Unassignable):
     """What a callback building a transaction is given (`store.transaction(install)`): the transaction's builder, whose
-    members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (docs/OBJECT_IDENTITY.md, Decided,
-    78)."""
+    members are its own, and the store's schemas by name, `txn.Schemas.OfObject` (object
+    identity 78 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided))."""
 
     def __init__(self, store: Store, builder: Any):
         self._store, self._builder = store, builder
@@ -2196,7 +2196,7 @@ class OfAny:
 
 
 # `Schemas.OfX.Builder` is this: a schema builder is a `Visitors.OfObject` over its plain schema, its store's
-# `Schemas.OfX` (FRAMEWORK.md, Resolved: "Schemas.OfX.Builder must implement Visitors.OfX").
+# `Schemas.OfX` ([CAP-109: schemas as linked objects in modules](../../../../../mbse-basis/docs/capabilities/CAP-109.md#decided): "Schemas.OfX.Builder must implement Visitors.OfX").
 for _namespace, _own in ((S.OfScalar, OfScalar), (S.OfObject, OfObject), (S.OfProperty, OfProperty),
                          (S.OfAdjacency, OfAdjacency), (S.OfRelation, OfRelation), (S.OfSymbol, OfSymbol),
                          (S.OfParameter, OfParameter), (S.OfUnion, OfUnion), (S.OfIntersection, OfIntersection),

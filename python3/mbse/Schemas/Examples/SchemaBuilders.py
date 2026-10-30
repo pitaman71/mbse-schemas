@@ -100,7 +100,7 @@ with store.transaction():  # every write to a store is made within a transaction
         ])
 
 
-    # Pure ownership and a directory keyed within its parent, written as in FRAMEWORK.md.
+    # Pure ownership and a directory keyed within its parent, written as [CAP-155: relations of named links, keyed by `unique` clauses](../../../../../mbse-basis/docs/capabilities/CAP-155.md) describes.
     Ownership = store.Schemas.OfRelation(lambda r: parent_child(r.name('Ownership')).uniques('parent'))
     Directory = store.Schemas.OfRelation(lambda r: (
         parent_child(r)

@@ -12,13 +12,13 @@
  * the part before the last dot the module it is in. A store registers a named schema under that name.
  *
  * A parameter (`OfParameter`) is a name and a description. Which definitions declare parameters, what each can be bound
- * to, and their bindings are `Parametrics`', a module installed before use (docs/PARAMETRICS.md). Terms, applications
- * and widths are mbse-expressions' (docs/SCHEMA_EXTENSION.md, Decided, 5 to 7).
+ * to, and their bindings are `Parametrics`', a module installed before use ([CAP-112: parameters declared by an installed module](../../../../mbse-basis/docs/capabilities/CAP-112.md)). Terms, applications
+ * and widths are mbse-expressions' (schema extension 5 to 7 in [FEA-024: expressions as data](../../../../mbse-basis/docs/features/FEA-024.md#decided)).
  *
  * A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object, variables
  * (`OfVariable`), each standing for a value, and the constraints a frame meets (its `requires`, each an `OfExpression` of
  * boolean result); an expression (`OfExpression`) ranges over a pattern, and a collector (`OfCollector`) folds the frames
- * of one (docs/STREAMING_QUERIES.md). A relation holds the schema of its entries (`OfEntry`): their links, each a symbol,
+ * of one ([FEA-027: mutations as queries](../../../../mbse-basis/docs/features/FEA-027.md)). A relation holds the schema of its entries (`OfEntry`): their links, each a symbol,
  * and their properties.
  */
 
@@ -296,7 +296,7 @@ export namespace OfSymbol {
 
 /** A symbol's schema, when it has one, is a reference object schema. */
 /** A symbol's schema, when it has one, is a reference object schema, or a kind union: a union of reference object
- * schemas, its branches naming the kinds of object it may stand for (docs/OBJECT_IDENTITY.md, Decided, 97). */
+ * schemas, its branches naming the kinds of object it may stand for (object identity 97 in [CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)). */
 function symbolProblems(symbol: SymbolData): string[] {
   if (symbol.schema === null) return descriptionProblems(symbol.description);
   const problems = validateSchema(symbol.schema);
@@ -311,7 +311,7 @@ function symbolProblems(symbol: SymbolData): string[] {
   return [...problems, ...descriptionProblems(symbol.description)];
 }
 
-/** A kind union's branches' schemas, by name; null for any other schema (docs/OBJECT_IDENTITY.md, Decided, 97). */
+/** A kind union's branches' schemas, by name; null for any other schema (object identity 97 in [CAP-109: schemas as linked objects in modules](../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)). */
 export function _kinds(schema: unknown): Map<string, ObjectData> | null {
   if (schema instanceof UnionData && schema.branches.length > 0
     && schema.branches.every((b) => b.schema instanceof ObjectData && b.schema.ref)) {
@@ -457,7 +457,7 @@ class AdjacencyData {
   }
 }
 
-/** An owner adjacency's relation makes path resolution unambiguous (docs/OBJECT_IDENTITY.md, Decided, 14): of two
+/** An owner adjacency's relation makes path resolution unambiguous (object identity 14 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)): of two
  * links, the owner's and the owned's (`me`); a clause holding the owner's link and not the owned's, so that the owned
  * object determines its owner, and one holding the owned's and not the owner's, so that the owner and the keys determine
  * the owned object. */
@@ -910,7 +910,7 @@ function variableProblems(variable: VariableData): string[] {
 // --- OfExpression, OfConstraint ---
 
 /** An expression over a pattern's frames: its pattern, whose symbols and variables are free in it, and the schema of the
- * value it computes. Its terms are mbse-expressions' (docs/STREAMING_QUERIES.md, Value expressions and constraints); a
+ * value it computes. Its terms are mbse-expressions' ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md), value expressions and constraints); a
  * constraint is an expression whose result is `Schemas.OfBool`. */
 class ExpressionData {
   /** An OfPattern.Data, or null where its owner gives it. */
@@ -963,14 +963,14 @@ function isConstraint(expression: unknown): boolean {
 // --- OfPattern ---
 
 /** The shape of a frame: symbols, each bound to a reference object, variables, each assigned a value, and the
- * constraints a frame meets, in order (docs/STREAMING_QUERIES.md, Patterns). */
+ * constraints a frame meets, in order ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md)). */
 class PatternData {
   symbols: Map<string, SymbolData>;
   variables: Map<string, VariableData>;
   requires: ExpressionData[];
   name: string | null;
   description: string | null;
-  /** What must hold of a frame: `Mutations.OfPattern`s, as plain data (docs/OBJECT_IDENTITY.md, Decided, 95). */
+  /** What must hold of a frame: `Mutations.OfPattern`s, as plain data (object identity 95 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)). */
   spec: unknown[];
 
   constructor(fields: { symbols?: Map<string, SymbolData>; variables?: Map<string, VariableData>; requires?: ExpressionData[];
@@ -1011,7 +1011,7 @@ class PatternData {
 }
 
 export namespace OfPattern {
-  /** The shape of a frame (docs/STREAMING_QUERIES.md, Patterns). */
+  /** The shape of a frame ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md)). */
   export const Data = PatternData;
   export type Data = PatternData;
   /** Its builder and its meta-schema, `Builders`': importing the package installs them here. */
@@ -1021,9 +1021,9 @@ export namespace OfPattern {
 
 // --- OfCollector ---
 
-/** A pattern used to fold frames (docs/STREAMING_QUERIES.md, Mutation expressions): the symbols and variables it
+/** A pattern used to fold frames ([CAP-138: mutation expressions over frame streams](../../../../mbse-basis/docs/capabilities/CAP-138.md)): the symbols and variables it
  * collects, each duplicated under its `suffixes`, `current` and `next`, and what it `computes`; `commutative` or
- * `associative`, so that the fold does not depend on the order frames arrive in (docs/OBJECT_IDENTITY.md, 62). */
+ * `associative`, so that the fold does not depend on the order frames arrive in (object identity 62 in [CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)). */
 class CollectorData {
   pattern: unknown;
   symbols: string[];

@@ -8,8 +8,8 @@
  * transactions, a store's snapshot two.
  *
  * For AI agents: read `skill/SKILL.md` at the root of this package first. It says when to use this package, the
- * practices that prevent most mistakes, and which reference to load for a task. The design is in docs/FRAMEWORK.md at
- * https://github.com/pitaman71/mbse-schemas.
+ * practices that prevent most mistakes, and which reference to load for a task. The design is in mbse-basis, features FEA-025 to FEA-034, at
+ * https://github.com/pitaman71/mbse-basis.
  */
 
 export * as Builders from "./Builders.js";

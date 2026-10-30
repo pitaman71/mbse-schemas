@@ -8,9 +8,9 @@
  * `Paths.OfTarget` ends it. `next` is a union of the two, its branches `entry` and `target`. Every store holds these
  * schemas, its own, as `install` defines them (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md#decided)).
  *
- * An identity is computed on demand (Decided, 32): `of(obj)` reads an object's path off its ownership entries. A schema
+ * An identity is computed on demand (object identity 32 in [CAP-119: owned objects found by path](../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)): `of(obj)` reads an object's path off its ownership entries. A schema
  * object's path starts from the root module, the singleton `"."`, and goes through each module, then the schema, by
- * name, then each member by the keyed adjacency that owns it and its name (Decided, 80 and 81); one with no name of its
+ * name, then each member by the keyed adjacency that owns it and its name (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)); one with no name of its
  * own has none.
  */
 
@@ -97,7 +97,7 @@ function stepsOf(obj: unknown): [string, Step[]] {
   }
 }
 
-/** A schema object's path (Decided, 80 and 81): from the root module, the singleton `"."`, through each module and then
+/** A schema object's path (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)): from the root module, the singleton `"."`, through each module and then
  * the schema by name, then through the keyed adjacency that owns each member. `LookupError` where it has none. */
 function schemaStepsOf(obj: unknown): [string, Step[]] {
   const noun = (Builders._builder_for(obj) as unknown as { _noun: string })._noun;
@@ -113,7 +113,7 @@ function schemaStepsOf(obj: unknown): [string, Step[]] {
   return [".", steps.map(([i, name]): Step => [i, "", new Map([["name", name]])])];
 }
 
-/** The path of a reference object, read off its ownership entries (Decided, 32), or of a schema object, off its name and
+/** The path of a reference object, read off its ownership entries (object identity 32 in [CAP-119: owned objects found by path](../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)), or of a schema object, off its name and
  * its owners' (81): a `Paths.OfRoot` value, standalone, of the object's store. */
 export function of(obj: unknown): unknown {
   const schemaObject = Builders._builder_for(obj) !== null;

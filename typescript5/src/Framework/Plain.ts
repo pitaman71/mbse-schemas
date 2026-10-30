@@ -13,7 +13,7 @@
  * is referred to by its path. Reading one executes it, within the open transaction as a savepoint, and gives its root. A
  * store is written as its snapshot (`ToPlain(store).Snapshot()`): two transactions, its schemas, then its data, which
  * `FromPlain(store).Snapshot` executes in order. A transaction's expression is written nested
- * (`ToPlain(store).Transaction`). See docs/SERIALIZATION.md, Transactions on the wire, Documents and Snapshots.
+ * (`ToPlain(store).Transaction`). See [CAP-129: journals replayed by execution](../../../../mbse-basis/docs/capabilities/CAP-129.md), [CAP-128: graphs sent as one-transaction documents](../../../../mbse-basis/docs/capabilities/CAP-128.md) and [CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md).
  *
  * The serializers read values through the visitor protocol (`Readers.OfObject`), and decoding writes them through a
  * store's builders (`Visitors.OfObject`).
@@ -367,7 +367,7 @@ class Held {
 
 // --- Documents ---
 
-/** A Reachable document, or an object's: one transaction (docs/OBJECT_IDENTITY.md, Decided, 51, 55; Store overhaul, 4f),
+/** A Reachable document, or an object's: one transaction (object identity 51, 55 in [CAP-128: graphs sent as one-transaction documents](../../../../mbse-basis/docs/capabilities/CAP-128.md#decided); Store overhaul, 4f),
  * one upsert whose symbols are the objects the document holds, named by their number in the order it meets them, the root
  * `"0"`: the root, and, for Reachable, the counted objects reachable from it through the objects the document holds. Its
  * spec gives each object's properties and its named adjacencies' entries, each entry once, from the first object that
@@ -525,7 +525,7 @@ let reads = 0;
 
 /** Reads a document (`Document`): executes its transaction, within the store's open one as a savepoint, else as a
  * transaction of its own, and gives its root, the object its symbol `"0"` binds. A document with no uid is keyed afresh by
- * each read, so that reading it gives new counted objects (Decided, 55). */
+ * each read, so that reading it gives new counted objects (object identity 55 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)). */
 function readDocument(store: any, schema: unknown, plain: unknown): unknown {
   if (!(schema instanceof Schemas.OfObject.Data)) {
     throw new TypeError(`the root schema must be an object schema, got ${schemaTypeName(schema)}`);
@@ -849,8 +849,8 @@ function sameKeys(properties: Map<string, unknown>, keys: PlainMap): boolean {
     && Proxies.scalarKey(properties.get(name)) === Proxies.scalarKey(value));
 }
 
-/** A schema object's path as plain data: each step's adjacency and the name its entry gives (docs/OBJECT_IDENTITY.md,
- * Decided, 81). `DecodeError` where it is not one. */
+/** A schema object's path as plain data: each step's adjacency and the name its entry gives (object
+ * identity 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)). `DecodeError` where it is not one. */
 export function _schemaSteps(plain: unknown, where: Where): [string, string][] {
   const [singleton, steps] = stepsOf(plain, where);
   if (singleton !== "." || steps.some(([, o, keys]) => o !== "" || keys.size !== 1 || typeof keys.get("name") !== "string")) {
@@ -927,7 +927,7 @@ function put(element: any, value: unknown): void {
   else element.as_scalar(value);
 }
 
-// --- Snapshots: a store as two transactions (docs/SERIALIZATION.md, Snapshots) ---
+// --- Snapshots: a store as two transactions ([CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md)) ---
 
 /** A plain mapping of `entries`, in order. */
 function m(entries: [string, PlainData][]): PlainMap {
@@ -943,7 +943,7 @@ export interface Ignored {
 /** Which of a symbol's entries a snapshot's spec writes, by what they link; all where null. */
 type Wanted = ((target: any) => boolean) | null;
 
-/** A store's snapshot: two transactions (docs/OBJECT_IDENTITY.md, Decided, 45, 101; Store overhaul, 4f-4), each one
+/** A store's snapshot: two transactions (object identity 45, 101 in [CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md#decided); Store overhaul, 4f-4), each one
  * upsert, the first of its schemas, the second of its data, so that a schema the store held before is extended when the
  * first commits, before the second's data uses it. The first's symbols are its schemas with a name of their own, each a
  * symbol of its meta-schema, found by its name (86); the second's, every object its singletons reach, and what the
@@ -1187,7 +1187,7 @@ class StoreSnapshot {
   }
 }
 
-/** A schema object's path as plain data (docs/OBJECT_IDENTITY.md, Decided, 81): from the root module, the singleton
+/** A schema object's path as plain data (object identity 81 in [CAP-123: schema objects identified by path](../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)): from the root module, the singleton
  * `"."`, each step through a keyed adjacency, by name. */
 function schemaPath(steps: [string, string][]): PlainMap {
   return pathFrom(".", steps.map(([i, name]): Step => [i, "", new Map([["name", name]])]));
@@ -1232,7 +1232,7 @@ function readSnapshot(store: any, transactions: unknown, ignored: Ignored[] | nu
   return bound;
 }
 
-/** A transaction's expression as the wire carries it, nested (docs/OBJECT_IDENTITY.md, Decided, 56; Store overhaul,
+/** A transaction's expression as the wire carries it, nested (object identity 56 in [CAP-129: journals replayed by execution](../../../../mbse-basis/docs/capabilities/CAP-129.md#decided); Store overhaul,
  * 4f): an object as a mapping of its properties and its named adjacencies' entries. An entry of a relation of one other
  * link and no properties is written as what it links, the peer shorthand; of one other link and one property (a name),
  * its adjacency as a mapping of that property to what it links; any other as a mapping of its other links and its
@@ -1344,7 +1344,7 @@ function checkedSpec(store: any, symbols: Map<string, any>, spec: unknown, where
     for (const [symbol, members] of item as PlainMap) {
       const held = symbols.get(symbol);
       if (held === undefined) throw new DecodeError(`${repr(symbol)} is not a symbol of the pattern`, { path: path(...where, i, symbol) });
-      let schema: any; // its own schema, or that of the object its reference designates (References, Decided, 8)
+      let schema: any; // its own schema, or that of the object its reference designates (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))
       try {
         schema = Transactions._recordedSchema(store, symbol, held);
       } catch (error) { // a TypeError or a LookupError
@@ -1529,15 +1529,15 @@ export interface ToPlainCall {
   OfScalar(schema: Schemas.OfScalar.Data, value: Scalar): PlainData;
   /** A document of `value` alone (`Document`): what it links, by path; a counted object it links is refused. */
   OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, uid?: string): PlainMap;
-  /** A document of `value` and the counted objects reachable from it (`Document`; Object identity, Decided, 51): one
+  /** A document of `value` and the counted objects reachable from it (`Document`; object identity 51 in [CAP-128: graphs sent as one-transaction documents](../../../../mbse-basis/docs/capabilities/CAP-128.md#decided)): one
    * transaction, under `uid` where given. */
   Reachable(schema: Schemas.OfObject.Data, value: Readers.OfObject, uid?: string): PlainMap;
   /** A standalone value as plain data, written as a property holding it writes it: a value object, union value,
    * intersection value or container of `schema`, read through its visitor, or a value of any schema (`OfAny`), of a
    * registered schema or a scalar. */
   Value(schema: unknown, value: unknown): PlainData;
-  /** The store's snapshot (`StoreSnapshot`): two transactions, its schemas, then its data (docs/SERIALIZATION.md,
-   * Snapshots). */
+  /** The store's snapshot (`StoreSnapshot`): two transactions, its schemas, then its data ([CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md))
+   * . */
   Snapshot(): PlainData[];
   /** A transaction's expression, as the wire carries it (`Expression`): a journal is a list of them. */
   Transaction(transaction: unknown): PlainMap;

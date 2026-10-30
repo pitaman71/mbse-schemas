@@ -73,7 +73,7 @@ def _values_of(holder: Any) -> dict[str, Any]:
 
 def _writable_values(holder: Any) -> dict[str, Any]:
     """A data object's or a value object's property values, to write through its store, which refuses a write outside a
-    transaction (Decided, 44); a value object's not yet placed, its builder's own."""
+    transaction (object identity 44 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)); a value object's not yet placed, its builder's own."""
     store = _store_for(holder)
     return object.__getattribute__(holder, "_own_values") if store is None else store.values(holder, True)
 
@@ -180,7 +180,7 @@ class OfStore(Stores.Catalog):
 
     @contextlib.contextmanager
     def _expression(self) -> Iterator[None]:
-        """Building a transaction's expression, the one write allowed outside a transaction (Decided, 94); making the
+        """Building a transaction's expression, the one write allowed outside a transaction (object identity 94 in [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)); making the
         store; and a transaction's commit."""
         self._expressing += 1
         try:
@@ -765,7 +765,7 @@ class _Scalar(_Dunders):
 
 def _restricted_scalar(restriction: Any, value: Any, label: str) -> None:
     """Refuses a scalar written as a value of a restricted `OfAny` whose host type is not exactly that of one of its
-    scalar schemas (FRAMEWORK.md, Resolved, "`OfAny` returns"): a bool is not an int."""
+    scalar schemas ("`OfAny` returns", [CAP-157: values of any schema, restricted or not](../../../../../mbse-basis/docs/capabilities/CAP-157.md#decided)): a bool is not an int."""
     if restriction is None or not restriction.schemas or value is None:
         return
     if not any(isinstance(t, Schemas.OfScalar.Data) and t.type is type(value) for t in restriction.schemas):
@@ -1974,8 +1974,8 @@ def _holds(schema: Any, value: Any) -> bool:
 
 
 def _given(them: Any, value: Any, link: str, link_takes: bool, members: Any) -> None:
-    """Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (FRAMEWORK.md,
-    Resolved, Mappings for keyed adjacencies): a callback is called with it; any other value goes to the one member that
+    """Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (mappings
+    for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md#decided)): a callback is called with it; any other value goes to the one member that
     accepts it, the entry's link (`link_takes`) or one of the linked object's properties and adjacencies (`members`, each
     a name, and whether it is an adjacency and takes the value)."""
     if _is_function(value):
@@ -2066,7 +2066,7 @@ class _AdjacencyBuilder(_Unassignable):
 
     def _keyed(self, mapping: Mapping[Any, Any]) -> list[Any]:
         """A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its
-        value given to the entry (FRAMEWORK.md, Resolved, Mappings for keyed adjacencies)."""
+        value given to the entry (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md#decided))."""
         relation, store = self._schema.relation, self._builder._store
         keys = list(relation.entry.properties)
         if len(relation.entry.links) != 2 or len(keys) != 1:

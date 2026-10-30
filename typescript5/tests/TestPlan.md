@@ -5,7 +5,7 @@
 
 Scope: everything under `typescript5/src/Framework` (Errors, Repr, Visitors, Schemas, Proxies, Reachable, Plain, JSON,
 YAML, Validators, Comparison), the examples under `typescript5/src/Examples`, and cross-implementation conformance
-with `python3`. The design reference is `../../docs/FRAMEWORK.md`. This plan mirrors `python3/tests/TestPlan.md` case
+with `python3`. The design reference is [the schema-driven data features](../../../mbse-basis/docs/features/README.md#schema-driven-data). This plan mirrors `python3/tests/TestPlan.md` case
 for case: the same suites, the same case IDs in the same order, the same assertions, except for the language
 differences listed below.
 
@@ -33,7 +33,7 @@ TypeScript kernel (e.g. tslab or `deno jupyter`), which the test run does not.
 
 As in Python: one suite per notebook, which fails when it throws, rejects a promise unhandled, or prints a stack
 trace (`run-notebooks.ts`); a heading `XXX-NN · title` starts a case; *specified* cases state what
-FRAMEWORK.md requires and *pinned* cases (headings say *Finding Fn (pinned)*) record current behavior on open
+the design requires and *pinned* cases (headings say *Finding Fn (pinned)*) record current behavior on open
 questions. `tests/support.ts` mirrors `tests/support.py` (`raises`, `entries`, `value_of`, `same_graph`,
 conformance checks) plus `equal` (Python's `==` on plain data) and `map` (a `Map` literal from an object literal). Randomized cases
 use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python).

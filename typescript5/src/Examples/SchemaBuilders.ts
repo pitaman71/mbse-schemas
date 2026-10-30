@@ -94,7 +94,7 @@ store.transaction(() => { // every write to a store is made within a transaction
     ]);
   }
 
-  // Pure ownership and a directory keyed within its parent, written as in FRAMEWORK.md.
+  // Pure ownership and a directory keyed within its parent, written as [CAP-155: relations of named links, keyed by `unique` clauses](../../../../mbse-basis/docs/capabilities/CAP-155.md) describes.
   const Ownership = store.Schemas.OfRelation((r: any) => parent_child(r.name("Ownership")).uniques("parent"));
   const Directory = store.Schemas.OfRelation((r: any) => (
     parent_child(r)

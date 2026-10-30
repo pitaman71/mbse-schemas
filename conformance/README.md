@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Visitor pattern](../docs/VISITOR_PATTERN.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+[← Equivalence of the implementations](../docs/EQUIVALENCE.md) · [Home](../README.md) · [Python package →](../python3/README.md)
 
 # Conformance corpus
 
@@ -38,4 +38,4 @@ Regenerate:
 ---
 
 <!-- nav -->
-[← Visitor pattern](../docs/VISITOR_PATTERN.md) · [Home](../README.md) · [Python package →](../python3/README.md)
+[← Equivalence of the implementations](../docs/EQUIVALENCE.md) · [Home](../README.md) · [Python package →](../python3/README.md)

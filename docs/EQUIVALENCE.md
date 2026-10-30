@@ -1,5 +1,5 @@
 <!-- nav -->
-[← Equality](EQUALITY.md) · [Home](../README.md) · [Meta-schemas overhaul →](META_SCHEMAS.md)
+[← 10 · Asking the store: mutations as queries (TypeScript)](../typescript5/tutorials/10_Asking_The_Store.ipynb) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
 
 # Equivalence of the implementations
 
@@ -202,4 +202,4 @@ When changing behavior:
 ---
 
 <!-- nav -->
-[← Equality](EQUALITY.md) · [Home](../README.md) · [Meta-schemas overhaul →](META_SCHEMAS.md)
+[← 10 · Asking the store: mutations as queries (TypeScript)](../typescript5/tutorials/10_Asking_The_Store.ipynb) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)

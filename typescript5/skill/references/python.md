@@ -109,12 +109,13 @@ store.Schemas.OfObject(Person, lambda o: o.adjacencies([      # update: add adja
     lambda t: t.relation([Knows]).me("b"),                  # anonymous: no name, no member, still checked
 ]))
 store.Schemas.OfObject(lambda o: o.name("Board").refines([Component]))   # a refinement: the members of what it refines
-store.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("phone").schema([Phone]), ...]))
+store.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name("phone").schema([Phone]), ...]))  # names unique: adding one held for another schema raises
 store.Schemas.OfIntersection(lambda i: i.parts([lambda t: t.name("stamp").schema([Stamp]), ...]))
 store.Schemas.OfContainer(lambda c: c.index([Int]).element([Text]))   # a list: a container by position, a property's schema
 store.Schemas.OfContainer(lambda c: c.index([Cell]).element([Float]).layout("sparse"))  # a tensor by a value object of ints
 obj.tags.as_value(lambda v: v.as_container(lambda c: c.at(0)))  # elements by index, each a Visitors.OfAny
-store.Schemas.OfAny(lambda a: a.schemas([Int, Phone]))          # a value of any of these schemas: bare where one fits it, else {"object": {"Phone": ...}}; none: any
+store.Schemas.OfAny(lambda a: a.schemas([Int, Phone]))          # a value of any of these schemas: bare where one fits it, else {"object": {"Phone": ...}}; none: any;
+                                                            # a scalar not exactly of one of its scalar schemas is refused when written (a bool is no int)
 store.Phone(lambda p: p.number("1"))                        # a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate()                                           # the schema's own problems, [] when valid
 

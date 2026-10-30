@@ -716,12 +716,14 @@ class _Empty(_Dunders):
 
 
 class _Scalar(_Dunders):
-    """`Visitors.OfScalar` over one key of a values dict. Called, as a union's branch, with a Spec."""
+    """`Visitors.OfScalar` over one key of a values dict. Called, as a union's branch, with a Spec. Of a value of any
+    schema, `restriction` is its `OfAny`, whose schemas a value written must be one of."""
 
     def __init__(self, values: dict[str, Any], name: str, schema: Any, writable: bool, label: str,
-                 parent: Any = None, on_write: Callable[[], None] | None = None):
+                 parent: Any = None, on_write: Callable[[], None] | None = None, restriction: Any = None):
         self._values, self._name, self._schema, self._writable = values, name, schema, writable
         self._label_text, self._parent, self._on_write = label, parent, on_write
+        self._restriction = restriction
 
     def _scalar(self) -> Any:
         return self.get()
@@ -741,6 +743,7 @@ class _Scalar(_Dunders):
 
     def set(self, value: Scalar) -> None:
         _write(self._writable, f"{self._label_text} is read-only; write through a builder")
+        _restricted_scalar(self._restriction, value, self._label_text)
         if self._on_write is not None:
             self._on_write()
         self._values[self._name] = value
@@ -758,6 +761,16 @@ class _Scalar(_Dunders):
 
     def __repr__(self) -> str:
         return f"<scalar {self._label_text}>"
+
+
+def _restricted_scalar(restriction: Any, value: Any, label: str) -> None:
+    """Refuses a scalar written as a value of a restricted `OfAny` whose host type is not exactly that of one of its
+    scalar schemas (FRAMEWORK.md, Resolved, "`OfAny` returns"): a bool is not an int."""
+    if restriction is None or not restriction.schemas or value is None:
+        return
+    if not any(isinstance(t, Schemas.OfScalar.Data) and t.type is type(value) for t in restriction.schemas):
+        raise TypeError(f"{label} does not hold a value of {type(value).__name__}: it holds one of "
+                        f"{', '.join(_shown_type(t) for t in restriction.schemas)}")
 
 
 class _Any(_Unassignable):
@@ -815,7 +828,8 @@ class _Any(_Unassignable):
             return self._flat_scalar(cb, value)
         if not isinstance(self._type, (Schemas.OfScalar.Data, Schemas.OfAny.Value)):
             return self._hand(cb, _Empty(f"{self._label} holds {_a(_noun(self._type))}, not a scalar"))
-        scalar = _Scalar(self._values, self._name, self._type, self._writable, self._label, self, self._on_write)
+        scalar = _Scalar(self._values, self._name, self._type, self._writable, self._label, self, self._on_write,
+                         self._any)
         if _is_function(cb):
             _visit(cb, scalar)
         else:

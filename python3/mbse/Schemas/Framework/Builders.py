@@ -403,15 +403,22 @@ class _Records(_Members):
     `name` and `description`; no object of its own stands between (docs/proposals/store-overhaul, Decided, 4). A record
     is never written in place: an entry written gives its data a new one."""
 
-    def __init__(self, link: str, record: type, fields: tuple[str, ...], **kwargs: Any):
+    def __init__(self, link: str, record: type, fields: tuple[str, ...], noun: str, **kwargs: Any):
         super().__init__(link, accepts=lambda value: isinstance(value, record), keyed=True, owned=False, **kwargs)
-        self.record, self.fields = record, fields
+        self.record, self.fields, self.noun = record, fields, noun
 
     def referents(self, data: Any) -> list[Any]:
         return [record.schema for record in self.items(data)]
 
     def links(self, value: Any) -> bool:
         return _is_schema(value)
+
+
+def _holds_record(held: list[Any], record: Any) -> bool:
+    """Whether `held` has a branch or a part equal to `record`: of its name, its schema and its description. Its relation is
+    a set, so that adding it again is elided (FRAMEWORK.md, Cardinality)."""
+    return any(other.name == record.name and other.schema is record.schema and other.description == record.description
+               for other in held)
 
 
 class _AdjacencyMember(_Unassignable):
@@ -455,7 +462,8 @@ class _AdjacencyMember(_Unassignable):
         else:
             raise TypeError(f"an entry, or a callback taking one, is expected; got {spec!r}")
         if isinstance(self._members, _Records):  # a record may lack its schema: validation reports it
-            self._store([*self._held(), entry._referent])
+            if not _holds_record(self._held(), entry._referent):
+                self._store([*self._held(), entry._referent])
             return self
         if entry._referent is None:
             raise ValueError(f"link {self._members.link!r} is not set")
@@ -519,7 +527,8 @@ class _AdjacencyMember(_Unassignable):
                     raise TypeError(f"link {self._members.link!r} cannot link {item!r}")
             if isinstance(self._members, _Records):
                 _check_held(self._builder, self._members.link, referent.schema)
-                self._store([*self._held(), referent])
+                if not _holds_record(self._held(), referent):
+                    self._store([*self._held(), referent])
                 continue
             _check_held(self._builder, self._members.link, referent)
             if self._members.keyed and name is not None:
@@ -1243,14 +1252,14 @@ class UnionBuilder(_KindBuilder[S.OfUnion.Data]):
     _data, _meta, _noun = S.OfUnion.Data, "OfUnion", "a union"
 
     flat = _Prop()
-    branches = _Records("schema", S.OfUnion.Branch, ("name", "description"), extensible=True, **_in_order("branches"))
+    branches = _Records("schema", S.OfUnion.Branch, ("name", "description"), "branch", extensible=True, **_in_order("branches"))
 
 
 class IntersectionBuilder(_KindBuilder[S.OfIntersection.Data]):
     _data, _meta, _noun = S.OfIntersection.Data, "OfIntersection", "an intersection"
 
     flat = _Prop()
-    parts = _Records("schema", S.OfIntersection.Part, ("name", "description"), **_in_order("parts"))
+    parts = _Records("schema", S.OfIntersection.Part, ("name", "description"), "part", **_in_order("parts"))
 
 
 class ContainerBuilder(_KindBuilder[S.OfContainer.Data]):
@@ -1778,12 +1787,13 @@ class Store(Proxies.OfStore):
         """Refuses a builder's update of a schema the store was made holding that does more than add members to it,
         each under a name it neither has nor inherits, nor a refinement of it declares (docs/SCHEMA_EXTENSION.md,
         Decided, 1): any transaction may extend one (docs/proposals/install, Decided, 5). The entries of an extension's
-        relations, which are its store's own, change freely."""
+        relations, which are its store's own, change freely. Of any schema it holds, it refuses an update that adds a branch
+        or a part under a name another of them has for another schema (FRAMEWORK.md, Resolved, "A union's branch names
+        are unique")."""
         original = builder._original
-        if self.framework(original):
-            problems = _extension_problems(builder)
-            if problems:
-                raise TypeError(f"an extension only adds members to {_shown(original)}: it {'; '.join(problems)}")
+        problems = (_extension_problems(builder) if self.framework(original) else []) + _renamed_records(builder)
+        if problems:
+            raise TypeError(f"an extension only adds members to {_shown(original)}: it {'; '.join(problems)}")
 
     def _place(self, data: Any) -> None:
         """Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path;
@@ -1977,6 +1987,25 @@ def _extension_problems(builder: _Builder[Any]) -> list[str]:
         elif added and member.keyed and isinstance(original, S.OfObject.Data):
             problems += _clashes(original, [member.name_of(working, referent) for referent in added])
     return problems  # a framework schema refines none, so inherits nothing an addition could redeclare
+
+
+def _renamed_records(builder: _Builder[Any]) -> list[str]:
+    """The branches or parts a builder's update adds (`_Records`) under a name that another of them has, for another schema
+    or described otherwise: a union's or an intersection's owner and a name determine the entry (`Schemas.HasBranch`,
+    `Schemas.HasPart`), so that one equal to an entry held is elided and any other refused."""
+    problems = []
+    for member in builder._members_.values():
+        if not isinstance(member, _Records):
+            continue
+        held = member.items(builder._working)
+        for record in _added(member.items(builder._original), held) or []:
+            other = next((other for other in held if other is not record and other.name == record.name), None)
+            if other is not None and other.schema is not record.schema:
+                problems.append(f"adds {member.noun} {record.name!r} for {_shown(record.schema)}, which it has for "
+                                f"{_shown(other.schema)}")
+            elif other is not None and other.description != record.description:
+                problems.append(f"adds {member.noun} {record.name!r} for {_shown(record.schema)} again, described otherwise")
+    return problems
 
 
 def _added(before: list[Any], after: list[Any]) -> list[Any] | None:

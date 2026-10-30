@@ -972,12 +972,14 @@ function makeEmpty(reason: string): any {
   return shell(state, () => state._refuse());
 }
 
-/** `Visitors.OfScalar` over one key of a values map. Called, as a union's branch, with a Spec. */
+/** `Visitors.OfScalar` over one key of a values map. Called, as a union's branch, with a Spec. Of a value of any schema,
+ * `restriction` is its `OfAny`, whose schemas a value written must be one of. */
 class _Scalar extends Dunders {
   readonly [TYPE_NAME] = "_Scalar";
 
   constructor(readonly _values: Values, readonly _name: string, readonly _schema: unknown, readonly _writable: boolean,
-    readonly _labelText: string, public _parent: unknown = null, readonly _onWrite: (() => void) | null = null) {
+    readonly _labelText: string, public _parent: unknown = null, readonly _onWrite: (() => void) | null = null,
+    readonly _restriction: Schemas.OfAny.Value | null = null) {
     super();
   }
 
@@ -1000,6 +1002,7 @@ class _Scalar extends Dunders {
 
   set(value: Visitors.Scalar): void {
     write(this._writable, `${this._labelText} is read-only; write through a builder`);
+    restrictedScalar(this._restriction, value, this._labelText);
     if (this._onWrite !== null) this._onWrite();
     this._values.set(this._name, value);
   }
@@ -1021,9 +1024,19 @@ class _Scalar extends Dunders {
 }
 
 function makeScalar(values: Values, name: string, schema: unknown, writable: boolean, label: string,
-  parent: unknown = null, onWrite: (() => void) | null = null): any {
-  const state = new _Scalar(values, name, schema, writable, label, parent, onWrite);
+  parent: unknown = null, onWrite: (() => void) | null = null, restriction: Schemas.OfAny.Value | null = null): any {
+  const state = new _Scalar(values, name, schema, writable, label, parent, onWrite, restriction);
   return shell(state, (spec) => state._call(spec));
+}
+
+/** Refuses a scalar written as a value of a restricted `OfAny` whose host type is not exactly that of one of its scalar
+ * schemas (FRAMEWORK.md, Resolved, "`OfAny` returns"): a bool is not an int. */
+function restrictedScalar(restriction: Schemas.OfAny.Value | null, value: unknown, label: string): void {
+  if (restriction === null || restriction.schemas.length === 0 || value === null || value === undefined) return;
+  if (!restriction.schemas.some((t) => t instanceof Schemas.OfScalar.Data && Schemas.isScalarOf(t.type, value))) {
+    throw new TypeError(`${label} does not hold a value of ${typeName(value)}: it holds one of ${
+      restriction.schemas.map(shownType).join(", ")}`);
+  }
 }
 
 /** `Visitors.OfAny` over one key of a values map, holding a value of `schema`. Read-only, it hands over the value's own
@@ -1109,7 +1122,8 @@ class _Any {
     if (!(this._type instanceof Schemas.OfScalar.Data || this._type instanceof Schemas.OfAny.Value)) {
       return this._hand(cb, makeEmpty(`${this._label} holds ${withArticle(noun(this._type))}, not a scalar`));
     }
-    const scalar = makeScalar(this._values, this._name, this._type, this._writable, this._label, this, this._onWrite);
+    const scalar = makeScalar(this._values, this._name, this._type, this._writable, this._label, this, this._onWrite,
+      this._any);
     if (isFunction(cb)) visit(cb, scalar);
     else scalar.set(cb);
     return this;

@@ -785,6 +785,46 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 
 ### Resolved
 
+- **A union's branch names are unique** (0.26.4), as the user decided: when two installs each add a branch of one
+  name to the same union, the union held both (`('binary', 'A.Binary')` and `('binary', 'B.Binary')`); "A union's
+  branch names must be unique (as a keyed adjacency's names are). Refuse it: at least in validation; and, where an
+  extension adds a branch whose name the union already has for another schema, refuse the write", since an
+  extension "only adds members" ([Schema extension](SCHEMA_EXTENSION.md)). "The same branch re-added (same name,
+  same schema, a re-run install) still writes nothing." "Same for an intersection's parts", which had the same gap.
+  As built:
+  - **The clause.** `Schemas.HasBranch` and `Schemas.HasPart` declared `unique(owner, name)`, which by Cardinality
+    says that the schema and the description determine the owner and the name: the reverse of what was meant, and
+    false wherever a schema is linked by several. Each now declares `unique(schema, description)`: the owner and the
+    name determine the schema and the description, so that from the owner's end its entries are keyed by name
+    (`key("owner") == ("name",)`). No corpus changed: snapshots do not write the framework's own schemas.
+  - **Validation**, as before: `validate()` reports "branch name 'binary' is used more than once" (`part name` for
+    an intersection), for a union or an intersection however it came to hold them.
+  - **The write.** The store refuses an update of any schema it holds, its own or the framework's, in an install
+    or an imperative scope alike, that adds a branch or a part under a name another of them has (`Store._permit`):
+    `TypeError: an extension only adds members to 'enc.Enc': it adds branch 'binary' for 'B.Binary', which it has for
+    'A.Binary'`; one of the same schema described otherwise, `... it adds branch 'binary' for 'A.Binary' again,
+    described otherwise`. One equal to an entry held (its name, its schema and its description) is elided as it is
+    added, as a set relation's equal entry is (Cardinality), so that a re-run install, or another adding the same
+    branch, writes nothing. A union or an intersection built whole may still hold two of one name, which validation
+    reports; a branch edited in place (its entry written through) is replaced, not added (SCH-14).
+  - Tested by INS-06.
+- **A restricted `OfAny` refuses a scalar of another host type when written** (0.26.4), as the user decided: with
+  `S.OfAny(lambda a: a.schemas([S.OfInt, S.OfFloat, S.OfStr]))`, `True` or `b"x"` was accepted by the builders and
+  failed only when written to the wire ("bool is not one"): Python's `bool` is a subclass of `int`, and bytes were not
+  checked. "The builders must refuse a value whose scalar type is not one of the restriction's at write time,
+  comparing exact host types (bool is not int), in both languages", as "`OfAny` returns" has it: "a value of a type
+  outside the restriction is refused when written and when read". As built:
+  - a scalar written as a restricted `OfAny`'s value, through a property, `as_value(...).as_scalar(...)` or a scalar
+    visitor's `set`, and as a container's element alike, is refused unless its host type is exactly that of one of the
+    restriction's scalar schemas: `TypeError: property 'one' does not hold a value of bool: it holds one of
+    Schemas.OfInt, Schemas.OfFloat, Schemas.OfStr`. TypeScript's host types do not overlap (`bigint`, `number`,
+    `boolean`), and it refused nothing either; it now refuses with the same message. An unrestricted `OfAny` takes any
+    scalar, as before.
+  - the writer's check stays, for a value written before its restriction narrowed (an install removing a schema from
+    a named `OfAny`): `a value of any schema holds one of its schemas; float is not one`; validation reports it too.
+    The wire is unchanged.
+  - Tested by ANY-07, and ANY-03 and ANY-04 for a restriction narrowed.
+
 - **A restricted `OfAny` never guesses its schema** (0.26.3), as the user decided, in mbse-basis
   [PRI-025: never guess the schema](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-025), [PRI-026: serialization through the visitor
   protocol](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-026), [CAP-069: wire format shorthand
@@ -985,8 +1025,8 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
 - **A union's branches and an intersection's parts are relation entries** (0.18.0; [Store overhaul, Decided,
   4](proposals/store-overhaul/README.md#decided-here)), as the user decided, "`Meta.Member` -> relation meta-schemas":
   an entry of `Schemas.HasBranch` or `Schemas.HasPart` links the owner and the member's type, and carries its `name`
-  and `description`; `Schemas.Member` and its builder are gone. The owner and the name determine the entry; a type may
-  be linked by several. A branch has no identity of its own, and an unnamed type takes the first to link it's
+  and `description`; `Schemas.Member` and its builder are gone. The owner and the name determine the entry (its
+  clause, since 0.26.4: Resolved, "A union's branch names are unique"); a type may be linked by several. A branch has no identity of its own, and an unnamed type takes the first to link it's
   (`crm.Shape#branches.1`, SNP-02). Builders write them as before (`t.name("p").schema([A]).description("...")`).
 
 - **Parameters are names only** (0.17.0; [Store overhaul, Decided, 20 and
@@ -1274,7 +1314,9 @@ Findings from the test plans (`python3/tests/TestPlan.md`, `typescript5/tests/Te
     value held is handed an empty visitor, so that it neither replaces the value nor fails a read; with nothing held,
     a restricted `OfAny` builds the one type of that kind it allows, and an unrestricted one hands a Spec an empty
     visitor that refuses writes ("... give a value, which carries its schema, not a Spec"); a restricted value's type
-    is checked when written to a snapshot (a scalar's, which builders do not check) and on assignment (a value's); a
+    is checked when written to a snapshot (a scalar's, which builders do not check; *superseded*: refused when written
+    too, Resolved, "A restricted `OfAny` refuses a scalar of another host type when written") and on assignment (a
+    value's); a
     standalone value is adopted by the first object it is assigned to and copied by every later one; and
     `Proxies.OfObject.Builder` given a value object schema directly refuses it ("build a value through its owner, or
     standalone through the store").

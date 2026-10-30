@@ -1353,10 +1353,11 @@ export function install(txn: any): any {
       (_: any) => _.OfBytes.name("Schemas.OfBytes"),
 
      // --- The relations between schema objects ---
-     // A member belongs to one owner, which names it by the entry's `name` (keyed): the member determines its
-     // owner and its name, and the owner and the name the member. A branch or a part is named by its entry, which
-     // links a schema that may be linked again. A schema object has one schema, refined schema, index, element or
-     // relation at most; `OfAny`'s schemas and a pattern's constraints are lists.
+     // A member belongs to one owner, which names it by the entry's `name` (keyed): the member determines its owner and
+     // its name, and the owner and the name the member. A branch or a part is named by its entry, which links a schema
+     // that may be linked again: the owner and the name determine the schema and the description, so that a union's
+     // branch names, and an intersection's part names, are unique. A schema object has one schema, refined schema,
+     // index, element or relation at most; `OfAny`'s schemas and a pattern's constraints are lists.
       (_: any) => _.HasSchema.name("Schemas.HasSchema").links([
         (t: any) => t.name("member"), (t: any) => t.name("schema")]).uniques([["schema"]]),
       (_: any) => _.Refines.name("Schemas.Refines").links([
@@ -1376,10 +1377,10 @@ export function install(txn: any): any {
         ["owner", "name"], ["adjacency"]]),
       (_: any) => _.HasBranch.name("Schemas.HasBranch").links([
         (t: any) => t.name("owner"), (t: any) => t.name("schema")]).properties({
-        name: _.OfStr, description: _.OfStr}).uniques([["owner", "name"]]),
+        name: _.OfStr, description: _.OfStr}).uniques([["schema", "description"]]),
       (_: any) => _.HasPart.name("Schemas.HasPart").links([
         (t: any) => t.name("owner"), (t: any) => t.name("schema")]).properties({
-        name: _.OfStr, description: _.OfStr}).uniques([["owner", "name"]]),
+        name: _.OfStr, description: _.OfStr}).uniques([["schema", "description"]]),
       (_: any) => _.HasSymbol.name("Schemas.HasSymbol").links([
         (t: any) => t.name("owner"), (t: any) => t.name("symbol")]).properties({name: _.OfStr}).uniques([
         ["owner", "name"], ["symbol"]]),

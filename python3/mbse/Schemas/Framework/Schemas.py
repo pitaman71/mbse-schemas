@@ -1083,8 +1083,10 @@ def install(txn: Any) -> Any:
             # --- The relations between schema objects ---
             # A member belongs to one owner, which names it by the entry's `name` (keyed): the member determines its
             # owner and its name, and the owner and the name the member. A branch or a part is named by its entry, which
-            # links a schema that may be linked again. A schema object has one schema, refined schema, index, element or
-            # relation at most; `OfAny`'s schemas and a pattern's constraints are lists.
+            # links a schema that may be linked again: the owner and the name determine the schema and the description,
+            # so that a union's branch names, and an intersection's part names, are unique. A schema object has one
+            # schema, refined schema, index, element or relation at most; `OfAny`'s schemas and a pattern's constraints
+            # are lists.
             lambda _: _.HasSchema.name("Schemas.HasSchema").links([
                 lambda t: t.name("member"), lambda t: t.name("schema")]).uniques([["schema"]]),
             lambda _: _.Refines.name("Schemas.Refines").links([
@@ -1104,10 +1106,10 @@ def install(txn: Any) -> Any:
                 ["owner", "name"], ["adjacency"]]),
             lambda _: _.HasBranch.name("Schemas.HasBranch").links([
                 lambda t: t.name("owner"), lambda t: t.name("schema")]).properties({
-                "name": _.OfStr, "description": _.OfStr}).uniques([["owner", "name"]]),
+                "name": _.OfStr, "description": _.OfStr}).uniques([["schema", "description"]]),
             lambda _: _.HasPart.name("Schemas.HasPart").links([
                 lambda t: t.name("owner"), lambda t: t.name("schema")]).properties({
-                "name": _.OfStr, "description": _.OfStr}).uniques([["owner", "name"]]),
+                "name": _.OfStr, "description": _.OfStr}).uniques([["schema", "description"]]),
             lambda _: _.HasSymbol.name("Schemas.HasSymbol").links([
                 lambda t: t.name("owner"), lambda t: t.name("symbol")]).properties({"name": _.OfStr}).uniques([
                 ["owner", "name"], ["symbol"]]),

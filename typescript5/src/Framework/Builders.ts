@@ -509,7 +509,7 @@ class Members {
  * `name` and `description`; no object of its own stands between (docs/proposals/store-overhaul, Decided, 4). A record
  * is never written in place: an entry written gives its data a new one. */
 class Records extends Members {
-  constructor(link: string, readonly record: new () => any, readonly fields: readonly string[],
+  constructor(link: string, readonly record: new () => any, readonly fields: readonly string[], readonly noun: string,
     options: Storage & { extensible?: boolean }) {
     super(link, { ...options, accepts: isA(record), keyed: true, owned: false });
   }
@@ -521,6 +521,13 @@ class Records extends Members {
   override links(value: unknown): boolean {
     return isSchema(value);
   }
+}
+
+/** Whether `held` has a branch or a part equal to `record`: of its name, its schema and its description. Its relation is
+ * a set, so that adding it again is elided (FRAMEWORK.md, Cardinality). */
+function holdsRecord(held: readonly any[], record: any): boolean {
+  return held.some((other) => other.name === record.name && other.schema === record.schema
+    && other.description === record.description);
 }
 
 /** `Visitors.OfAdjacency` over one adjacency of the schema object a builder builds: iterated, its entries. */
@@ -575,7 +582,7 @@ class AdjacencyMember extends Shelled {
       throw new TypeError(`an entry, or a callback taking one, is expected; got ${repr(spec)}`);
     }
     if (this._members instanceof Records) { // a record may lack its schema: validation reports it
-      this._store([...this._held(), entry._referent]);
+      if (!holdsRecord(this._held(), entry._referent)) this._store([...this._held(), entry._referent]);
       return this._proxy;
     }
     if (entry._referent === null) throw new ValueError(`link ${repr(this._members.link)} is not set`);
@@ -647,7 +654,7 @@ class AdjacencyMember extends Shelled {
       }
       if (this._members instanceof Records) {
         checkHeld(this._builder, this._members.link, referent.schema);
-        this._store([...this._held(), referent]);
+        if (!holdsRecord(this._held(), referent)) this._store([...this._held(), referent]);
         continue;
       }
       checkHeld(this._builder, this._members.link, referent);
@@ -1504,7 +1511,7 @@ export class UnionBuilder extends KindBuilder {
   static override _noun = "a union";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
-    branches: new Records("schema", S.OfUnion.Branch, ["name", "description"], { extensible: true, ...inOrder("branches") }),
+    branches: new Records("schema", S.OfUnion.Branch, ["name", "description"], "branch", { extensible: true, ...inOrder("branches") }),
   });
 }
 
@@ -1514,7 +1521,7 @@ export class IntersectionBuilder extends KindBuilder {
   static override _noun = "an intersection";
   static override _table = extendTable(KindBuilder._table, {
     flat: new Prop(),
-    parts: new Records("schema", S.OfIntersection.Part, ["name", "description"], inOrder("parts")),
+    parts: new Records("schema", S.OfIntersection.Part, ["name", "description"], "part", inOrder("parts")),
   });
 }
 
@@ -1965,6 +1972,26 @@ function extensionProblems(builder: any): string[] {
   return problems; // a framework schema refines none, so inherits nothing an addition could redeclare
 }
 
+/** The branches or parts a builder's update adds (`Records`) under a name that another of them has, for another schema
+ * or described otherwise: a union's or an intersection's owner and a name determine the entry (`Schemas.HasBranch`,
+ * `Schemas.HasPart`), so that one equal to an entry held is elided and any other refused. */
+function renamedRecords(builder: any): string[] {
+  const problems: string[] = [];
+  for (const [, member] of builder._table() as Table) {
+    if (!(member instanceof Records)) continue;
+    const held = member.items(builder._working);
+    for (const record of addedTo(member.items(builder._original), held) ?? [] as any[]) {
+      const other = held.find((found: any) => found !== record && found.name === record.name);
+      if (other !== undefined && other.schema !== record.schema) {
+        problems.push(`adds ${member.noun} ${repr(record.name)} for ${shown(record.schema)}, which it has for ${shown(other.schema)}`);
+      } else if (other !== undefined && other.description !== record.description) {
+        problems.push(`adds ${member.noun} ${repr(record.name)} for ${shown(record.schema)} again, described otherwise`);
+      }
+    }
+  }
+  return problems;
+}
+
 /** What `after` holds besides what `before` does, which it holds in the same order, wherever the additions stand (an
  * object schema's anonymous adjacencies follow its named ones); null where it lacks or replaces one. */
 function addedTo(before: readonly unknown[], after: readonly unknown[]): unknown[] | null {
@@ -2291,13 +2318,12 @@ export class Store extends Proxies.OfStore {
   /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under
    * a name it neither has, nor a refinement of it declares (docs/SCHEMA_EXTENSION.md, Decided, 1): any transaction may
    * extend one (docs/proposals/install, Decided, 5). The entries of an extension's relations, which are its store's own,
-   * change freely. */
+   * change freely. Of any schema it holds, it refuses an update that adds a branch or a part under a name another of
+   * them has for another schema (FRAMEWORK.md, Resolved, "A union's branch names are unique"). */
   _permit(builder: any): void {
     const original = builder._original;
-    if (this.framework(original)) {
-      const problems = extensionProblems(builder);
-      if (problems.length > 0) throw new TypeError(`an extension only adds members to ${shown(original)}: it ${problems.join("; ")}`);
-    }
+    const problems = [...(this.framework(original) ? extensionProblems(builder) : []), ...renamedRecords(builder)];
+    if (problems.length > 0) throw new TypeError(`an extension only adds members to ${shown(original)}: it ${problems.join("; ")}`);
   }
 
   /** Defines a named schema, or a module, in the module its path's prefix names, under the last part of its path; a

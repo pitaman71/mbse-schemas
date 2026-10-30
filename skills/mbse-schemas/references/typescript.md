@@ -133,12 +133,13 @@ store.Schemas.OfObject(Person, (o: any) => o.adjacencies([   // update: add adja
   (t: any) => t.relation([Knows]).me("b"),                  // anonymous: no name, no member, still checked
 ]));
 store.Schemas.OfObject((o: any) => o.name("Board").refines([Component]));   // a refinement: the members of what it refines
-store.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([Phone]), ...]));
+store.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([Phone]), ...]));  // names unique: adding one held for another schema throws
 store.Schemas.OfIntersection((i: any) => i.parts([(t: any) => t.name("stamp").schema([Stamp]), ...]));
 store.Schemas.OfContainer((c: any) => c.index([Int]).element([Text]));   // a list: a container by position, a property's schema
 store.Schemas.OfContainer((c: any) => c.index([Cell]).element([Float]).layout("sparse"));  // a tensor by a value object of ints
 obj.tags.as_value((v: any) => v.as_container((c: any) => c.at(0n)));  // elements by index, each a Visitors.OfAny
-store.Schemas.OfAny((a: any) => a.schemas([Int, Phone]));      // a value of any of these schemas: bare where one fits it, else {"object": {"Phone": ...}}; none: any
+store.Schemas.OfAny((a: any) => a.schemas([Int, Phone]));      // a value of any of these schemas: bare where one fits it, else {"object": {"Phone": ...}}; none: any;
+                                                           // a scalar not exactly of one of its scalar schemas is refused when written (a bool is no int)
 store.Phone((p: any) => p.number("1"));                    // a standalone value, assigned to an unrestricted OfAny, tagged
 schema.validate();                                         // the schema's own problems, [] when valid
 

@@ -331,6 +331,6 @@ store.References.OfFrame(lambda f: f                      # a witness, as a serv
 | Topic | Read |
 |---|---|
 | Frames, terms and their design | [FEA-027: mutations as queries](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-027.md) |
-| What names an object an upsert finds or creates | [FEA-026: identity and transactions](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-026.md) (55 to 103) |
+| What names an object an upsert finds or creates | [FEA-026: deterministic object identity](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-026.md) (55 to 103) |
 | References, frames as witnesses, a symbol given a reference | [CAP-130: references to objects, entries and frames](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-130.md) |
 | Every working form, with what each refuses | the TXN and REF suites, [31_Transactions](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tests/31_Transactions.ipynb) and [33_References](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tests/33_References.ipynb) |

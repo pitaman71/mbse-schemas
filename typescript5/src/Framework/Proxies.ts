@@ -627,8 +627,7 @@ function storeFor(holder: unknown): OfStore | null {
   return holder instanceof _ObjectData ? holder._store : storeOf((holder as _RecordData)._owner);
 }
 
-/** A data object's or a value object's property values, read through its store ([FEA-026: identity and transactions](../../../../mbse-basis/docs/features/FEA-026.md), Decided,
- * 100); a value object's not yet placed, its own. */
+/** A data object's or a value object's property values, read through its store (object identity 100 in [CAP-149: data accessed through the store protocol](../../../../mbse-basis/docs/capabilities/CAP-149.md#decided)); a value object's not yet placed, its own. */
 function valuesOf(holder: { _ownValues: Values }): Values {
   const store = storeFor(holder);
   return store === null ? holder._ownValues : store.values(holder);

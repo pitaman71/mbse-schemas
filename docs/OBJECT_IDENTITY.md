@@ -79,7 +79,7 @@ Now in [CAP-143: specs declarative, no read-modify-write](../../mbse-basis/docs/
 
 ## Open questions
 
-Not moved: a record superseded by what was built, which [FEA-026: identity and transactions](../../mbse-basis/docs/features/FEA-026.md) holds.
+Not moved: a record superseded by what was built, which [FEA-026: deterministic object identity](../../mbse-basis/docs/features/FEA-026.md) holds.
 
 ---
 

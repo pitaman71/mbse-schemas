@@ -1,6 +1,6 @@
 /**
  * Transactions: the writes to a store, as mutation expressions over streams of frames ([FEA-027: mutations as queries](../../../../mbse-basis/docs/features/FEA-027.md);
- * object identity 38 to 97 in [FEA-026: identity and transactions](../../../../mbse-basis/docs/features/FEA-026.md)).
+ * object identity 38 to 97 in [FEA-030: transactions](../../../../mbse-basis/docs/features/FEA-030.md)).
  *
  * A pattern's `spec` says what must hold of a frame: the property values the objects its symbols bind have, and the
  * relation entries that link them (Decided, 76). It is written in the builders' own notation, over the frame, whose
@@ -564,7 +564,7 @@ export type Frame = Map<string, any>;
 
 type Members = Map<string, any>[];
 
-/** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-026: identity and transactions](../../../../mbse-basis/docs/features/FEA-026.md)): its
+/** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: transactions](../../../../mbse-basis/docs/features/FEA-030.md)): its
  * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
  * in its proposals and written when it ends, or dropped where it throws. Gives the frames its chain ends with. */
 export function _execute(store: any, transaction: any, joined = false): Frame[] {

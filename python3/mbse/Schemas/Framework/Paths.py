@@ -1,5 +1,5 @@
 """Paths: an owned object's identity, the route from a singleton to it through the relations that own it
-([FEA-026: identity and transactions](../../../../../mbse-basis/docs/features/FEA-026.md)).
+([FEA-026: deterministic object identity](../../../../../mbse-basis/docs/features/FEA-026.md)).
 
 A path is a nested value object, never a string: `Paths.OfRoot` names the singleton it starts from and holds the next
 element, `Paths.OfEntry` one ownership entry transited (`i`, the adjacency to it from the object before; `o`, the

@@ -619,9 +619,9 @@ so that main stays current and no branch waits on another.
        built; tutorial 9) is deferred past step 4, as the user decided (2026-10-22): "4j : implement removing entries,
        but defer deleting objects to a later phase";
      - parameters as a module, `Parametrics`, installed before use, in place of every kind's names only
-       ([CAP-112: parameters modeled as schema data](../../../../mbse-basis/docs/capabilities/CAP-112.md), as the user rewrote it; [Parametrics as a module](../parametrics/README.md)): 4m, "before
+       ([CAP-112: parameters modeled as schema data](../../../../mbse-basis/docs/capabilities/CAP-112.md), as the user rewrote it; [CAP-171: parameters attached to every schema kind by extension](../../../../mbse-basis/docs/capabilities/CAP-171.md)): 4m, "before
        4k or any other 4*", in two stages, 4m-1 and 4m-2; built (Parametrics as a module, Stages, as built), released as 0.24.0;
-     - references to objects, relation entries and frames, one format (`References`; [References](../references/README.md)):
+     - references to objects, relation entries and frames, one format (`References`; [CAP-130: references to objects, entries and frames](../../../../mbse-basis/docs/capabilities/CAP-130.md)):
        4n, "right now", before 4k and 4h; built (References, Stages, as built); Paths overlap it meanwhile, deprecated,
        their removal tech debt (no stage yet: the workspace's TODO.md, "Eliminate Paths");
      - Parametrics' bindings' adjacencies, `values` and `objects`: dropped, no stage, as the user (2026-10-22): "lines 30 and 31 of docs/PARAMETRICS.md are no longer needed since `Parametrics.OfParameters` was introduced";
@@ -666,7 +666,7 @@ so that main stays current and no branch waits on another.
      user, on finding it unscheduled after 4f, "There is no gap. You just decided to ignore Decided 86. It doesn't have
      to be done now, but soon. One of the last things that must be done for schemas to be stabilized." Built after 4f
      and before 4h; how the meta-schemas themselves are installed, which a transaction's symbols are typed by, is to be
-     proposed for the user's review when it starts. Proposed and decided in [Installing schemas](../install/README.md)
+     proposed for the user's review when it starts. Proposed and decided in [CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md)
      (the framework's own modules drafted there, a bootstrap reading them, "everything" migrating), built in four
      stages, 4i-1 to 4i-4, listed there; done, released as 0.23.0.
    - **4h, the last release** of step 4: mbse-schemas stabilized, released as 0.25.0 (with 4n, References). The

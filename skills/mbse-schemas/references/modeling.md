@@ -57,7 +57,7 @@ without is open, its entries a list, equal entries kept. `.uniques([])`, one cla
 
 **Cardinality comes from `unique(S)`.** The links and properties outside `S` determine `S`, so they form a key. Pick
 from the patterns in
-[CAP-155: relations of named links, keyed by `unique` clauses](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-155.md):
+[CAP-155: `unique` clauses on relation schemas govern relation cardinality](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-155.md):
 ownership, keyed ownership, directory, and global ID directory.
 
 **Union or intersection?** Both have named members, and their values are records keyed by those names. A union value

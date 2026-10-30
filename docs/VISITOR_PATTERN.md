@@ -59,7 +59,7 @@ Now in [CAP-137: patterns of symbols, variables and specs](../../mbse-basis/docs
 
 ## Containers
 
-Now in [CAP-108: containers of any index and element](../../mbse-basis/docs/capabilities/CAP-108.md).
+Now in [CAP-108: relations as scalable containers](../../mbse-basis/docs/capabilities/CAP-108.md).
 
 ## Another new problem:
 

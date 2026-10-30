@@ -416,7 +416,7 @@ class _Records(_Members):
 
 def _holds_record(held: list[Any], record: Any) -> bool:
     """Whether `held` has a branch or a part equal to `record`: of its name, its schema and its description. Its relation is
-    a set, so that adding it again is elided ([CAP-155: relations of named links, keyed by `unique` clauses](../../../../../mbse-basis/docs/capabilities/CAP-155.md))."""
+    a set, so that adding it again is elided ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](../../../../../mbse-basis/docs/capabilities/CAP-155.md))."""
     return any(other.name == record.name and other.schema is record.schema and other.description == record.description
                for other in held)
 

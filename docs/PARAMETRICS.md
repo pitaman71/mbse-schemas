@@ -7,15 +7,15 @@ Moved to [mbse-basis](../../mbse-basis/docs/README.md): each section below names
 
 # Modeling
 
-Now in [CAP-112: parameters declared by an installed module](../../mbse-basis/docs/capabilities/CAP-112.md).
+Now in [CAP-112: parameters modeled as schema data](../../mbse-basis/docs/capabilities/CAP-112.md).
 
 # Schema Parameters
 
-Now in [CAP-112: parameters declared by an installed module](../../mbse-basis/docs/capabilities/CAP-112.md).
+Now in [CAP-112: parameters modeled as schema data](../../mbse-basis/docs/capabilities/CAP-112.md).
 
 # Expression Parameters
 
-Now in [CAP-114: bindings substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md).
+Now in [CAP-114: parameter bindings are substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md).
 
 ---
 

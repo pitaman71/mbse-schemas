@@ -12,7 +12,7 @@
  * the part before the last dot the module it is in. A store registers a named schema under that name.
  *
  * A parameter (`OfParameter`) is a name and a description. Which definitions declare parameters, what each can be bound
- * to, and their bindings are `Parametrics`', a module installed before use ([CAP-112: parameters declared by an installed module](../../../../mbse-basis/docs/capabilities/CAP-112.md)). Terms, applications
+ * to, and their bindings are `Parametrics`', a module installed before use ([CAP-112: parameters modeled as schema data](../../../../mbse-basis/docs/capabilities/CAP-112.md)). Terms, applications
  * and widths are mbse-expressions' (schema extension 5 to 7 in [FEA-024: expressions as data](../../../../mbse-basis/docs/features/FEA-024.md#decided)).
  *
  * A pattern (`OfPattern`) declares symbols (`OfSymbol`), each standing for a reference object, variables

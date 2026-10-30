@@ -524,7 +524,7 @@ class Records extends Members {
 }
 
 /** Whether `held` has a branch or a part equal to `record`: of its name, its schema and its description. Its relation is
- * a set, so that adding it again is elided ([CAP-155: relations of named links, keyed by `unique` clauses](../../../../mbse-basis/docs/capabilities/CAP-155.md)). */
+ * a set, so that adding it again is elided ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](../../../../mbse-basis/docs/capabilities/CAP-155.md)). */
 function holdsRecord(held: readonly any[], record: any): boolean {
   return held.some((other) => other.name === record.name && other.schema === record.schema
     && other.description === record.description);

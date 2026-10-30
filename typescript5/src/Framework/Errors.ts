@@ -39,7 +39,7 @@ export interface Location {
 }
 
 /** A problem in the data being decoded. `message` is `line L, column C: reason`, `$.path: reason`, or the reason alone
- * when there is no location. See [CAP-159: decoding errors the same in every binding](../../../../mbse-basis/docs/capabilities/CAP-159.md). */
+ * when there is no location. See [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](../../../../mbse-basis/docs/capabilities/CAP-159.md). */
 export class DecodeError extends ValueError {
   override name = "DecodeError";
   readonly reason: string;

@@ -161,7 +161,7 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
   porting; the recorder went with the visitor protocol's rewrite, which reads through the visitors themselves.
 
-Normalizing decoding errors (see [CAP-159: decoding errors the same in every binding](../../mbse-basis/docs/capabilities/CAP-159.md)) found more, all fixed and tested in both:
+Normalizing decoding errors (see [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](../../mbse-basis/docs/capabilities/CAP-159.md)) found more, all fixed and tested in both:
 
 - Python decoded JSON bytes with `surrogatepass`, accepting encoded lone surrogates that TypeScript's decoder
   rejected, and TypeScript's UTF-32 decoder accepted surrogate code points. Both now decode strictly (JSN-09).

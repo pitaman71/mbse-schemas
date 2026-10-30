@@ -5,7 +5,7 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 
 ## The document format
 
-A document is one transaction, one upsert (docs/OBJECT_IDENTITY.md, Decided, 51): reading it executes it.
+A document is one transaction, one upsert (object identity 51 in [CAP-128: graphs sent as one-transaction documents](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-128.md#decided)): reading it executes it.
 
 ```text
 {"uid": "6f1c4e2a", "mutations": [{"upsert": {"key": "6f1c4e2a", "exists": [{

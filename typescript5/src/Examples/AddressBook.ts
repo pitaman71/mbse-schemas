@@ -123,7 +123,7 @@ export { IntlAddress, addr1 };
 
 // --- Serialization ---
 
-// A document is one transaction (docs/OBJECT_IDENTITY.md, Decided, 51): the objects it holds are the symbols of one
+// A document is one transaction (object identity 51 in [CAP-128: graphs sent as one-transaction documents](../../../../mbse-basis/docs/capabilities/CAP-128.md#decided)): the objects it holds are the symbols of one
 // upsert, numbered in the order it meets them, the root's "0", and its spec gives each one's properties and entries.
 // An object's document holds it alone, so addr1's is refused: alice, whom it links, is counted (neither a singleton nor
 // owned), and has no identity beyond the document that writes her.

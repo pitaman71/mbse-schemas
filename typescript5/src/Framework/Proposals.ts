@@ -1,6 +1,6 @@
 /**
  * Proposals: a transaction's writes, held apart from the store they change until the transaction commits
- * (docs/OBJECT_IDENTITY.md, Decided, 89, 96, 99, 100).
+ * (object identity 89, 96, 99 in [CAP-124: writes all-or-nothing in transactions](../../../../mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](../../../../mbse-basis/docs/capabilities/CAP-149.md#decided)).
  *
  * `OfStore` implements `Visitors.OfStore` over a base, what the store holds as committed or another `OfStore`: a data
  * object's property values, a value object's, and the entry tables of an object are copied from the base when first

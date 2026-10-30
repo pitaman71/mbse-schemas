@@ -3,755 +3,83 @@
 
 # Reference Object Identity
 
-A reference object is identified in one of three ways, which its schema's declarations select (Decided, 37):
-
-| Mode | Declared by | Identity | Lifetime |
-|---|---|---|---|
-| Singleton | `.singleton(name)` | its path of no steps: its global name, the root of every path | the store's |
-| Owned | an adjacency marked `owner()` | its path: the route from a singleton to it through the entries that own it | its owning entry's |
-| Counted | neither | none of its own: within a document that writes it, its index in the order the document meets counted objects | the host language's: reference counted, collected once nothing holds it |
-
-Value objects have no identity (9). Nothing is drawn at random: a path is computed from the model, a transaction's id
-is given by the program (42), and a counted object is numbered by the document that writes it (55), so the same model
-built twice, or in another language, gives the same identities and the same snapshots.
+Moved to [mbse-basis](../../mbse-basis/docs/README.md): each section below names the item that holds it now. Its opening, the three modes, is in [CAP-118: singletons, owned and counted objects](../../mbse-basis/docs/capabilities/CAP-118.md#three-modes).
 
 ## What takes which mode
 
-- **Singletons**, such as the root module and a directory such as `wts.Features`: by their global names, as before, each the path of no steps.
-- **Owned**, through `owner()` adjacencies: named definitions of any kind (usually module scoped, owned by their module
-  through `Schemas.Defines`), clauses of a definition and subclauses of a clause, and the instances of a program's
-  schemas at the root level of its data model, owned by a singleton directory (37).
-- **Counted**: expression terms, and most other objects (37).
-
-There is no framework relation by which a schema owns its instances: `Schemas.HasInstance`, `OfObject.pattern` and the
-generated `local-name-N` keys go (41). A schema's identity never becomes part of a path, though a schema object may be a
-step in one, as any owner may (12, 30); a schema's name is written only where an object is created, in
-`Mutations.OfObject.Exists`, which must know what to build (8).
+Now in [CAP-118: singletons, owned and counted objects](../../mbse-basis/docs/capabilities/CAP-118.md).
 
 ## Owned objects
 
-`Schemas.OfAdjacency` has `owner()`. An adjacency marked `owner()` points back to the previous element of the object's
-path: the object that owns it. The relation it designates has two links, the owner's and the owned's, and must
-
-1. mark the owner link as unique, and
-2. mark the owned link, along with any keys, as unique,
-
-for example (the user's, in the builders' syntax):
-
-```python
-Directory = store.Schemas.OfObject(lambda o: o.name('Directory').ref(True).singleton('wts.Features'))
-Definition = store.Schemas.OfObject(lambda o: o.name('Definition').ref(True))
-Defines = store.Schemas.OfRelation(lambda r: (
-    r
-    .name('Defines')
-    .links([
-        lambda t: t.name('directory'),
-        lambda t: t.name('defn'),
-    ])
-    .properties([lambda t: t.name('name').schema([store.Schemas.OfStr]).pattern(r'DEF-\d+\d\d')])
-    .uniques([['directory', 'name'], ['defn']])  # a definition's one directory and name; they find one definition
-))
-store.Schemas.OfObject(Directory, lambda o: o.adjacencies([
-    lambda t: t.name('dir').relation([Defines]).me('directory'),
-]))
-store.Schemas.OfObject(Definition, lambda o: o.adjacencies([
-    lambda t: t.name('def').relation([Defines]).me('defn').owner(True),  # back to the previous path element
-]))
-```
-
-
-A definition's path is then the singleton `wts.Features`, through `dir`, the entry named `DEF-693`, and `def` (Paths
-as data). From the owner, the entry's keys select exactly one owned object, and an owned object has exactly one owner,
-so a path resolves unambiguously.
-
-Validation refuses an ownership relation of more than two links (14), and an `owner()` adjacency whose owning end a
-counted schema can fill: nothing is owned by a counted object, so every path ends at a singleton (47).
-
-`Schemas.Defines` already has this shape: it links a module to a schema with the entry's `name`, declared
-`.uniques([["module", "name"], ["schema"]])`, FRAMEWORK.md's Directory pattern. Modules and schemas therefore take part
-like any other owned object: a schema's path runs from the root module through `Defines` entries, by name (17). An
-unnamed schema linked through a relation no key names (the container schema of `crm.Person.tags`, through
-`Schemas.HasSchema`) is a subclause owned through that link, its step one with no keys (29).
-
-The peer shorthand's visitor is the union of an entry and the object it links: the entry's link and properties first,
-then the linked object's members. An ownership entry's keys therefore hide the linked object's properties of the same
-name, and `t.name(...)` writes the path where the relation declares `name` and the object where it does not. The
-explicit form says which: `d.dir(lambda a: a.insert(lambda e: e.name('DEF-693').defn(spec)))`, where `e` is the entry.
+Now in [CAP-118: singletons, owned and counted objects](../../mbse-basis/docs/capabilities/CAP-118.md).
 
 ### Naming
 
-A key that continues a path may take a naming pattern, on the ownership relation's key property:
-`Schemas.OfProperty.pattern(r"DEF-\d+\d\d")`. Where a key is not given, its value is generated from the pattern,
-strictly increasing among the owner's entries; a value given that does not match the pattern raises when written:
-`e.name('hello')` against `DEF-\d+\d\d` (13, 22). Patterns are only on such key properties (41).
+Now in [CAP-120: owned objects named and placed when built](../../mbse-basis/docs/capabilities/CAP-120.md).
 
 ### Building
 
-An owned object can be built in the apparently isolated manner of today. When its transaction ends, an object whose
-ownership adjacency is still empty is given the one owner possible, the singleton at the owning end, its keys generated
-from their patterns; where none or more than one is possible, the transaction aborts, naming the ownership missing
-(15, 33).
+Now in [CAP-120: owned objects named and placed when built](../../mbse-basis/docs/capabilities/CAP-120.md).
 
 ### Deleting
 
-Removing an owned object's owning entry deletes it, and in cascade everything it owns, within the transaction; a
-counted object it linked lives on while anything else holds it (48).
+Now in [CAP-121: owned objects deleted in cascade](../../mbse-basis/docs/capabilities/CAP-121.md).
 
 ## Counted objects
 
-A counted object has no identity outside the document that writes it (55). Nothing finds it except by visiting what
-links it (40), and a later transaction reaches it the same way, through a symbol whose locator starts at an owned object
-or a singleton and follows links, so no later transaction refers to it by a name. Within one document, a snapshot or a
-Reachable transaction, it is numbered in the order the document meets counted objects, so that two links to it stay
-one object and cycles close: a reference is `{"$ref": {"n": <index>}}`, beside `{"$ref": <path>}`, by which an owned
-object and a singleton alike are referred to (a singleton's path has no steps). Reading the document gives each its own
-new object; the numbers mean nothing after.
-
-A counted object an upsert creates in a mutation expression has an identity, though: the frame that reached the upsert,
-an instance of the upsert's pattern, the upsert's `key`, and the symbol it is created for, which tells apart the objects
-one upsert creates from one frame (61, 63). Running the expression again yields the same frame and key, so the upsert finds the object rather than
-creating another. The query executor finds such an object by them, through an index it holds weakly, so that it keeps
-no counted object alive; a program still cannot (40). On the wire the frame is written as any instance of its pattern
-is, each symbol a reference and each variable its value, so a reference to such an object is
-`{"$ref": {"frame": <frame>, "key": <key>, "symbol": <symbol>}}`, recursively where the frame binds another.
-
-A counted object is created by a transaction, by a verb or through a symbol (a `Mutations.OfUpsert` of a putative
-object in a mutation expression, [Mutations as queries](STREAMING_QUERIES.md)); a clone is a creation in the transaction
-that clones (46, 54). It lives while anything holds it, an object that links it or the program, as the host language
-decides; the store does not keep it alive.
+Now in [CAP-118: singletons, owned and counted objects](../../mbse-basis/docs/capabilities/CAP-118.md), [CAP-139: upserts find before they create](../../mbse-basis/docs/capabilities/CAP-139.md).
 
 ## Reading and finding
 
-A program does not read or write an identity through the visitor: `as_identity` goes (43). An owned object's path is
-read off its ownership entries on demand, as a `Paths.OfRoot` value, by `Paths.of(obj)` (32). A program finds:
-
-- a singleton by its global name, `store.Instances.wts.Features` (26);
-- an owned object by calling an adjacency with the keys of the entry that leads to it, on any adjacency:
-  `store.Instances.wts.Features.dir({ name: 'DEF-693' }).clauses({ name: 'C-1' })` (in Python, a mapping:
-  `.dir({'name': 'DEF-693'})`); keys no entry has raise (26 to 28);
-- a counted object only by visiting what links it (40).
-
-Reading a snapshot or a journal is the one way an object is given an identity it did not get by being built: the same
-path appearing again is an update of the owned object or singleton that has it, through its builder, where update is
-allowed. A counted object read from a document is always a new one (55).
+Now in [CAP-119: owned objects found by path](../../mbse-basis/docs/capabilities/CAP-119.md), [CAP-127: snapshots made of transactions](../../mbse-basis/docs/capabilities/CAP-127.md).
 
 ## Locators
 
-Superseded by a pattern's `spec` (76): a symbol is found as a singleton by its schema (77), or through the entries and
-values its pattern's spec says must hold over the other symbols. What follows is kept for the record of 64 to 75.
-
-
-A pattern's symbols ([Mutations as queries](STREAMING_QUERIES.md)) sometimes specify a locator expression. These
-expressions are represented by an ordinary schema over these kinds:
-- `Locators.OfSymbol` # name, schema, next
-- `Locators.OfSingleton` # schema, next
-
-`Locators.HasPath(symbol: Schemas.OfSymbol, root: Locators.OfRoot)` links a symbol to its locator's root (74, 75).
-- `Locators.OfRelation` # schema, adjacency, link, properties, next
-
-Only `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression.
-
-```python
-Locators.OfSymbol.schema: Schemas.OfObject (must be ref)
-Locators.OfRelation.schema: Schemas.OfRelation
-Locators.OfRelation.adjacency : str # denotes name of adjacency to current obj
-Locators.OfRelation.link : str # denotes name of link to next obj
-```
-
-Locators target reference objects, not value objects.
-Locators can only traverse named adjacencies.
-Builder shorthand makes locators a path language:
-`l.singleton(Directory).dir({"name": "DEF-693"}).clauses({"name": "C-1"})`.
-
-A locator is not an identity: it is a route a query follows, which may reach many objects, or a counted object, which
-has no path; "path" names identities only (64). A hop yields every object its entry's properties match, so a frame fans
-out where they leave the match open, and a frame whose locator reaches nothing yields no frame (65). An upsert of an
-owned object places it by a hop through its owning adjacency, which gives owner and keys (60).
+Not moved: superseded by a pattern's `spec`, object identity 76 in [CAP-137: patterns of symbols, variables and specs](../../mbse-basis/docs/capabilities/CAP-137.md#decided).
 
 ## Transactions
 
-Every write to a store is part of a transaction (44): building, cloning and updating any object, owned, counted or a
-singleton's, and so every schema built. `Mutations.OfTransaction` is the schema of one: its id and its list of
-mutations (38). It is strictly the root of what a program applies, so transactions cannot nest: the schema does not
-let one hold another (50). A program applies one by `store.mutation(mv)`, `mv` a `Visitors.OfMutation` whose `.uid()` gives the
-transaction's UUID; the program provides it, and nothing draws one at random (42). Mutation visitors are the builders a
-program is given whenever it calls a property with a callback, on an object, `<object_path>.<propName>(cb)`, or on a
-relation's entry, `<rel_entry_path>.<propName>(cb)` (58): what such a builder writes is a mutation verb,
-`Mutations.OfX.Y` (`OfProperty.Set`, `OfContainer.Insert`, `OfAny.AsObject`, ...), so the verbs stay, the write side of
-the visitor protocol, and a transaction's terms ([Mutations as queries](STREAMING_QUERIES.md)) carry them.
-
-A transaction holds the terms of a mutation expression ([Mutations as queries](STREAMING_QUERIES.md)). The query
-executor may divide its execution into shards (52, 53), allocating their ids, but shards are the executor's alone: what
-a transaction does does not depend on how it is sharded, so nothing records them, and a journal holds the transactions
-as submitted, replayed by executing them again (56). Where execution would otherwise depend on the order in which
-frames arrive, it is made independent of it (57).
-
-A transaction that aborts, for any reason, changes nothing in the store of any kind (46): its creations are never made,
-and its other writes are undone.
-
-Snapshots are made of transactions (45): reading one replays them. The counted objects a snapshot holds are numbered
-within it (55), and later transactions reach them through what links them.
-
-A Reachable document, the one graph a program sends without its store (an expression tree, a syntax tree), is one
-transaction (51): its creations are the counted objects reachable from the root, the root first, numbered in
-first-reference order (55), under a uid the caller gives; the owned objects and singletons the graph links are referred to by path, not
-included, and resolved in the reader's store, reading aborting where one is missing. Reading the
-document applies it as a transaction. A document that must carry owned objects too is a store's snapshot.
+Now in [CAP-124: writes all-or-nothing in transactions](../../mbse-basis/docs/capabilities/CAP-124.md), [CAP-144: transactions sharded and run in parallel](../../mbse-basis/docs/capabilities/CAP-144.md), [CAP-127: snapshots made of transactions](../../mbse-basis/docs/capabilities/CAP-127.md), [CAP-128: graphs sent as one-transaction documents](../../mbse-basis/docs/capabilities/CAP-128.md).
 
 ## Paths as data
 
-> **Deprecated in favor of References** (store overhaul 4n; [References](proposals/references/README.md)): a reference
-> to an object, a relation entry or a frame is a `References.OfObject`, `OfEntry` or `OfFrame`, made by
-> `References.of(store, x)` and resolved by `References.resolve(store, reference)`; an object's path is one branch of
-> `References.OfObject`. Paths stay, overlapping, until their removal, which is tech debt; the wire's `$ref` still
-> writes a path.
-
-`Paths.OfX` are nestable value objects:
-
-- `Paths.OfRoot` bears two properties: `singleton`, a globally unique singleton name, and `next`, a
-  `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`.
-- `Paths.OfEntry` bears four properties: `i`, the name of the adjacency to the object addressed by the previous path
-  element; `o`, the name of the adjacency to the object addressed by the next path element; `properties`, a value
-  object literal assigning each property of the transited relation the value that uniquely continues the path to the
-  target via this relation; and `next`, a `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`.
-- `Paths.OfTarget`: no more traversals, the object is found.
-
-A key's value is a bool, an int or text, so that `properties` is written bare (`{"name": "DEF-693"}`): a float or bytes
-would not be told apart from an int or text on the wire. Every store holds the path schemas, its own, as it holds its
-mutation schemas.
-
-A path has no shorthand: it is written as the nested value object it is, as any value is (mbse-basis PRI-019). The
-definition the Ownership example places, on the wire, its unions tagged by branch:
-
-```json
-{"singleton": "wts.Features", "next": {"entry": {
-    "i": "dir", "o": "def", "properties": {"name": "DEF-693"}, "next": {"target": {}}}}}
-```
-
----
+Now in [CAP-132: paths retired for references](../../mbse-basis/docs/capabilities/CAP-132.md), [CAP-119: owned objects found by path](../../mbse-basis/docs/capabilities/CAP-119.md).
 
 ## Decided
 
-As the user decided (2026-10-16), on the questions put to them:
+Each decision is in its item's Decided now:
 
-1. A suffix is looked up by `as_instance`: "yes use as_instance". A suffix need not be an identifier (`FEA-001`, `Anna
-   Baker`, a UUID), so `store.Instances.<path>.as_instance(suffix)` takes it as a string: the one place an object's
-   identity references it (mbse-basis PRI-015, Exceptions); the path is attributes. (How a path given as data reaches
-   `as_instance`, now that an identity is a path rather than a suffix, is open; see below.) (Superseded by 26: a path's
-   step is looked up by calling its adjacency with the entry's keys.)
-2. Namespaces are modules: "Use Schemas.OfModule instead of Schemas.Namespace".
-3. A schema is an object's module path where none is given: "yes the schema itself is the default container" (the
-   identity's path is a module path, "it was never container path"). (Superseded by 12 and 14: a path starts at a
-   singleton, and a schema's identity never becomes part of one.)
-4. On the wire: "use `Schema@Path/Suffix` and omit `Schema@` when it can be inferred from context". (Superseded by 8
-   and 12: an identity is a path; `Schema@` only in `Exists`.)
-5. "Programs cannot set or modify their identity": "yeah that rule is completely gone". (Superseded by 16:
-   `as_identity` is read-only again outside deserialization.)
-6. A suffix given for a schema with a `ref` pattern that it does not match: "raise". (The pattern moves to a property,
-   13; a value given that does not match it still raises, 22.)
-7. `as_identity`'s callback visits the identity: "yes, Schemas.OfIdentity now is an object" (its `suffix` and its
-   module path, `module`). (Superseded by 18: an identity is a path, `Paths.OfX` value objects.)
-8. `Schema@` is written only where an object is created, in `Mutations.OfObject.Exists`, which must know what to
-   build; everywhere else the path references the object, "the path is sufficient to reference the object without the
-   schema", since "there is one directory store per module within each store".
-
-As the user decided later (2026-10-16), "I finally get what you are trying to communicate about UUIDs breaking some
-assumptions about reentrancy":
-
-9. "value objects still do not need an identity".
-10. "all reference objects may need a computed name".
-11. "singletons, such as the root module, will form the root of all paths to any non-singleton reference object".
-12. "schema identity never becomes part of a path. it is only present on Mutations.OfObject.Exists".
-13. "the name-picking regex moves out of Schemas.OfObject.ref(), which no longer takes a pattern at all, and into
-    Schemas.OfProperty.pattern(r"FEA-\d+\d\d")".
-14. "Schemas.OfAdjacency gains 'owner()' which if marked means the adjacency points back to the previous identity path
-    element. The designated relation must (a) mark the owner link as unique and (b) mark the owned link along with any
-    keys as unique. This should make path resolution unambiguous.", with `Defines` as Ownership gives it:
-    `.unique('directory', 'name').unique('defn')`, FRAMEWORK.md's Directory pattern.
-15. "building a non-singleton reference object can be coded in the apparrently isolated manner as it is today.
-    However, the builder must recursiely trace ownership links back to a singleton. If the ownership adjacency is
-    already populated according to the builder, recursion continue. Any adjacencies along the ownership path not
-    already extant (as a relation entry) will need to be added and any property values for that relation entry will
-    need to be generated per their regex."
-16. "as_identity can resume being read-only for code outside of deserialization". (Superseded by 43.)
-17. "the default module path gets ported over so that modules and schemas participate in this mechanism".
-18. Paths are data, `Paths.OfX`, "nestable value objects": `Paths.OfRoot`, `Paths.OfEntry` (its `i`, `o`,
-    `properties` and `next`) and `Paths.OfTarget`, as
-    Paths as data gives them, with the shorthand `path.to.root.singleton` `.{inAdj}-{entryProps}>{outAdj}` ...,
-    for example `wts.Features.dir-{name:"FEA-693"}>def`, "oftarget is implied". (The shorthand is superseded by 23.)
-19. "the UUID mechanism can come out entirely". (Superseded by 38: every transaction has a UUID.)
-20. A "non-singleton reference object whose schema has no owner() adjacency: validation rejects the new reference
-    object schema not having an ownership path". (Superseded by 37: such an object is counted.)
-21. "Every reference object must participate in this process via an ownership adjacency: named definitions of any
-    kind (usually module scoped), clauses of a definition, subclauses of a definition clause". (Narrowed by 37: most
-    other objects, expression terms among them, are counted.)
-22. A key value given that does not match its property's pattern: "raise when written".
-23. No shorthand: "Maybe we should do without shorthand. Just write the path as a nested value object."
-24. `Paths.OfEntry`'s `in` and `out` are named `i` and `o` ("just call them i and o"), since `in` is a Python keyword
-    and a schema's properties are its builders' and proxies' members.
-25. `next` is `Union[entry: Paths.OfEntry, target: Paths.OfTarget]`: its branches are `entry` and `target`.
-26. Lookup by path in code calls each step's adjacency with the entry's keys, a mapping of its key properties to their
-    values: `store.Instances.wts.Features.dir({ name: 'DEF-693' }).clauses({ name: 'C-1' })` (in Python,
-    `.dir({'name': 'DEF-693'})`). `store.Instances.<singleton>` is the root; each call is one `Paths.OfEntry`.
-27. Lookup is on any adjacency ("on any adjacency I should think"), not only under `store.Instances`: an object's
-    adjacency called with a mapping of the entry's keys gives the object that entry links. And mbse-basis PRI-015
-    "reverts to its original form. Code expressions that name a reference object use Paths, not string lookup": its
-    `as_instance` exception (1) is withdrawn.
-28. A lookup with keys no entry has raises: "adjacency is called with keys no entry has -> raise".
-29. An unnamed schema linked through a relation no key names (the container schema of `crm.Person.tags`, through
-    `Schemas.HasSchema`) is a subclause owned through that link, its step a `Paths.OfEntry` with no properties: "yes I
-    think that would work".
-30. Decided 12 reads "(a)": the `Schema@` tag never appears in a path, but a schema object may be a step in one, as any
-    owner may.
-31. A reference object whose schema declares no `owner()` adjacency is owned by its schema, through a framework
-    relation shaped as `Schemas.Defines` is, `Schemas.HasInstance`, linking a schema to its objects with the entry's
-    `name`, generated where none is given ("yes to HasInstance"). A contact's path is then the root module, `crm`,
-    `Contact` (through `Defines`) and the entry named `contact-6` (through `HasInstance`), on the wire:
-
-    ```json
-    {"singleton": ".", "next": {"entry": {"i": "schemas", "o": "", "properties": {"name": "crm"}, "next": {"entry": {
-      "i": "schemas", "o": "", "properties": {"name": "Contact"}, "next": {"entry": {
-        "i": "instances", "o": "", "properties": {"name": "contact-6"}, "next": {"target": {}}}}}}}}}
-    ```
-
-    So 20 applies where a schema has neither an `owner()` adjacency nor a schema to be owned by: none, as built.
-    (Superseded by 37: such an object is counted; `HasInstance` goes.)
-32. An identity is computed on demand ("yes, on demand"): no object holds one; its path is read off its ownership
-    entries when asked, so a key written anew (an entry's `name`) renames the object, and another owner moves it.
-33. Building an object whose ownership adjacency is empty links it only where one owner is possible, its schema
-    through `HasInstance` or the singleton at the owning end, a key generated per its pattern; otherwise it raises,
-    naming the ownership missing ("agreed"). (Its `HasInstance` case is superseded by 37.)
-34. A schema's naming pattern stays on the object schema, `OfObject.pattern`, and names the entries of
-    `Schemas.HasInstance` that own its objects ("Keep OfObject.pattern (Recommended)"); an explicit ownership relation's
-    key takes its own property's pattern (13). Where a schema gives none, a `HasInstance` key is its local name
-    lowercased, a dash and a counter, `contact-1` ("local-name-N (Recommended)"). (In question since 37; see Open
-    questions, 1.)
-35. `as_identity()` gives the path, a `Paths.OfRoot` value computed on demand ("The path value (Recommended)"). (Superseded by 43.)
-36. (Superseded by 51.) The Reachable format lists its objects ("Objects as a list (Recommended)", 2026-10-17): `{"root": <path>,
-    "objects": [{"path": <path>, "schema": "Contact", "properties": {...}}, ...]}`, a reference `{"$ref": <path>}`, with
-    no `$schema`: the path finds the object, and its entry in `objects` names its schema, as `Exists` does.
-
-As the user decided (2026-10-18), on the overhaul so far: "The overhaul we did on object identity was mostly a good
-idea. And I get that there are problems with repeatability with UUIDs. However, I think the idea of eliminating the
-entire use case of reference-counted objects is a mistake." "We need options, and I am skeptical of the HasInstance
-relation":
-
-37. Identity by kind of object:
-    - "schema singletons : same as before, explicit object identity";
-    - "schema definitions : yes, via the new `owner` adjacencies";
-    - "schema definition clauses and sub-clauses : yes, via the new `owner` adjacencies";
-    - "expression terms : should be reference counted";
-    - "instances program-defined schemas at the root level of their data model : yes, via the new `owner` adjacencies";
-    - "most other objects : reference counted".
-
-    This supersedes 19 (a UUID per transaction returns), 20 and 21 (a reference object without an ownership path is
-    counted, not refused), and 31, 33 and 34 as far as they concern `Schemas.HasInstance`, which goes (see Open
-    questions, 1).
-38. "add a 'transaction' layer to the wire format that holds a list of mutations, require a UUID for every transaction,
-    name objects in the order created within the transaction". Transactions are explicit: "Mutations.OfTransaction has a
-    schema and store has a method".
-39. A counted object's name within its transaction is its "creation order index within the transaction". (Superseded by 55.)
-40. "counted objects cannot be directly found programmatically only via visitor".
-
-As the user decided (2026-10-18), on the questions 37 to 40 left:
-
-41. `Schemas.HasInstance`, `OfObject.pattern` and the `local-name-N` keys: "yes, they all go" (superseding 31, 33's
-    `HasInstance` case, and 34). A key is generated only by an ownership relation's key property's pattern (13).
-42. A transaction's UUID is "not random - programmatically provided in store.mutation(mv : Visitors.OfMutation) via
-    .uid()".
-43. "as_identity can go away" (superseding 16 and 35). An owned object's path is still read by `Paths.of(obj)` (32).
-44. Building outside a transaction: "nope, not allowed".
-45. "snapshots are made of transactions".
-46. "yes, clone is a new creation in the current transaction. yes, an aborted transaction for any reason imparts no
-    changes to store of any kind".
-47. "correct, nothing can be owned by a counted object nor can an ownership path proceed through any relation with more
-    than two links": validation refuses an `owner()` adjacency whose owning end a counted schema can fill, as 14 already
-    refuses an ownership relation of more than two links.
-
-As the user decided (2026-10-18), on the questions 41 to 47 left:
-
-48. Deleting an owned object ("correct"): removing its owning entry deletes it, and in cascade everything it owns,
-    within the transaction; a counted object it linked lives on while anything else holds it.
-49. A counted object on the wire ("fine"): a reference `{"$ref": {"tx": <uid>, "n": <index>}}` beside `{"$ref": <path>}`
-    and a global name, its `Exists` carrying no id, its position among the transaction's creations being its index.
-    (Superseded by 55: a counted object is numbered only within the document that writes it.)
-    (A singleton needs no form of its own: "why do singletons need a separate syntax?" Its reference is its path, of
-    no steps, `{"singleton": "crm.Book", "next": {"target": {}}}`.)
-50. Nested transactions are "prevented by schema. Mutation.OfTransaction is strictly the root".
-51. The Reachable format (superseding 36), "precisely": a Reachable document is one transaction, whose creations are
-    the counted objects reachable from the root, the root first, under a uid the caller gives, references within it by
-    index alone; the owned objects and singletons it links are referred to by path (a singleton's has no steps), not included, and
-    resolved in the reader's store, reading aborting where one is missing. A document carrying owned objects too is a
-    store's snapshot. Its uses: a graph sent across a process or language boundary (mbse-programs' Verilog reader),
-    the corpora of expression and syntax trees (mbse-expressions, mbse-programs), round trips in tests, and copying a
-    component into another store.
-
-As the user decided (2026-10-19), with mutations as queries ([Mutations as queries](STREAMING_QUERIES.md)):
-
-52. A transaction's structure: "Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm ...". (The
-    shard is the executor's, not on the wire: 56.)
-53. "Shard id is allocated by the query executor".
-54. A putative counted object that a `Mutations.OfUpsert` names "becomes a creation of the transaction, named by its
-    symbol" ("10. yes"). An upsert's `key` clause, which labelled the identities of the objects it created, was tried
-    and dropped: "I am just removing 'key', not worth the trouble".
-
-As the user decided (2026-10-19), asked "Do we really need to record the outcome of sharding?", on the answer that
-nothing beyond one document needs a counted object's identity ("yes, please"):
-
-55. A counted object has no identity beyond the document that writes it: within a snapshot or a Reachable transaction it
-    is numbered in the order the document meets counted objects, a reference `{"$ref": {"n": <index>}}`, and reading
-    gives each a new object. No later transaction names one; it reaches it through what links it (40). This supersedes
-    39 and 49, and 54's naming by symbol, which is a mutation expression's, not an identity.
-56. Sharding is not recorded: `Mutations.OfShard` (52) is the executor's, not part of the transaction on the wire, and a
-    journal holds transactions as submitted, replayed by executing them again.
-57. A transaction's effect does not depend on how it is sharded or in what order frames arrive: keys generated from a
-    pattern are given in a canonical order of the frames that need them, and `Mutations.OfReduce`'s fold is made
-    independent of order (see Open questions, 1).
-
-As the user decided (2026-10-19):
-
-58. `Visitors.OfMutation`: "Mutation visitors (builders) appear when a property visitor is called with a callback
-    expecting it": "mutation builders are currently passed to the callback whenever <object_path>.<propName>(cb) or
-    <rel_entry_path>.<propName>(cb) are invoked". The mutation verbs therefore stay ("why would you think mutations go
-    away?").
-
-59. A mutation's structure, "roughly": "Mutations.OfTransaction [ -> Mutations.OfShard ] -> Mutations.OfTerm ->
-    Mutations.OfPattern -> Mutations.OfObject -> Mutations.OfAdjacency -> Mutations.OfProperty"
-    ([Mutations as queries](STREAMING_QUERIES.md), Mutation structure). An adjacency's entries go through
-    `Mutations.OfEntry` to their links and properties ("yes"); the shard is "strictly optional", the executor's (56); a
-    term has "just one" pattern, "one can use Mutations.OfPartition to fork paths if needs be"; `Mutations.OfAll` is
-    the first term of a transaction's one chain. "Keep adjacency verbs, lose relation verbs for now": entries change
-    only through an object's adjacency.
-
-As the user decided (2026-10-19), on what names an object an upsert creates, the order frames arrive in mattering only
-to sequential numbering:
-
-60. An owned object an upsert finds or creates is placed by its symbol's locator, which gives its whole path, the owning
-    entry's keys included: "For owned objects, Upsert key is unnecessary and does not participate". No key is generated
-    from a pattern in an upsert, so nothing is numbered in the order frames arrive.
-61. "For unowned reference objects, the frame and key should be sufficient to disambiguate": a counted object an upsert
-    creates is identified by the frame that reached the upsert and the upsert's `key`, with no nesting path, symbol
-    name, sequence number or transaction id. "instances of Schemas.OfPattern are frames", so a frame is written as any
-    instance is. This narrows 55: a counted object a verb creates still has no identity beyond a document.
-
-As the user decided (2026-10-19):
-
-62. A collector that declares neither `.commutative()` nor `.associative()`: "reject for now during validation", so a
-    fold's result never depends on the order frames arrive in (57).
-63. "upserted counted objects also include the symbol": a counted object an upsert creates is identified by the frame,
-    the upsert's `key` and the symbol it is created for (amending 61), so that one upsert may create several from one
-    frame.
-
-As the user decided (2026-10-20), on how a pattern's symbol finds its objects, and on step 4d's shapes:
-
-64. A symbol's locator is "an ordinary schema" over three kinds: `Locators.OfSymbol` (name, next),
-    `Locators.OfSingleton` (schema, next) and `Locators.OfRelation` (schema, the relation; adjacency, "name of adjacency
-    to current obj"; link, "name of link to next obj"; properties, the entry's property values; next). "Only
-    `Locators.OfSymbol` or `Locators.OfSingleton` may be used as the root of a locator expression"; each hop is
-    reached by `next`, root first. "Locators target reference objects, not value objects. Locators can only traverse
-    named adjacencies. Builder shorthand makes locators a path language." A locator is not an identity: it is a route a
-    query follows, and may reach many objects, or a counted object, which has no path (55); "path" names identities
-    only. This makes 60's "symbol's locator" an `OfRelation` hop through the owning adjacency.
-65. "cardinality is gone": a hop yields every object its entry's properties match, so a frame fans out where they
-    leave the match open. A frame whose locator reaches nothing yields no frame, as for a constraint it cannot satisfy.
-66. Step 4d's shapes ("yes"): `OfPattern`, `OfExpression` and `OfCollector` are schema kinds, named or not, defined in
-    modules and written as every schema is; `OfVariable` is a member a pattern owns, as `OfSymbol` is; one kind,
-    `OfExpression` (a pattern, through `Schemas.Matching`; a result schema; its terms mbse-expressions'), whose builder
-    `Schemas.OfConstraint` fixes the result to the store's `OfBool`, validation refusing a pattern's `requires` of any
-    other result; `requires`, the pattern's own constraints, in order (`Schemas.Requiring`); a collector's pattern,
-    collected symbol and variable names, `commutative`, `associative`, `suffixes` (`current`, `next`) and `computes`
-    (an `OfExpression`), validation refusing a name the pattern lacks and equal suffixes, and what a reduce requires of
-    them left to 4e. 4d is schema-level only: frames, matching and the executor are 4e's.
-
-As the user decided (2026-10-20), on the order of step 4 and on schema objects:
-
-67. `Schemas.OfPredicate` goes ("OfPredicate goes away, consider that decided"), in 4d: `OfPattern` replaces it.
-68. "finish 4d then do 4g to stabilize Schemas early without complicating 4e and 4f": step 4 is done in the order 4d,
-    4g, 4e, 4f, 4h.
-69. Derived identities ("yes, they go"): no schema object takes an identity from what owns or links it
-    (`crm.Person.tags#schema`); a named schema's is its path, and its members' paths continue it.
-70. An unnamed schema has no identity: "The existence of unnamed schemas is not the question. The necessity of being
-    able to address a value symbolically, that is what I do not understand." It is written nested in the one object
-    that links it, and numbered nowhere, since "Value schemas should never have cycles" and "If you build any instance
-    of any schema, confer no identity, then share it, that's a usage error": validation refuses an unnamed schema
-    linked from more than one place, and a cycle among value schemas, named or not. (Its cycle clause superseded by 82.)
-71. `Locators.OfSymbol` has a name, the earlier symbol it starts from, and a schema, "Schemas.OfObject (must be ref)",
-    by which a hop from it finds its adjacencies (amending 64).
-72. "Value object schemas cannot have cycles. Reference object schemas can." (amending 70): validation refuses a value
-    object schema that holds itself, through its properties, a union's branches, an intersection's parts or a
-    container's index or element, at any depth; reference object schemas may form cycles through relations (a person
-    who knows persons). (Superseded by 82: built in 4g, then removed.)
-
-As the user decided (2026-10-20), on what needs a meta-schema:
-
-73. "Needs meta-schemas: Schemas.OfX, Schemas.HasY. Should not need meta-schemas: Mutations.OfX, Mutations.HasY,
-    Locators.OfX, Locators.HasY": the locator schemas are ordinary schemas each store holds, as `Paths` and
-    `Mutations` are, a locator is data, and their relations are ordinary relations (amending 64's "an ordinary schema",
-    which the first build of 4d made meta-schemas).
-74. A relation need not be declared as early as its first reference: "Locators.HasPath(symbol: Schemas.OfSymbol, root:
-    Locators.OfRoot)", declared by Locators, links a pattern's symbol to its locator's root.
-75. "The Schemas kind vocabulary is closed. This means no modifications to the meta schemas or to code that builds
-    around. Schema kinds can be extended with relations by adding an adjacency." `Schemas.OfSymbol` gains an adjacency
-    to `Locators.HasPath`, `path` ("(b) ofc"), added as an extension adds one, so that `symbol.path` reads a symbol's
-    locator and the locator shorthand is the symbol's builder's.
-
-As the user decided (2026-10-20), on how a pattern's symbols find their objects:
-
-76. A pattern has a `spec`: "property values that must be assigned and relation entries that must exist for a frame to
-    match the pattern"; "Schemas.OfPattern.spec completely replaces paths and locators" ("I think so"), superseding 64,
-    65, 71, 74 and 75: `Locators`, `Locators.HasPath` and a symbol's `path` go. Each spec item is written in the
-    builders' own notation, over the frame, whose members are the pattern's symbols, each the mutation builder of the
-    object it binds (58): `lambda _: _.bob.name("Bob Massey").knows([_.ada]).directory([_.book])`. In a match, what a
-    spec says must hold; in an upsert, it is written where it does not. A spec is stored as mutations, which "are
-    serializable already". An owned object an upsert finds or creates is placed by its spec's owning entry, owner and
-    keys, which gives its path (restating 60); paths remain owned objects' identities.
-77. "singletons are denoted by their schema": a symbol whose schema is a singleton's binds that singleton, with no spec.
-78. "schemas are pulled from txn": within a transaction, `txn.Schemas.<name>` names a schema, so that no constructor
-    notation appears in one; the entry point is `store.transaction` (renaming `store.mutation`), and a term's pattern and
-    a transaction's root term are relations (`.exists([...])`, `.mutations([...])`, peer shorthand), a transaction having
-    one root.
-
-As the user decided (2026-10-20), on expression terms and schema paths:
-
-79. Recursive expression terms ("yes"): a term is a counted reference object, linked to the terms it holds through
-    relations, so that recursion goes through links, which 72 allows; mbse-expressions adapts in 4h. (Amended by 82: a
-    term tree may be a recursive value.)
-80. A named schema's path is "root module, then nested modules by name, then schema by name": from the root module,
-    through each module that `Schemas.Defines` its successor, keyed by name, to the schema; a member's path continues
-    its owner's (69).
-
-As the user decided (2026-10-20), on step 4g's design ("1,2,3 : confirmed; 4,5 : okay for now, revisit later"):
-
-81. A path reuses `Paths.OfRoot`: the root module as the singleton `"."`, each module and then the schema by name
-    (`{"i": "schemas", "o": "", "properties": {"name": ...}}`), a member continuing its owner's through the keyed
-    relation that owns it. An unnamed schema object (an unnamed schema, an anonymous adjacency, a pattern's constraint,
-    an unnamed expression) has no identity, and is written nested in the one object that links it; linking one that
-    another links already is refused when it is built ("name it to share it"), and `validate()` refuses a cycle among
-    value object schemas (72). For now, to revisit: `Paths.of(x)` gives a schema object's path as it gives a data
-    object's, `B.identity_of` and the schema builders' `as_identity` go, the store holds schema objects by path
-    (`store.held(path)`), and until 4f replaces the log, a schema object's `exists` and references give its path, an
-    unnamed one's definition written where it is linked.
-
-As the user decided (2026-10-20), on 72, which made the framework's own paths and mutations invalid (a path's steps
-nest, as mutations do):
-
-82. "let any term tree be recursive": 72 goes, and with it 70's cycle clause. A value schema may hold itself, through
-    its properties, a union's branches, an intersection's parts, a container's index or element or an `OfAny`'s schemas,
-    as before 4g: validation reports each of its problems once. A term tree, an expression's included, may be a
-    recursive value, or link its terms as counted reference objects (amending 79); mbse-expressions chooses in 4h. The
-    nesting of 81 needs no acyclicity: a named schema is referred to by its path, and an unnamed one that holds itself
-    is linked by its own member, so that nothing else may link it.
-
-As the user decided (2026-10-20), offered (a) refusing a module and a schema at one path, a version in a module of its
-own, or (b) a path step saying whether it names a module or a schema, so that both may share a name:
-
-83. "(a) is preferable": a module and a schema do not share a path. 80 makes a name a path and `Schemas.Defines` is keyed
-    by name, so `crm.Contact.v2` beside `crm.Contact`, which would put the module `crm.Contact` at the schema's path, is
-    refused ("the path 'crm.Contact' names another schema object already: a module and a schema, or two schemas, do not
-    share a path"); a version goes in a module of its own, `crm.v2.Contact`. Before 4g the module silently replaced the
-    schema in its parent's map, and a snapshot lost the schema.
-
-As the user decided (2026-10-20), correcting STREAMING_QUERIES.md, which required a singleton's symbol in `over`:
-
-84. "OfAll does not need a singleton! Its symbols may refer to any kind of reference object": each symbol of an
-    `OfAll`'s pattern ranges over the extant objects of its schema, and a singleton's binds the singleton (77).
-    (`OfAll` then went: 85.)
-
-As the user decided (2026-10-20), "I'm sorta thinking Mutations.OfAll goes away and mutations can be nested in any
-order", on the three points that follow from it ("yes"):
-
-85. `Mutations.OfAll` goes: its role is `OfMap.as_symbols`, which binds symbols to existing objects, each ranging over
-    its schema's extant objects (84), filtered by the pattern's spec and constraints, and which may come anywhere. A
-    transaction starts from one frame, empty, the cross product of no extents. Any term may come first and follow any
-    other: `Mutations.OfTerm` is the union of every term, a transaction's root term and every `then` one of them. That
-    a term refers only to symbols some term before it binds (an `OfUpdate` first, binding none, is refused) is checked
-    by validation, not by the schemas. This amends 59 ("`Mutations.OfAll` is the first term of a transaction's one
-    chain") and STREAMING_QUERIES.md's rules on what may come at the root.
-
-As the user decided (2026-10-20), on the questions put for step 4e:
-
-86. "`store.extend` is basically replaced by this new `install` convention" (SCHEMA_EXTENSION.md, Injection): schemas
-    are defined, and existing ones extended, by transactions, each module's `install(txn)` giving one; a definition is a
-    symbol of a meta-schema (`txn.Schemas.OfObject`) that an upsert finds by its spec, which gives its name, or creates.
-    No schema is written outside a transaction (44).
-87. Expressions in 4e ("yes" to refusing them until 4h): the executor evaluates no `requires`, no `computes`, no
-    `OfMap.as_variables` and no collecting `OfReduce`, and refuses them; it matches and writes by specs only.
-    mbse-expressions provides their evaluation in 4h.
-88. 4e in two stages ("yes"): 4e-1, the vocabulary, `store.transaction` and the executor, built beside the existing
-    builders, with suites of their own; 4e-2, every write outside a transaction refused, and every caller migrated.
-
-89. Uncommitted changes, an overlay ("a overlay"): a transaction's writes are held in memory apart from the store's
-    objects, which stay as they were until it commits; every read within the transaction (matching a spec, an upsert's
-    search, a builder's callback, the store's own cascades and placement) reads through the overlay, so that every frame
-    sees what the frames before it wrote. An aborted transaction drops the overlay. (Offered against writing at once
-    with a log of changes undone on abort; the overlay is the transactional view STREAMING_QUERIES.md describes.)
-90. Decoders until 4f ("a"): `Plain.FromPlain` writes within a transaction of its own, which the store opens with no
-    terms, all or nothing; in 4f a snapshot is made of transactions, which the decoder executes. The store's own writes
-    (placing a schema in its module, making a singleton, refusing a shared unnamed schema object, deleting what a removed
-    owning entry owned) happen within the transaction whose write causes them, in its overlay.
-
-As the user decided (2026-10-20):
-
-91. Terms are selected as a union's branches ("yes"): a transaction's `mutations` and a term's `then` take the
-    peer-shorthand list, each entry callback given the `Mutations.OfTerm` union, whose branch called selects the term:
-    `.mutations([lambda mu: mu.upsert(lambda u: u.exists([...]).then([lambda w: w.update(...)]))])`. Their relations hold
-    one entry each. The terms' members: `map` (`as_symbols`, `as_variables`, `then`), `reduce` (`as_symbols`,
-    `as_variables`, `then`), `partition` (`first`, `last`, `branches`, `none`), `update` (`apply`, `then`) and `upsert`
-    (`key`, `exists`, `then`).
-92. Fixtures ("yes"): a test builds the data a case needs in one transaction, one pattern's symbols and one spec, with
-    the mappings for keyed adjacencies (FRAMEWORK.md, Resolved), rather than a transaction per object.
-
-As the user decided (2026-10-20), on how 4e-1 builds them:
-
-93. "expression terms of any kind, including mutation expressions, should be reference objects": a transaction and its
-    terms are reference objects of the Mutations schemas, linked by relations (`mutations` from a transaction to its root
-    term, `then` from a term to the next, `exists`, `apply`, `as_symbols` and `as_variables` from a term to its pattern);
-    the value verbs (`Set`, `AsAny`, ...) stay value objects. (79 made expression terms so.)
-94. Where they live ("agreed"): a transaction's terms are counted objects of the store, reachable from no singleton, so
-    that no snapshot writes them and they go when the program drops them; building a transaction's expression is the one
-    write allowed outside a transaction, the expression not being the store's data; and the store holds a schema object
-    with no name of its own weakly, so that a term's pattern goes with its transaction.
-95. A spec ("yes"): `Schemas.OfPattern` gains `spec`, a `Mutations.OfPattern` value giving, for each symbol, the
-    mutations of the object it binds (59), recorded by visitors of the symbols that write mutations rather than objects;
-    `Mutations.OfAdjacency` inserts and removes entries, each through `Mutations.OfEntry`; and a reference may name a
-    symbol, `{"symbol": "ada"}`, beside a path and a number. The log's verbs stay until 4f replaces the log.
-
-96. How far the overlay reaches ("(a)", amending 89): a data object's state, its property values and entry tables, is
-    held in the transaction's overlay, read through it while the transaction is open, and written back on commit. A
-    schema object's builder already writes its working copy into the object at `update()`; within a transaction that
-    write waits for commit. The store's registries (names, modules, the schema objects it holds, what links each) go
-    through the overlay, so that a schema object the transaction creates is found by the frames after it. A change to a
-    schema object that exists is seen only once its transaction commits: a transaction that adds a property to a schema
-    writes no object with it, a second one does. (Offered against writing a schema object at once with an undo record,
-    and against an overlay of every schema field read, which would intercept each read of a schema object.) Kept as
-    the lasting rule (2026-10-26; Store overhaul, Decided, 32): "yes keep the commit-time rule and log 4k as tech debt".
-
-97. A kind union ("yes, a kind union"): a relation's link may have as its schema a union of reference object schemas,
-    whose branches name the kinds (`Mutations.OfTerm`: `map`, `reduce`, `partition`, `update`, `upsert`). An entry's
-    builder has a member per branch, and calling one (`w.update(cb)`) builds through the link an object of that
-    branch's schema; validation accepts such a union as a link's schema and still refuses it as a property's; a linked
-    object is of one of its branches' schemas. A generic rule, for any relation. With it, a data builder that builds a
-    schema object through a link (a term's pattern) builds it with that meta-schema's builder, and
-    `Schemas.OfPattern.spec` holds the recorded `Mutations.OfPattern` values, its builder member giving each callback the
-    frame visitor (95).
-
-As the user decided (2026-10-21), asked how code that calls builders and proxies directly gets inside a transaction once
-writes outside one are refused (44), choosing "Imperative scope too (Recommended)":
-
-98. A transaction has an imperative scope beside its expression: "Add a public scope beside the declarative form: Python
-    `with store.transaction():`, TypeScript `store.transaction(() => { ... })` given a no-argument function. Builder
-    calls work inside it as today, in the overlay. Fixtures and tutorials move to declarative upserts with mappings (92)
-    where that reads naturally; builder tests keep testing builders inside the scope." Offered against declarative
-    transactions only, every builder test rewritten as a transaction or moved to builders outside any store, and
-    against a private scope for tests alone.
-
-As the user decided (2026-10-21), asked "why a barrier?" of one transaction open at a time across every store, and
-agreeing ("yes") that it had no reason beyond the implementation:
-
-99. Each store has its own transaction: one may be open on a store at a time (50), and a transaction on one store does
-    not stop another's. Each store's overlay is its own, read through by the objects of that store, and each commits
-    or aborts on its own; a write to a store with no transaction open is refused still (44), whatever another store has
-    open.
-
-As the user decided (2026-10-21), asking for "Visitors.OfStore — a clean API surface through which all data accesses
-must go", the overlay refactored "into a new Proposals.py/ts component. Proposals.py/ts implements Visitors.OfStore",
-and answering the three questions put:
-
-100. `Visitors.OfStore` is the store's protocol, and every access to data goes through it: an object's property values,
-     a value object's, and the entries that link an object; `Stores.Store` is renamed `Visitors.OfStore`, and the
-     proxies' store, `Proxies.OfStore`. A transaction's writes are a `Proposals`, which implements `Visitors.OfStore`
-     over the store it proposes changes to, reading through to it what it does not hold; committed, it writes into it,
-     and aborted, it is dropped. A `Proposals` may be made over another ("3. yes"): a savepoint, so that a decoder
-     within a transaction writes all or nothing within it. Schema objects are read outside the protocol, field by
-     field, for the time being: "that is acceptable for the time being. Retain as tech debt"; their updates within a
-     transaction are a `Proposals`' still (96).
-
-As the user decided (2026-10-21), on step 4f's proposal (Store overhaul, 4f), each the option recommended:
-
-101. A store's snapshot is two transactions, "Schemas, then data": the first upserts its modules and schemas, the
-     second its data, so that a schema the store held before is extended when the first commits (96), before the data
-     uses it. (Offered against one transaction, in which data could not use such an extension, and against one per
-     module.)
-102. A counted object an upsert names is found "Only by what made it": the frame, the upsert's key and the symbol it
-     was created for (61, 63), never by its spec. A document's upsert is keyed by its uid, so reading one gives new
-     counted objects (55), and replaying the same transaction while they are held finds them again. This changes 4e,
-     which found one by its spec where nothing had made it. (Offered against keeping the spec match, with a term that
-     always creates for documents.)
-103. Imperative-scope transactions (98) are "Not on the wire": only a transaction's expression is journaled; what an
-     imperative scope writes reaches the wire through a later snapshot. (Offered against a transaction derived from
-     its writes at commit.)
+- [CAP-109: schemas as linked objects in modules](../../mbse-basis/docs/capabilities/CAP-109.md#decided): 2, 73, 97
+- [CAP-115: schemas defined by idempotent installs](../../mbse-basis/docs/capabilities/CAP-115.md#decided): 86
+- [CAP-116: framework schemas extended, checked](../../mbse-basis/docs/capabilities/CAP-116.md#decided): 75
+- [CAP-118: singletons, owned and counted objects](../../mbse-basis/docs/capabilities/CAP-118.md#decided): 9, 10, 11, 14, 20, 21, 31, 37, 39, 40, 41, 47, 55, 79
+- [CAP-119: owned objects found by path](../../mbse-basis/docs/capabilities/CAP-119.md#decided): 1, 4, 5, 7, 8, 16, 18, 23, 24, 25, 26, 27, 28, 32, 35, 43
+- [CAP-120: owned objects named and placed when built](../../mbse-basis/docs/capabilities/CAP-120.md#decided): 6, 13, 15, 22, 33, 34
+- [CAP-121: owned objects deleted in cascade](../../mbse-basis/docs/capabilities/CAP-121.md#decided): 48
+- [CAP-123: schema objects identified by path](../../mbse-basis/docs/capabilities/CAP-123.md#decided): 3, 12, 17, 29, 30, 69, 70, 72, 80, 81, 82, 83
+- [CAP-124: writes all-or-nothing in transactions](../../mbse-basis/docs/capabilities/CAP-124.md#decided): 19, 38, 42, 44, 46, 50, 78, 88, 89, 90, 96, 99
+- [CAP-149: data accessed through the store protocol](../../mbse-basis/docs/capabilities/CAP-149.md#decided): 100, its tech-debt clause in [CAP-126: schema objects read through the store protocol](../../mbse-basis/docs/capabilities/CAP-126.md#decided)
+- [CAP-125: imperative transaction scope](../../mbse-basis/docs/capabilities/CAP-125.md#decided): 98, 103
+- [CAP-127: snapshots made of transactions](../../mbse-basis/docs/capabilities/CAP-127.md#decided): 45, 101
+- [CAP-128: graphs sent as one-transaction documents](../../mbse-basis/docs/capabilities/CAP-128.md#decided): 36, 49, 51
+- [CAP-129: journals replayed by execution](../../mbse-basis/docs/capabilities/CAP-129.md#decided): 56
+- [CAP-137: patterns of symbols, variables and specs](../../mbse-basis/docs/capabilities/CAP-137.md#decided): 62, 64, 65, 66, 67, 68, 71, 74, 76, 77, 95
+- [CAP-138: mutation expressions over frame streams](../../mbse-basis/docs/capabilities/CAP-138.md#decided): 58, 59, 84, 85, 91, 92, 93, 94
+- [CAP-139: upserts find before they create](../../mbse-basis/docs/capabilities/CAP-139.md#decided): 54, 60, 61, 63, 102
+- [CAP-142: expressions evaluated in queries](../../mbse-basis/docs/capabilities/CAP-142.md#decided): 87
+- [CAP-144: transactions sharded and run in parallel](../../mbse-basis/docs/capabilities/CAP-144.md#decided): 52, 53, 57
 
 ## Excluding Imperative Visitor expressions
 
-STATUS: not designed, planned, or implemented yet
-
-This trifurcated close-clause design of the builder is becoming 
-a conflict with an unstated carry-over principle from a previous
-incarnation: that any builder caller can call a single finisher
-function `done` without needing to know if the object is being
-located, upserted, updated, cloned, etc.
-
-Currenty the builder's caller has to call one of three methods
-to finish the build: `Builder.update`, `Builder.clone`, `Builder.create`. 
-
-This means the object identity is a function of context rather than a
-function only of the schema and the presence or absence of upsertable 
-objects in the store.
-
-The visitor API remains amenable to the original model where the
-specification and creation of an upsertable object use the same
-expression, and the schema encodes all of the ways by which 
-object identity must be inferred from context and enforced
-by builders.
-
-This would mean:
-- re-consolidating `Builder.update`, `Builder.clone`, `Builder.create` 
-  under `Builder.done`. 
-- Modify object builders so that, in `done()`, identity as specified
-  in the schema is enforced.
-- carefully analyzing all of the locations where those methods are 
-  currently being called, then determining categorically if any of
-  those calls have an ambiguity that cannot be resolved through the 
-  schema
-- when a builder is used in a spec context, forbidding apparent 
-  R-M-W access across properties. This might be achievable with
-  Specs.Callback invokes the callback with a `Writer` instead of a
-  `Visitor`. 
-
-This also exposes that the `Visitor` expressions, by virtue of accidentally
-allowing RMW clauses, cannot be made delcarative. 
-
-Also need to review for visitors how builder changes report updates
-to the parent. This usually takes the form of:
-- providing the existing value and an "on_done" callback as optional
-  builder constructor arguments
-- providing a kind-specific set of mutator callbacks to the builder
-- employing some fancy proxy code
-
-We may need to either
-- split `Visitor` into two completely separate `Writer` and `Reader` classes
-- replace writeable-builder syntax entirely with constraints, which means we 
-  must be execute property-assigning constraints in a perfomant manner
+Now in [FEA-029: excluding imperative visitor expressions](../../mbse-basis/docs/features/FEA-029.md), [CAP-143: specs declarative, no read-modify-write](../../mbse-basis/docs/capabilities/CAP-143.md).
 
 ### Adjacent concern: the dataclass adapter's module name
 
-`FromDataclass.install(txn, module, *classes)` (Store overhaul, 4l) names
-each class `<module>.<Class>`, so it needs the module's name before it
-records the spec. It reads the name by calling `module` once on a
-`ModuleBuilder` made outside any store, never created, and refuses the
-root module, which has no name. The callback so runs twice: once on that
-builder, once in the spec.
-
-Reading the name back from the recorded spec instead
-(`_.Module.name.get()`, then naming the classes with it) avoids the
-builder outside a store, but is itself a read-modify-write inside a spec:
-it reads one recorded value to write others, and relies on spec items
-being recorded in order. Left as built (2026-10-22); revisit with the
-single finisher and a `Writer` for specs.
+Now in [CAP-143: specs declarative, no read-modify-write](../../mbse-basis/docs/capabilities/CAP-143.md).
 
 ## Open questions
 
-None at present.
+Not moved: a record superseded by what was built, which [FEA-026: deterministic object identity](../../mbse-basis/docs/features/FEA-026.md) holds.
 
 ---
 

@@ -24,7 +24,7 @@ function hold(s: any, objects: unknown[]): void {
   s.Corpus.Root(s.singleton("corpus"), (r: any) => r.holds(holding));
 }
 
-// --- Schemas, each group a module-scope install (docs/proposals/install) ---
+// --- Schemas, each group a module-scope install ([CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md)) ---
 
 /** Corpus.Root, the case's root, a singleton holding its data: a store's snapshot holds what its singletons reach. */
 function rooted(txn: any): any {

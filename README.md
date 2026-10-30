@@ -137,7 +137,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 |---|---|
 | [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Ten case studies, from a contact card to evolving schemas and querying the store, in Python and in TypeScript. Start here. |
 | [Framework design](docs/FRAMEWORK.md) | The design: every element and decision, plus the open questions |
-| [Equality](docs/EQUALITY.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
+| [CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
 | [Equivalence](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [Python test plan](python3/tests/TestPlan.md), [TypeScript test plan](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
 | [Conformance corpus](conformance/README.md) | The shared corpus both implementations must read and write identically |
@@ -146,7 +146,7 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 ## Repository layout
 
 ```
-docs/               the design (FRAMEWORK.md), how values compare (EQUALITY.md), and how the two implementations
+docs/               the design (FRAMEWORK.md), how values compare ([CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md)), and how the two implementations
                     are kept equivalent (EQUIVALENCE.md)
 python3/            Python implementation: mbse/Schemas/Framework, Adapters (Python only), examples, tests (Jupyter
                     notebooks), tutorials

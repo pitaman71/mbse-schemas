@@ -318,7 +318,7 @@ store.References.OfFrame(lambda f: f                      # a witness, as a serv
   branch's), variables (`.variables(...)`, a map of variables), a reduce that collects (`suffixes`, `computes`), and a
   partition that is both `first` and `last`. It refuses them before writing anything. Filter by spec, or in your own
   code over the frames given back.
-- **A change to an existing schema is seen only at commit** (Object identity, Decided, 96). A transaction that adds a
+- **A change to an existing schema is seen only at commit** (object identity 96 in [CAP-124: writes all-or-nothing in transactions](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-124.md#decided)). A transaction that adds a
   property to a schema writes no object with that property. Write the data in a second transaction.
 - **Do not rely on upserting a counted object again.** What an upsert of a counted object does when run again is the
   executor's own, and may change. Write so that a re-run is harmless: give the object an owner or a singleton, or reach
@@ -330,7 +330,7 @@ store.References.OfFrame(lambda f: f                      # a witness, as a serv
 
 | Topic | Read |
 |---|---|
-| Frames, terms and their design | [Mutations as queries](https://github.com/pitaman71/mbse-schemas/blob/main/docs/STREAMING_QUERIES.md) |
-| What names an object an upsert finds or creates | [Object identity, Decided](https://github.com/pitaman71/mbse-schemas/blob/main/docs/OBJECT_IDENTITY.md#decided) (55 to 103) |
-| References, frames as witnesses, a symbol given a reference | [References](https://github.com/pitaman71/mbse-schemas/blob/main/docs/proposals/references/README.md) |
+| Frames, terms and their design | [FEA-027: mutations as queries](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-027.md) |
+| What names an object an upsert finds or creates | [FEA-026: deterministic object identity](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-026.md) (55 to 103) |
+| References, frames as witnesses, a symbol given a reference | [CAP-130: references to objects, entries and frames](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-130.md) |
 | Every working form, with what each refuses | the TXN and REF suites, [31_Transactions](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tests/31_Transactions.ipynb) and [33_References](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tests/33_References.ipynb) |

@@ -13,7 +13,7 @@ The validator reads the value through the visitor protocol (`Readers.OfObject`),
 - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
 - each linked object's schema declares an adjacency to that relation via that link;
 - nothing is owned by a counted object: a schema neither a singleton nor owned declares no adjacency that another
-  schema's adjacency marked `owner()` makes an owner (docs/OBJECT_IDENTITY.md, Decided, 47);
+  schema's adjacency marked `owner()` makes an owner (object identity 47 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided));
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
 - a value object's properties hold values of their schemas, recursively;
@@ -136,8 +136,8 @@ def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObj
 
 def _counted_owners(store: Visitors.OfStore, schema: Schemas.OfObject.Data) -> list[str]:
     """The adjacencies of a counted schema, neither a singleton nor owned, through which it would own an object of a
-    schema whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (docs/OBJECT_IDENTITY.md,
-    Decided, 47)."""
+    schema whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (object identity
+    47 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     adjacencies = (*schema.adjacencies.values(), *schema.anonymous)
     if schema.singleton is not None or any(a.owner for a in adjacencies):
         return []
@@ -157,7 +157,7 @@ _ABSENT = ("absent",)
 
 
 def _key(schema: Any, value: Any) -> Hashable:
-    """Equality key per EQUALITY.md, of a value read as `_property_value` reads it: distinct scalars never compare
+    """Equality key per [CAP-111: equality and ordering defined by the schema](../../../../../mbse-basis/docs/capabilities/CAP-111.md), of a value read as `_property_value` reads it: distinct scalars never compare
     equal; floats compare by bit pattern; a value object by its properties."""
     held = schema
     if value is None:

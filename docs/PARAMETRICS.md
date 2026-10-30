@@ -3,34 +3,19 @@
 
 # Notation
 
-*REF* denotes Schemas.OfObject
-*REL* dentoes Schemas.OfRelation
-*VAL* dentoes Schemas.OfAny
+Moved to [mbse-basis](../../mbse-basis/docs/README.md): each section below names the item that holds it now.
 
 # Modeling
 
-`mbse-schemas/Parametrics` is defined normal schemas and one extension.
-
-REF `mbse-schemas/Schemas.OfParameter` - just a name and a description
-PROPS `mbse-schemas/Schemas.OfParameter.{name, description}`
-REF `mbse-schemas/Parametrics.OfParameters` - nest of named parameters
-REL `mbse-schemas/Parametrics.Defines(parameters, name, parameter)`
-REL `mbse-schemas/Parametrics.ForValue(param: Schemas.OfParameter, schema: Schemas.OfAny)` - parameter that can bind to a value (*:1)
-REL `mbse-schemas/Parametrics.ForObject(param: Schemas.OfParameter, schema: Schemas.OfObject)` - parameter that can bind to an object ref (*:1)
-
-REL `mbse-schemas/Parametrics.HasParameters(defn, params: Schemas.OfParameters)` # unique in both directions
-PROPS `mbse-schemas/Parametrics.value`
-REL `mbse-schemas/Parametrics.BindsValue(defn, param: Schemas.OfParameter, value)`
-REL `mbse-schemas/Parametrics.BindsObject(defn, param: Schemas.OfParameter, obj_ref)`
+Now in [CAP-112: parameters declared by an installed module](../../mbse-basis/docs/capabilities/CAP-112.md).
 
 # Schema Parameters
 
-`mbse-schemas/Parametrics.install` extends `Schemas.OfX` with three adjacencies each:
-- `Schemas.OfX.parameters` to `Parametrics.HasParameters`
+Now in [CAP-112: parameters declared by an installed module](../../mbse-basis/docs/capabilities/CAP-112.md).
 
 # Expression Parameters
 
-TBD
+Now in [CAP-114: bindings substituted and checked](../../mbse-basis/docs/capabilities/CAP-114.md).
 
 ---
 

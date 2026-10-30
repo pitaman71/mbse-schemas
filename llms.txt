@@ -18,7 +18,7 @@ Every collection is a relation (there are no list-valued properties), nothing is
 ## Design
 
 - [FRAMEWORK.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/FRAMEWORK.md): every element and decision, plus the open questions
-- [EQUALITY.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/EQUALITY.md): equality, ordering and comparison under a schema
+- [CAP-111: equality and ordering defined by the schema](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-111.md): equality, ordering and comparison under a schema
 
 ## Optional
 

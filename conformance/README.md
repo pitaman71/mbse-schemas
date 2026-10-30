@@ -8,7 +8,7 @@ Each implementation builds the same corpus of schemas and objects, statement for
 `<implementation>/<case>.json` (the store's snapshot, two transactions, its schemas then its data, indent 2) and
 `<case>.yaml`. A singleton, `Corpus.Root`, holds each case's objects, since a snapshot writes the data the singletons
 reach; they are counted, symbols numbered in the order the snapshot meets them, so that every implementation writes the
-same text ([Object identity](../docs/OBJECT_IDENTITY.md); [Serialization](../docs/SERIALIZATION.md), Snapshots).
+same text ([FEA-026: deterministic object identity](../../mbse-basis/docs/features/FEA-026.md); [Serialization](../docs/SERIALIZATION.md), Snapshots).
 
 | Case | Covers |
 |---|---|

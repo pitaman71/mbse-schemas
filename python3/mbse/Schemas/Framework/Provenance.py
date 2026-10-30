@@ -1,5 +1,5 @@
 """Provenance: the records of the transactions a store executes, who executed them, when and from where
-(docs/proposals/provenance; FRAMEWORK.md, Resolved, Provenance).
+([CAP-134: transactions recorded with provenance](../../../../../mbse-basis/docs/capabilities/CAP-134.md); FRAMEWORK.md, Resolved, Provenance).
 
 Normal schemas, installed before use: `store.transaction(Provenance.install)`. `Provenance.OfTransaction` is the record
 of one executed transaction, owned by the singleton `Provenance.Transactions`, keyed by the transaction's `uid`: its

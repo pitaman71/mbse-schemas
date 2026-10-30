@@ -138,7 +138,7 @@ shared case in both languages, and code no test could reach was removed from bot
 | ID | Finding | Status | Cases |
 |---|---|---|---|
 | F1 | YAML: strings containing NEL (`\x85`) came back with the NEL folded into a space; PyYAML wrote it raw inside single quotes | Fixed: strings with NEL/LS/PS are double-quoted | YML-03 |
-| F2 | Names that collide with a visitor's own: `create` etc. cannot be set through a builder's member, and names starting with `_` are never members. `validate()` accepts them, except names starting with `$`, reserved for the wire format, and `as_`, the visitor protocol's | Pinned, `$` and `as_` names resolved; open question in FRAMEWORK.md | SCH-16, PRX-04 |
+| F2 | Names that collide with a visitor's own: `create` etc. cannot be set through a builder's member, and names starting with `_` are never members. `validate()` accepts them, except names starting with `$`, reserved for the wire format, and `as_`, the visitor protocol's | Pinned, `$` and `as_` names resolved; open question in [CAP-107: one visitor protocol reads and writes data](../../../mbse-basis/docs/capabilities/CAP-107.md#open-questions) | SCH-16, PRX-04 |
 | F3 | Malformed snapshots raised `AttributeError` or misleading messages ("unreferenced objects" for a missing link) | Fixed: shape checked up front, precise `ValueError`s | PLN-11 |
 | F4 | Two builders over one object: the last `update()` wins, silently dropping the other's entries | Pinned | PRX-12 |
 | F5 | Cloning an object with a self-loop links the clone to the original, not to itself | Pinned | PRX-13 |

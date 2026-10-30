@@ -146,8 +146,8 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 ## Repository layout
 
 ```
-docs/               redirect stubs to the design in mbse-basis, how values compare ([CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md)), and how the two implementations
-                    are kept equivalent (EQUIVALENCE.md)
+docs/               how the two implementations are kept equivalent (EQUIVALENCE.md), and the store overhaul proposal
+                    (proposals/store-overhaul); the design is in mbse-basis
 python3/            Python implementation: mbse/Schemas/Framework, Adapters (Python only), examples, tests (Jupyter
                     notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)

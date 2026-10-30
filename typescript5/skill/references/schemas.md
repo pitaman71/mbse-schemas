@@ -203,4 +203,4 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 |---|---|
 | Schemas built from the dataclasses a program has | [python.md, cheat sheet](python.md#cheat-sheet) (`FromDataclass`) |
 | Evolving schemas as requirements change | [tutorial 9, When requirements change](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/09_When_Requirements_Change.ipynb) |
-| The meta-schemas and their builders | [META_SCHEMAS.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/META_SCHEMAS.md#the-meta-schemas-and-their-builders-as-built) |
+| The meta-schemas and their builders | [CAP-109: schemas as linked objects in modules](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-109.md#the-meta-schemas-and-their-builders-as-built) |

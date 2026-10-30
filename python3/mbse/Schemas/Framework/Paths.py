@@ -1,5 +1,5 @@
 """Paths: an owned object's identity, the route from a singleton to it through the relations that own it
-(docs/OBJECT_IDENTITY.md).
+([FEA-026: identity and transactions](../../../../../mbse-basis/docs/features/FEA-026.md)).
 
 A path is a nested value object, never a string: `Paths.OfRoot` names the singleton it starts from and holds the next
 element, `Paths.OfEntry` one ownership entry transited (`i`, the adjacency to it from the object before; `o`, the
@@ -66,7 +66,7 @@ def _owner_adjacency(schema: Any) -> bool:
 
 def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
     """The singleton a reference object's path starts from, and the ownership entries from it to the object, through
-    the adjacencies marked `owner()`. A counted object has no path (docs/OBJECT_IDENTITY.md, Decided, 55)."""
+    the adjacencies marked `owner()`. A counted object has no path (object identity 55 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     steps, current, seen = [], obj, set()
     while True:
         schema = object.__getattribute__(current, "_schema")

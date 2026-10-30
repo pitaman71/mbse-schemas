@@ -1,5 +1,5 @@
 /**
- * Comparison: compares values under their schema, as EQUALITY.md defines.
+ * Comparison: compares values under their schema, as [CAP-111: equality and ordering defined by the schema](../../../../mbse-basis/docs/capabilities/CAP-111.md) defines.
  *
  * For each schema element `OfX`, `new Comparison.OfX(schema, value)` holds a value read through the visitor protocol
  * (`Readers.OfX`), or a scalar. `a.compare(b)` compares two and returns -1, 0 or 1 when `a` is less than, equal to or

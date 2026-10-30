@@ -1,5 +1,5 @@
-"""Transactions: the writes to a store, as mutation expressions over streams of frames (docs/STREAMING_QUERIES.md;
-docs/OBJECT_IDENTITY.md, Decided, 38 to 97).
+"""Transactions: the writes to a store, as mutation expressions over streams of frames ([FEA-027: mutations as queries](../../../../../mbse-basis/docs/features/FEA-027.md);
+object identity 38 to 97 in [FEA-026: identity and transactions](../../../../../mbse-basis/docs/features/FEA-026.md)).
 
 A pattern's `spec` says what must hold of a frame: the property values the objects its symbols bind have, and the
 relation entries that link them (Decided, 76). It is written in the builders' own notation, over the frame, whose
@@ -499,7 +499,7 @@ Frame = dict[str, Any]
 
 
 def _execute(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
-    """Executes a transaction's expression over the store, sequentially (docs/OBJECT_IDENTITY.md, Decided, 85 to 89): its
+    """Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-026: identity and transactions](../../../../../mbse-basis/docs/features/FEA-026.md)): its
     stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
     in its proposals and written when it ends, or dropped where it raises. Gives the frames its chain ends with."""
     root = _next(transaction, "mutations")

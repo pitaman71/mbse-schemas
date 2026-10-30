@@ -14,7 +14,7 @@
  * - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
  * - each linked object's schema declares an adjacency to that relation via that link;
  * - nothing is owned by a counted object: a schema neither a singleton nor owned declares no adjacency that another
- *   schema's adjacency marked `owner()` makes an owner (docs/OBJECT_IDENTITY.md, Decided, 47);
+ *   schema's adjacency marked `owner()` makes an owner (object identity 47 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided));
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
  * - a value object's properties hold values of their schemas, recursively;
@@ -145,8 +145,8 @@ function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schema
 }
 
 /** The adjacencies of a counted schema, neither a singleton nor owned, through which it would own an object of a schema
- * whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (docs/OBJECT_IDENTITY.md,
- * Decided, 47). */
+ * whose adjacency marked `owner()` is the other end: nothing is owned by a counted object (object identity
+ * 47 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)). */
 function countedOwners(store: Visitors.OfStore, schema: Schemas.OfObject.Data): string[] {
   const adjacencies = [...schema.adjacencies.values(), ...schema.anonymous];
   if (schema.singleton !== null || adjacencies.some((a) => a.owner)) return [];
@@ -167,7 +167,7 @@ function countedOwners(store: Visitors.OfStore, schema: Schemas.OfObject.Data): 
 
 const ABSENT = "absent";
 
-/** Equality key per EQUALITY.md, of a value read as `propertyValue` reads it: distinct scalars never compare
+/** Equality key per [CAP-111: equality and ordering defined by the schema](../../../../mbse-basis/docs/capabilities/CAP-111.md), of a value read as `propertyValue` reads it: distinct scalars never compare
  * equal; floats compare by bit pattern; a value object by its properties. */
 function key(schema: unknown, value: any): string {
   const held = schema;

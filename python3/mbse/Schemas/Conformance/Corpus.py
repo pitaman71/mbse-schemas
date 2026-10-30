@@ -26,7 +26,7 @@ def _hold(s, objects):
     s.Corpus.Root(s.singleton("corpus"), lambda r: r.holds(hold))
 
 
-# --- Schemas, each group a module-scope install (docs/proposals/install) ---
+# --- Schemas, each group a module-scope install ([CAP-115: schemas defined by idempotent installs](../../../../../mbse-basis/docs/capabilities/CAP-115.md)) ---
 
 
 def rooted(txn):

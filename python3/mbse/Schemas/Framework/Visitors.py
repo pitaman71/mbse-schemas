@@ -273,7 +273,7 @@ class OfIntersection(Protocol):
 
 class OfPattern(Protocol):
     """A frame of a pattern: its symbols are members, each a `Visitors.OfObject` of the object it binds, and its
-    variables, each a `Visitors.OfAny` of the value it assigns (docs/STREAMING_QUERIES.md). Frames are made by the
+    variables, each a `Visitors.OfAny` of the value it assigns ([FEA-027: mutations as queries](../../../../../mbse-basis/docs/features/FEA-027.md)). Frames are made by the
     executor of mutation expressions."""
 
     def as_schema(self) -> Schemas.OfPattern.Data: ...
@@ -282,7 +282,7 @@ class OfPattern(Protocol):
 
 
 class OfStore(Protocol):
-    """A store: schemas by name, builders, and the objects it holds (docs/OBJECT_IDENTITY.md, Decided, 100)."""
+    """A store: schemas by name, builders, and the objects it holds (object identity 100 in [CAP-149: data accessed through the store protocol](../../../../../mbse-basis/docs/capabilities/CAP-149.md#decided))."""
 
     def schema(self, name: str) -> Schemas.OfObject.Data:
         """The object schema registered as `name`: `AttributeError` if none is, `TypeError` for a relation."""

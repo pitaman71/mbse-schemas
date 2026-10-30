@@ -1,12 +1,12 @@
 /**
  * Paths: an owned object's identity, the route from a singleton to it through the relations that own it
- * (docs/OBJECT_IDENTITY.md).
+ * ([FEA-026: identity and transactions](../../../../mbse-basis/docs/features/FEA-026.md)).
  *
  * A path is a nested value object, never a string: `Paths.OfRoot` names the singleton it starts from and holds the
  * next element, `Paths.OfEntry` one ownership entry transited (`i`, the adjacency to it from the object before; `o`,
  * the adjacency to it from the object after, the one marked `owner()`; `properties`, the entry's keys), and
  * `Paths.OfTarget` ends it. `next` is a union of the two, its branches `entry` and `target`. Every store holds these
- * schemas, its own, as `install` defines them (docs/OBJECT_IDENTITY.md, Decided, 86).
+ * schemas, its own, as `install` defines them (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md#decided)).
  *
  * An identity is computed on demand (Decided, 32): `of(obj)` reads an object's path off its ownership entries. A schema
  * object's path starts from the root module, the singleton `"."`, and goes through each module, then the schema, by
@@ -74,7 +74,7 @@ function hasOwnerAdjacency(schema: S.OfObject.Data): boolean {
 type Step = [string, string, Map<string, unknown>];
 
 /** The singleton a reference object's path starts from, and the ownership entries from it to the object, through the
- * adjacencies marked `owner()`. A counted object has no path (docs/OBJECT_IDENTITY.md, Decided, 55). */
+ * adjacencies marked `owner()`. A counted object has no path (object identity 55 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)). */
 function stepsOf(obj: unknown): [string, Step[]] {
   const steps: Step[] = [];
   const seen = new Set<unknown>();

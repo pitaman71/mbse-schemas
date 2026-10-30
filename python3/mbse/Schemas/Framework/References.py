@@ -1,4 +1,4 @@
-"""References: one format for what designates an object, a relation entry or a frame (docs/proposals/references).
+"""References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](../../../../../mbse-basis/docs/capabilities/CAP-130.md)).
 
 Three value schemas, which every store holds, its own, as it holds `Paths`:
 
@@ -14,7 +14,7 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
 reference)` gives what a reference designates, or None where the store holds none. A counted object has no reference,
-nor a frame that binds one: nothing names it (docs/OBJECT_IDENTITY.md, Decided, 40 and 55).
+nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)).
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
 binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
@@ -69,7 +69,7 @@ def install(txn: Any) -> Any:
 
 def validate(pattern: Any) -> list[str]:
     """The problems of a pattern's symbols as `References.install` extends them: a symbol given both a schema and a
-    reference, or neither; a symbol has exactly one (docs/proposals/references, Decided, 8)."""
+    reference, or neither; a symbol has exactly one (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))."""
     from . import Transactions
 
     if not isinstance(pattern, S.OfPattern.Data):

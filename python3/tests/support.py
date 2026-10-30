@@ -183,7 +183,7 @@ def listing(snapshot: dict) -> dict:
 
 def listed(name: str, number: int, properties: dict | None = None) -> dict:
     """A counted object's entry in an object snapshot's list: its number in the document, its schema's name and its
-    members (docs/OBJECT_IDENTITY.md, Decided, 55)."""
+    members (object identity 55 in [CAP-118: singletons, owned and counted objects](../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     return {"n": number, "schema": name, "properties": properties or {}}
 
 

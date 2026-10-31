@@ -1647,6 +1647,9 @@ class Store(Proxies.OfStore):
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
         self._unnamed: weakref.WeakValueDictionary[int, Any] = weakref.WeakValueDictionary()
+        # when each schema object was first held, in order (`_held_at` in its data): those held when a transaction began
+        # are those whose updates wait for its commit; an `id()` would not do, since one freed is given to another object
+        self._held = 0
         from . import Mutations, Paths, References
 
         made: dict[str, Any] = {}  # its own, as the framework's installs define them, read by the bootstrap
@@ -1666,6 +1669,7 @@ class Store(Proxies.OfStore):
             if id(schema) not in self._objects:
                 self._objects[id(schema)] = schema
                 schema.__dict__["_held_by"] = self
+                self._number(schema)
                 for referent, members in self._referents(schema):
                     referent.__dict__.setdefault("_linker", (weakref.ref(schema), members))
                     reached.append(referent)
@@ -1836,6 +1840,7 @@ class Store(Proxies.OfStore):
             raise TypeError("a store builds no scalar schema: its scalars are the basic scalars it was made holding, "
                             "store.Schemas.OfBool, OfInt, OfFloat, OfStr and OfBytes")
         self._link(data)
+        self._number(data)
         named = _named(data)
         (self._objects if named else self._unnamed)[id(data)] = data
         (self._unnamed if named else self._objects).pop(id(data), None)  # renamed, or its name cleared
@@ -1880,7 +1885,7 @@ class Store(Proxies.OfStore):
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object
         existed before it began (object identity 96 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)). What it would link is checked now."""
         proposals = self._proposals
-        if proposals is None or id(builder._original) not in proposals.existing:
+        if proposals is None or not self._existed(builder._original, proposals):
             return False
         self._link(builder._original, builder._working)
         proposals.deferred[id(builder._original)] = builder  # its last: each began from what the one before made
@@ -1899,9 +1904,20 @@ class Store(Proxies.OfStore):
                       "_unnamed": weakref.WeakValueDictionary(self._unnamed)})
         return saved
 
-    def _existing(self) -> set[int]:
-        """The schema objects it holds, by id: those a transaction's updates of wait for its commit."""
-        return {*self._objects, *self._unnamed.keys()}
+    def _number(self, data: Any) -> None:
+        """Numbers a schema object when it is first held, in order."""
+        if "_held_at" not in data.__dict__:
+            data.__dict__["_held_at"] = self._held
+            self._held += 1
+
+    def _existed(self, data: Any, proposals: Any) -> bool:
+        """Whether the store held the schema object `data` when the transaction of `proposals` began."""
+        return self.holds(data) and data.__dict__["_held_at"] < proposals.existing
+
+    def _existing(self) -> int:
+        """The schema objects held when a transaction begins: those its updates of wait for its commit, numbered
+        below."""
+        return self._held
 
     def _commit_schemas(self, proposals: Any) -> None:
         """Applies the updates of schema objects that waited for the transaction's commit, in order; where one is

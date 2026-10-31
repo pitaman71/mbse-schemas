@@ -33,8 +33,8 @@ class OfStore:
         self.written: dict[int, Any] = {}
         self.expression: Any = None  # the transaction's expression, where it has one: its record's data (Provenance)
         outer = base if isinstance(base, OfStore) else None
-        # the schema objects held when the transaction began, by id: those its updates of wait for its commit
-        self.existing: set[int] = outer.existing if outer is not None else store._existing()
+        # the schema objects held when the transaction began, numbered below it: those its updates of wait for its commit
+        self.existing: int = outer.existing if outer is not None else store._existing()
         self.saved = store._saved()  # the store's registries, restored where the proposals are aborted
         self.pending = (len(store._unowned), len(store._orphaned))  # the ownership to settle, as it was
 

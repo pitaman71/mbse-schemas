@@ -155,8 +155,8 @@ conformance/        snapshots each implementation writes; each must read the oth
 skills/             the agent skill (SKILL.md plus per-task references); skills/sync.sh copies it into both packages
 ```
 
-Tests are Jupyter notebooks, one suite per notebook. Both implementations have the same cases under the same
-IDs, and both reach 100% code coverage (`uv run coverage ...` / `npm run coverage`; see `docs/EQUIVALENCE.md`).
+Tests are Jupyter notebooks, the same cases in both implementations, each at 100% code coverage
+([PRI-035: tests are notebooks: one suite each, the same case IDs in the same order in both languages](../mbse-basis/docs/PRINCIPLES.md#PRI-035), [PRI-039: 100% coverage of both](../mbse-basis/docs/PRINCIPLES.md#PRI-039)); the commands are in `docs/EQUIVALENCE.md`.
 
 ## Status
 

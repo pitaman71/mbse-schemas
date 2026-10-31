@@ -685,7 +685,7 @@ so that main stays current and no branch waits on another.
    ([CAP-137: patterns of symbols, variables and specs](../../../../mbse-basis/docs/capabilities/CAP-137.md)). Each is proposed for the user's review when it starts.
    As the user decided (2026-10-28), mbse-patterns is re-scoped, not ported as it stands ("mbse-patterns should be
    rescoped as recommended"): what it did with predicates is mbse-schemas' `OfPattern` now, so it takes up what
-   [FEA-023: patterns over data](../../../../mbse-basis/docs/features/FEA-023.md) gives it beside them (generators, characterizers, patterns as distributions over constraints: [CAP-072: distributions in predicates](../../../../mbse-basis/docs/capabilities/CAP-072.md), [CAP-073: distributions fit from data](../../../../mbse-basis/docs/capabilities/CAP-073.md)), proposed
+   [FEA-023: patterns over data](../../../../mbse-basis/docs/features/FEA-023.md) gives it beside them (generators, [CAP-042: data generated from constraints](../../../../mbse-basis/docs/capabilities/CAP-042.md); characterizers, [CAP-073: distributions fit from data](../../../../mbse-basis/docs/capabilities/CAP-073.md); patterns as distributions over constraints, [CAP-072: distributions in predicates](../../../../mbse-basis/docs/capabilities/CAP-072.md)), proposed
    when it starts. The order: mbse-expressions first, which the others depend on; then mbse-patterns and
    mbse-programs; mbse-codegen-python last.
 

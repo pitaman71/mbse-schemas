@@ -83,14 +83,14 @@ Total: 277 cases, the sum of the rows above. The 269 outside DC have the same ID
 | Builders keep shallow copies separate from the source | SCH-10, PRX-05 |
 | Builders' members: a value whole, an iterable of what they link, or a callback given the member's visitor | SCH-08, SCH-14, BLD-01..05, PRX-03 |
 | `OfAny.Builder` selects a kind, finalizing to that kind's data; several, or none, a value of any schema | SCH-06, SCH-07, ANY-01 |
-| A restricted `OfAny`'s value never guessed: wrapped by its kind and schema, bare only where one of its schemas takes its plain form (Resolved, "A restricted `OfAny` never guesses its schema") | ANY-01, ANY-03, ANY-06 |
-| A restricted `OfAny` refuses a scalar whose host type is not exactly one of its scalar schemas' when written (Resolved, "A restricted `OfAny` refuses a scalar of another host type when written") | ANY-03, ANY-04, ANY-07 |
+| A restricted `OfAny`'s value never guessed: wrapped by its kind and schema, bare only where one of its schemas takes its plain form ([CAP-069: wire format shorthand (scalars)](../../../mbse-basis/docs/capabilities/CAP-069.md#decided), "A restricted `OfAny` never guesses its schema") | ANY-01, ANY-03, ANY-06 |
+| A restricted `OfAny` refuses a scalar whose host type is not exactly one of its scalar schemas' when written ([CAP-157: values of any schema, restricted or not](../../../mbse-basis/docs/capabilities/CAP-157.md#decided), "A restricted `OfAny` refuses a scalar of another host type when written") | ANY-03, ANY-04, ANY-07 |
 | Properties optional; an absent one's value reads as None; instances read-only | PRX-02, PRX-03, VAL-02 |
 | Relations: named links without schemas; no one-link relations; adjacencies via `me` | SCH-12, SCH-13, PRX-07, PRX-14 |
 | `unique(S)`: the rest determines `S` | SCH-13, VAL-06, VAL-07, VAL-08, VAL-11 |
 | Entries form a set; equal entries elided; schema equality (scalars distinct, floats by bit pattern) | PRX-08, PROP-05, VAL-07 |
 | Equality under a schema, and ordering only for ordered scalars | CMP-01..13 |
-| Union branches and intersection parts are named, unique and of one kind; each an entry linking its schema, written in place and removed by what it says; one added under a name held for another schema, or described otherwise, refused, and an equal one elided (Resolved, "A union's branch names are unique") | SCH-14, SCH-15, INS-06 |
+| Union branches and intersection parts are named, unique and of one kind; each an entry linking its schema, written in place and removed by what it says; one added under a name held for another schema, or described otherwise, refused, and an equal one elided ([CAP-153: unions and intersections of named branches and parts](../../../mbse-basis/docs/capabilities/CAP-153.md#decided), "A union's branch names are unique") | SCH-14, SCH-15, INS-06 |
 | A scalar is a basic scalar, mapping to its host type by its name | SCH-02, SCH-18 |
 | Reference object schemas are marked `.ref()`; no property holds one; only they are built and rooted on their own | SCH-19, VAL-13 |
 | Value objects are value objects: owned, read-only, written nested; holding containers, without adjacencies or identity | EMB-01, EMB-02, EMB-04, EMB-09 |

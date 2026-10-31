@@ -19,41 +19,17 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 ## Invariants when changing code
 
-- **One vocabulary across the mbse repositories.** A kind's or schema's named members are *properties*, never
-  "fields" (a field is only the host language's class member that holds one), and what describes a value is its
-  *schema*, never its "type" (a type is only the host language's, qualified as such; mbse-basis VOC-026). An element
-  of an expression tree is a *term* (mbse-expressions), and of a program tree a *syntax node* (mbse-programs); never a
-  bare "node" in code, docs or messages. What a specification requires is a *constraint*, never a "rule"; a constraint is checked,
-  resolved or generated from, never executed ([MBSE.md, What a specification is made
-  of](https://github.com/pitaman71/mbse-basis/blob/main/MBSE.md#what-a-specification-is-made-of)). Across this many languages, terms collide (an SVA
-  `property`, a C++ template parameter, a SystemVerilog `constraint` block): wherever ours meets a language's own,
-  in docs and examples, qualify the colliding term with whose it is.
-- **The README opens with why.** Its first sentence or paragraph says, TL;DR style, why this repository exists, in
-  the terms of `MBSE.md`; what it is comes after. Keep that opening true as the repository changes.
-- **Every human-facing document has navigation.** A `{previous, home, next}` line heads and ends each document in
-  reading order (README, MBSE.md, tutorials, design, conformance, packages and test plans); after adding, renaming or
-  retitling one, run `python3 ../mbse-basis/scripts/update_doc_links.py`. Link text is human-readable, never a path.
-- **The two implementations are equivalent.** Change both in the same commit, with the same names, the same error
-  classes and byte-identical messages. JSON output must be byte-identical: regenerate the corpora and let CONF-02
-  compare them. A difference not listed in `docs/EQUIVALENCE.md` is a bug. Adapters (`python3/mbse/Schemas/Adapters`)
-  are the exception: each translates its own language's type declarations.
-- **Tutorials are tested too.** `pytest` and `npm run coverage` run `tutorials/` beside `tests/`; the two languages
-  tell the same case studies with the same outputs. Re-execute a tutorial after a change that alters its output, and
-  commit it with its outputs.
-- **Tests are Jupyter notebooks**, one suite per notebook, with the same case IDs in the same order in both
-  languages. Each case is a markdown cell `## ID · title` followed by one code cell. Notebooks are JSON written with
-  `indent=1`, `sort_keys=True` and `ensure_ascii=False`.
-- **Coverage is 100%** in both languages, statements and branches. Close a gap with an assertion in the shared case,
-  in both suites.
-- **The skill is packaged with each implementation.** After editing `skills/mbse-schemas/`, run `skills/sync.sh`;
-  SKL-01 fails until the copies match. Every fenced block tagged `python` or `typescript` in the skill is a complete
-  program that SKL-02 runs; tag fragments `python fragment` or `typescript fragment`.
-- **Behavior is decided in mbse-basis items** ([the schema-driven data features](../mbse-basis/docs/features/README.md#schema-driven-data)). Record a decision in its item's detail file, under Decided
-  (the user's) or Decided by an agent, for review, and what stays undecided under Open questions ([the
-  basis](../mbse-basis/docs/README.md#detail-files), Detail files).
-  A decision the user specifies is recorded completely, every point and condition of it, as the rule; quoted where the
-  wording matters, never reduced to an example of what was built. Before writing or changing a design document, check
-  it against Resolved, and cite the Resolved entry rather than describe the decision again.
+The conventions every mbse repository shares are stated once in mbse-basis; this file cites them and keeps
+only what differs here.
+
+- **Vocabulary**: [VOC-007: property](../mbse-basis/docs/VOCABULARY.md#VOC-007), [VOC-026: schema](../mbse-basis/docs/VOCABULARY.md#VOC-026), [VOC-008: term](../mbse-basis/docs/VOCABULARY.md#VOC-008), [VOC-009: syntax node](../mbse-basis/docs/VOCABULARY.md#VOC-009) and [VOC-002: constraint](../mbse-basis/docs/VOCABULARY.md#VOC-002), each qualified with whose it is where it meets a language's own term ([the vocabulary](../mbse-basis/docs/VOCABULARY.md), its introduction).
+- **Documents**: navigation lines, the README opening with why, and what this file holds ([Rules for every document](../mbse-basis/docs/README.md#rules-for-every-document)).
+- **Equivalence**: [PRI-028: both implementations change together](../mbse-basis/docs/PRINCIPLES.md#PRI-028), [PRI-037: the same conformance corpora](../mbse-basis/docs/PRINCIPLES.md#PRI-037), [PRI-038: the same cases in both languages](../mbse-basis/docs/PRINCIPLES.md#PRI-038), [PRI-039: 100% coverage of both](../mbse-basis/docs/PRINCIPLES.md#PRI-039) and [PRI-040: deliberate differences listed](../mbse-basis/docs/PRINCIPLES.md#PRI-040), the differences listed in `docs/EQUIVALENCE.md`. Here: regenerate the corpora (Commands) and let CONF-02 compare them. Adapters (`python3/mbse/Schemas/Adapters`) are the exception: each translates its own language's type declarations.
+- **Tests and tutorials**: [PRI-035: tests are notebooks: one suite each, the same case IDs in the same order in both languages](../mbse-basis/docs/PRINCIPLES.md#PRI-035); [PRI-034: tutorials run as tests, committed with their outputs](../mbse-basis/docs/PRINCIPLES.md#PRI-034). `pytest` and `npm run coverage` run `tutorials/` beside `tests/`.
+- **The skill**: [PRI-036: every program in a skill is complete and run; fragments are tagged as fragments](../mbse-basis/docs/PRINCIPLES.md#PRI-036), which SKL-02 checks. After editing `skills/mbse-schemas/`, run `skills/sync.sh`; SKL-01 fails until the packaged copies match (the copy [PRI-016: guidance written once](../mbse-basis/docs/PRINCIPLES.md#PRI-016) plans to remove).
+- **Work**: [PRI-029: parallel work in polyrepo workspaces](../mbse-basis/docs/PRINCIPLES.md#PRI-029), [PRI-031: the version is the contract](../mbse-basis/docs/PRINCIPLES.md#PRI-031), [PRI-032: a sibling's gap is reported, not worked around](../mbse-basis/docs/PRINCIPLES.md#PRI-032) and [PRI-033: work lands by branch and pull request](../mbse-basis/docs/PRINCIPLES.md#PRI-033).
+- **Behavior is decided in mbse-basis items**: [the schema-driven data features](../mbse-basis/docs/features/README.md#schema-driven-data) and their capabilities; before deciding, check an item's Decided sections and cite the entry, recorded as the basis says ([Detail files](../mbse-basis/docs/README.md#detail-files)).
+- Never write to `~/.claude/projects/*/memory/` or any hidden memory: what is worth keeping goes in the repository.
 
 ## Commands
 
@@ -73,16 +49,8 @@ npm run portability                         # the core without Node (browser bun
 - [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions (constraints) and their
   evaluators, and [mbse-programs](https://github.com/pitaman71/mbse-programs): programs as syntax trees. Each depends on
   this repository as a sibling checkout (`../mbse-schemas`), and pins the version and commit it was tested with.
-- **Releases are versions and tags.** The Python and TypeScript packages share one version; a release is the tag
-  `v<version>`. Below 1.0, a change that dependents must adapt to bumps the minor version. Dependents develop against
-  this checkout as it is, and pin a release with `polyrepo.py pin`. A change that spans repositories is made in a
-  workspace from a dependent's `polyrepo.py workspace <dir> --branch <name> --edit mbse-schemas`, so that parallel
-  work elsewhere does not see it half-finished, and landed with `polyrepo.py land <dir>`. That tool is kept in
-  mbse-basis, as `scripts/polyrepo.py`, and run from each repository as `python3 ../mbse-basis/scripts/polyrepo.py`.
-- Generated code will live in one repository per target language family, mbse-codegen-ccpp, mbse-codegen-python,
-  mbse-codegen-typescript and mbse-codegen-verilog (Verilog and SystemVerilog), each rendering schemas
-  (`Codegen/Types`), expressions (`Codegen/Expressions`) and patterns (`Codegen/Patterns`) as idiomatic, performant
-  source, through mbse-programs' syntax trees, and keeping their parameters as the language's own (templates,
-  `parameter`s). Each generates step by step, every ambiguity a parameter of a step that a person or an agent resolves,
-  or a policy the caller chooses up front; the steps' framework will be mbse-patterns' `Transforms` (its
-  `docs/TRANSFORMS.md`).
+- **Releases**: [PRI-031: the version is the contract](../mbse-basis/docs/PRINCIPLES.md#PRI-031); a change that spans repositories is made in a workspace from a dependent,
+  with `--edit mbse-schemas` ([PRI-029: parallel work in polyrepo workspaces](../mbse-basis/docs/PRINCIPLES.md#PRI-029)).
+- Code generation, one repository per target language family rendering schemas, expressions and patterns step by
+  step through mbse-programs' syntax trees and mbse-patterns' `Transforms`, is [FEA-022: code generation](../mbse-basis/docs/features/README.md#FEA-022) and [FEA-021: every generation ambiguity a parameter](../mbse-basis/docs/features/FEA-021.md);
+  mbse-codegen-python is the first.

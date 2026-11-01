@@ -49,8 +49,6 @@ npm run portability                         # the core without Node (browser bun
 - [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions (constraints) and their
   evaluators, and [mbse-programs](https://github.com/pitaman71/mbse-programs): programs as syntax trees. Each depends on
   this repository as a sibling checkout (`../mbse-schemas`), and pins the version and commit it was tested with.
-- **Releases**: [PRI-031: the version is the contract](../mbse-basis/docs/PRINCIPLES.md#PRI-031); a change that spans repositories is made in a workspace from a dependent,
-  with `--edit mbse-schemas` ([PRI-029: parallel work in polyrepo workspaces](../mbse-basis/docs/PRINCIPLES.md#PRI-029)).
-- Code generation, one repository per target language family rendering schemas, expressions and patterns step by
-  step through mbse-programs' syntax trees and mbse-patterns' `Transforms`, is [FEA-022: code generation](../mbse-basis/docs/features/README.md#FEA-022) and [FEA-021: every generation ambiguity a parameter](../mbse-basis/docs/features/FEA-021.md);
-  mbse-codegen-python is the first.
+- **Releases**: a change that spans repositories is made in a workspace from a dependent, with `--edit mbse-schemas`.
+- [mbse-codegen-python](https://github.com/pitaman71/mbse-codegen-python) generates Python source from these schemas,
+  the first of one code generator per target language family.

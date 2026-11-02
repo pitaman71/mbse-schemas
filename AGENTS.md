@@ -17,19 +17,19 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
 | Find or add a test case | [python3/tests/TestPlan.md](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
 
-## Invariants when changing code
+## Read before any work
 
-The conventions every mbse repository shares are stated once in mbse-basis; this file cites them and keeps
-only what differs here.
+Agents must read these mbse-basis documents before doing any work:
 
-- **Vocabulary**: [VOC-007: property](../mbse-basis/docs/VOCABULARY.md#VOC-007), [VOC-026: schema](../mbse-basis/docs/VOCABULARY.md#VOC-026), [VOC-008: term](../mbse-basis/docs/VOCABULARY.md#VOC-008), [VOC-009: syntax node](../mbse-basis/docs/VOCABULARY.md#VOC-009) and [VOC-002: constraint](../mbse-basis/docs/VOCABULARY.md#VOC-002), each qualified with whose it is where it meets a language's own term ([the vocabulary](../mbse-basis/docs/VOCABULARY.md), its introduction).
-- **Documents**: navigation lines, the README opening with why, and what this file holds ([Rules for every document](../mbse-basis/docs/README.md#rules-for-every-document)).
-- **Equivalence**: [PRI-028: both implementations change together](../mbse-basis/docs/PRINCIPLES.md#PRI-028), [PRI-037: the same conformance corpora](../mbse-basis/docs/PRINCIPLES.md#PRI-037), [PRI-038: the same cases in both languages](../mbse-basis/docs/PRINCIPLES.md#PRI-038), [PRI-039: 100% coverage of both](../mbse-basis/docs/PRINCIPLES.md#PRI-039) and [PRI-040: deliberate differences listed](../mbse-basis/docs/PRINCIPLES.md#PRI-040), the differences listed in `docs/EQUIVALENCE.md`. Here: regenerate the corpora (Commands) and let CONF-02 compare them. Adapters (`python3/mbse/Schemas/Adapters`) are the exception: each translates its own language's type declarations.
-- **Tests and tutorials**: [PRI-035: tests are notebooks: one suite each, the same case IDs in the same order in both languages](../mbse-basis/docs/PRINCIPLES.md#PRI-035); [PRI-034: tutorials run as tests, committed with their outputs](../mbse-basis/docs/PRINCIPLES.md#PRI-034). `pytest` and `npm run coverage` run `tutorials/` beside `tests/`.
-- **The skill**: [PRI-036: every program in a skill is complete and run; fragments are tagged as fragments](../mbse-basis/docs/PRINCIPLES.md#PRI-036), which SKL-02 checks. After editing `skills/mbse-schemas/`, run `skills/sync.sh`; SKL-01 fails until the packaged copies match (the copy [PRI-016: guidance written once](../mbse-basis/docs/PRINCIPLES.md#PRI-016) plans to remove).
-- **Work**: [PRI-029: parallel work in polyrepo workspaces](../mbse-basis/docs/PRINCIPLES.md#PRI-029), [PRI-031: the version is the contract](../mbse-basis/docs/PRINCIPLES.md#PRI-031), [PRI-032: a sibling's gap is reported, not worked around](../mbse-basis/docs/PRINCIPLES.md#PRI-032) and [PRI-033: work lands by branch and pull request](../mbse-basis/docs/PRINCIPLES.md#PRI-033).
-- **Behavior is decided in mbse-basis items**: [the schema-driven data features](../mbse-basis/docs/features/README.md#schema-driven-data) and their capabilities, recorded as the basis says ([Detail files](../mbse-basis/docs/README.md#detail-files)).
-- Never write to `~/.claude/projects/*/memory/` or any hidden memory: what is worth keeping goes in the repository.
+- [The mbse basis](../mbse-basis/docs/README.md)
+- [Principles](../mbse-basis/docs/PRINCIPLES.md)
+- [Features](../mbse-basis/docs/features/README.md)
+- [Capabilities](../mbse-basis/docs/capabilities/README.md)
+
+These may be read selectively, on demand: [Vocabulary](../mbse-basis/docs/VOCABULARY.md) and
+[Qualities](../mbse-basis/docs/QUALITIES.md).
+
+Never write to `~/.claude/projects/*/memory/` or any hidden memory: what is worth keeping goes in the repository.
 
 ## Commands
 
@@ -42,6 +42,7 @@ cd typescript5 && nvm use && npm install    # TypeScript: Node 22, 24 and 26 are
 npm run coverage                            # type-checks, runs every notebook, gates at 100%
 npm run conformance
 npm run portability                         # the core without Node (browser bundle + Deno)
+skills/sync.sh                                  # after editing skills/mbse-schemas/: the packaged copies (SKL-01)
 ```
 
 ## Related repositories

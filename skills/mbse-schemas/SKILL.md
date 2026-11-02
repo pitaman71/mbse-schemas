@@ -1,6 +1,6 @@
 ---
 name: mbse-schemas
-description: Model structured data and interfaces once, as a neutral, language-independent schema (objects, relations with properties, unions, intersections), then build, serialize (JSON/YAML), validate and compare instances in Python or TypeScript. Use when formalizing an interface or data model (MBSE/SysML blocks and associations, interface control documents, API or data-exchange models, types shared across languages), or when writing code that imports mbse.Schemas.Framework or @mbse/schemas/Framework.
+description: Model structured data and interfaces once, as a neutral, language-independent schema (objects, relations with properties, unions, intersections), then build, serialize (JSON/YAML), validate and compare instances in Python or TypeScript. Use when formalizing an interface or data model (MBSE/SysML blocks and associations, interface control documents, API or data-exchange models, data models shared across languages), or when writing code that imports mbse.Schemas.Framework or @mbse/schemas/Framework.
 ---
 
 # mbse-schemas
@@ -30,17 +30,18 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 2. **Reference or value.** A reference object (its schema marked `.ref(True)`) stands on its own and is reached through
    relations only. A *value object* is held by a property, a container or an entry, its schema an `OfObject` without
    adjacencies; it belongs to that owner and is copied with it. Links target reference objects only: nothing links to
-   a value object.
+   a value object ([CAP-108: relations as scalable containers](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-108.md#value-objects-and-reference-objects)).
 3. **Names starting with `$` are reserved** for the wire format (`$ref`, `$schema`, `$id`); `validate()` reports them.
 4. **Nothing is mandatory, and absent reads as `None`** (`null` in TypeScript): a property is a member, its visitor,
    whose `get()` is `None` when absent; no property holds `None` as a value, and an absent one is left out of what is
    written. A name the schema lacks reads as empty, and writing through it raises `ReadOnlyError`. Cardinality is
-   a relation's `unique` clauses, `.uniques(...)`, which name its links and properties by string. "At least one"
-   constraints are not implemented yet.
+   a relation's `unique` clauses, `.uniques(...)`, which name its links and properties by string, an upper bound only
+   ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-155.md)). "At least one" is a
+   constraint, written with mbse-patterns ([CAP-152: relation constraint terms as mandatory, possible, or forbidden entry patterns](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-152.md)).
 5. **Validation runs only when asked:** `Validators.Validate(store)(schema, value)`, or `.Reachable(...)` for a
    whole graph. It returns every problem, each with a path. Schemas have their own `.validate()`.
 6. **Scalars are exact, never coerced.** `int`, `float`, `bool`, `str` and `bytes` are distinct. In TypeScript,
-   `int` is `bigint`.
+   `int` is `bigint` ([CAP-156: the five basic scalars with boundless domains](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-156.md)).
 7. **Objects are read-only visitors.** Read a scalar with `str(obj.name)` or `obj.name.get()` (TypeScript:
    `` `${obj.name}` ``). In Python a member compares and orders as its value (`obj.name == "Ada"`); in TypeScript
    compare it once read (`obj.name.get() === "Ada"`), since `===` on the member itself is never true. Change
@@ -58,7 +59,7 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
    object is a list of what it links (`.schema([Text])`). In TypeScript the store, `new Builders.Store()`, is declared
    `any`, and callbacks given to it are annotated: `(o: any) => ...`. Serializers and validators take the store
    (`JSON.ToJSON(store)`, `Validators.Validate(store)`). Stores are isolated; objects move between them as snapshots, and
-   a schema the store was made holding only gains members.
+   a schema the store was made holding only gains members ([CAP-115: schemas defined by idempotent installs](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-115.md), [CAP-161: isolated stores, with no global registry](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-161.md)).
 9. **Every write is made within a transaction.** `with store.transaction(): ...` (TypeScript:
    `store.transaction(() => ...)`, which gives back what the function returns) makes what is written within it take
    effect when it ends, all of it, or, where it raises, none of it; a write outside one is refused. A schema that
@@ -76,10 +77,13 @@ Why the mbse repositories exist, and this one's part: [MBSE.md](https://github.c
 | Write Python: a complete example, API cheat sheet, traps | [references/python.md](references/python.md) |
 | Write TypeScript: the same example, the differences from Python, cheat sheet, traps | [references/typescript.md](references/typescript.md) |
 | Find, filter, traverse or write data with a transaction's expression: terms, patterns, specs, frames and their references | [references/queries.md](references/queries.md) |
-| Save, load or exchange data: the snapshot format and strict decoding | [references/serialization.md](references/serialization.md) |
-| Constraints (expressions and evaluators) | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
+| Save, load or exchange data: documents, snapshots and strict decoding | [references/serialization.md](references/serialization.md) |
+| Constraints over data: mandatory, possible or forbidden entries | the separate [mbse-patterns](https://github.com/pitaman71/mbse-patterns) package |
+| Expressions and value domains | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package |
 
-Deeper material: every decision and open question is in mbse-basis (https://github.com/pitaman71/mbse-basis, features FEA-025 to FEA-034), and nine tutorial case
-studies explain the reasoning. The references link to the exact notebook or section you need. Links use
+Deeper material: every decision and open question is in mbse-basis, in the
+[schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data),
+[FEA-025: serialization behavior conventions in schema](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-025.md) to
+[FEA-037: the framework built on its own protocols](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-037.md), and their capabilities, and ten tutorial case studies explain the reasoning. The references link to the exact notebook or section you need. Links use
 `https://github.com/pitaman71/mbse-schemas/blob/main/<path>`; in a checkout, `<path>` is relative to the repository
 root.

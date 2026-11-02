@@ -45,18 +45,18 @@ A document is one transaction, one upsert (object identity 51 in [CAP-128: graph
 
 - JSON is strict. YAML is read with the 1.2 core schema, so `no` is a string (no "Norway problem").
 - Nothing is coerced: `1`, `1.0` and `true` are different values, and a value of another scalar is an error.
-- Every problem in the input raises `DecodeError` (a `ValueError`) with a one-line reason and a location: a line and
+- Every problem in the input raises `DecodeError` (in Python, a `ValueError`) with a one-line reason and a location: a line and
   column for text, or a path such as `$.mutations[0].upsert.exists[0].spec[0]["0"][1].as_property.mutations[0].set.value`.
   The reasons are identical in both languages, except for YAML syntax errors.
 - A document's spec is checked against its symbols' schemas before anything is written; what only executing finds, a
   path to nothing, undoes what was written. A refused document writes nothing.
-- Decoding does not validate. Call `Validators.Validate(builders).Reachable(schema, root)` afterwards if you need to.
+- Decoding does not validate. Call `Validators.Validate(store).Reachable(schema, root)` afterwards if you need to.
 
 ## Go deeper
 
 | Topic | Read |
 |---|---|
-| Identities, references, why the schema isn't stored, injected builders | [tutorial 6, Saving and loading](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/06_Saving_And_Loading.ipynb) |
+| Identities, references, documents loaded into the store you give, strict loading | [tutorial 6, Saving and loading](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/06_Saving_And_Loading.ipynb) |
 | JSON and YAML details, the Norway problem | [tutorial 7, JSON and YAML](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/07_JSON_And_YAML.ipynb) |
 | What decoding accepts, and every decoding error | [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-159.md) |
 | Store snapshots both languages must read identically | [conformance/](https://github.com/pitaman71/mbse-schemas/blob/main/conformance/README.md) |

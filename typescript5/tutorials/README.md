@@ -5,7 +5,7 @@
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
-most of its choices (no arrays, no mandatory fields, no automatic validation, no type coercion) are unusual.
+most of its choices (no arrays of reference objects, no mandatory properties, no automatic validation, no coercion) are unusual.
 
 It's written for TypeScript programmers who build applications with structured data: records, relationships, files and
 APIs. It's a port of the [Python tutorial](../../python3/tutorials/README.md), with the same case studies and the same
@@ -30,25 +30,27 @@ top to bottom in a fresh kernel and makes its own store.
 `npm test` also runs every tutorial headless under Node, alongside the test suites, which keeps them in step with the
 code.
 
-`toolkit.ts` holds the two small helpers the case studies build (`entries` and `remove_entries`), so later notebooks
+`toolkit.ts` holds the three small helpers the case studies build (`entries`, `elements` and `remove_entries`), so later notebooks
 can import them.
 
-Expressions, which constraints will be made of, live in the separate
-[mbse-expressions](https://github.com/pitaman71/mbse-expressions) package, whose tutorial continues this one.
+Constraints over data, such as "at least one", are written with the separate
+[mbse-patterns](https://github.com/pitaman71/mbse-patterns) package ([CAP-152: relation constraint terms as mandatory, possible, or forbidden entry patterns](../../../mbse-basis/docs/capabilities/CAP-152.md)); expressions
+and value domains are the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package's, whose
+tutorial continues this one.
 
 ## The case studies
 
 | # | Notebook | The problem | What you learn |
 |---|---|---|---|
-| 1 | [A contact card](01_A_Contact_Card.ipynb) | One record that many programs must agree on | Schemas are values, built in a store; builders and Specs; one call creates, updates or clones; read-only instances; absent is not `undefined`; why the store's callbacks take `(x: any)` |
-| 2 | [An address book](02_An_Address_Book.ipynb) | Contacts share addresses, and labels belong to neither side | Relations instead of arrays; untyped links; adjacencies; entries as shared facts; set semantics; reading through visitors |
+| 1 | [A contact card](01_A_Contact_Card.ipynb) | One record that many programs must agree on | Schemas are values, built in a store; builders and Specs; one call creates, updates or clones; read-only instances; absent is not `null`; why the store's callbacks take `(x: any)` |
+| 2 | [An address book](02_An_Address_Book.ipynb) | Contacts share addresses, and labels belong to neither side | Relations instead of arrays; links without schemas; adjacencies; entries as shared facts; set semantics; reading through visitors |
 | 3 | [Moving house](03_Moving_House.ipynb) | Remove, relabel and copy relationships | Editing entries through builders; clones and relations; what an update replaces |
 | 4 | [A family tree](04_A_Family_Tree.ipynb) | People relate to people, in cycles | Self-relations; inverse views that can't disagree; `Reachable.of`; links filled by several kinds; `BigInt` for integers |
 | 5 | [A price list](05_A_Price_List.ipynb) | One price per currency; dirty partner feeds | `unique(...)` cardinality; maps as relations; validation on demand with paths |
-| 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Snapshots, identities and references; plain data as `Map`s; injected builders; `DecodeError` |
-| 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON with exact integers; the Norway problem; YAML 1.2 loading; no type coercion |
-| 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-type code | Walking schemas as data; reading any object through the visitor protocol |
-| 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New fields, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
+| 6 | [Saving and loading](06_Saving_And_Loading.ipynb) | Save shared, cyclic data without duplicates | Documents, identities and references; plain data as `Map`s; loading into the store you give; `DecodeError` |
+| 7 | [JSON and YAML](07_JSON_And_YAML.ipynb) | An API in JSON and a hand-edited YAML config | Strict JSON with exact integers; the Norway problem; YAML 1.2 loading; no coercion |
+| 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-interface code | Walking schemas as data; reading any object through the visitor protocol |
+| 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New properties, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
 | 10 | [Asking the store](10_Asking_The_Store.ipynb) | Questions about the data, and the changes that follow from the answers | Transactions as queries: frames as `Map`s; `map` over patterns and specs; a symbol given a reference; absence as a filter; `reduce` and `partition`; writing from frames; handing frames on as references |
 
 ## Differences from the Python tutorial

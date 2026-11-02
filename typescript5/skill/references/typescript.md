@@ -152,7 +152,7 @@ store.transaction(Parametrics.install);                    // parameters are Par
 Parametrics.validate(store, schema);                       // its parameters' problems; binding is mbse-expressions'
 store.Schemas.OfPattern((p: any) => p.symbols([(t: any) => t.name("p").schema([Person])])  // a pattern: symbols,
   .variables([(t: any) => t.name("since").schema([Int])]));  // variables, and constraints (requires)
-Validators.Check(store)(schema, obj).holds;                // true or false: since extents went, nothing it checks is unknown
+Validators.Check(store)(schema, obj).holds;                // true or false: nothing it checks is unknown yet
 store.registered("crm.Contact");                            // a schema by name
 store.extent("Name"); store.singleton("Global");           // a schema's objects its singletons reach; a singleton
 new Stores.PCG32(42n).split("key").next_u32();             // a random source, given to whatever draws from it
@@ -190,7 +190,7 @@ Proxies.owner_of(valueObject);                             // the object a value
 store.Schemas.OfObject(Contact, (o: any) => o.properties([...]));   // extend a schema in place, as data is updated
 store.module("crm").schemas;                               // a module's schemas by name (a Map): every named schema is in one
 store.Schemas.OfUnion((u: any) => u.name("Code").flat(true).branches([...]));   // flat: card.code is the branch's value
-new Stores.Combined(one, other);                           // stores as one, each name its store's
+new Stores.Combined(one, other);                           // deprecated since 0.16.0: stores as one, each name its store's
 
 // Everything else works for any schema.
 Reachable.of(root);                                        // root and everything reachable, in first-reference order
@@ -224,9 +224,10 @@ A counted object has no reference, an upsert's included, nor a frame or an entry
 
 ## Provenance
 
-As in Python: `Provenance.install`, then `Provenance.extend` with the schemas whose history the app wants; a service
-sets `when` and the session's `id` and `who`, a client its `locale` and `device`, and `where`; an object's records are
-read from the record's side.
+As in Python: `Provenance.install`, then `Provenance.extend` with the schemas whose history the app wants
+([CAP-134: transactions recorded with provenance](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-134.md)); give the transaction `when`, the session's `id`, `who` and `locale`, and `where`, as below (where a
+service takes the session and identity from is [CAP-177: sessions and identities from a validated token](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-177.md); an imperative scope gets placeholder data, [CAP-135: provenance records reproducible and attributable](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-135.md)); an
+object's records are read from the record's side ([CAP-178: an object's provenance read through its own named adjacencies](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-178.md)).
 
 ```typescript fragment
 store.transaction(Provenance.install);

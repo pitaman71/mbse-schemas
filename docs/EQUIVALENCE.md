@@ -150,6 +150,10 @@ Two conventions are specific to the TypeScript notebooks, not to the binding:
   `JSON`, which Deno's kernel itself uses.
 - Examples build through a store (`store.Contact((c: any) => ...)`, the store declared `any`) and annotate DSL callbacks `(x: any)`, per the table above.
 
+Both languages' steps carry the same IDs, `## NN.k · title`, in the same order. One case study differs in its cells:
+in case study 2, Python prints `toolkit.entries` from its source in a code cell, and TypeScript pastes `toolkit.ts`'s
+`entries` into a markdown cell, so its notebook has two cells fewer (22 to Python's 24) under the same step IDs.
+
 When a case study changes, change both, and rerun both notebooks to refresh their outputs.
 
 ## What the port found

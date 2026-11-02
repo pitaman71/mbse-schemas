@@ -314,7 +314,7 @@ store.References.OfFrame(lambda f: f                      # a witness, as a serv
 
 - **Entries change only through an object's named adjacency.** There is no relation-level verb. An anonymous
   adjacency is not a member, so a spec cannot write it.
-- **No expressions yet.** Until mbse-expressions is ported (step 5), the executor refuses `requires` (a pattern's or a
+- **No expressions yet.** Until mbse-expressions evaluates them ([CAP-142: expressions evaluated in queries](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-142.md#blocked)), the executor refuses `requires` (a pattern's or a
   branch's), variables (`.variables(...)`, a map of variables), a reduce that collects (`suffixes`, `computes`), and a
   partition that is both `first` and `last`. It refuses them before writing anything. Filter by spec, or in your own
   code over the frames given back.

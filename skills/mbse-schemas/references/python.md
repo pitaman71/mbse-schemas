@@ -128,7 +128,7 @@ store.transaction(Parametrics.install)                      # parameters are Par
 Parametrics.validate(store, schema)                         # its parameters' problems; binding is mbse-expressions'
 store.Schemas.OfPattern(lambda p: p.symbols([lambda t: t.name("p").schema([Person])])  # a pattern: symbols,
     .variables([lambda t: t.name("since").schema([Int])]))      # variables, and constraints (requires)
-Validators.Check(store)(schema, obj).holds                  # True or False: since extents went, nothing it checks is unknown
+Validators.Check(store)(schema, obj).holds                  # True or False: nothing it checks is unknown yet
 store.registered("crm.Contact")                             # a schema by name
 store.extent("Name"); store.singleton("Global")             # a schema's objects its singletons reach; a singleton
 Stores.PCG32(42).split("key").next_u32()                 # a random source, given to whatever draws from it
@@ -166,7 +166,7 @@ Proxies.owner_of(value_object)                              # the object a value
 store.Schemas.OfObject(Contact, lambda o: o.properties([...]))      # extend a schema in place, as data is updated
 store.module("crm").schemas                                 # a module's schemas by name: every named schema is in one
 store.Schemas.OfUnion(lambda u: u.name("Code").flat(True).branches([...]))   # flat: card.code is the branch's value
-Stores.Combined(one, other)                                 # stores as one, each name its store's
+Stores.Combined(one, other)                                 # deprecated since 0.16.0: stores as one, each name its store's
 
 # Everything else works for any schema.
 Reachable.of(root)                                          # root and everything reachable, in first-reference order
@@ -214,9 +214,10 @@ A counted object has no reference, an upsert's included, nor a frame or an entry
 `Provenance`, installed before use, records who changed what, when and from where: a record of each transaction that
 creates or writes an object (`Provenance.OfTransaction`, keyed by its `uid`), its session and the session's identity;
 and, for the reference object schemas the app chooses, `CreatedBy` and `ModifiedBy` (the latest write only) linking
-each object to its records. The record comes from the transaction's expression, so a replayed journal makes the same
-records; a service sets `when` and the session's `id` and `who` (from the token it validated, never the token), a
-client the session's `locale` and `device`, and `where`. An imperative scope gets placeholder data.
+each object to its records ([CAP-134: transactions recorded with provenance](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-134.md)). The record comes from the transaction's expression, so a replayed journal
+makes the same records: give it `when`, the session's `id`, `who`, `locale` and `device`, and `where`, as below.
+Where a service takes the session and identity from is [CAP-177: sessions and identities from a validated token](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-177.md). An imperative scope gets placeholder data: a
+random `uid`, the clock's time and the session `unknown` ([CAP-135: provenance records reproducible and attributable](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-135.md)).
 
 ```python fragment
 store.transaction(Provenance.install)                       # after the app's own install
@@ -232,7 +233,7 @@ store.transaction(lambda t: t.mutations([lambda mu: mu.map(lambda m: m.symbols([
 ```
 
 An object's adjacencies to its records are anonymous: read them from the record's side, as above (`_.t.modified([_.c])`
-for the latest write). The identity's name and the record's uid are their directory entries' keys.
+for the latest write; [CAP-178: an object's provenance read through its own named adjacencies](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-178.md)). The identity's name and the record's uid are their directory entries' keys.
 
 ## Traps
 

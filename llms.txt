@@ -2,7 +2,7 @@
 
 > Neutral, language-independent schemas for interfaces and data models: objects, relations whose entries carry properties, unions and intersections. One schema value drives in-memory objects, JSON and YAML, validation and comparison, with equivalent Python (`mbse.Schemas.Framework`) and TypeScript (`@mbse/schemas/Framework`) implementations that write byte-identical JSON. Aimed at model-based systems engineering (MBSE) and any interface several programs or languages must agree on.
 
-Every collection is a relation (there are no list-valued properties), nothing is mandatory, validation runs only when asked, and scalar types are never coerced.
+Reference objects are linked by relations, never held in lists; lists of values are containers. Nothing is mandatory, validation runs only when asked, and scalars are never coerced.
 
 ## Why
 
@@ -12,8 +12,10 @@ Every collection is a relation (there are no list-valued properties), nothing is
 
 - [Agent skill](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/SKILL.md): when to use it, the practices that prevent most mistakes, and references loaded per task
 - [Modeling guide](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/modeling.md): SysML, UML, ORM and JSON Schema concepts mapped to schema elements
+- [Schemas as data](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/schemas.md): designing, extending, versioning and refining schemas through installs
+- [Queries](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/queries.md): finding, filtering and writing data with a transaction's expression
 - [Python](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/python.md) and [TypeScript](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/typescript.md): a complete program, cheat sheet and traps
-- [Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/serialization.md): the snapshot format and strict decoding
+- [Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/serialization.md): documents, snapshots and strict decoding
 
 ## Design
 
@@ -22,8 +24,9 @@ Every collection is a relation (there are no list-valued properties), nothing is
 
 ## Optional
 
-- [Tutorial, Python](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/README.md): nine case studies explaining the reasoning
+- [Tutorial, Python](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/README.md): ten case studies explaining the reasoning
 - [Tutorial, TypeScript](https://github.com/pitaman71/mbse-schemas/blob/main/typescript5/tutorials/README.md): the same case studies
 - [EQUIVALENCE.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/EQUIVALENCE.md): how the two implementations are kept identical
 - [AGENTS.md](https://github.com/pitaman71/mbse-schemas/blob/main/AGENTS.md): for agents changing this repository
-- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions for constraints
+- [mbse-patterns](https://github.com/pitaman71/mbse-patterns): constraints over data, such as mandatory entries
+- [mbse-expressions](https://github.com/pitaman71/mbse-expressions): expressions and value domains

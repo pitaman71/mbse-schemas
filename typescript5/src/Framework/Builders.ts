@@ -1445,14 +1445,14 @@ export class ScalarBuilder extends KindBuilder {
   static override _noun = "a scalar schema";
 }
 
-type Inherited = [Set<string>, Set<string>, S.OfAdjacency.Data[]];
+/** What a copy of an object schema was given by the schema it refines, carried from the schema it was copied from
+ * until it settles, as Python copies `_inherited` with the copy's other fields (`Schemas.inherited` reads what settling
+ * recorded). */
+const CARRIED = new WeakMap<object, S.Given>();
 
-/** What a copy of an object schema inherits, carried from the schema it was copied from until it settles, as Python
- * copies `_inherited` with the copy's other fields (`Schemas.inherited` reads what settling recorded). */
-const CARRIED = new WeakMap<object, Inherited>();
-
-function inheritedOf(schema: S.OfObject.Data): Inherited {
-  return CARRIED.get(schema) ?? S.inherited(schema);
+/** The names of the members `schema` inherits, and its anonymous adjacencies inherited: as carried, for a copy. */
+function inheritedOf(schema: S.OfObject.Data): [Set<string>, Set<string>, S.OfAdjacency.Data[]] {
+  return S._inheritedOf(schema, CARRIED.get(schema) ?? S._given(schema));
 }
 
 /** A refinement of a reference object schema is one too, and has the members of what it refines. */
@@ -1486,7 +1486,7 @@ export class ObjectBuilder extends KindBuilder {
   /** Also which of its members the source inherits, so that its copy settles as it did. */
   override _update(target: any, source: any): void {
     super._update(target, source);
-    CARRIED.set(target, inheritedOf(source));
+    CARRIED.set(target, CARRIED.get(source) ?? S._given(source));
   }
 
   /** A copy settles as its source did: the members its source inherits are the refined schema's again. */
@@ -1494,11 +1494,10 @@ export class ObjectBuilder extends KindBuilder {
     const base = target.refines;
     if (base instanceof S.OfObject.Data && base.ref) target.ref = true;
     const carried = CARRIED.get(target);
-    if (carried !== undefined && base instanceof S.OfObject.Data) {
-      const [properties, adjacencies, anonymous] = carried;
-      target.properties = new Map([...target.properties].filter(([name]) => !properties.has(name)));
-      target.adjacencies = new Map([...target.adjacencies].filter(([name]) => !adjacencies.has(name)));
-      target.anonymous = target.anonymous.filter((adjacency: S.OfAdjacency.Data) => !anonymous.includes(adjacency));
+    if (carried !== undefined && base instanceof S.OfObject.Data) { // those it holds as given, not redeclared since
+      target.properties = new Map([...target.properties].filter(([name, prop]) => carried.properties.get(name) !== prop));
+      target.adjacencies = new Map([...target.adjacencies].filter(([name, adjacency]) => carried.adjacencies.get(name) !== adjacency));
+      target.anonymous = target.anonymous.filter((adjacency: S.OfAdjacency.Data) => !carried.anonymous.includes(adjacency));
     }
     CARRIED.delete(target); // settling records what it inherits
     return S.settle(target);

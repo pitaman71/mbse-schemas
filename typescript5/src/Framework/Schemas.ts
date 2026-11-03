@@ -1199,14 +1199,40 @@ export function is_a(schema: unknown, base: unknown): boolean {
 }
 
 /** Whether validation confirms that every value of `fresh` is a value of `old`: the same schema, a refinement of it,
- * or a scalar or container schema whose parts each narrow `old`'s. */
-function narrows(fresh: unknown, old: unknown): boolean {
+ * a scalar of its type, a container whose index and element each narrow `old`'s, a branch's schema (or one narrowing
+ * it) where `old` is a union, a union each of whose branches is one of `old`'s by name, narrower, or a schema that a
+ * value of `old` may be of where `old` is a value of any schema. A pair met again on the way is not confirmed. */
+function narrows(fresh: unknown, old: unknown, seen: readonly (readonly [unknown, unknown])[] = []): boolean {
   if (fresh === old || is_a(fresh, old)) return true;
+  if (seen.some(([a, b]) => a === fresh && b === old)) return false;
+  const on = [...seen, [fresh, old] as const];
   if (fresh instanceof ScalarData && old instanceof ScalarData) return fresh.type !== null && fresh.type === old.type;
   if (fresh instanceof ContainerData && old instanceof ContainerData) {
-    return narrows(fresh.index, old.index) && narrows(fresh.element, old.element);
+    return narrows(fresh.index, old.index, on) && narrows(fresh.element, old.element, on);
+  }
+  if (old instanceof UnionData) {
+    const held = old.properties;
+    if (fresh instanceof UnionData && fresh.branches.every( // a union's values are written by branch name
+      (b) => held.has(b.name) && narrows(b.schema, held.get(b.name)!.schema, on))) return true;
+    return old.branches.some((branch) => narrows(fresh, branch.schema, on)); // read by the schema it declares
+  }
+  if (old instanceof AnyValueData) {
+    if (fresh instanceof AnyValueData) { // each schema a value of it may be of, one a value of `old` may be of
+      return fresh.schemas.length > 0 ? fresh.schemas.every((schema) => anyHolds(old, schema)) : old.schemas.length === 0;
+    }
+    return anyHolds(old, fresh);
   }
   return false;
+}
+
+/** Whether a value of `anyValue` may be of `schema`, as validation and the proxies check one: a scalar of a type one of
+ * its schemas has, or one of its schemas; unrestricted, a scalar or a named schema. */
+function anyHolds(anyValue: AnyValueData, schema: unknown): boolean {
+  const restricted = anyValue.schemas;
+  if (schema instanceof ScalarData) {
+    return restricted.length === 0 || restricted.some((t) => t instanceof ScalarData && t.type === schema.type);
+  }
+  return restricted.length > 0 ? restricted.some((t) => t === schema) : isAnyData(schema) && schema.name !== null;
 }
 
 /** A refinement's problems: it refines a schema of its own kind, not itself, and narrows what it redeclares. */
@@ -1240,15 +1266,28 @@ function refinementProblems(schema: ObjectData | ContainerData): string[] {
   return problems;
 }
 
-/** What an object schema has from the one it refines rather than its own, and the schemas that refine it. */
-const INHERITED = new WeakMap<ObjectData, { properties: Set<string>; adjacencies: Set<string>; anonymous: AdjacencyData[] }>();
+/** The members an object schema was given by the one it refines when it last settled, by name. */
+export type Given = { properties: Map<string, PropertyData>; adjacencies: Map<string, AdjacencyData>; anonymous: AdjacencyData[] };
+
+/** What each object schema was given by the one it refines, and the schemas that refine it. */
+const GIVEN = new WeakMap<ObjectData, Given>();
 const REFINEMENTS = new WeakMap<ObjectData, ObjectData[]>();
 
+/** The members `schema` was given when it last settled (Python keeps them as its `_inherited`). */
+export function _given(schema: ObjectData): Given {
+  return GIVEN.get(schema) ?? { properties: new Map(), adjacencies: new Map(), anonymous: [] };
+}
+
+/** The names of the members of `schema` that are the very ones it was `given`, and the anonymous adjacencies given. */
+export function _inheritedOf(schema: ObjectData, given: Given): [Set<string>, Set<string>, AdjacencyData[]] {
+  return [new Set([...given.properties].filter(([n, p]) => schema.properties.get(n) === p).map(([n]) => n)),
+    new Set([...given.adjacencies].filter(([n, a]) => schema.adjacencies.get(n) === a).map(([n]) => n)), given.anonymous];
+}
+
 /** The properties' and adjacencies' names, and the anonymous adjacencies, an object schema has from the one it refines
- * rather than its own. */
+ * rather than its own: each the very member it was given when it last settled, not one redeclared since. */
 export function inherited(schema: ObjectData): [Set<string>, Set<string>, AdjacencyData[]] {
-  const found = INHERITED.get(schema);
-  return found === undefined ? [new Set(), new Set(), []] : [found.properties, found.adjacencies, found.anonymous];
+  return _inheritedOf(schema, _given(schema));
 }
 
 /** The object schemas that refine `schema` directly. */
@@ -1257,21 +1296,22 @@ export function _refinements(schema: ObjectData): ObjectData[] {
 }
 
 /** Gives an object schema the members of the schema it refines, which it has not redeclared, and passes the change on
- * to the schemas that refine it. */
+ * to the schemas that refine it. A member it holds is inherited where it is the very one it was given when it last
+ * settled; any other it holds under that name is redeclared, its own, whether written before `refines` or after. */
 export function settle(schema: ObjectData): ObjectData {
   const base = schema.refines;
   if (base instanceof ObjectData && !is_a(base, schema)) {
-    const [properties, adjacencies, anonymous] = inherited(schema);
-    const ownProperties = new Map([...schema.properties].filter(([n]) => !properties.has(n)));
-    const ownAdjacencies = new Map([...schema.adjacencies].filter(([n]) => !adjacencies.has(n)));
-    const ownAnonymous = schema.anonymous.filter((a) => !anonymous.includes(a));
+    const given = _given(schema);
+    const ownProperties = new Map([...schema.properties].filter(([n, p]) => given.properties.get(n) !== p));
+    const ownAdjacencies = new Map([...schema.adjacencies].filter(([n, a]) => given.adjacencies.get(n) !== a));
+    const ownAnonymous = schema.anonymous.filter((a) => !given.anonymous.includes(a));
     schema.properties = new Map([...[...base.properties].map(([n, p]) => [n, ownProperties.get(n) ?? p] as const),
       ...[...ownProperties].filter(([n]) => !base.properties.has(n))]);
     schema.adjacencies = new Map([...[...base.adjacencies].map(([n, a]) => [n, ownAdjacencies.get(n) ?? a] as const),
       ...[...ownAdjacencies].filter(([n]) => !base.adjacencies.has(n))]);
     schema.anonymous = [...base.anonymous, ...ownAnonymous];
-    INHERITED.set(schema, { properties: new Set([...base.properties.keys()].filter((n) => !ownProperties.has(n))),
-      adjacencies: new Set([...base.adjacencies.keys()].filter((n) => !ownAdjacencies.has(n))), anonymous: [...base.anonymous] });
+    GIVEN.set(schema, { properties: new Map([...base.properties].filter(([n]) => !ownProperties.has(n))),
+      adjacencies: new Map([...base.adjacencies].filter(([n]) => !ownAdjacencies.has(n))), anonymous: [...base.anonymous] });
     const refinements = REFINEMENTS.get(base) ?? [];
     if (!refinements.includes(schema)) REFINEMENTS.set(base, [...refinements, schema]);
   }

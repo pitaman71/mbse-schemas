@@ -194,6 +194,14 @@ check(Validators.Validate(store)(Customer, ada).length === 0);
 - **Extending changes the schema in place.** Objects of an extended schema gain the member, absent until written. To keep
   the old schema as it was, make a version. A schema the store was made holding (`Schemas.OfObject`, ...) only gains
   members, in any transaction.
+- **A refinement redeclares a member only narrower, in either order.** `.refines([Base])` may come before its own
+  members or after them: a member it redeclares is its own, and the rest are `Base`'s. `validate()` reports one it
+  cannot confirm narrows `Base`'s ("cannot be confirmed to narrow the refined schema's"). A property narrows to the same
+  schema or a refinement of it, a scalar of the same type, a container whose index and element each narrow, one of a
+  union's branches' schemas (or one narrowing it), a union whose branches are the union's by name, each narrower, or
+  what a value of any schema may be of (one of its schemas; unrestricted, a scalar or a named schema). An adjacency is
+  redeclared only with the same relation and link. A refinement's objects are read and written by their own schema, a
+  narrowed member by the schema it declares ([CAP-167: schemas refined by other schemas](mbse:mbse-basis/docs/capabilities/CAP-167.md)).
 - **Validate when you are done.** Building never validates, so a schema may be incomplete between steps;
   `schema.validate()` lists its problems.
 

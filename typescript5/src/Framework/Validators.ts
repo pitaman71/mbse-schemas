@@ -11,6 +11,8 @@
  * The validator reads the value through the visitor protocol (`Readers.OfObject`), through its schema. Checks:
  *
  * - the schemas involved pass `validate()`;
+ * - the root is an instance of the given schema: of it, or of a refinement of it, checked by its own schema, so that a
+ *   member it narrows is checked as narrowed;
  * - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
  * - each linked object's schema declares an adjacency to that relation via that link;
  * - nothing is owned by a counted object: a schema neither a singleton nor owned declares no adjacency that another
@@ -369,9 +371,11 @@ export interface CheckCall {
 
 /** Checks data against its schema: `Check(store)(schema, value)` gives an `Outcome`, dispatching on the schema's kind. */
 export function Check(store: Visitors.OfStore): CheckCall {
+  /** Checks the objects, each by its own schema; the first, the root, must be an instance of `schema`: of it, or of a
+   * refinement of it, since an instance of a refinement is an instance of what it refines (`Schemas.is_a`). */
   const run = (schema: Schemas.OfObject.Data, values: Readers.OfObject[]): Outcome => {
     const root = values[0] as Readers.OfObject;
-    if (root.as_schema() !== schema) {
+    if (!Schemas.is_a(root.as_schema(), schema)) {
       return new Outcome([`the value is a ${repr(root.as_schema().name)}, not an instance of the given schema`], []);
     }
     const check = new Checker(store);

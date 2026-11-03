@@ -10,6 +10,8 @@ reachable from it.
 The validator reads the value through the visitor protocol (`Readers.OfObject`), through its schema. Checks:
 
 - the schemas involved pass `validate()`;
+- the root is an instance of the given schema: of it, or of a refinement of it, checked by its own schema, so that a
+  member it narrows is checked as narrowed;
 - each property value has exactly its schema's scalar type (distinct scalars are never interchangeable);
 - each linked object's schema declares an adjacency to that relation via that link;
 - nothing is owned by a counted object: a schema neither a singleton nor owned declares no adjacency that another
@@ -357,8 +359,10 @@ class Check:
         return self._run(schema, Reachable.of(root))
 
     def _run(self, schema: Schemas.OfObject.Data, values: list[Readers.OfObject]) -> Outcome:
+        """Checks the objects, each by its own schema; the first, the root, must be an instance of `schema`: of it, or
+        of a refinement of it, since an instance of a refinement is an instance of what it refines (`Schemas.is_a`)."""
         root = values[0]
-        if root.as_schema() is not schema:
+        if not Schemas.is_a(root.as_schema(), schema):
             return Outcome([f"the value is a {root.as_schema().name!r}, not an instance of the given schema"], [])
         check = _Check(self._store)
         for i, value in enumerate(values):

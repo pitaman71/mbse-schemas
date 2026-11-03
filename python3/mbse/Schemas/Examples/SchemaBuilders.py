@@ -203,7 +203,10 @@ with store.transaction():  # every write to a store is made within a transaction
     assert any('same kind' in p for p in MixedKinds.validate())
 
     SingleBranch = store.Schemas.OfUnion(lambda u: u.branches([lambda t: t.name('phone').schema([Phone])]))
-    assert any('at least two' in p for p in SingleBranch.validate())
+    assert SingleBranch.validate() == []  # a union of one branch is a union; its value is still written with its branch
+
+    NoBranch = store.Schemas.OfUnion(lambda u: u)
+    assert any('at least one branch' in p for p in NoBranch.validate())
 
     # Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
     # declare the same property, even with different types.

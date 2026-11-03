@@ -527,12 +527,13 @@ class _MemberData:
     description: str | None = None
 
 
-def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_MemberData, ...]) -> list[str]:
-    """Problems with a union's branches (`a_kind` 'a union', `member` 'branch') or an intersection's parts."""
+def _member_problems(a_kind: str, member: str, plural: str, members: tuple[_MemberData, ...], fewest: int) -> list[str]:
+    """Problems with a union's branches (`a_kind` 'a union', `member` 'branch') or an intersection's parts: at least
+    `fewest` of them, one branch for a union and two parts for an intersection, as the user decided ([CAP-153: unions and intersections of named branches and parts](mbse:mbse-basis/docs/capabilities/CAP-153.md#decided))."""
     kind = a_kind.split(" ")[1]
     problems = _reserved(m.name for m in members)
-    if len(members) < 2:
-        problems.append(f"{a_kind} needs at least two {plural}")
+    if len(members) < fewest:
+        problems.append(f"{a_kind} needs at least " + (f"one {member}" if fewest == 1 else f"two {plural}"))
     if len({type(m.schema) for m in members}) > 1:
         problems.append(f"{kind} {plural} must all be the same kind")
     seen: set[str] = set()
@@ -598,7 +599,7 @@ class _UnionData:
     @_once
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description)
-                + _member_problems("a union", "branch", "branches", self.branches)
+                + _member_problems("a union", "branch", "branches", self.branches, 1)
                 + (_flat_union_problems(self.branches) if self.flat else []))
 
 
@@ -623,7 +624,7 @@ class _IntersectionData:
     @_once
     def validate(self) -> list[str]:
         return (_name_problems(self.name) + _description_problems(self.description)
-                + _member_problems("an intersection", "part", "parts", self.parts)
+                + _member_problems("an intersection", "part", "parts", self.parts, 2)
                 + (_flat_intersection_problems(self.parts) if self.flat else []))
 
 

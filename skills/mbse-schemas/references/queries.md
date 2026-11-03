@@ -123,10 +123,14 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - **A spec that clears and then inserts does not hold afterward**, so it writes again on every run, and the store ends
   the same ([CAP-174: a spec that clears then inserts holds when re-run](mbse:mbse-basis/docs/capabilities/CAP-174.md)).
   - Python: [TXN-14: Removing entries through a spec](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-14) · TypeScript: [TXN-14: Removing entries through a spec](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-14)
-- **Do not rely on upserting a counted object again**, nor an owned one found by a spec it no longer matches: what an
-  upsert finds when run again depends on what the store holds then. Give what must be found again an owner or a
-  singleton, and replay a journal in its order.
+- **An upsert finds an object by its identity, never by a property that may change.** Name what it must find again
+  as a singleton, or as an owned object by its owner and key (its owner's symbol, and a spec inserting the owner's
+  entry under that key, linking the object's symbol), or by its reference, and write the rest. An upsert that finds an
+  object by a property a later transaction changes finds nothing when a journal is replayed again, and makes a second
+  one. A counted object has no identity: give what a journal must find again an owner or a singleton, and replay a
+  journal in its order ([CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md)).
   - Python: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/python3/tutorials/12_Keeping_History.ipynb#T12.3) · TypeScript: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/typescript5/tutorials/12_Keeping_History.ipynb#T12.3)
+  - Python: [PRV-06: Replaying the same expression writes nothing twice](mbse:mbse-schemas/python3/tests/34_Provenance.ipynb#PRV-06) · TypeScript: [PRV-06: Replaying the same expression writes nothing twice](mbse:mbse-schemas/typescript5/tests/34_Provenance.ipynb#PRV-06)
   - Python: [TXN-06: store.transaction](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-06) · TypeScript: [TXN-06: store.transaction](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-06)
 - **No partial writes.** A transaction that raises, or that is refused when it ends (an owned object with no owner),
   writes nothing. Transactions on one store do not nest.

@@ -1,7 +1,7 @@
 <!-- nav -->
-[← 10 · Asking the store: mutations as queries (Python)](../../python3/tutorials/10_Asking_The_Store.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
+[← 12 · Keeping history: provenance, journals and snapshots (Python)](../../python3/tutorials/12_Keeping_History.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
 
-# Tutorial: the schemas framework in ten case studies (TypeScript)
+# Tutorial: the schemas framework in twelve case studies (TypeScript)
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
@@ -52,6 +52,8 @@ tutorial continues this one.
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-interface code | Walking schemas as data; reading any object through the visitor protocol |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New properties, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
 | 10 | [Asking the store](10_Asking_The_Store.ipynb) | Questions about the data, and the changes that follow from the answers | Transactions as queries: frames as `Map`s; `map` over patterns and specs; a symbol given a reference; absence as a filter; `reduce` and `partition`; writing from frames; handing frames on as references |
+| 11 | [A parts catalog](11_A_Parts_Catalog.ipynb) | Resistors and chips are parts; ratings are numbers or text; buses come in every width | Refinements, inheriting members and narrowing them; values of any schema, restricted or not; parameters; a store lacking an extension reading a snapshot |
+| 12 | [Keeping history](12_Keeping_History.ipynb) | Who changed a comment, when and from where; a second service; a restart | Provenance records, read from the record's side; journals replayed in another store; snapshots of a whole store |
 
 ## Differences from the Python tutorial
 
@@ -62,4 +64,4 @@ Where the TypeScript binding differs from Python's (`BigInt` for integers, `.equ
 ---
 
 <!-- nav -->
-[← 10 · Asking the store: mutations as queries (Python)](../../python3/tutorials/10_Asking_The_Store.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
+[← 12 · Keeping history: provenance, journals and snapshots (Python)](../../python3/tutorials/12_Keeping_History.ipynb) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)

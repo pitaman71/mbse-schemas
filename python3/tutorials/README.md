@@ -1,7 +1,7 @@
 <!-- nav -->
 [← Why the mbse repositories exist](../../MBSE.md) · [Home](../../README.md) · [1 · A contact card →](01_A_Contact_Card.ipynb)
 
-# Tutorial: the schemas framework in ten case studies
+# Tutorial: the schemas framework in twelve case studies
 
 This tutorial teaches the framework by solving real problems, one per notebook. Each case study builds on the ones
 before it. Each spends as much time on *why* the framework does something differently as on *how* to use it, because
@@ -46,6 +46,8 @@ tutorial continues this one.
 | 8 | [Tools for every schema](08_Tools_For_Every_Schema.ipynb) | Audit logs and docs without per-class code | Walking schemas as data; reading any object through the visitor protocol |
 | 9 | [When requirements change](09_When_Requirements_Change.ipynb) | New properties, v2 schemas, unique IDs, variants | Evolving schemas; versioned names; directories; unions and intersections; what isn't built yet |
 | 10 | [Asking the store](10_Asking_The_Store.ipynb) | Questions about the data, and the changes that follow from the answers | Transactions as queries: frames; `map` over patterns and specs; a symbol given a reference; absence as a filter; `reduce` and `partition`; writing from frames; handing frames on as references |
+| 11 | [A parts catalog](11_A_Parts_Catalog.ipynb) | Resistors and chips are parts; ratings are numbers or text; buses come in every width | Refinements, inheriting members and narrowing them; values of any schema, restricted or not; parameters; a store lacking an extension reading a snapshot |
+| 12 | [Keeping history](12_Keeping_History.ipynb) | Who changed a comment, when and from where; a second service; a restart | Provenance records, read from the record's side; journals replayed in another store; snapshots of a whole store |
 
 ## The ideas at a glance
 
@@ -61,6 +63,8 @@ tutorial continues this one.
 | Lenient parsing | Exact scalars, strict JSON, YAML 1.2 | [CAP-158: values written as plain data, JSON and YAML](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-158.md) | 6, 7 |
 | Reflection over classes | Visitors: every object reads through one protocol, whatever its schema | [CAP-107: one visitor protocol reads and writes data](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-107.md) | 2, 8 |
 | Loops over objects, then writes | A transaction: a pattern's frames, filtered by a spec, then written from | [FEA-027: mutations as queries](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-027.md) | 10 |
+| Subclasses that copy and override | A refinement: the members of the schema it refines, narrowed only where validation confirms it | [CAP-167: schemas refined by other schemas](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-167.md) | 11 |
+| An audit table maintained by hand | Provenance recorded from each transaction's expression, replayed with its journal | [CAP-134: transactions recorded with provenance](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-134.md) | 12 |
 
 ---
 

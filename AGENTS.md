@@ -9,9 +9,9 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 | You want to | Read |
 |---|---|
-| Learn it by example, from a contact card to asking the store | [python3/tutorials/README.md](python3/tutorials/README.md), ten case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
+| Learn it by example, from a contact card to keeping a store's history | [python3/tutorials/README.md](python3/tutorials/README.md), twelve case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
 | Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
-| Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
+| Use the library, or model something with it | The skill, written once: [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), packaged in each language as [python3/mbse/Schemas/Framework/skill/SKILL.md](python3/mbse/Schemas/Framework/skill/SKILL.md) and [typescript5/skill/SKILL.md](typescript5/skill/SKILL.md). Each practice links its case in each language's tutorials or tests; it loads its references only as needed |
 | Understand a design decision or an open question | mbse-basis: [the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data), each capability's detail file |
 | Build schemas with the schema builders (`Framework.Builders`: the meta-schemas, their builders and the store), or migrate a call site to them | [CAP-109: schemas as linked objects in modules](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-109.md#the-meta-schemas-and-their-builders-as-built) |
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
@@ -49,8 +49,19 @@ cd typescript5 && nvm use && npm install    # TypeScript: Node 22, 24 and 26 are
 npm run coverage                            # type-checks, runs every notebook, gates at 100%
 npm run conformance
 npm run portability                         # the core without Node (browser bundle + Deno)
-skills/sync.sh                                  # after editing skills/mbse-schemas/: the packaged copies (SKL-01)
+skills/sync.sh                              # after editing skills/mbse-schemas/: the packaged copies (SKL-01)
 ```
+
+The skill is written once, in `skills/mbse-schemas/`, mostly language-independent (mbse-basis
+[PRI-016: guidance written once](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-016)): each practice says why, when and how, links the items for what, and links each how
+to its case in both languages, as `mbse:` links with a `#Tnn.k` anchor (a tutorial step) or a test's case ID. It holds
+no programs and no per-language cheat sheets. `skills/sync.sh` copies it byte for byte into
+`python3/mbse/Schemas/Framework/skill/` and `typescript5/skill/`; SKL-01 checks the copies in both suites, and SKL-03
+that every case it links has its `<a id>` in both languages, but for the cases
+[docs/EQUIVALENCE.md](docs/EQUIVALENCE.md#cases-in-one-language-only) lists as one language's only (the dataclasses
+adapter's, DC). Each tutorial step's markdown cell starts with `<a id="Tnn.k"></a>`, and each test case's with
+`<a id="ID"></a>`, the same in both languages. A how the skill teaches with no case is a bug, since it is untested
+([the basis](https://github.com/pitaman71/mbse-basis/blob/main/docs/README.md#the-doc-spec)): write the case, in both languages, before linking it.
 
 ## Related repositories
 

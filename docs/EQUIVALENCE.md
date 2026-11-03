@@ -1,5 +1,5 @@
 <!-- nav -->
-[← 10 · Asking the store: mutations as queries (TypeScript)](../typescript5/tutorials/10_Asking_The_Store.ipynb) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← 12 · Keeping history: provenance, journals and snapshots (TypeScript)](../typescript5/tutorials/12_Keeping_History.ipynb) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
 
 # Equivalence of the implementations
 
@@ -132,13 +132,13 @@ noticed.
 | Message text helpers | none: `repr()` and `type(v).__name__` are built in | `Repr` (`repr`, `typeName`, `tokenName`, ...) exported, for packages that must word messages as Python does | JavaScript has no `repr` | TXT-01..04 |
 | Typing of the proxy DSL | untyped, like all Python | proxy builders, instances and their members are typed loosely (`any` by name), so callbacks given to them are annotated `(x: any)`; the old schema builders (`Schemas.OfX.Builder`) are fully typed, while `Builders`' are typed as proxy builders are (below) | the names come from schemas at runtime; per-schema types are the job of generated code | all proxy cases |
 | Test runner | pytest + nbmake | `tests/run-notebooks.ts` | no maintained TypeScript kernel is required to run headless | all |
-| Adapters | `Adapters.Dataclasses`, between dataclasses and object schemas | none yet | an adapter translates its language's own type declarations, so each language has its own adapters and its own suite for them | DC-01..07 |
+| Adapters | `Adapters.Dataclasses`, between dataclasses and object schemas | none yet | an adapter translates its language's own type declarations, so each language has its own adapters and its own suite for them | DC-01..09 |
 
 The framework design's "Language bindings" summarized the same mapping; this document is now its one home.
 
 ## Tutorials
 
-`python3/tutorials/` and `typescript5/tutorials/` are the same ten case studies: the same problems, the same
+`python3/tutorials/` and `typescript5/tutorials/` are the same twelve case studies: the same problems, the same
 reasoning, in the same order, with the same outputs wherever the bindings agree (every error and validation message
 does). They differ only where the table above does, and the TypeScript notebooks point each difference out. Both are
 run as tests (`uv run pytest`, `npm test`), and both are committed with outputs: Python's from its kernel, TypeScript's
@@ -150,11 +150,24 @@ Two conventions are specific to the TypeScript notebooks, not to the binding:
   `JSON`, which Deno's kernel itself uses.
 - Examples build through a store (`store.Contact((c: any) => ...)`, the store declared `any`) and annotate DSL callbacks `(x: any)`, per the table above.
 
-Both languages' steps carry the same IDs, `## NN.k · title`, in the same order. One case study differs in its cells:
-in case study 2, Python prints `toolkit.entries` from its source in a code cell, and TypeScript pastes `toolkit.ts`'s
-`entries` into a markdown cell, so its notebook has two cells fewer (22 to Python's 24) under the same step IDs.
+Both languages' steps carry the same IDs, `## NN.k · title`, in the same order, and each step's markdown cell starts
+with the same anchor, `<a id="Tnn.k"></a>`, which the skill links. Two case studies differ in their cells: in case
+study 2, Python prints `toolkit.entries` from its source in a code cell, and TypeScript pastes `toolkit.ts`'s
+`entries` into a markdown cell, so its notebook has one cell fewer (28 to Python's 29); in case study 4, TypeScript
+notes that a year is a `BigInt` in a cell of its own before step 04.2, so its notebook has one cell more (24 to
+Python's 23). The step IDs are the same.
 
 When a case study changes, change both, and rerun both notebooks to refresh their outputs.
+
+## Cases in one language only
+
+Every case, a tutorial step's or a test's, has a twin in the other language with the same ID and anchor, except these,
+which test what only one language has. The skill may link them in that language alone; SKL-03 accepts each listed here
+as having no twin, and no other.
+
+| Cases | Language | Why |
+|---|---|---|
+| `DC-01`, `DC-02`, `DC-03`, `DC-04`, `DC-05`, `DC-06`, `DC-07`, `DC-08`, `DC-09` | Python | the dataclasses adapter (`Adapters.Dataclasses`, the Adapters row above) is Python's own |
 
 ## What the port found
 
@@ -206,4 +219,4 @@ When changing behavior:
 ---
 
 <!-- nav -->
-[← 10 · Asking the store: mutations as queries (TypeScript)](../typescript5/tutorials/10_Asking_The_Store.ipynb) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)
+[← 12 · Keeping history: provenance, journals and snapshots (TypeScript)](../typescript5/tutorials/12_Keeping_History.ipynb) · [Home](../README.md) · [Conformance corpus →](../conformance/README.md)

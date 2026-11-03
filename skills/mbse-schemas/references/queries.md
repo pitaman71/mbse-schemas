@@ -123,7 +123,8 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - **A spec that clears and then inserts does not hold afterward**, so it writes again on every run, and the store ends
   the same ([CAP-174: a spec that clears then inserts holds when re-run](mbse:mbse-basis/docs/capabilities/CAP-174.md)).
   - Python: [TXN-14: Removing entries through a spec](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-14) · TypeScript: [TXN-14: Removing entries through a spec](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-14)
-- **An upsert finds an object by its identity, never by a property that may change.** Name what it must find again
+- **An upsert finds an object by its identity, never by a property that may change.** Its identity is its path ([CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md),
+  [CAP-119: owned objects found by path](mbse:mbse-basis/docs/capabilities/CAP-119.md)). Name what it must find again
   as a singleton, or as an owned object by its owner and key (its owner's symbol, and a spec inserting the owner's
   entry under that key, linking the object's symbol), or by its reference, and write the rest. An upsert that finds an
   object by a property a later transaction changes finds nothing when a journal is replayed again, and makes a second

@@ -74,7 +74,7 @@ element links the cases that build it, in each language.
   - Python: [T11.2: Narrowing a member: a chip mounts on the surface](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.2) · TypeScript: [T11.2: Narrowing a member: a chip mounts on the surface](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.2)
 - **A value of whichever type a source gives** (a datasheet's number or text, `anyOf`). A value of any schema,
   restricted to a few schemas, or to none.
-  - Python: [T11.3: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.3) · TypeScript: [T11.3: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.3)
+  - Python: [T11.4: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.4) · TypeScript: [T11.4: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.4)
 - **Singleton, global registry, directory.** A reference object schema marked `.singleton(...)`, usually with a
   directory relation keyed by a unique ID.
   - Python: [T09.3: Unique customer IDs: a directory](mbse:mbse-schemas/python3/tutorials/09_When_Requirements_Change.ipynb#T09.3) · TypeScript: [T09.3: Unique customer IDs: a directory](mbse:mbse-schemas/typescript5/tutorials/09_When_Requirements_Change.ipynb#T09.3)
@@ -87,7 +87,7 @@ element links the cases that build it, in each language.
   `parameter`s). `Parametrics`, installed before use: a set of named parameters on the schema, each for a value of a
   schema or an object of an object schema. Binding them, and terms over them (a bit width, an array's size), are
   mbse-expressions'.
-  - Python: [T11.4: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.4) · TypeScript: [T11.4: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.4)
+  - Python: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.5) · TypeScript: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.5)
   - Python: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-02) · TypeScript: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-02)
 - **Documentation, comment, `description`.** `.description(...)` on the element's builder: a schema, a property, an
   adjacency, a branch or a part. A description is text that no check of data reads.
@@ -132,7 +132,7 @@ Each choice in brief; the item linked holds the design and its reasons.
   ([CAP-167: schemas refined by other schemas](mbse:mbse-basis/docs/capabilities/CAP-167.md),
   [CAP-157: values of any schema, restricted or not](mbse:mbse-basis/docs/capabilities/CAP-157.md)).
   - Python: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.1) · TypeScript: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.1)
-  - Python: [T11.3: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.3) · TypeScript: [T11.3: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.3)
+  - Python: [T11.4: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.4) · TypeScript: [T11.4: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.4)
 - **Define them in an install.** Objects and relations that name each other go in one install, in any order; a
   pattern whose spec names schemas goes in an install run after the one that defines them
   ([CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md)).

@@ -48,22 +48,23 @@ schemas from anything a program holds; the builders make a new version beside a 
 5. **Refine.** *Why*: a specialization that copies its general schema's members drifts from it. *When*: every object
    of the new schema is one of an existing schema's, with its members. *How*: `.refines([Base])` in the refinement's
    spec, before its own members or after them: it has `Base`'s members and its own, and a member added to `Base`
-   later. Its objects fill `Base`'s links and are in its extent; validate one by its own schema. A redeclared member
-   must narrow `Base`'s: a property to the same schema or a refinement of it, a container whose index and element each
-   narrow, one of a union's branches' schemas (or one narrowing it), a union whose branches are the union's by name,
-   each narrower, or one of the schemas a value of any schema may hold. An adjacency is redeclared only with the same
-   relation and link. `validate()` reports what it can't confirm. A refinement stays within its kind, object or
-   container; scalars do not refine.
+   later. Its objects fill `Base`'s links and are in its extent, and validate against `Base` as against their own
+   schema: either way each is checked by its own. A redeclared member must narrow `Base`'s: a property to the same
+   schema or a refinement of it, a container whose index and element each narrow, one of a union's branches' schemas
+   (or one narrowing it), a union whose branches are the union's by name, each narrower, or one of the schemas a value
+   of any schema may hold. An adjacency is redeclared only with the same relation and link. `validate()` reports what
+   it can't confirm. A refinement stays within its kind, object or container; scalars do not refine.
    [CAP-167: schemas refined by other schemas](mbse:mbse-basis/docs/capabilities/CAP-167.md).
    - Python: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.1) · TypeScript: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.1)
    - Python: [T11.2: Narrowing a member: a chip mounts on the surface](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.2) · TypeScript: [T11.2: Narrowing a member: a chip mounts on the surface](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.2)
+   - Python: [T11.3: Validating a refinement's object against what it refines](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.3) · TypeScript: [T11.3: Validating a refinement's object against what it refines](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.3)
    - Python: [SCH-24: Refinement: a schema refines one of its own kind](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-24) · TypeScript: [SCH-24: Refinement: a schema refines one of its own kind](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-24)
    - Python: [SCH-25: Narrowing to a union's branch](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-25) · TypeScript: [SCH-25: Narrowing to a union's branch](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-25)
    - Python: [SCH-26: A refinement is the same whether refines comes before its own members or after them](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-26) · TypeScript: [SCH-26: A refinement is the same whether refines comes before its own members or after them](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-26)
 6. **Generate.** *Why*: schemas often exist already in another form, a table, a spreadsheet, a program's classes.
    *How*: an install is a function of its transaction, so build its spec from that description; run again, it writes
    nothing, and given more, it adds. Python's dataclasses adapter writes such an install from a program's dataclasses.
-   - Python: [T11.6: Generated schemas: an install made from a table](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.6) · TypeScript: [T11.6: Generated schemas: an install made from a table](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.6)
+   - Python: [T11.7: Generated schemas: an install made from a table](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.7) · TypeScript: [T11.7: Generated schemas: an install made from a table](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.7)
    - Python: [DC-09: A program's dataclasses as its schemas, end to end](mbse:mbse-schemas/python3/tests/16_Dataclasses.ipynb#DC-09)
 7. **Read a schema as data.** *Why*: tools, generators and documentation read schemas as they read any data. *How*:
    a schema's members are its plain schema's (`properties`, `adjacencies`, `links`, `uniques`), and a schema builder
@@ -77,7 +78,7 @@ schemas from anything a program holds; the builders make a new version beside a 
    form, and wrapped by its kind and schema where several would; an unrestricted one is tagged by its scalar's or its
    schema's name. A value of no listed schema is refused when written, a bool where only an int is listed included.
    [CAP-157: values of any schema, restricted or not](mbse:mbse-basis/docs/capabilities/CAP-157.md).
-   - Python: [T11.3: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.3) · TypeScript: [T11.3: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.3)
+   - Python: [T11.4: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.4) · TypeScript: [T11.4: Values of any schema: a rating, whatever the datasheet gives](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.4)
    - Python: [ANY-06: A restricted value never guessed](mbse:mbse-schemas/python3/tests/24_Any.ipynb#ANY-06) · TypeScript: [ANY-06: A restricted value never guessed](mbse:mbse-schemas/typescript5/tests/24_Any.ipynb#ANY-06)
    - Python: [ANY-07: A restricted value refused when written where its scalar's host type is not exactly one of its scalar schemas'](mbse:mbse-schemas/python3/tests/24_Any.ipynb#ANY-07) · TypeScript: [ANY-07: A restricted value refused when written where its scalar's host type is not exactly one of its scalar schemas'](mbse:mbse-schemas/typescript5/tests/24_Any.ipynb#ANY-07)
 9. **Parameters.** *Why*: a schema that varies by a value (a bus's width, a matrix's size) is one schema with
@@ -87,7 +88,7 @@ schemas from anything a program holds; the builders make a new version beside a 
    them is mbse-expressions'.
    [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md),
    [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md).
-   - Python: [T11.4: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.4) · TypeScript: [T11.4: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.4)
+   - Python: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.5) · TypeScript: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.5)
    - Python: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-02) · TypeScript: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-02)
    - Python: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-03) · TypeScript: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-03)
 

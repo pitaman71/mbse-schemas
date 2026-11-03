@@ -59,7 +59,7 @@ reading one executes it, in the store given.
    [CAP-127: snapshots made of transactions](mbse:mbse-basis/docs/capabilities/CAP-127.md),
    [CAP-165: snapshots read by a store lacking their extensions](mbse:mbse-basis/docs/capabilities/CAP-165.md).
    - Python: [T12.4: A snapshot, and a restart](mbse:mbse-schemas/python3/tutorials/12_Keeping_History.ipynb#T12.4) · TypeScript: [T12.4: A snapshot, and a restart](mbse:mbse-schemas/typescript5/tutorials/12_Keeping_History.ipynb#T12.4)
-   - Python: [T11.5: A store without the extension reads what it can](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.5) · TypeScript: [T11.5: A store without the extension reads what it can](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.5)
+   - Python: [T11.6: A store without the extension reads what it can](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.6) · TypeScript: [T11.6: A store without the extension reads what it can](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.6)
    - Python: [SNP-03: A snapshot: two transactions, its schemas, each found by its name, then its data, the singletons first](mbse:mbse-schemas/python3/tests/27_Snapshots.ipynb#SNP-03) · TypeScript: [SNP-03: A snapshot: two transactions, its schemas, each found by its name, then its data, the singletons first](mbse:mbse-schemas/typescript5/tests/27_Snapshots.ipynb#SNP-03)
    - Python: [SNP-04: A snapshot read back into another store, and written again the same](mbse:mbse-schemas/python3/tests/27_Snapshots.ipynb#SNP-04) · TypeScript: [SNP-04: A snapshot read back into another store, and written again the same](mbse:mbse-schemas/typescript5/tests/27_Snapshots.ipynb#SNP-04)
 

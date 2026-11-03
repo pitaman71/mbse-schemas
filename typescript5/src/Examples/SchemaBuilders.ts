@@ -197,7 +197,10 @@ store.transaction(() => { // every write to a store is made within a transaction
   assert(MixedKinds.validate().some((p: string) => p.includes("same kind")));
 
   const SingleBranch = store.Schemas.OfUnion((u: any) => u.branches([(t: any) => t.name("phone").schema([Phone])]));
-  assert(SingleBranch.validate().some((p: string) => p.includes("at least two")));
+  assert(SingleBranch.validate().length === 0); // a union of one branch is a union; its value is still written with its branch
+
+  const NoBranch = store.Schemas.OfUnion((u: any) => u);
+  assert(NoBranch.validate().some((p: string) => p.includes("at least one branch")));
 
   // Intersections combine same-kind schemas as named parts. Each part keeps its own properties, so two parts may
   // declare the same property, even with different types.

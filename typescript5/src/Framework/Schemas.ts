@@ -643,11 +643,12 @@ class MemberData {
   }
 }
 
-/** Problems with a union's branches (`aKind` 'a union', `member` 'branch') or an intersection's parts. */
-function memberProblems(aKind: string, member: string, plural: string, members: readonly MemberData[]): string[] {
+/** Problems with a union's branches (`aKind` 'a union', `member` 'branch') or an intersection's parts: at least
+ * `fewest` of them, one branch for a union and two parts for an intersection, as the user decided ([CAP-153: unions and intersections of named branches and parts](mbse:mbse-basis/docs/capabilities/CAP-153.md#decided)). */
+function memberProblems(aKind: string, member: string, plural: string, members: readonly MemberData[], fewest: number): string[] {
   const kind = aKind.split(" ")[1];
   const problems = reserved(members.map((m) => m.name));
-  if (members.length < 2) problems.push(`${aKind} needs at least two ${plural}`);
+  if (members.length < fewest) problems.push(`${aKind} needs at least ` + (fewest === 1 ? `one ${member}` : `two ${plural}`));
   if (new Set(members.map((m) => kindOf(m.schema))).size > 1) problems.push(`${kind} ${plural} must all be the same kind`);
   const seen = new Set<string>();
   members.forEach((m, i) => {
@@ -730,7 +731,7 @@ class UnionData {
 
   private problems(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...memberProblems("a union", "branch", "branches", this.branches), ...(this.flat ? flatUnionProblems(this.branches) : [])];
+      ...memberProblems("a union", "branch", "branches", this.branches, 1), ...(this.flat ? flatUnionProblems(this.branches) : [])];
   }
 }
 
@@ -773,7 +774,7 @@ class IntersectionData {
 
   private problems(): string[] {
     return [...nameProblems(this.name), ...descriptionProblems(this.description),
-      ...memberProblems("an intersection", "part", "parts", this.parts), ...(this.flat ? flatIntersectionProblems(this.parts) : [])];
+      ...memberProblems("an intersection", "part", "parts", this.parts, 2), ...(this.flat ? flatIntersectionProblems(this.parts) : [])];
   }
 }
 

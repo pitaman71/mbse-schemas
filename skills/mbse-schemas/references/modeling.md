@@ -21,7 +21,7 @@ How to express an interface or data model with the schema elements. The same mod
 | Sparse array or tensor | `.layout("sparse")` on the container: blocks of consecutive elements, each where it starts |
 | Fixed-size array | a container by an int index; its bounds are a shape constraint on the index's schema ([CAP-108: relations as scalable containers](mbse:mbse-basis/docs/capabilities/CAP-108.md#open-questions)) |
 | Ordered list of shared objects | relation with an index property: links `owner` and `item`, a property `index`, `.uniques(["owner", "index"])` |
-| Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches; a value holds exactly one |
+| Tagged union, variant, `oneOf`, `xsd:choice` | `OfUnion`: named, same-kind branches, one or more; a value holds exactly one |
 | Mixin, aspect, `allOf` | `OfIntersection`: named, same-kind parts; a value holds every one. Supported for property values. Objects with identity composed from aspects: [CAP-034: schemas specialized by classifier intersection and union](mbse:mbse-basis/docs/capabilities/CAP-034.md) |
 | Singleton, global registry | `.ref(True).singleton("Name")` on the object schema, usually with a directory relation |
 | Port and connector | ports as reference objects, owned by their component through a relation; connectors as a relation between ports, carrying the connection's properties. Ports nothing connects may be value objects in a list of their component |
@@ -51,7 +51,9 @@ links and properties outside `S` a key. Pick from the patterns in
 [CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md):
 ownership, keyed ownership, directory, and global ID directory.
 
-**Union or intersection?** A union value holds exactly one named branch, an intersection value every named part
+**Union or intersection?** A union has one named branch or more, and its value holds exactly one of them, written
+under the branch's name even where the union has only one; an intersection has two named parts or more, and its value
+holds every one
 ([CAP-153: unions and intersections of named branches and parts](mbse:mbse-basis/docs/capabilities/CAP-153.md)).
 
 **Define them in an install.** Objects and relations that name each other go in one install, in any order; a pattern

@@ -5,7 +5,7 @@
 
 Python implementation of the schemas framework. The design is in mbse-basis, [the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data);
 the [test plan](tests/TestPlan.md) lists every test. New to the framework? Start with [the tutorial](tutorials/README.md):
-ten case studies, from a contact card to asking the store.
+twelve case studies, from a contact card to keeping a store's history.
 
 ```sh
 uv sync --all-extras

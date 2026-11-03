@@ -10,12 +10,11 @@ Reference objects are linked by relations, never held in lists; lists of values 
 
 ## Using it
 
-- [Agent skill](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/SKILL.md): when to use it, the practices that prevent most mistakes, and references loaded per task
+- [Agent skill](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/SKILL.md): when to use it, the practices that prevent most mistakes (why, when and how, each how linked to its case in the Python and TypeScript notebooks), and references loaded per task
 - [Modeling guide](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/modeling.md): SysML, UML, ORM and JSON Schema concepts mapped to schema elements
-- [Schemas as data](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/schemas.md): designing, extending, versioning and refining schemas through installs
+- [Schemas as data](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/schemas.md): designing, extending, versioning, refining and generating schemas through installs; values of any schema; parameters
 - [Queries](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/queries.md): finding, filtering and writing data with a transaction's expression
-- [Python](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/python.md) and [TypeScript](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/typescript.md): a complete program, cheat sheet and traps
-- [Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/serialization.md): documents, snapshots and strict decoding
+- [Serialization](https://github.com/pitaman71/mbse-schemas/blob/main/skills/mbse-schemas/references/serialization.md): documents, journals, snapshots and strict decoding
 
 ## Design
 
@@ -24,7 +23,7 @@ Reference objects are linked by relations, never held in lists; lists of values 
 
 ## Optional
 
-- [Tutorial, Python](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/README.md): ten case studies explaining the reasoning
+- [Tutorial, Python](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/README.md): twelve case studies explaining the reasoning, each a notebook committed with its outputs
 - [Tutorial, TypeScript](https://github.com/pitaman71/mbse-schemas/blob/main/typescript5/tutorials/README.md): the same case studies
 - [EQUIVALENCE.md](https://github.com/pitaman71/mbse-schemas/blob/main/docs/EQUIVALENCE.md): how the two implementations are kept identical
 - [AGENTS.md](https://github.com/pitaman71/mbse-schemas/blob/main/AGENTS.md): for agents changing this repository

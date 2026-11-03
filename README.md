@@ -135,13 +135,13 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 
 | Read | For |
 |---|---|
-| [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Ten case studies, from a contact card to evolving schemas and querying the store, in Python and in TypeScript. Start here. |
+| [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Twelve case studies, from a contact card to evolving schemas, querying the store and keeping its history, in Python and in TypeScript. Start here. |
 | [Schema-driven data](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data) | The design, in mbse-basis: every element and decision, plus the open questions |
 | [CAP-111: equality and ordering defined by the schema](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-111.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
 | [Equivalence](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [Python test plan](python3/tests/TestPlan.md), [TypeScript test plan](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
 | [Conformance corpus](conformance/README.md) | The shared corpus both implementations must read and write identically |
-| [Guide for AI agents](AGENTS.md), [Agent skill](skills/mbse-schemas/SKILL.md), [Summary for LLMs](llms.txt) | Guidance for AI agents, layered so each loads only what its task needs. The skill also ships inside both packages |
+| [Guide for AI agents](AGENTS.md), [Agent skill](skills/mbse-schemas/SKILL.md), [Summary for LLMs](llms.txt) | Guidance for AI agents, layered so each loads only what its task needs. The skill, written once and mostly language-independent, links each how to its case in both languages' notebooks, and also ships inside both packages |
 
 ## Repository layout
 
@@ -152,7 +152,8 @@ python3/            Python implementation: mbse/Schemas/Framework, Adapters (Pyt
                     notebooks), tutorials
 typescript5/        TypeScript implementation: src/Framework, examples, tests and tutorials (notebooks; Deno kernel)
 conformance/        snapshots each implementation writes; each must read the other's
-skills/             the agent skill (SKILL.md plus per-task references); skills/sync.sh copies it into both packages
+skills/             the agent skill (SKILL.md plus per-task references, linking the notebooks' cases); skills/sync.sh
+                    copies it into both packages
 ```
 
 Tests are Jupyter notebooks, the same cases in both implementations, each at 100% code coverage

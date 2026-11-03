@@ -136,8 +136,8 @@ npx tsx src/Examples/AddressBook.ts                  # an example
 | Read | For |
 |---|---|
 | [Python tutorial](python3/tutorials/README.md), [TypeScript tutorial](typescript5/tutorials/README.md) | Ten case studies, from a contact card to evolving schemas and querying the store, in Python and in TypeScript. Start here. |
-| [Schema-driven data](../mbse-basis/docs/features/README.md#schema-driven-data) | The design, in mbse-basis: every element and decision, plus the open questions |
-| [CAP-111: equality and ordering defined by the schema](../mbse-basis/docs/capabilities/CAP-111.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
+| [Schema-driven data](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data) | The design, in mbse-basis: every element and decision, plus the open questions |
+| [CAP-111: equality and ordering defined by the schema](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-111.md) | How values compare under a schema: equality, hashing, ordering, and the `Comparison` module |
 | [Equivalence](docs/EQUIVALENCE.md) | What "equivalent implementations" means, how it's checked, and where the languages deliberately differ |
 | [Python test plan](python3/tests/TestPlan.md), [TypeScript test plan](typescript5/tests/TestPlan.md) | The test suites, the findings they produced, and what isn't testable yet |
 | [Conformance corpus](conformance/README.md) | The shared corpus both implementations must read and write identically |
@@ -156,7 +156,7 @@ skills/             the agent skill (SKILL.md plus per-task references); skills/
 ```
 
 Tests are Jupyter notebooks, the same cases in both implementations, each at 100% code coverage
-([PRI-035: tests are notebooks: one suite each, the same case IDs in the same order in both languages](../mbse-basis/docs/PRINCIPLES.md#PRI-035), [PRI-039: 100% coverage of both](../mbse-basis/docs/PRINCIPLES.md#PRI-039)); the commands are in `docs/EQUIVALENCE.md`.
+([PRI-035: tests are notebooks: one suite each, the same case IDs in the same order in both languages](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-035), [PRI-039: 100% coverage of both](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-039)); the commands are in `docs/EQUIVALENCE.md`.
 
 ## Status
 
@@ -178,7 +178,7 @@ least one phone", and queries over a store are [mbse-patterns](https://github.co
 depends on both. Generated bindings (typed code per schema) will be separate repositories too, one per target language
 (e.g. mbse-cpp, mbse-python, mbse-typescript, mbse-systemverilog), each depending on this one.
 
-Designed but not built yet: see the unmet capabilities among [the schema-driven data features](../mbse-basis/docs/features/README.md#schema-driven-data).
+Designed but not built yet: see the unmet capabilities among [the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data).
 
 ---
 

@@ -5,7 +5,7 @@
 
 Scope: everything under `typescript5/src/Framework` (Errors, Repr, Visitors, Schemas, Proxies, Reachable, Plain, JSON,
 YAML, Validators, Comparison), the examples under `typescript5/src/Examples`, and cross-implementation conformance
-with `python3`. The design reference is [the schema-driven data features](../../../mbse-basis/docs/features/README.md#schema-driven-data). This plan mirrors `python3/tests/TestPlan.md` case
+with `python3`. The design reference is [the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data). This plan mirrors `python3/tests/TestPlan.md` case
 for case: the same suites, the same case IDs in the same order, the same assertions, except for the language
 differences listed below.
 

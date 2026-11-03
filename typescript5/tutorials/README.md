@@ -10,7 +10,7 @@ most of its choices (no arrays of reference objects, no mandatory properties, no
 It's written for TypeScript programmers who build applications with structured data: records, relationships, files and
 APIs. It's a port of the [Python tutorial](../../python3/tutorials/README.md), with the same case studies and the same
 reasoning. The code follows TypeScript idioms where the bindings differ, and the notebooks point those differences
-out. You don't need to have read the design ([the schema-driven data features](../../../mbse-basis/docs/features/README.md#schema-driven-data)), but it's
+out. You don't need to have read the design ([the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data)), but it's
 the reference for everything here.
 
 ## Running the notebooks
@@ -34,7 +34,7 @@ code.
 can import them.
 
 Constraints over data, such as "at least one", are written with the separate
-[mbse-patterns](https://github.com/pitaman71/mbse-patterns) package ([CAP-152: relation constraint terms as mandatory, possible, or forbidden entry patterns](../../../mbse-basis/docs/capabilities/CAP-152.md)); expressions
+[mbse-patterns](https://github.com/pitaman71/mbse-patterns) package ([CAP-152: relation constraint terms as mandatory, possible, or forbidden entry patterns](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-152.md)); expressions
 and value domains are the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package's, whose
 tutorial continues this one.
 

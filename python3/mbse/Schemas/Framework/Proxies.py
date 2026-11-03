@@ -66,14 +66,14 @@ def _store_for(holder: Any) -> Any:
 
 def _values_of(holder: Any) -> dict[str, Any]:
     """A data object's or a value object's property values, read through its store (object identity
-    100 in [CAP-149: data accessed through the store protocol](../../../../../mbse-basis/docs/capabilities/CAP-149.md#decided)); a value object's not yet placed, its own."""
+    100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided)); a value object's not yet placed, its own."""
     store = _store_for(holder)
     return object.__getattribute__(holder, "_own_values") if store is None else store.values(holder)
 
 
 def _writable_values(holder: Any) -> dict[str, Any]:
     """A data object's or a value object's property values, to write through its store, which refuses a write outside a
-    transaction (object identity 44 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)); a value object's not yet placed, its builder's own."""
+    transaction (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided)); a value object's not yet placed, its builder's own."""
     store = _store_for(holder)
     return object.__getattribute__(holder, "_own_values") if store is None else store.values(holder, True)
 
@@ -85,7 +85,7 @@ def _entries_of(target: Any, store: Any = None, write: bool = False) -> dict[Has
 
 class _Committed:
     """What a store holds as committed: its objects' own values and entry tables, which only its transactions' commits
-    write (object identity 100 in [CAP-149: data accessed through the store protocol](../../../../../mbse-basis/docs/capabilities/CAP-149.md#decided)); the base of a transaction's proposals."""
+    write (object identity 100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided)); the base of a transaction's proposals."""
 
     def __init__(self, store: OfStore) -> None:
         self.store = store
@@ -128,7 +128,7 @@ class OfStore(Stores.Catalog):
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
         """A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its
         proposals have them; outside one, the store's own, which a write is refused (object identity
-        44 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](../../../../../mbse-basis/docs/capabilities/CAP-149.md#decided))."""
+        44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided))."""
         if self._proposals is not None:
             return self._proposals.values(holder, write)
         if write:
@@ -162,7 +162,7 @@ class OfStore(Stores.Catalog):
             self._delete_orphans()
 
     def _written(self) -> None:
-        """Refuses a write outside a transaction of this store (object identity 44 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided)), but while a
+        """Refuses a write outside a transaction of this store (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided)), but while a
         transaction's expression is built (94), the store is made, or a transaction commits."""
         if self._proposals is None and not self._expressing:
             raise ValueError("a store is written only within a transaction (store.transaction)")
@@ -180,7 +180,7 @@ class OfStore(Stores.Catalog):
 
     @contextlib.contextmanager
     def _expression(self) -> Iterator[None]:
-        """Building a transaction's expression, the one write allowed outside a transaction (object identity 94 in [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)); making the
+        """Building a transaction's expression, the one write allowed outside a transaction (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)); making the
         store; and a transaction's commit."""
         self._expressing += 1
         try:
@@ -190,7 +190,7 @@ class OfStore(Stores.Catalog):
 
     @contextlib.contextmanager
     def _transacting(self) -> Iterator[Any]:
-        """A transaction's writes (object identity 89, 96, 99 in [CAP-124: writes all-or-nothing in transactions](../../../../../mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](../../../../../mbse-basis/docs/capabilities/CAP-149.md#decided)): its proposals, read through while
+        """A transaction's writes (object identity 89, 96, 99 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided)): its proposals, read through while
         it runs, written into the store when it ends, or, where it raises, dropped, the store's registries as they were
         before it began. One is open on a store at a time; each store's is its own."""
         if self._proposals is not None:
@@ -230,7 +230,7 @@ class OfStore(Stores.Catalog):
 
     def _settle_owners(self) -> None:
         """Gives each object created without an owner, whose schema declares one, the one owner possible: the singleton
-        at the owning end, its keys generated by their patterns (object identity 33 in [CAP-120: owned objects named and placed when built](../../../../../mbse-basis/docs/capabilities/CAP-120.md#decided)). Where none, or
+        at the owning end, its keys generated by their patterns (object identity 33 in [CAP-120: owned objects named and placed when built](mbse:mbse-basis/docs/capabilities/CAP-120.md#decided)). Where none, or
         more than one, is possible, it raises, naming the ownership missing."""
         pending, self._unowned = self._unowned, []
         for target in pending:
@@ -255,7 +255,7 @@ class OfStore(Stores.Catalog):
 
     def _delete_orphans(self) -> None:
         """Deletes each owned object whose owning entry was removed and not added again, and in cascade what it owns
-        (object identity 48 in [CAP-121: owned objects deleted in cascade](../../../../../mbse-basis/docs/capabilities/CAP-121.md#decided)): every entry linking it is removed, so that nothing reaches it."""
+        (object identity 48 in [CAP-121: owned objects deleted in cascade](mbse:mbse-basis/docs/capabilities/CAP-121.md#decided)): every entry linking it is removed, so that nothing reaches it."""
         deleted: set[int] = set()
         while self._orphaned:
             target = self._orphaned.pop()
@@ -328,7 +328,7 @@ def _owner_adjacencies(schema: ObjectSchema) -> list[Schemas.OfAdjacency.Data]:
 
 
 def _counted(target: Any) -> bool:
-    """Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
+    """Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     return _counted_schema(object.__getattribute__(target, "_schema"))
 
 
@@ -388,7 +388,7 @@ def _same_store(store: OfStore | None, value: Any) -> None:
 
 
 def _scalar_key(value: Any) -> Hashable:
-    """Equality key per [CAP-111: equality and ordering defined by the schema](../../../../../mbse-basis/docs/capabilities/CAP-111.md): distinct scalars never compare equal; floats compare by bit pattern; a value
+    """Equality key per [CAP-111: equality and ordering defined by the schema](mbse:mbse-basis/docs/capabilities/CAP-111.md): distinct scalars never compare equal; floats compare by bit pattern; a value
     object by its schema and properties, whatever its identity."""
     if isinstance(value, _RecordData):
         values = object.__getattribute__(value, "_values")
@@ -446,7 +446,7 @@ class _Entry:
 
 def _table(target: Any, relation_id: int, store: Any = None, write: bool = False) -> dict[Hashable, _Entry]:
     """The entries of one relation that link `target`, by key: they live on the objects they link, a schema object too,
-    which an extension's relation links ([CAP-116: framework schemas extended, checked](../../../../../mbse-basis/docs/capabilities/CAP-116.md)) and which is given its index when first linked. A
+    which an extension's relation links ([CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md)) and which is given its index when first linked. A
     framework schema, which every store holds, is never written: `store` keeps the entries that link it."""
     tables = _entries_of(target, store, write)
     table = tables.get(relation_id)
@@ -467,7 +467,7 @@ def _entry_store(entry: _Entry, store: Any = None) -> Any:
 def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> None:
     """Adds `entry` to every object it links, unless the relation holds a set and an equal entry is there already. An
     entry that would make a counted object an owner is refused: nothing is owned by a counted object
-    (object identity 47 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
+    (object identity 47 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     for link, owned in _owned_links(entry):
         for other, owner in entry._links.items():
             if other != link and isinstance(owner, _ObjectData) and _counted(owner):
@@ -765,7 +765,7 @@ class _Scalar(_Dunders):
 
 def _restricted_scalar(restriction: Any, value: Any, label: str) -> None:
     """Refuses a scalar written as a value of a restricted `OfAny` whose host type is not exactly that of one of its
-    scalar schemas ("`OfAny` returns", [CAP-157: values of any schema, restricted or not](../../../../../mbse-basis/docs/capabilities/CAP-157.md#decided)): a bool is not an int."""
+    scalar schemas ("`OfAny` returns", [CAP-157: values of any schema, restricted or not](mbse:mbse-basis/docs/capabilities/CAP-157.md#decided)): a bool is not an int."""
     if restriction is None or not restriction.schemas or value is None:
         return
     if not any(isinstance(t, Schemas.OfScalar.Data) and t.type is type(value) for t in restriction.schemas):
@@ -969,7 +969,7 @@ class _Any(_Unassignable):
 
     def __getattr__(self, name: str) -> Any:
         """A member of the value's kind, where its schema has one: a union's branch, an object's property, an
-        intersection's part, as through `as_union`, `as_object` or `as_intersection` ([CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md)); written,
+        intersection's part, as through `as_union`, `as_object` or `as_intersection` ([CAP-107: one visitor protocol reads and writes data](mbse:mbse-basis/docs/capabilities/CAP-107.md)); written,
         it selects the kind. Any other name is not a member."""
         held = self._type if not name.startswith("_") else None
         if not isinstance(held, RECORD_KINDS) or name not in _kind_members(held):
@@ -1578,7 +1578,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
 
     def __call__(self, spec: Any) -> Any:
         """Called with a mapping of keys, a lookup: the object the entry with those keys links through the relation's
-        other link (object identity 26 to 28 in [CAP-119: owned objects found by path](../../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)); `LookupError` where no entry has them. Called with a
+        other link (object identity 26 to 28 in [CAP-119: owned objects found by path](mbse:mbse-basis/docs/capabilities/CAP-119.md#decided)); `LookupError` where no entry has them. Called with a
         callback, it visits through it."""
         if isinstance(spec, Mapping):
             return self._lookup(spec)
@@ -1912,7 +1912,7 @@ def _is_builder(value: Any) -> bool:
 
 def _builder_of(store: Any, name: str, target: Any = None) -> Any:
     """A builder of an object of the schema registered as `name`, new or `target` updated: a meta-schema's builder for a
-    schema object (object identity 97 in [CAP-109: schemas as linked objects in modules](../../../../../mbse-basis/docs/capabilities/CAP-109.md#decided)), else a proxy's."""
+    schema object (object identity 97 in [CAP-109: schemas as linked objects in modules](mbse:mbse-basis/docs/capabilities/CAP-109.md#decided)), else a proxy's."""
     built = store._meta_builder(name, target)
     return built if built is not None else _ObjectBuilder(store, store.schema(name), name, target)
 
@@ -1975,7 +1975,7 @@ def _holds(schema: Any, value: Any) -> bool:
 
 def _given(them: Any, value: Any, link: str, link_takes: bool, members: Any) -> None:
     """Gives a keyed mapping's value to the peer shorthand's visitor of one entry, its key written (mappings
-    for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md#decided)): a callback is called with it; any other value goes to the one member that
+    for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](mbse:mbse-basis/docs/capabilities/CAP-107.md#decided)): a callback is called with it; any other value goes to the one member that
     accepts it, the entry's link (`link_takes`) or one of the linked object's properties and adjacencies (`members`, each
     a name, and whether it is an adjacency and takes the value)."""
     if _is_function(value):
@@ -2066,7 +2066,7 @@ class _AdjacencyBuilder(_Unassignable):
 
     def _keyed(self, mapping: Mapping[Any, Any]) -> list[Any]:
         """A mapping, as the peer shorthand: each item an entry, its key the value of the relation's one property, its
-        value given to the entry (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](../../../../../mbse-basis/docs/capabilities/CAP-107.md#decided))."""
+        value given to the entry (mappings for keyed adjacencies, [CAP-107: one visitor protocol reads and writes data](mbse:mbse-basis/docs/capabilities/CAP-107.md#decided))."""
         relation, store = self._schema.relation, self._builder._store
         keys = list(relation.entry.properties)
         if len(relation.entry.links) != 2 or len(keys) != 1:

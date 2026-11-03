@@ -12,8 +12,8 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 | Learn it by example, from a contact card to asking the store | [python3/tutorials/README.md](python3/tutorials/README.md), ten case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
 | Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
 | Use the library, or model something with it | [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), a skill. It loads its references only as needed |
-| Understand a design decision or an open question | mbse-basis: [the schema-driven data features](../mbse-basis/docs/features/README.md#schema-driven-data), each capability's detail file |
-| Build schemas with the schema builders (`Framework.Builders`: the meta-schemas, their builders and the store), or migrate a call site to them | [CAP-109: schemas as linked objects in modules](../mbse-basis/docs/capabilities/CAP-109.md#the-meta-schemas-and-their-builders-as-built) |
+| Understand a design decision or an open question | mbse-basis: [the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data), each capability's detail file |
+| Build schemas with the schema builders (`Framework.Builders`: the meta-schemas, their builders and the store), or migrate a call site to them | [CAP-109: schemas as linked objects in modules](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-109.md#the-meta-schemas-and-their-builders-as-built) |
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
 | Find or add a test case | [python3/tests/TestPlan.md](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
 
@@ -21,15 +21,22 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 Agents must read these mbse-basis documents before doing any work:
 
-- [The mbse basis](../mbse-basis/docs/README.md)
-- [Principles](../mbse-basis/docs/PRINCIPLES.md)
-- [Features](../mbse-basis/docs/features/README.md)
-- [Capabilities](../mbse-basis/docs/capabilities/README.md)
+- [The mbse basis](https://github.com/pitaman71/mbse-basis/blob/main/docs/README.md)
+- [Principles](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md)
+- [Features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md)
+- [Capabilities](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md)
 
-These may be read selectively, on demand: [Vocabulary](../mbse-basis/docs/VOCABULARY.md) and
-[Qualities](../mbse-basis/docs/QUALITIES.md).
+These may be read selectively, on demand: [Vocabulary](https://github.com/pitaman71/mbse-basis/blob/main/docs/VOCABULARY.md) and
+[Qualities](https://github.com/pitaman71/mbse-basis/blob/main/docs/QUALITIES.md).
 
 Never write to `~/.claude/projects/*/memory/` or any hidden memory: what is worth keeping goes in the repository.
+
+Resolve a link written `mbse:<repo>/<path>`, as skills and source comments write a link into another mbse
+repository, to the first of these that exists: in a polyrepo checkout, `<repo root>/../<repo>/<path>`, where `<repo
+root>` is this repository's root; for a link into the installed package's own repository, `<path>` without its
+language directory (`python3/` or `typescript5/`), under the installed package's root (Python: the `site-packages`
+directory that holds `mbse/`; npm: the package's directory), where the package ships that file; otherwise
+`https://github.com/pitaman71/<repo>/blob/main/<path>`.
 
 ## Commands
 

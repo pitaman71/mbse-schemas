@@ -1,17 +1,17 @@
-"""Mutations: the schemas of the mutations a transaction applies ([CAP-129: journals replayed by execution](../../../../../mbse-basis/docs/capabilities/CAP-129.md#transactions-on-the-wire), [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#mutations-the-vocabulary)).
+"""Mutations: the schemas of the mutations a transaction applies ([CAP-129: journals replayed by execution](mbse:mbse-basis/docs/capabilities/CAP-129.md#transactions-on-the-wire), [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#mutations-the-vocabulary)).
 
 Mutations are schema-governed like everything else: each verb and noun here is a schema, every store holds them, and
 ToPlain writes them as it writes any value. `install(txn)` defines them in the store a transaction writes, as every
-module defines its schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](../../../../../mbse-basis/docs/capabilities/CAP-115.md#decided)); a store is made by it (`Builders`, the bootstrap). A
+module defines its schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)); a store is made by it (`Builders`, the bootstrap). A
 transaction is itself an object of the mutation expressions' schemas (the second half of `install`, object identity
-93 in [CAP-138: mutation expressions over frame streams](../../../../../mbse-basis/docs/capabilities/CAP-138.md#decided)), whose patterns' specs are written in the verbs.
+93 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)), whose patterns' specs are written in the verbs.
 
 Every mutation is a value object: it has no identity and is never shared. Each family of verbs is a union whose branches
 are its verbs, named as a visitor's members are (`AsProperty` is `as_property`), so that a verb is written as its union's
 branch (`{"set": {...}}`), and a list of verbs is a container of that union. A noun (`Ref`, `Def`, `Slice`) is a value
 object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
 
-A pattern's spec (object identity 95 in [CAP-137: patterns of symbols, variables and specs](../../../../../mbse-basis/docs/capabilities/CAP-137.md#decided)) is a `Mutations.OfPattern`: for each symbol, the mutations of the
+A pattern's spec (object identity 95 in [CAP-137: patterns of symbols, variables and specs](mbse:mbse-basis/docs/capabilities/CAP-137.md#decided)) is a `Mutations.OfPattern`: for each symbol, the mutations of the
 object it binds (`OfObject`: a property's, `as_property`, an adjacency's, `as_adjacency`, whose `OfAdjacency` verbs
 insert, remove and clear entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object by
 its symbol or its path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`). Value verbs are

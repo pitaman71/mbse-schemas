@@ -2,7 +2,7 @@
  * The conformance corpus: the same cases, built statement for statement in every implementation.
  *
  * `build()` returns `{case: [store, objects]}`: each case built in a store of its own, its schemas and its data, written
- * as the store's snapshot, two transactions ([CAP-127: snapshots made of transactions](../../../../mbse-basis/docs/capabilities/CAP-127.md)); `objects` holds the case's data, which
+ * as the store's snapshot, two transactions ([CAP-127: snapshots made of transactions](mbse:mbse-basis/docs/capabilities/CAP-127.md)); `objects` holds the case's data, which
  * a store holds weakly. Each implementation writes its snapshots to `conformance/<implementation>/<case>.json` and `.yaml`, and
  * checks them against every other implementation's files (see the CONF test suite). Keep this module and
  * `python3/mbse/Schemas/Conformance/Corpus.py` in lockstep: same schemas, same names, same values, same order of
@@ -24,7 +24,7 @@ function hold(s: any, objects: unknown[]): void {
   s.Corpus.Root(s.singleton("corpus"), (r: any) => r.holds(holding));
 }
 
-// --- Schemas, each group a module-scope install ([CAP-115: schemas defined by idempotent installs](../../../../mbse-basis/docs/capabilities/CAP-115.md)) ---
+// --- Schemas, each group a module-scope install ([CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md)) ---
 
 /** Corpus.Root, the case's root, a singleton holding its data: a store's snapshot holds what its singletons reach. */
 function rooted(txn: any): any {

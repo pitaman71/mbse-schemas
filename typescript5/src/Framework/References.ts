@@ -1,5 +1,5 @@
 /**
- * References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](../../../../mbse-basis/docs/capabilities/CAP-130.md)).
+ * References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md)).
  *
  * Three value schemas, which every store holds, its own, as it holds `Paths`:
  *
@@ -15,13 +15,13 @@
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
  * reference)` gives what a reference designates, or null where the store holds none. A counted object has no reference,
- * nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)).
+ * nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
  * `validate(pattern)` refuses a symbol given both, or neither. A spec over such a symbol writes the members of the schema
  * of the object the reference designates, where the store holds it, else of the schema its path implies, followed through
- * the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)), so that a store holding only the schemas writes it.
+ * the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)), so that a store holding only the schemas writes it.
  */
 
 import * as Builders from "./Builders.js";
@@ -60,13 +60,13 @@ export function install(txn: any): any {
         links: S.OfContainer((c: any) => c.index([S.OfStr]).element([_.OfObject])),
         properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfAny((a: any) => a)])),
       }),
-      // --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
+      // --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
       (_: any) => _.OfSymbol.name("Schemas.OfSymbol").properties({ reference: _.OfObject }),
     ])]))]);
 }
 
 /** The problems of a pattern's symbols as `References.install` extends them: a symbol given both a schema and a
- * reference, or neither; a symbol has exactly one (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)). */
+ * reference, or neither; a symbol has exactly one (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). */
 export function validate(pattern: unknown): string[] {
   if (!(pattern instanceof S.OfPattern.Data)) throw new TypeError(`References.validate takes a pattern, not ${repr(pattern)}`);
   const problems: string[] = [];
@@ -120,7 +120,7 @@ function entryOf(store: any, entry: any): Callback {
   return (e: any) => e.relation(relation).links(links).properties(properties);
 }
 
-/** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)): the one
+/** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the one
  * schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`, marked
  * owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds what a
  * link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the schema

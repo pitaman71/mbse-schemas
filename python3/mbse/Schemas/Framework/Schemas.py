@@ -943,16 +943,40 @@ def is_a(schema: Any, base: Any) -> bool:
     return False
 
 
-def _narrows(new: Any, old: Any) -> bool:
+def _narrows(new: Any, old: Any, seen: tuple[tuple[int, int], ...] = ()) -> bool:
     """Whether validation confirms that every value of `new` is a value of `old`: the same schema, a refinement of it,
-    or a scalar, container or value object schema whose parts each narrow `old`'s."""
+    a scalar of its type, a container whose index and element each narrow `old`'s, a branch's schema (or one narrowing
+    it) where `old` is a union, a union each of whose branches is one of `old`'s by name, narrower, or a schema that a
+    value of `old` may be of where `old` is a value of any schema. A pair met again on the way is not confirmed."""
     if new is old or is_a(new, old):
         return True
+    if (id(new), id(old)) in seen:
+        return False
+    seen = (*seen, (id(new), id(old)))
     if isinstance(new, _ScalarData) and isinstance(old, _ScalarData):
         return new.type is not None and new.type is old.type
     if isinstance(new, _ContainerData) and isinstance(old, _ContainerData):
-        return _narrows(new.index, old.index) and _narrows(new.element, old.element)
+        return _narrows(new.index, old.index, seen) and _narrows(new.element, old.element, seen)
+    if isinstance(old, _UnionData):
+        held = old.properties
+        if isinstance(new, _UnionData) and all(  # a union's values are written by branch name
+                b.name in held and _narrows(b.schema, held[b.name].schema, seen) for b in new.branches):
+            return True
+        return any(_narrows(new, branch.schema, seen) for branch in old.branches)  # read by the schema it declares
+    if isinstance(old, _AnyValueData):
+        if isinstance(new, _AnyValueData):  # each schema a value of it may be of, one a value of `old` may be of
+            return all(_any_holds(old, schema) for schema in new.schemas) if new.schemas else not old.schemas
+        return _any_holds(old, new)
     return False
+
+
+def _any_holds(any_value: _AnyValueData, schema: Any) -> bool:
+    """Whether a value of `any_value` may be of `schema`, as validation and the proxies check one: a scalar of a type
+    one of its schemas has, or one of its schemas; unrestricted, a scalar or a named schema."""
+    restricted = any_value.schemas
+    if isinstance(schema, _ScalarData):
+        return not restricted or any(isinstance(t, _ScalarData) and t.type is schema.type for t in restricted)
+    return any(t is schema for t in restricted) if restricted else getattr(schema, "name", None) is not None
 
 
 def _refinement_problems(schema: Any) -> list[str]:
@@ -982,20 +1006,22 @@ def _refinement_problems(schema: Any) -> list[str]:
 
 def _settle(schema: _ObjectData) -> _ObjectData:
     """Gives an object schema the members of the schema it refines, which it has not redeclared, and passes the change
-    on to the schemas that refine it."""
+    on to the schemas that refine it. A member it holds is inherited where it is the very one it was given when it last
+    settled; any other it holds under that name is redeclared, its own, whether written before `refines` or after."""
     base = schema.refines
     if isinstance(base, _ObjectData) and not is_a(base, schema):
-        inherited = schema.__dict__.get("_inherited", (set(), set(), []))
-        own_properties = {n: p for n, p in schema.properties.items() if n not in inherited[0]}
-        own_adjacencies = {n: a for n, a in schema.adjacencies.items() if n not in inherited[1]}
-        own_anonymous = [a for a in schema.anonymous if not any(a is b for b in inherited[2])]
+        given = schema.__dict__.get("_inherited", ({}, {}, []))
+        own_properties = {n: p for n, p in schema.properties.items() if given[0].get(n) is not p}
+        own_adjacencies = {n: a for n, a in schema.adjacencies.items() if given[1].get(n) is not a}
+        own_anonymous = [a for a in schema.anonymous if not any(a is b for b in given[2])]
         schema.properties = {**{n: own_properties.get(n, p) for n, p in base.properties.items()},
                              **{n: p for n, p in own_properties.items() if n not in base.properties}}
         schema.adjacencies = {**{n: own_adjacencies.get(n, a) for n, a in base.adjacencies.items()},
                               **{n: a for n, a in own_adjacencies.items() if n not in base.adjacencies}}
         schema.anonymous = [*base.anonymous, *own_anonymous]
-        schema.__dict__["_inherited"] = ({n for n in base.properties if n not in own_properties},
-                                         {n for n in base.adjacencies if n not in own_adjacencies}, list(base.anonymous))
+        schema.__dict__["_inherited"] = ({n: p for n, p in base.properties.items() if n not in own_properties},
+                                         {n: a for n, a in base.adjacencies.items() if n not in own_adjacencies},
+                                         list(base.anonymous))
         refinements = base.__dict__.setdefault("_refinements", [])
         if not any(r is schema for r in refinements):
             refinements.append(schema)
@@ -1007,8 +1033,10 @@ def _settle(schema: _ObjectData) -> _ObjectData:
 
 def inherited(schema: _ObjectData) -> tuple[set[str], set[str], list[Any]]:
     """The properties' and adjacencies' names, and the anonymous adjacencies, an object schema has from the one it
-    refines rather than its own."""
-    return schema.__dict__.get("_inherited", (set(), set(), []))
+    refines rather than its own: each the very member it was given when it last settled, not one redeclared since."""
+    given = schema.__dict__.get("_inherited", ({}, {}, []))
+    return ({n for n, p in given[0].items() if schema.properties.get(n) is p},
+            {n for n, a in given[1].items() if schema.adjacencies.get(n) is a}, given[2])
 
 
 def _validate(schema: Any) -> list[str]:

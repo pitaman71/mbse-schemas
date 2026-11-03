@@ -214,10 +214,10 @@ A counted object has no reference, an upsert's included, nor a frame or an entry
 `Provenance`, installed before use, records who changed what, when and from where: a record of each transaction that
 creates or writes an object (`Provenance.OfTransaction`, keyed by its `uid`), its session and the session's identity;
 and, for the reference object schemas the app chooses, `CreatedBy` and `ModifiedBy` (the latest write only) linking
-each object to its records ([CAP-134: transactions recorded with provenance](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-134.md)). The record comes from the transaction's expression, so a replayed journal
+each object to its records ([CAP-134: transactions recorded with provenance](mbse:mbse-basis/docs/capabilities/CAP-134.md)). The record comes from the transaction's expression, so a replayed journal
 makes the same records: give it `when`, the session's `id`, `who`, `locale` and `device`, and `where`, as below.
-Where a service takes the session and identity from is [CAP-177: sessions and identities from a validated token](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-177.md). An imperative scope gets placeholder data: a
-random `uid`, the clock's time and the session `unknown` ([CAP-135: provenance records reproducible and attributable](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-135.md)).
+Where a service takes the session and identity from is [CAP-177: sessions and identities from a validated token](mbse:mbse-basis/docs/capabilities/CAP-177.md). An imperative scope gets placeholder data: a
+random `uid`, the clock's time and the session `unknown` ([CAP-135: provenance records reproducible and attributable](mbse:mbse-basis/docs/capabilities/CAP-135.md)).
 
 ```python fragment
 store.transaction(Provenance.install)                       # after the app's own install
@@ -233,7 +233,7 @@ store.transaction(lambda t: t.mutations([lambda mu: mu.map(lambda m: m.symbols([
 ```
 
 An object's adjacencies to its records are anonymous: read them from the record's side, as above (`_.t.modified([_.c])`
-for the latest write; [CAP-178: an object's provenance read through its own named adjacencies](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-178.md)). The identity's name and the record's uid are their directory entries' keys.
+for the latest write; [CAP-178: an object's provenance read through its own named adjacencies](mbse:mbse-basis/docs/capabilities/CAP-178.md)). The identity's name and the record's uid are their directory entries' keys.
 
 ## Traps
 

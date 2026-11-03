@@ -1,14 +1,14 @@
 """Paths: an owned object's identity, the route from a singleton to it through the relations that own it
-([FEA-026: deterministic object identity](../../../../../mbse-basis/docs/features/FEA-026.md)).
+([FEA-026: deterministic object identity](mbse:mbse-basis/docs/features/FEA-026.md)).
 
 A path is a nested value object, never a string: `Paths.OfRoot` names the singleton it starts from and holds the next
 element, `Paths.OfEntry` one ownership entry transited (`i`, the adjacency to it from the object before; `o`, the
 adjacency to it from the object after, the one marked `owner()`; `properties`, the entry's keys), and `Paths.OfTarget`
 ends it. `next` is a union of the two, its branches `entry` and `target`. Every store holds these schemas, its own.
 
-An identity is computed on demand (object identity 32 in [CAP-119: owned objects found by path](../../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)): `of(obj)` reads an object's path off its ownership entries. A schema
+An identity is computed on demand (object identity 32 in [CAP-119: owned objects found by path](mbse:mbse-basis/docs/capabilities/CAP-119.md#decided)): `of(obj)` reads an object's path off its ownership entries. A schema
 object's path starts from the root module, the singleton `"."`, and goes through each module, then the schema, by name,
-then each member by the keyed adjacency that owns it and its name (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)); one with no name of its own has
+then each member by the keyed adjacency that owns it and its name (object identity 80 and 81 in [CAP-123: schema objects identified by path](mbse:mbse-basis/docs/capabilities/CAP-123.md#decided)); one with no name of its own has
 none.
 """
 
@@ -66,7 +66,7 @@ def _owner_adjacency(schema: Any) -> bool:
 
 def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
     """The singleton a reference object's path starts from, and the ownership entries from it to the object, through
-    the adjacencies marked `owner()`. A counted object has no path (object identity 55 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided))."""
+    the adjacencies marked `owner()`. A counted object has no path (object identity 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     steps, current, seen = [], obj, set()
     while True:
         schema = object.__getattribute__(current, "_schema")
@@ -87,7 +87,7 @@ def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
 
 
 def _schema_steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
-    """A schema object's path (object identity 80 and 81 in [CAP-123: schema objects identified by path](../../../../../mbse-basis/docs/capabilities/CAP-123.md#decided)): from the root module, the singleton `"."`, through each module and
+    """A schema object's path (object identity 80 and 81 in [CAP-123: schema objects identified by path](mbse:mbse-basis/docs/capabilities/CAP-123.md#decided)): from the root module, the singleton `"."`, through each module and
     then the schema by name, then through the keyed adjacency that owns each member. `LookupError` where it has none."""
     store = obj.__dict__.get("_held_by")
     if store is None:
@@ -102,7 +102,7 @@ def _schema_steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]
 
 
 def of(obj: Any) -> Any:
-    """The path of a reference object, read off its ownership entries (object identity 32 in [CAP-119: owned objects found by path](../../../../../mbse-basis/docs/capabilities/CAP-119.md#decided)), or of a schema object, off its
+    """The path of a reference object, read off its ownership entries (object identity 32 in [CAP-119: owned objects found by path](mbse:mbse-basis/docs/capabilities/CAP-119.md#decided)), or of a schema object, off its
     name and its owners' (81): a `Paths.OfRoot` value, standalone, of the object's store."""
     if _builder_for(obj) is not None:
         singleton, steps = _schema_steps(obj)

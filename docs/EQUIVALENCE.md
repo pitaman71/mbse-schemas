@@ -3,7 +3,7 @@
 
 # Equivalence of the implementations
 
-`python3/` and `typescript5/` implement the same framework ([the schema-driven data features](../../mbse-basis/docs/features/README.md#schema-driven-data)). This document defines what
+`python3/` and `typescript5/` implement the same framework ([the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data)). This document defines what
 "equivalent" means for them, how it is checked, where they deliberately differ, and how to keep them equivalent.
 
 ## What equivalent means
@@ -90,7 +90,7 @@ noticed.
 | Outcomes (`Validators.Check`) | an `Outcome` is a dataclass, compared with `==` | an `Outcome` is a class, compared by its fields | no operator overloading | VAL-16 |
 | Errors | built-in exceptions | built-in `TypeError`; `ValueError`, `AttributeError`, `KeyError`, `LookupError`, `NotImplementedError` from `Errors` | JavaScript lacks the others | throughout |
 | Callable entry points | objects with `__call__` | functions with the per-kind forms attached | no callable instances | PLN-01 |
-| Callable visitors (data instances, members) | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden, so that members of those names are the schema's; `typeof` says `"function"`, and `instanceof` names the visitor's class | one member is both getter and setter ([CAP-107: one visitor protocol reads and writes data](../../mbse-basis/docs/capabilities/CAP-107.md#seams), Seams) | VIS-03, PRX-02 |
+| Callable visitors (data instances, members) | `__call__` | a `Proxy` with a function target, its `name` and `length` hidden, so that members of those names are the schema's; `typeof` says `"function"`, and `instanceof` names the visitor's class | one member is both getter and setter ([CAP-107: one visitor protocol reads and writes data](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-107.md#seams), Seams) | VIS-03, PRX-02 |
 | Scalar comparison | a scalar visitor compares (`==`), orders (`<`) and hashes as its value (`card.name == "Ada"`), a read-only one hashable | read first: `card.name.get() === "Ada"`; `==` converts through `[Symbol.toPrimitive]`, but is not the idiom; a member is never `===` a scalar | `===` cannot be overloaded | VIS-06 |
 | Scalar sugar | the dunders `int`, `float`, `str`, `bool`, `bytes`, each needing its own type | `[Symbol.toPrimitive]`: a string for the `"string"` hint (template strings, `String()`), an int or a float for `"number"` (`+`, `Number()`, `BigInt()`), any scalar but bytes for `"default"` (`+ ""`, `==`); `valueOf()` any scalar, bytes included; never `===` on a member, and no truthiness | JavaScript converts through these two hooks only | VIS-06, BLD-12 |
 | `name in visitor` | not defined (`hasattr` is always true: a name the schema lacks reads as empty) | whether the schema declares the name, or the visitor has it | the `has` trap | PRX-02, PRX-21, VIS-05, EMB-02 |
@@ -165,7 +165,7 @@ Porting and cross-checking found two bugs in the Python implementation, both fix
 - **F15:** in Python `Validators`, an instance attribute shadowed the recorder's `adjacencies()` method. Found while
   porting; the recorder went with the visitor protocol's rewrite, which reads through the visitors themselves.
 
-Normalizing decoding errors (see [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](../../mbse-basis/docs/capabilities/CAP-159.md)) found more, all fixed and tested in both:
+Normalizing decoding errors (see [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-159.md)) found more, all fixed and tested in both:
 
 - Python decoded JSON bytes with `surrogatepass`, accepting encoded lone surrogates that TypeScript's decoder
   rejected, and TypeScript's UTF-32 decoder accepted surrogate code points. Both now decode strictly (JSN-09).

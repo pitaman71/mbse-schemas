@@ -1,4 +1,4 @@
-"""References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](../../../../../mbse-basis/docs/capabilities/CAP-130.md)).
+"""References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md)).
 
 Three value schemas, which every store holds, its own, as it holds `Paths`:
 
@@ -14,13 +14,13 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
 reference)` gives what a reference designates, or None where the store holds none. A counted object has no reference,
-nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](../../../../../mbse-basis/docs/capabilities/CAP-118.md#decided)).
+nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
 binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
 `validate(pattern)` refuses a symbol given both, or neither. A spec over such a symbol writes the members of the schema
 of the object the reference designates, where the store holds it, else of the schema its path implies, followed through
-the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)), so that a store holding only the schemas writes it.
+the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)), so that a store holding only the schemas writes it.
 """
 
 from __future__ import annotations
@@ -62,14 +62,14 @@ def install(txn: Any) -> Any:
                 "links": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject])),
                 "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
             }),
-            # --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
+            # --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
             lambda _: _.OfSymbol.name("Schemas.OfSymbol").properties({"reference": _.OfObject}),
         ])]))])
 
 
 def validate(pattern: Any) -> list[str]:
     """The problems of a pattern's symbols as `References.install` extends them: a symbol given both a schema and a
-    reference, or neither; a symbol has exactly one (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided))."""
+    reference, or neither; a symbol has exactly one (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))."""
     from . import Transactions
 
     if not isinstance(pattern, S.OfPattern.Data):
@@ -84,7 +84,7 @@ def validate(pattern: Any) -> list[str]:
 
 
 def _implied(store: Any, path_plain: Any) -> Any:
-    """The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](../../../../../mbse-basis/docs/capabilities/CAP-141.md#decided)): the
+    """The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the
     one schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`,
     marked owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds
     what a link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the

@@ -5,7 +5,7 @@ and TypeScript write byte-identical JSON, and each reads the other's.
 
 ## The document format
 
-A document is one transaction, one upsert (object identity 51 in [CAP-128: graphs sent as one-transaction documents](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-128.md#decided)): reading it executes it.
+A document is one transaction, one upsert (object identity 51 in [CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md#decided)): reading it executes it.
 
 ```text
 {"uid": "6f1c4e2a", "mutations": [{"upsert": {"key": "6f1c4e2a", "exists": [{
@@ -58,5 +58,5 @@ A document is one transaction, one upsert (object identity 51 in [CAP-128: graph
 |---|---|
 | Identities, references, documents loaded into the store you give, strict loading | [tutorial 6, Saving and loading](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/06_Saving_And_Loading.ipynb) |
 | JSON and YAML details, the Norway problem | [tutorial 7, JSON and YAML](https://github.com/pitaman71/mbse-schemas/blob/main/python3/tutorials/07_JSON_And_YAML.ipynb) |
-| What decoding accepts, and every decoding error | [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-159.md) |
+| What decoding accepts, and every decoding error | [CAP-159: error handling during deserialization is consistent across Python3 and Typescript5 bindings](mbse:mbse-basis/docs/capabilities/CAP-159.md) |
 | Store snapshots both languages must read identically | [conformance/](https://github.com/pitaman71/mbse-schemas/blob/main/conformance/README.md) |

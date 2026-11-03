@@ -10,7 +10,7 @@ most of its choices (no lists of reference objects, no mandatory properties, no 
 It's written for Python programmers who build applications with structured data: records, relationships, files and
 APIs. A TypeScript port with the same case studies is in
 the [TypeScript tutorial](../../typescript5/tutorials/README.md). You don't need to have read the design
-([the schema-driven data features](../../../mbse-basis/docs/features/README.md#schema-driven-data)), but it's the reference for everything here.
+([the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data)), but it's the reference for everything here.
 
 ## Running the notebooks
 
@@ -28,7 +28,7 @@ which keeps them in step with the code.
 can import them.
 
 Constraints over data, such as "at least one", are written with the separate
-[mbse-patterns](https://github.com/pitaman71/mbse-patterns) package ([CAP-152: relation constraint terms as mandatory, possible, or forbidden entry patterns](../../../mbse-basis/docs/capabilities/CAP-152.md)); expressions
+[mbse-patterns](https://github.com/pitaman71/mbse-patterns) package ([CAP-152: relation constraint terms as mandatory, possible, or forbidden entry patterns](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-152.md)); expressions
 and value domains are the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package's, whose
 tutorial continues this one.
 
@@ -51,16 +51,16 @@ tutorial continues this one.
 
 | The usual way | This framework | Decided in | Case study |
 |---|---|---|---|
-| A class per record | A schema *value*, built in a store with a fluent DSL | [FEA-031: schemas as extensible data](../../../mbse-basis/docs/features/FEA-031.md) | 1, 8 |
-| Mutable objects | Read-only instances; changes go through a builder | [CAP-124: writes all-or-nothing in transactions](../../../mbse-basis/docs/capabilities/CAP-124.md) | 1, 3 |
-| Required properties, `None` for missing | Everything optional; absent is a state of its own | [CAP-025: nothing mandatory but by constraint](../../../mbse-basis/docs/capabilities/CAP-025.md) | 1, 9 |
-| Lists and nested records | Relations whose entries link objects and carry properties | [CAP-108: relations as scalable containers](../../../mbse-basis/docs/capabilities/CAP-108.md) | 2, 3, 4 |
-| "One-to-many" annotations | `unique(S)`: the rest of the entry determines `S` | [CAP-155: `unique` clauses on relation schemas govern relation cardinality](../../../mbse-basis/docs/capabilities/CAP-155.md) | 5, 9 |
-| Validate on every assignment | Validate when you ask; every problem, with a path | [CAP-160: data validated against its schema on request](../../../mbse-basis/docs/capabilities/CAP-160.md) | 5 |
-| `to_dict` per class, nested | One flat document: a transaction whose objects are symbols, each naming its schema | [CAP-128: graphs sent as one-transaction documents](../../../mbse-basis/docs/capabilities/CAP-128.md) | 6 |
-| Lenient parsing | Exact scalars, strict JSON, YAML 1.2 | [CAP-158: values written as plain data, JSON and YAML](../../../mbse-basis/docs/capabilities/CAP-158.md) | 6, 7 |
-| Reflection over classes | Visitors: every object reads through one protocol, whatever its schema | [CAP-107: one visitor protocol reads and writes data](../../../mbse-basis/docs/capabilities/CAP-107.md) | 2, 8 |
-| Loops over objects, then writes | A transaction: a pattern's frames, filtered by a spec, then written from | [FEA-027: mutations as queries](../../../mbse-basis/docs/features/FEA-027.md) | 10 |
+| A class per record | A schema *value*, built in a store with a fluent DSL | [FEA-031: schemas as extensible data](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-031.md) | 1, 8 |
+| Mutable objects | Read-only instances; changes go through a builder | [CAP-124: writes all-or-nothing in transactions](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-124.md) | 1, 3 |
+| Required properties, `None` for missing | Everything optional; absent is a state of its own | [CAP-025: nothing mandatory but by constraint](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-025.md) | 1, 9 |
+| Lists and nested records | Relations whose entries link objects and carry properties | [CAP-108: relations as scalable containers](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-108.md) | 2, 3, 4 |
+| "One-to-many" annotations | `unique(S)`: the rest of the entry determines `S` | [CAP-155: `unique` clauses on relation schemas govern relation cardinality](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-155.md) | 5, 9 |
+| Validate on every assignment | Validate when you ask; every problem, with a path | [CAP-160: data validated against its schema on request](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-160.md) | 5 |
+| `to_dict` per class, nested | One flat document: a transaction whose objects are symbols, each naming its schema | [CAP-128: graphs sent as one-transaction documents](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-128.md) | 6 |
+| Lenient parsing | Exact scalars, strict JSON, YAML 1.2 | [CAP-158: values written as plain data, JSON and YAML](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-158.md) | 6, 7 |
+| Reflection over classes | Visitors: every object reads through one protocol, whatever its schema | [CAP-107: one visitor protocol reads and writes data](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-107.md) | 2, 8 |
+| Loops over objects, then writes | A transaction: a pattern's frames, filtered by a spec, then written from | [FEA-027: mutations as queries](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/FEA-027.md) | 10 |
 
 ---
 

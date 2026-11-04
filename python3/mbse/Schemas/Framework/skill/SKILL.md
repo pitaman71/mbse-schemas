@@ -26,7 +26,7 @@ language. Where the languages spell a thing differently, [In each language](#in-
   modeling tool.
 
 It is a poor fit for one-off, tree-shaped records used by a single program, where a plain class is simpler. Why the mbse
-repositories exist, and this one's part: [MBSE.md](mbse:mbse-schemas/MBSE.md).
+repositories exist, and this one's part: [Why the mbse repositories exist](mbse:mbse-schemas/MBSE.md).
 
 ## Practices that prevent most mistakes
 
@@ -142,18 +142,18 @@ repositories exist, and this one's part: [MBSE.md](mbse:mbse-schemas/MBSE.md).
    - Python: [REF-03: A counted object has no reference, nor a frame that binds one](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-03) · TypeScript: [REF-03: A counted object has no reference, nor a frame that binds one](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-03)
 9. **Grow schemas by installs; refine, version and generate them as data.** *Why*: a schema changes as requirements
    do, and every program must see one change, not copies. *When*: adding, removing or narrowing members, versioning, or
-   making schemas from another description. Load [references/schemas.md](references/schemas.md).
+   making schemas from another description. Load [Designing and extending schemas](references/schemas.md).
    [FEA-031: schemas as extensible data](mbse:mbse-basis/docs/features/FEA-031.md).
    - Python: [T09.1: Adding a property](mbse:mbse-schemas/python3/tutorials/09_When_Requirements_Change.ipynb#T09.1) · TypeScript: [T09.1: Adding a property](mbse:mbse-schemas/typescript5/tutorials/09_When_Requirements_Change.ipynb#T09.1)
    - Python: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.1) · TypeScript: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.1)
 10. **Ask the store with a transaction's expression.** *Why*: a query written as data runs the same in every
    language and store, and an upsert that finds before it creates can run again harmlessly. *When*: finding,
-   filtering, traversing or writing data by a pattern. Load [references/queries.md](references/queries.md).
+   filtering, traversing or writing data by a pattern. Load [Querying with transactions](references/queries.md).
    [FEA-027: mutations as queries](mbse:mbse-basis/docs/features/FEA-027.md).
    - Python: [T10.1: A transaction as an expression](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.1) · TypeScript: [T10.1: A transaction as an expression](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.1)
 11. **Exchange data as documents, journals and snapshots, strictly.** *Why*: what one program writes, another must
    read exactly, never by guessing. *When*: saving, loading, sending or replaying data. Load
-   [references/serialization.md](references/serialization.md).
+   [Saving, loading and exchanging data](references/serialization.md).
    [CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md).
    - Python: [T06.2: A whole graph](mbse:mbse-schemas/python3/tutorials/06_Saving_And_Loading.ipynb#T06.2) · TypeScript: [T06.2: A whole graph](mbse:mbse-schemas/typescript5/tutorials/06_Saving_And_Loading.ipynb#T06.2)
    - Python: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/python3/tutorials/12_Keeping_History.ipynb#T12.3) · TypeScript: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/typescript5/tutorials/12_Keeping_History.ipynb#T12.3)
@@ -193,17 +193,17 @@ repositories exist, and this one's part: [MBSE.md](mbse:mbse-schemas/MBSE.md).
 
 | Task | Read |
 |---|---|
-| Decide how to model something: MBSE, UML, ORM or JSON Schema concepts mapped to schema elements | [references/modeling.md](references/modeling.md) |
-| Design new schemas, or extend, version, refine or generate existing ones; values of any schema; parameters | [references/schemas.md](references/schemas.md) |
-| Find, filter, traverse or write data with a transaction's expression: terms, patterns, specs, frames and their references | [references/queries.md](references/queries.md) |
-| Save, load or exchange data: documents, journals, snapshots and strict decoding | [references/serialization.md](references/serialization.md) |
+| Decide how to model something: MBSE, UML, ORM or JSON Schema concepts mapped to schema elements | [Modeling with mbse-schemas](references/modeling.md) |
+| Design new schemas, or extend, version, refine or generate existing ones; values of any schema; parameters | [Designing and extending schemas](references/schemas.md) |
+| Find, filter, traverse or write data with a transaction's expression: terms, patterns, specs, frames and their references | [Querying with transactions](references/queries.md) |
+| Save, load or exchange data: documents, journals, snapshots and strict decoding | [Saving, loading and exchanging data](references/serialization.md) |
 | Constraints over data: mandatory, possible or forbidden entries | the separate [mbse-patterns](https://github.com/pitaman71/mbse-patterns) package, and its skill |
 | Expressions and value domains | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package, and its skill |
 
 ## In each language
 
 The two implementations are equivalent: the same names, results, messages and JSON. Where a language forces a
-difference (mbse-schemas' [EQUIVALENCE.md](mbse:mbse-schemas/docs/EQUIVALENCE.md)), each case shows its own:
+difference (mbse-schemas' [Equivalence of the implementations](mbse:mbse-schemas/docs/EQUIVALENCE.md)), each case shows its own:
 
 - **Scalars.** Python's host types are `int`, `float`, `str`, `bool` and `bytes`; TypeScript's are `BigInt`,
   `Number`, `String`, `Boolean` and `Uint8Array`, and an int is a `bigint` (`7n`), where `7` is a float. Absent is
@@ -253,4 +253,4 @@ difference (mbse-schemas' [EQUIVALENCE.md](mbse:mbse-schemas/docs/EQUIVALENCE.md
 The tutorials teach it in twelve case studies, from a contact card to keeping a store's history, each a notebook
 committed with its outputs and run as a test: [Python](mbse:mbse-schemas/python3/tutorials/README.md) and
 [TypeScript](mbse:mbse-schemas/typescript5/tutorials/README.md). The test plan,
-[TestPlan.md](mbse:mbse-schemas/python3/tests/TestPlan.md), lists every case.
+[Test plan — python3](mbse:mbse-schemas/python3/tests/TestPlan.md), lists every case.

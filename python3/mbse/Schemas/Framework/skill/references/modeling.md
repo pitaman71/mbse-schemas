@@ -140,7 +140,7 @@ Each choice in brief; the item linked holds the design and its reasons.
   - Python: [INS-03: An install adds to what another defined](mbse:mbse-schemas/python3/tests/32_Installs.ipynb#INS-03) · TypeScript: [INS-03: An install adds to what another defined](mbse:mbse-schemas/typescript5/tests/32_Installs.ipynb#INS-03)
 - **Evolving a schema.** Add properties freely: old data lacks them, and nothing is mandatory
   ([CAP-025: nothing mandatory but by constraint](mbse:mbse-basis/docs/capabilities/CAP-025.md)). Another install adds members to a schema
-  the store holds ([CAP-109: schemas as linked objects in modules](mbse:mbse-basis/docs/capabilities/CAP-109.md)); [schemas.md](schemas.md) says how.
+  the store holds ([CAP-109: schemas as linked objects in modules](mbse:mbse-basis/docs/capabilities/CAP-109.md)); [Designing and extending schemas](schemas.md) says how.
   - Python: [T09.1: Adding a property](mbse:mbse-schemas/python3/tutorials/09_When_Requirements_Change.ipynb#T09.1) · TypeScript: [T09.1: Adding a property](mbse:mbse-schemas/typescript5/tutorials/09_When_Requirements_Change.ipynb#T09.1)
 
 ## Go deeper

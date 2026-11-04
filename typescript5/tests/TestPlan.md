@@ -56,7 +56,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
 | `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 12 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares, and on a property whose value has one kind its members |
-| `15_Skill.ipynb` | SKL | 2 | as in Python, SKL-02 retired |
+| `15_Skill.ipynb` | SKL | 3 | as in Python, SKL-02 retired |
 | `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
 | `22_Parametrics.ipynb` | PAR | 4 | as in Python |
@@ -73,7 +73,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `33_References.ipynb` | REF | 9 | as in Python; a frame is a `Map`, and `resolve` gives `null` where Python gives None |
 | `34_Provenance.ipynb` | PRV | 11 | as in Python; a frame is a `Map`, and an unset property reads as `null` or `undefined` where Python reads None |
 
-Total: 271 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 272 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

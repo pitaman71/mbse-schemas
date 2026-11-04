@@ -69,7 +69,9 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
 4. **Nothing is mandatory; absent is not a value.** *Why*: old data lacks new properties, and "unset" must differ
    from `""`, `0` or false. *When*: reading any property. *How*: an absent property's `get()` reads as none (`None`,
    `null`), which no property holds as a value, and an absent one is left out of what is written; clear a value
-   through its visitor (`as_value`, then `clear()`). Cardinality is a relation's `unique` clauses (`.uniques(...)`),
+   through its visitor (`as_value`, then `clear()`). An empty value object is a value, not absence: a Spec that sets
+   nothing in it still writes it, as `{}`, and it reads back present (a union value without a branch is no value).
+   Cardinality is a relation's `unique` clauses (`.uniques(...)`),
    which name its links and properties: an upper bound only, and a set of entries where a clause is declared. "At
    least one" is a constraint, written with mbse-patterns.
    [CAP-025: nothing mandatory but by constraint](mbse:mbse-basis/docs/capabilities/CAP-025.md),
@@ -78,6 +80,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [T01.6: "Not set" reads as None](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.6) · TypeScript: [T01.6: "Not set" reads as null](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.6)
    - Python: [T02.6: Entries form a set, because the relation says so](mbse:mbse-schemas/python3/tutorials/02_An_Address_Book.ipynb#T02.6) · TypeScript: [T02.6: Entries form a set, because the relation says so](mbse:mbse-schemas/typescript5/tutorials/02_An_Address_Book.ipynb#T02.6)
    - Python: [T05.2: Reading unique(S)](mbse:mbse-schemas/python3/tutorials/05_A_Price_List.ipynb#T05.2) · TypeScript: [T05.2: Reading unique(S)](mbse:mbse-schemas/typescript5/tutorials/05_A_Price_List.ipynb#T05.2)
+   - Python: [EMB-13: An empty value object is present, never absent](mbse:mbse-schemas/python3/tests/14_Embedded.ipynb#EMB-13) · TypeScript: [EMB-13: An empty value object is present, never absent](mbse:mbse-schemas/typescript5/tests/14_Embedded.ipynb#EMB-13)
 5. **Read through visitors; change through builders, within a transaction.** *Why*: a change can touch several
    objects at once, so it is assembled in one place and takes effect at one moment, all of it or none. *When*: every
    write, to a schema or to data. *How*: an object is read-only; each member is its property's visitor, read with

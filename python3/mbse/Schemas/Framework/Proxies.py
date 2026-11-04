@@ -551,6 +551,15 @@ def _visit(spec: Any, visitor: Any) -> None:
     spec(visitor)
 
 
+def _specified(slot: _Any) -> None:
+    """A Spec given for a value object or an intersection value writes that value, present even where the Spec writes
+    nothing in it: an empty value is present, never absent ([PRI-002: preserve, don't lose](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-002)). A union
+    value without a branch is no value ([CAP-153: unions and intersections of named branches and parts](mbse:mbse-basis/docs/capabilities/CAP-153.md)), so a Spec
+    writes it only by writing its branch."""
+    if slot._writable and isinstance(slot._type, (Schemas.OfObject.Data, Schemas.OfIntersection.Data)):
+        slot._builder()._touch()
+
+
 def _write(writable: bool, reason: str) -> None:
     """Refuses a write that the visitor's mode forbids."""
     if not writable:
@@ -907,7 +916,9 @@ class _Any(_Unassignable):
             builder._touch()
             for index, element in elements:  # each a value, or a callback writing the element through its visitor
                 if _is_function(element):
-                    _visit(element, builder.at(index))
+                    slot = builder.at(index)
+                    _specified(slot)
+                    _visit(element, slot)
                 else:
                     builder.at(index).write(element)
             return
@@ -1159,6 +1170,7 @@ class _Containing(_Unassignable):
             self._indices[key + 1] = self._indices.pop(key, key) + 1
         element = self._element(index, index)
         if _is_function(spec):
+            _specified(element)
             _visit(spec, element)
         else:
             element.write(spec)
@@ -1356,6 +1368,7 @@ class _Property(_Dunders):
 
     def __call__(self, spec: Any) -> Any:
         if _is_function(spec):
+            _specified(self._any())
             _visit(spec, self)
         else:
             self.as_value(spec)

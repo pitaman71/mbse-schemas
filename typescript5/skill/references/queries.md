@@ -40,7 +40,7 @@ binds keeps its object.
 `store.transaction` gives back the frames its chain ends with, each a mapping from symbol to object: with no terms,
 one empty frame; where nothing matches, none. A transaction can be built first, with
 `store.Mutations.OfTransaction(...)`, then run, or written out as a journal's entry
-([serialization.md](serialization.md)).
+([Saving, loading and exchanging data](serialization.md)).
 
 ## Patterns
 

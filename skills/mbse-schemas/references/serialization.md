@@ -45,7 +45,7 @@ reading one executes it, in the store given.
    builds one first), and `Plain.FromPlain(store).Transaction(data)` reads it into a store, to run with
    `store.transaction(...)`. A journal is a list of them, replayed in order; each finds what it names, or makes it. Name
    each object a write finds by its identity, a singleton or an owner and key, never by a property a later write may
-   change, or replaying the journal again duplicates it ([queries.md](queries.md#limits-and-traps)).
+   change, or replaying the journal again duplicates it ([Querying with transactions](queries.md#limits-and-traps)).
    [CAP-129: journals replayed by execution](mbse:mbse-basis/docs/capabilities/CAP-129.md).
    - Python: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/python3/tutorials/12_Keeping_History.ipynb#T12.3) · TypeScript: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/typescript5/tutorials/12_Keeping_History.ipynb#T12.3)
    - Python: [PRV-06: Replaying the same expression writes nothing twice](mbse:mbse-schemas/python3/tests/34_Provenance.ipynb#PRV-06) · TypeScript: [PRV-06: Replaying the same expression writes nothing twice](mbse:mbse-schemas/typescript5/tests/34_Provenance.ipynb#PRV-06)

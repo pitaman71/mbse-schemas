@@ -9,13 +9,13 @@ programs, languages or tools must agree on. Two equivalent implementations exist
 
 | You want to | Read |
 |---|---|
-| Learn it by example, from a contact card to keeping a store's history | [python3/tutorials/README.md](python3/tutorials/README.md), twelve case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
-| Know why the mbse repositories exist, and this one's part in them | [MBSE.md](MBSE.md) |
-| Use the library, or model something with it | The skill, written once: [skills/mbse-schemas/SKILL.md](skills/mbse-schemas/SKILL.md), packaged in each language as [python3/mbse/Schemas/Framework/skill/SKILL.md](python3/mbse/Schemas/Framework/skill/SKILL.md) and [typescript5/skill/SKILL.md](typescript5/skill/SKILL.md). Each practice links its case in each language's tutorials or tests; it loads its references only as needed |
+| Learn it by example, from a contact card to keeping a store's history | [Tutorial: the schemas framework in twelve case studies](python3/tutorials/README.md), twelve case studies; the same in [typescript5/tutorials/](typescript5/tutorials/README.md) |
+| Know why the mbse repositories exist, and this one's part in them | [Why the mbse repositories exist](MBSE.md) |
+| Use the library, or model something with it | The skill, written once: [its source](skills/mbse-schemas/SKILL.md), packaged in each language as [the Python copy](python3/mbse/Schemas/Framework/skill/SKILL.md) and [the TypeScript copy](typescript5/skill/SKILL.md). Each practice links its case in each language's tutorials or tests; it loads its references only as needed |
 | Understand a design decision or an open question | mbse-basis: [the schema-driven data features](https://github.com/pitaman71/mbse-basis/blob/main/docs/features/README.md#schema-driven-data), each capability's detail file |
 | Build schemas with the schema builders (`Framework.Builders`: the meta-schemas, their builders and the store), or migrate a call site to them | [CAP-109: schemas as linked objects in modules](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-109.md#the-meta-schemas-and-their-builders-as-built) |
 | Change the framework | this file, then [docs/EQUIVALENCE.md, Keeping them equivalent](docs/EQUIVALENCE.md#keeping-them-equivalent) |
-| Find or add a test case | [python3/tests/TestPlan.md](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
+| Find or add a test case | [Test plan — python3](python3/tests/TestPlan.md) (TypeScript's plan lists only its differences) |
 
 ## Read before any work
 
@@ -58,7 +58,7 @@ to its case in both languages, as `mbse:` links with a `#Tnn.k` anchor (a tutori
 no programs and no per-language cheat sheets. `skills/sync.sh` copies it byte for byte into
 `python3/mbse/Schemas/Framework/skill/` and `typescript5/skill/`; SKL-01 checks the copies in both suites, and SKL-03
 that every case it links has its `<a id>` in both languages, but for the cases
-[docs/EQUIVALENCE.md](docs/EQUIVALENCE.md#cases-in-one-language-only) lists as one language's only (the dataclasses
+[Equivalence of the implementations](docs/EQUIVALENCE.md#cases-in-one-language-only) lists as one language's only (the dataclasses
 adapter's, DC). Each tutorial step's markdown cell starts with `<a id="Tnn.k"></a>`, and each test case's with
 `<a id="ID"></a>`, the same in both languages. A how the skill teaches with no case is a bug, since it is untested
 ([the basis](https://github.com/pitaman71/mbse-basis/blob/main/docs/README.md#the-doc-spec)): write the case, in both languages, before linking it.

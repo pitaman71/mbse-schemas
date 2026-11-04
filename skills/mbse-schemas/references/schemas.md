@@ -111,5 +111,6 @@ schemas from anything a program holds; the builders make a new version beside a 
   - Python: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.2) · TypeScript: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.2)
 
 ## Go deeper
+<!-- no case: points to the design for reading further -->
 
 The meta-schemas and their builders are [CAP-109: schemas as linked objects in modules](mbse:mbse-basis/docs/capabilities/CAP-109.md#the-meta-schemas-and-their-builders-as-built).

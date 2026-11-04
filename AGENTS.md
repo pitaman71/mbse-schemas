@@ -62,6 +62,9 @@ that every case it links has its `<a id>` in both languages, but for the cases
 adapter's, DC). Each tutorial step's markdown cell starts with `<a id="Tnn.k"></a>`, and each test case's with
 `<a id="ID"></a>`, the same in both languages. A how the skill teaches with no case is a bug, since it is untested
 ([the basis](https://github.com/pitaman71/mbse-basis/blob/main/docs/README.md#the-doc-spec)): write the case, in both languages, before linking it.
+SKL-04 finds such gaps: each section of the skill (a `##` or `###` heading and its text) links a case in each
+language, or, where it teaches no how (an introduction, a routing table, links to go deeper), says why on the line
+after its heading, as `<!-- no case: reason -->`; a section whose subsections each pass passes.
 
 ## Related repositories
 

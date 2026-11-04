@@ -19,6 +19,7 @@ how links its case in the tutorials or tests of each language, where it runs, wi
 language. Where the languages spell a thing differently, [In each language](#in-each-language) says so.
 
 ## When to use it
+<!-- no case: says when to use the package, not how -->
 
 - You need one description of an interface or data model that several programs, languages or tools must agree on.
 - The data is a graph: shared objects, relationships with their own attributes, inverse navigation, cycles.
@@ -193,6 +194,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [RND-03: A source is given to what draws from it; a store holds none](mbse:mbse-schemas/python3/tests/21_Random.ipynb#RND-03) · TypeScript: [RND-03: A source is given to what draws from it; a store holds none](mbse:mbse-schemas/typescript5/tests/21_Random.ipynb#RND-03)
 
 ## Load the reference for your task
+<!-- no case: a table routing each task to its reference -->
 
 | Task | Read |
 |---|---|
@@ -252,6 +254,7 @@ difference (mbse-schemas' [Equivalence of the implementations](mbse:mbse-schemas
   - Python: [DC-08: An install: its module found by its name or made, described](mbse:mbse-schemas/python3/tests/16_Dataclasses.ipynb#DC-08)
 
 ## Learn it by example
+<!-- no case: points to the tutorials and the test plan as a whole -->
 
 The tutorials teach it in twelve case studies, from a contact card to keeping a store's history, each a notebook
 committed with its outputs and run as a test: [Python](mbse:mbse-schemas/python3/tutorials/README.md) and

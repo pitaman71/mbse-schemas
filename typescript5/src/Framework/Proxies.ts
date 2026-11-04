@@ -780,6 +780,16 @@ function visit(spec: unknown, visitor: unknown): void {
   (spec as (visitor: unknown) => unknown)(visitor);
 }
 
+/** A Spec given for a value object or an intersection value writes that value, present even where the Spec writes
+ * nothing in it: an empty value is present, never absent ([PRI-002: preserve, don't lose](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-002)). A union
+ * value without a branch is no value ([CAP-153: unions and intersections of named branches and parts](mbse:mbse-basis/docs/capabilities/CAP-153.md)), so a Spec
+ * writes it only by writing its branch. */
+function specified(slot: _Any): void {
+  if (slot._writable && (slot._type instanceof Schemas.OfObject.Data || slot._type instanceof Schemas.OfIntersection.Data)) {
+    innerOf(slot._builder())._touch();
+  }
+}
+
 /** Refuses a write that the visitor's mode forbids. */
 function write(writable: boolean, reason: string): void {
   if (!writable) throw new ReadOnlyError(reason);
@@ -1209,8 +1219,11 @@ class _Any {
       const builder = makeContainerBuilder(this._type as Schemas.OfContainer.Data, null, this._store, attach, this._label);
       innerOf(builder)._touch();
       for (const [index, element] of elements) { // each a value, or a callback writing the element through its visitor
-        if (isFunction(element)) visit(element, builder.at(index));
-        else builder.at(index).write(element);
+        const slot = builder.at(index);
+        if (isFunction(element)) {
+          specified(slot);
+          visit(element, slot);
+        } else slot.write(element);
       }
       return;
     }
@@ -1485,8 +1498,10 @@ abstract class _Containing extends Shelled {
       this._indices.set(scalarKey(at), at);
     }
     const element = this._element(scalarKey(index), index);
-    if (isFunction(spec)) visit(spec, element);
-    else element.write(spec);
+    if (isFunction(spec)) {
+      specified(element);
+      visit(spec, element);
+    } else element.write(spec);
   }
 
   /** As a union's branch or an intersection's part: writes through a Spec, or takes the elements of a container given,
@@ -1740,8 +1755,10 @@ class _Property extends Dunders {
   }
 
   _call(spec: unknown): unknown {
-    if (isFunction(spec)) visit(spec, this._proxy);
-    else this.as_value(spec);
+    if (isFunction(spec)) {
+      specified(this._any());
+      visit(spec, this._proxy);
+    } else this.as_value(spec);
     return this._parent;
   }
 

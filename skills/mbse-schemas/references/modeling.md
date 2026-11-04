@@ -144,5 +144,6 @@ Each choice in brief; the item linked holds the design and its reasons.
   - Python: [T09.1: Adding a property](mbse:mbse-schemas/python3/tutorials/09_When_Requirements_Change.ipynb#T09.1) · TypeScript: [T09.1: Adding a property](mbse:mbse-schemas/typescript5/tutorials/09_When_Requirements_Change.ipynb#T09.1)
 
 ## Go deeper
+<!-- no case: points to the design for reading further -->
 
 The design of every element and decision is [CAP-109: schemas as linked objects in modules](mbse:mbse-basis/docs/capabilities/CAP-109.md#the-kinds).

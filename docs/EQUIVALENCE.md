@@ -163,7 +163,7 @@ When a case study changes, change both, and rerun both notebooks to refresh thei
 
 Every case, a tutorial step's or a test's, has a twin in the other language with the same ID and anchor, except these,
 which test what only one language has. The skill may link them in that language alone; SKL-03 accepts each listed here
-as having no twin, and no other.
+as having no twin, and no other, and SKL-04 counts each for that language alone.
 
 | Cases | Language | Why |
 |---|---|---|

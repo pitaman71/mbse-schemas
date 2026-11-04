@@ -87,6 +87,7 @@ reading one executes it, in the store given.
   - Python: [T06.7: Round trips](mbse:mbse-schemas/python3/tutorials/06_Saving_And_Loading.ipynb#T06.7) · TypeScript: [T06.7: Round trips](mbse:mbse-schemas/typescript5/tutorials/06_Saving_And_Loading.ipynb#T06.7)
 
 ## Go deeper
+<!-- no case: points to the conformance corpus for reading further -->
 
 Store snapshots both languages must read identically are the
 [conformance corpus](mbse:mbse-schemas/conformance/README.md).

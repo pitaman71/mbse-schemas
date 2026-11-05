@@ -1101,14 +1101,18 @@ class _Any {
   }
 
   /** Where the value is of any schema, takes the schema a write of `kind` gives: the value's own, if it is one the
-   * restriction allows, else the one schema of `kind` it allows; a Spec has no other schema to build by. */
+   * restriction allows, else the one schema of `kind` it allows; a Spec has no other schema to build by. A value given
+   * takes its own schema even where one is held, so that an update replaces a value of one of its schemas with one of
+   * another, as a write where nothing is held would. */
   _ofAny(kind: abstract new (...args: never[]) => unknown, cb: unknown): void {
-    if (this._any === null || this._type instanceof kind) return;
+    if (this._any === null) return;
     const value = isProperty(cb) ? innerOf(cb)._values.get(innerOf(cb)._name) : cb;
     if (!isFunction(cb) && (isRecordData(value) || isRecordBuilder(value) || isContaining(value))) {
       const schema = innerOf(value)._schema;
       if (!this._allows(schema)) throw new TypeError(`${this._label} does not hold a value of ${shownType(schema)}`);
       this._type = schema;
+    } else if (this._type instanceof kind) { // a Spec writes the value held, of the schema it has
+      return;
     } else if (this._writable && (this._values.get(this._name) ?? null) === null) { // a Spec, where nothing is held
       this._type = this._only(kind);
       if (this._any.schemas.length === 0) {

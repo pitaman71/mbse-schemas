@@ -1060,9 +1060,11 @@ class _Any {
     readonly _writable: boolean, readonly _label: string, readonly _onWrite: (() => void) | null = null) {
     this._type = _schema;
     this._any = this._type instanceof Schemas.OfAny.Value ? this._type : null;
+    const held = _values.get(_name);
     if (this._any !== null) { // a value of any schema: of the schema the value held has
-      const held = _values.get(_name);
       this._type = isRecordData(held) || isRecordBuilder(held) || isContaining(held) ? innerOf(held)._schema : null;
+    } else if ((isRecordData(held) || isRecordBuilder(held)) && _refines(innerOf(held)._schema, _schema)) {
+      this._type = innerOf(held)._schema; // a refinement's value, held where its refined schema is declared
     }
     return new Proxy(this, { // a member of the value's kind, where its schema has one (`_kindMember`)
       get: (target, prop, receiver) => prop in target ? Reflect.get(target, prop, receiver) : target._kindMember(prop),
@@ -1091,10 +1093,11 @@ class _Any {
     return found.length === 1 ? found[0] : null;
   }
 
-  /** Where the value is of any schema: whether its restriction allows a value of `schema`; any, unrestricted. */
+  /** Where the value is of any schema: whether its restriction allows a value of `schema`, one of its schemas or a
+   * refinement of one of its object schemas; any, unrestricted. */
   _allows(schema: unknown): boolean {
     const restricted = (this._any as Schemas.OfAny.Value).schemas;
-    return restricted.length === 0 || restricted.some((t) => t === schema);
+    return restricted.length === 0 || restricted.some((t) => _refines(schema, t));
   }
 
   /** Where the value is of any schema, takes the schema a write of `kind` gives: the value's own, if it is one the
@@ -1279,13 +1282,16 @@ class _Any {
     visit(cb, builder);
   }
 
-  /** Writes a value object, union value or intersection value given as a value: copied when it is placed. */
+  /** Writes a value object, union value or intersection value given as a value: copied when it is placed. A value
+   * object may be of a refinement of the schema declared (`_refines`). */
   _replace(value: unknown): void {
     if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
-    if (!(isRecordData(value) || isRecordBuilder(value)) || innerOf(value)._schema !== this._type) {
+    const declared = this._any !== null ? this._type : this._schema;
+    if (!(isRecordData(value) || isRecordBuilder(value)) || !_refines(innerOf(value)._schema, declared)) {
       throw new TypeError(`${this._label} takes ${withArticle(noun(this._type))} or a Spec, got ${typeName(value)}`);
     }
     this._touch();
+    this._type = innerOf(value)._schema;
     this._values.set(this._name, value);
   }
 
@@ -1840,7 +1846,10 @@ function kindVisitor(values: Values, name: string, schema: unknown, store: OfSto
     (onWrite as () => void)(); // a writable member is a union's or an intersection's, which says what writing does
     values.set(name, builder);
   };
-  return makeRecordBuilder(held as RecordSchema, isRecordData(value) ? value : null, store, attach, parent);
+  if (isRecordData(value)) { // of its own schema: a refinement's, where the branch or part declares what it refines
+    return makeRecordBuilder(innerOf(value)._schema, value, store, attach, parent, held as RecordSchema);
+  }
+  return makeRecordBuilder(held as RecordSchema, null, store, attach, parent);
 }
 
 // --- Data instances ---
@@ -2188,13 +2197,28 @@ function runtime(value: unknown): unknown {
   return Schemas.SCALAR_TYPES.find((host) => Schemas.isScalarOf(host, value));
 }
 
-/** The branch of a flat union whose schema a value has. */
+/** Whether a value of `schema` is held where `declared` is declared: it is `declared`, or, where `declared` is a value
+ * object schema, a refinement of it; a container's index is held by its own schema only. See
+ * [CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md). */
+export function _refines(schema: unknown, declared: unknown): boolean {
+  return schema === declared || (declared instanceof Schemas.OfObject.Data && Schemas.is_a(schema, declared));
+}
+
+/** The branch of a flat union whose schema a value has; else the one branch whose schema the value's refines, never
+ * guessed among several. */
 function branchOf(name: string, schema: Schemas.OfUnion.Data, value: unknown): Schemas.OfUnion.Branch {
   const found = schema.branches.find((branch) => Schemas._runtime(branch.schema) === runtime(value));
-  if (found === undefined) {
+  if (found !== undefined) return found;
+  const refined = schema.branches.filter((branch) =>
+    (isRecordData(value) || isRecordBuilder(value)) && _refines(innerOf(value)._schema, branch.schema));
+  if (refined.length > 1) {
+    throw new TypeError(`property ${repr(name)}: a value of ${shownType(innerOf(value)._schema)} refines the schemas of `
+      + `several branches of the flat union, ${repr(refined.map((branch) => branch.name))}; write it through its branch`);
+  }
+  if (refined.length === 0) {
     throw new TypeError(`property ${repr(name)}: a ${typeName(value)} is not a value of any branch of the flat union`);
   }
-  return found;
+  return refined[0] as Schemas.OfUnion.Branch;
 }
 
 /** What a record of `schema` is, for messages. */
@@ -2350,10 +2374,14 @@ class _RecordBuilder extends Shelled {
   _values: Values;
   _copyOf: unknown = null;
 
-  constructor(readonly _schema: RecordSchema, readonly _source: unknown = null, readonly _store: OfStore | null = null,
-    public _attach: ((builder: unknown) => void) | null = null, readonly _parent: unknown = null) {
+  /** What a value given must be, or refine. */
+  readonly _declared: RecordSchema;
+
+  constructor(public _schema: RecordSchema, readonly _source: unknown = null, readonly _store: OfStore | null = null,
+    public _attach: ((builder: unknown) => void) | null = null, readonly _parent: unknown = null, declared: RecordSchema | null = null) {
     super();
     this._values = new Map(_source === null ? [] : innerOf(_source)._values);
+    this._declared = declared ?? _schema;
   }
 
   /** Attaches the builder to what holds it, once, at its first write. */
@@ -2415,9 +2443,10 @@ class _RecordBuilder extends Shelled {
       this._touch();
       visit(spec, this._proxy);
     } else {
-      if (!isRecordData(spec) || innerOf(spec)._schema !== this._schema) {
+      if (!isRecordData(spec) || !_refines(innerOf(spec)._schema, this._declared)) {
         throw new TypeError(`${withArticle(noun(this._schema))} or a Spec is expected, got ${typeName(spec)}`);
       }
+      this._schema = innerOf(spec)._schema;
       this._values = new Map(innerOf(spec)._values);
       this._copyOf = spec;
       this._touch();
@@ -2440,8 +2469,8 @@ class _RecordBuilder extends Shelled {
 }
 
 function makeRecordBuilder(schema: RecordSchema, source: unknown = null, store: OfStore | null = null,
-  attach: ((builder: unknown) => void) | null = null, parent: unknown = null): any {
-  const state = new _RecordBuilder(schema, source, store, attach, parent);
+  attach: ((builder: unknown) => void) | null = null, parent: unknown = null, declared: RecordSchema | null = null): any {
+  const state = new _RecordBuilder(schema, source, store, attach, parent, declared);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -2506,9 +2535,9 @@ export function _linksThrough(store: any, adjacency: AdjacencySchema, value: unk
 }
 
 /** Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type; a value object, union value
- * or intersection value of `schema` itself. */
+ * or intersection value of `schema` itself, or a value object of a refinement of it. */
 export function _holds(schema: unknown, value: unknown): boolean {
-  if (isRecordData(value)) return innerOf(value)._schema === schema;
+  if (isRecordData(value)) return _refines(innerOf(value)._schema, schema);
   return schema instanceof Schemas.OfScalar.Data && schema.type !== null && Schemas.isScalarOf(schema.type, value);
 }
 

@@ -793,9 +793,11 @@ class _Any(_Unassignable):
         self._type = schema
         self._any = self._type if isinstance(self._type, Schemas.OfAny.Value) else None
         self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any schema and its schema unknown
+        held = values.get(name)
         if self._any is not None:  # a value of any schema: of the schema the value held has
-            held = values.get(name)
             self._type = held._schema if isinstance(held, (_RecordData, _RecordBuilder, _Containing)) else None
+        elif isinstance(held, (_RecordData, _RecordBuilder)) and _refines(held._schema, schema):
+            self._type = held._schema  # a refinement's value, held where its refined schema is declared
 
     def _only(self, kind: Any) -> Any:
         """Where the value is of any schema: the one schema of `kind` its restriction allows, else None."""
@@ -803,8 +805,9 @@ class _Any(_Unassignable):
         return found[0] if len(found) == 1 else None
 
     def _allows(self, schema: Any) -> bool:
-        """Where the value is of any schema: whether its restriction allows a value of `schema`; any, unrestricted."""
-        return not self._any.schemas or any(t is schema for t in self._any.schemas)  # type: ignore[union-attr]
+        """Where the value is of any schema: whether its restriction allows a value of `schema`, one of its schemas or a
+        refinement of one of its object schemas; any, unrestricted."""
+        return not self._any.schemas or any(_refines(schema, t) for t in self._any.schemas)  # type: ignore[union-attr]
 
     def _of_any(self, kind: Any, cb: Any) -> None:
         """Where the value is of any schema, takes the schema a write of `kind` gives: the value's own, if it is one the
@@ -970,12 +973,15 @@ class _Any(_Unassignable):
         _visit(cb, builder)
 
     def _replace(self, value: Any) -> None:
-        """Writes a value object, union value or intersection value given as a value: copied when it is placed."""
+        """Writes a value object, union value or intersection value given as a value: copied when it is placed. A value
+        object may be of a refinement of the schema declared (`_refines`)."""
         if isinstance(value, _Property):
             value = value._values.get(value._name)
-        if not isinstance(value, (_RecordData, _RecordBuilder)) or value._schema is not self._type:
+        declared = self._type if self._any is not None else self._schema
+        if not isinstance(value, (_RecordData, _RecordBuilder)) or not _refines(value._schema, declared):
             raise TypeError(f"{self._label} takes {_a(_noun(self._type))} or a Spec, got {type(value).__name__}")
         self._touch()
+        self._type = value._schema
         self._values[self._name] = value
 
     def __getattr__(self, name: str) -> Any:
@@ -1429,7 +1435,9 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
         on_write()  # type: ignore[misc]  # a writable member is a union's or an intersection's, which says what writing does
         values[name] = builder
 
-    return _RecordBuilder(held, value if isinstance(value, _RecordData) else None, store, attach, parent)
+    if isinstance(value, _RecordData):  # of its own schema: a refinement's, where the branch or part declares what it refines
+        return _RecordBuilder(value._schema, value, store, attach, parent, held)
+    return _RecordBuilder(held, None, store, attach, parent)
 
 
 # --- Data instances ---
@@ -1691,12 +1699,27 @@ def _runtime(value: Any) -> Any:
     return ("scalar", type(value))
 
 
+def _refines(schema: Any, declared: Any) -> bool:
+    """Whether a value of `schema` is held where `declared` is declared: it is `declared`, or, where `declared` is a
+    value object schema, a refinement of it; a container's index is held by its own schema only. See
+    [CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md)."""
+    return schema is declared or (isinstance(declared, ObjectSchema) and Schemas.is_a(schema, declared))
+
+
 def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUnion.Branch:
-    """The branch of a flat union whose schema a value has."""
+    """The branch of a flat union whose schema a value has; else the one branch whose schema the value's refines, never
+    guessed among several."""
     found = next((b for b in schema.branches if Schemas._runtime(b.schema) == _runtime(value)), None)
-    if found is None:
+    if found is not None:
+        return found
+    refined = [b for b in schema.branches
+               if isinstance(value, (_RecordData, _RecordBuilder)) and _refines(value._schema, b.schema)]
+    if len(refined) > 1:
+        raise TypeError(f"property {name!r}: a value of {_shown_type(value._schema)} refines the schemas of several "
+                        f"branches of the flat union, {[b.name for b in refined]}; write it through its branch")
+    if not refined:
         raise TypeError(f"property {name!r}: a {type(value).__name__} is not a value of any branch of the flat union")
-    return found
+    return refined[0]
 
 
 def _noun(schema: Any) -> str:
@@ -1847,9 +1870,10 @@ class _RecordBuilder(_Unassignable):
     changes nothing. Writing a union's branch clears any other."""
 
     def __init__(self, schema: Any, source: _RecordData | None = None, store: OfStore | None = None,
-                 attach: Callable[[_RecordBuilder], None] | None = None, parent: Any = None):
+                 attach: Callable[[_RecordBuilder], None] | None = None, parent: Any = None, declared: Any = None):
         self._schema, self._source, self._copy_of, self._store = schema, source, None, store
         self._attach, self._parent = attach, parent
+        self._declared = schema if declared is None else declared  # what a value given must be, or refine
         self._values: dict[str, Any] = {} if source is None else dict(object.__getattribute__(source, "_values"))
 
     def _touch(self) -> None:
@@ -1903,8 +1927,9 @@ class _RecordBuilder(_Unassignable):
             self._touch()
             _visit(spec, self)
         else:
-            if not isinstance(spec, _RecordData) or spec._schema is not self._schema:
+            if not isinstance(spec, _RecordData) or not _refines(spec._schema, self._declared):
                 raise TypeError(f"{_a(_noun(self._schema))} or a Spec is expected, got {type(spec).__name__}")
+            self._schema = spec._schema
             self._values = dict(spec._values)
             self._copy_of = spec
             self._touch()
@@ -1980,9 +2005,9 @@ def _links_through(store: Any, adjacency: Any, value: Any) -> bool:
 
 def _holds(schema: Any, value: Any) -> bool:
     """Whether a property of `schema` holds `value` as given: a scalar of its scalar's host type; a value object, union
-    value or intersection value of `schema` itself."""
+    value or intersection value of `schema` itself, or a value object of a refinement of it."""
     if isinstance(value, _RecordData):
-        return value._schema is schema
+        return _refines(value._schema, schema)
     return isinstance(schema, Schemas.OfScalar.Data) and type(value) is getattr(schema, "type", None)
 
 

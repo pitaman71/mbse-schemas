@@ -55,12 +55,20 @@ schemas from anything a program holds; the builders make a new version beside a 
    of any schema may hold. An adjacency is redeclared only with the same relation and link. `validate()` reports what
    it can't confirm. A refinement stays within its kind, object or container; scalars do not refine.
    [CAP-167: schemas refined by other schemas](mbse:mbse-basis/docs/capabilities/CAP-167.md).
+   A value object of a refinement is held wherever what it refines is declared: a property, a container's element, a
+   union's branch, a value of any schema restricted to it. Build it standalone through the store's builder of its name
+   and give it; a Spec builds the declared schema. It reads as itself, and is written with its schema named,
+   `{"$schema": "D.Lambda", ...}`, read back as it, never guessed. A flat union takes the branch of the value's own
+   schema, else the one branch whose schema it refines, and refuses several; a container's index is of its own schema
+   only. [CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md).
    - Python: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.1) · TypeScript: [T11.1: A refinement: a resistor is a part](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.1)
    - Python: [T11.2: Narrowing a member: a chip mounts on the surface](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.2) · TypeScript: [T11.2: Narrowing a member: a chip mounts on the surface](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.2)
    - Python: [T11.3: Validating a refinement's object against what it refines](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.3) · TypeScript: [T11.3: Validating a refinement's object against what it refines](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.3)
    - Python: [SCH-24: Refinement: a schema refines one of its own kind](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-24) · TypeScript: [SCH-24: Refinement: a schema refines one of its own kind](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-24)
    - Python: [SCH-25: Narrowing to a union's branch](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-25) · TypeScript: [SCH-25: Narrowing to a union's branch](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-25)
    - Python: [SCH-26: A refinement is the same whether refines comes before its own members or after them](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-26) · TypeScript: [SCH-26: A refinement is the same whether refines comes before its own members or after them](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-26)
+   - Python: [SCH-27: A refinement's value held where what it refines is declared](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-27) · TypeScript: [SCH-27: A refinement's value held where what it refines is declared](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-27)
+   - Python: [SCH-28: A refinement's value where several schemas are open](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-28) · TypeScript: [SCH-28: A refinement's value where several schemas are open](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-28)
 6. **Generate.** *Why*: schemas often exist already in another form, a table, a spreadsheet, a program's classes.
    *How*: an install is a function of its transaction, so build its spec from that description; run again, it writes
    nothing, and given more, it adds. Python's dataclasses adapter writes such an install from a program's dataclasses.

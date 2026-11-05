@@ -83,6 +83,10 @@ reading one executes it, in the store given.
   path to nothing, undoes what was written. A refused document writes nothing.
   - Python: [PLN-11: Malformed documents are refused before anything is written, with a path and a reason](mbse:mbse-schemas/python3/tests/05_Plain.ipynb#PLN-11) · TypeScript: [PLN-11: Malformed documents are refused before anything is written, with a path and a reason](mbse:mbse-schemas/typescript5/tests/05_Plain.ipynb#PLN-11)
   - Python: [PLN-13: A document that is refused writes nothing and leaves the input untouched](mbse:mbse-schemas/python3/tests/05_Plain.ipynb#PLN-13) · TypeScript: [PLN-13: A document that is refused writes nothing and leaves the input untouched](mbse:mbse-schemas/typescript5/tests/05_Plain.ipynb#PLN-13)
+- A value is read by the schema declared where it is held, never by the shape of its data. A value object of a
+  refinement of that schema names its own, `{"$schema": "D.Lambda", ...}`; a `$schema` naming any other schema, or
+  none registered, is refused.
+  - Python: [SCH-27: A refinement's value held where what it refines is declared](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-27) · TypeScript: [SCH-27: A refinement's value held where what it refines is declared](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-27)
 - Decoding does not validate. Call `Validators.Validate(store).Reachable(schema, root)` afterwards if you need to.
   - Python: [T06.7: Round trips](mbse:mbse-schemas/python3/tutorials/06_Saving_And_Loading.ipynb#T06.7) · TypeScript: [T06.7: Round trips](mbse:mbse-schemas/typescript5/tutorials/06_Saving_And_Loading.ipynb#T06.7)
 

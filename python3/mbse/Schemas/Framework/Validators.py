@@ -18,7 +18,8 @@ The validator reads the value through the visitor protocol (`Readers.OfObject`),
   schema's adjacency marked `owner()` makes an owner (object identity 47 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided));
 - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
   Uniqueness is checked only over the entries reachable from what was validated.
-- a value object's properties hold values of their schemas, recursively;
+- a value object's properties hold values of their schemas, recursively, each checked by its own schema, a
+  refinement's value by the refinement (`Schemas.is_a`);
 - an intersection value holds every one of the intersection's parts, each with a value of that part's schema.
 """
 
@@ -172,10 +173,10 @@ def _key(schema: Any, value: Any) -> Hashable:
     if isinstance(held, Schemas.OfContainer.Data):
         return ("container", frozenset((index if not hasattr(index, "as_schema") else _key(held.index, index),
                                         _key(held.element, _element(e, held.element))) for index, e in _pairs(value)))
-    if isinstance(held, Schemas.OfObject.Data):
+    if isinstance(held, Schemas.OfObject.Data):  # by its own schema: a refinement's value is not its base's
         properties = tuple((p.as_schema().name, _key(p.as_schema().schema, _property_value(p, p.as_schema().schema)))
                            for p in value.as_properties)
-        return ("object", properties)
+        return ("object", id(value.as_schema()), properties)
     members = tuple((name, _key(m.schema, _member(getattr(value, name), m.schema))) for name, m in held.properties.items())
     return ("record", members)
 
@@ -261,7 +262,7 @@ class _Check:
             allowed = not restricted or any(isinstance(t, Schemas.OfScalar.Data) and t.type is own.type for t in restricted)
             shown = own.tag
         else:
-            allowed, shown = any(t is own for t in restricted), repr(own.name)
+            allowed, shown = any(Proxies._refines(own, t) for t in restricted), repr(own.name)
             if not restricted:
                 try:
                     self._store.name_of(own)

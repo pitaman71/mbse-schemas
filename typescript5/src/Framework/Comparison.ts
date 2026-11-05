@@ -10,8 +10,9 @@
  *   strings by code point, bytes lexicographically, floats by value with `-0.0` before `0.0`. NaNs equal each other
  *   and are incomparable with other floats. Booleans are equal or incomparable.
  * - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
- *   incomparable. A value object compares deeply: its adjacencies participate too, and so do those of the value
- *   objects it holds; a reference object's own adjacencies do not.
+ *   incomparable. A value object held is compared by its own schema, which may refine the one declared: two of
+ *   different schemas are incomparable. A value object compares deeply: its adjacencies participate too, and so do
+ *   those of the value objects it holds; a reference object's own adjacencies do not.
  * - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
  * - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
  * - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
@@ -152,7 +153,9 @@ function compareValues(schema: unknown, a: any, b: any): Result {
   }
   const held = schema;
   if (held instanceof Schemas.OfScalar.Data) return typeName(a) !== typeName(b) ? null : compareScalars(a, b);
-  if (held instanceof Schemas.OfObject.Data) return objects(held, a, b, true);
+  if (held instanceof Schemas.OfObject.Data) { // each by its own schema, a refinement's value too
+    return a.as_schema() === b.as_schema() ? objects(a.as_schema(), a, b, true) : null;
+  }
   if (held instanceof Schemas.OfContainer.Data) return containers(held, a, b);
   if (held instanceof Schemas.OfAny.Value) return sameType(own(a), own(b)) ? compareValues(own(a), a, b) : null; // under one schema only
   const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;

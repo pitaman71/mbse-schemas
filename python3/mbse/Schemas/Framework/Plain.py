@@ -70,7 +70,7 @@ def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[boo
     if isinstance(held, Schemas.OfScalar.Data):
         read.as_scalar(lambda s: found.extend([] if s.get() is None else [held.to_plain(s.get())]) or s)
     elif isinstance(held, Schemas.OfObject.Data):
-        read.as_object(lambda o: found.extend([_object(o, held, ref)] if _present(o) else []) or o)
+        read.as_object(lambda o: found.extend([_refined(o, held, ref)] if _present(o) else []) or o)
     elif isinstance(held, Schemas.OfContainer.Data):
         read.as_container(lambda c: found.extend([_container(c, held, ref)] if _present(c) else []) or c)
     elif isinstance(held, Schemas.OfAny.Value):
@@ -108,8 +108,8 @@ def _wrapped(schema: Schemas.OfAny.Value, own: Any, plain: PlainData, ref: Ref) 
     one of its schemas taking that plain form, and it does not read as a wrapper; else wrapped by its kind and schema,
     a scalar by its tag (`{"scalar": {"str": "x"}}`), a container by its kind only where it is the one container schema
     (`{"container": [...]}`), any other by its registered name (`{"object": {"crm.Phone": {...}}}`)."""
-    if len(_fitting(schema, plain)) == 1 and not _wrapper(plain):
-        return plain
+    if len(_fitting(schema, plain)) == 1 and not _wrapper(plain) and any(t is own for t in schema.schemas):
+        return plain  # a refinement of one of its schemas is not one of them: wrapped by its own name
     kind = _kind_of(own)
     if kind == "scalar":
         return {kind: {own.tag: plain}}
@@ -222,7 +222,7 @@ def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
         return False, None
     if isinstance(held, Schemas.OfContainer.Data):
         return True, _container(read, held, ref)
-    return True, _object(read, held, ref) if isinstance(held, Schemas.OfObject.Data) else _record(read, held, ref)
+    return True, _refined(read, held, ref) if isinstance(held, Schemas.OfObject.Data) else _record(read, held, ref)
 
 
 def _record(read: Any, schema: Any, ref: Ref) -> dict[str, PlainData]:
@@ -233,6 +233,19 @@ def _record(read: Any, schema: Any, ref: Ref) -> dict[str, PlainData]:
         if present:
             out[name] = plain
     return out
+
+
+def _refined(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> dict[str, PlainData]:
+    """A value object held where `schema` is declared, as `_object` writes it; a refinement's value marked with its
+    schema's registered name, `{"$schema": "P.Term2", ...}`, so that a reader never guesses it ([CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md))."""
+    own = read.as_schema()
+    if own is schema:
+        return _object(read, schema, ref)
+    try:
+        name = ref.name_of(own)
+    except TypeError:
+        raise TypeError("a refinement's value is marked with its schema's registered name; its schema has none") from None
+    return {SCHEMA: name, **_object(read, own, ref)}
 
 
 def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> dict[str, PlainData]:
@@ -435,6 +448,8 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: A
     noun, owner, member = _RECORDS[type(schema)]
     if not isinstance(plain, dict):
         raise DecodeError(f"{noun} must be a mapping, got {type(plain).__name__}", path=path(*where))
+    if isinstance(schema, Schemas.OfObject.Data) and SCHEMA in plain:
+        return _decode_refinement(schema, plain, where, store)
     values: dict[str, Any] = {}
     for key, item in plain.items():
         if key not in schema.properties:
@@ -443,6 +458,29 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: A
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
     return _Record(schema, values)
+
+
+def _decode_refinement(schema: Schemas.OfObject.Data, plain: dict[str, PlainData], where: tuple, store: Any) -> Any:
+    """A value object marked with its schema, `{"$schema": name, ...}`: of `schema` itself, or of a refinement of it,
+    built standalone through the store's builder of that name and assigned as a value; any other is refused, never
+    guessed ([CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md))."""
+    name, at = plain[SCHEMA], (*where, SCHEMA)
+    if not isinstance(name, str):
+        raise DecodeError(f"a value object's {SCHEMA} is its schema's registered name, got {type(name).__name__}",
+                          path=path(*at))
+    try:
+        own = store.registered(name)
+    except LookupError:
+        raise DecodeError(f"no schema registered as {name!r}", path=path(*at)) from None
+    if not Proxies._refines(own, schema):
+        raise DecodeError(f"{name!r} is not {_shown(schema)} or a refinement of it", path=path(*at))
+    record = _decode(own, {k: v for k, v in plain.items() if k != SCHEMA}, where, store)
+    return record if own is schema else _Assigned(name, record, store)
+
+
+def _shown(schema: Any) -> str:
+    """A declared schema in a message: its name, quoted, or what it is."""
+    return repr(schema.name) if schema.name is not None else "the value object's schema"
 
 
 def _named(schema: Any, store: Any) -> str | None:
@@ -460,7 +498,8 @@ def _restricted(schema: Schemas.OfAny.Value, held: Any, decoded: Any, store: Any
     """A restricted `OfAny`'s value, decoded as its schema `held`: where the restriction holds other schemas of its
     kind, which a Spec would not tell apart, built standalone through the store's builder of its registered name and
     assigned as a value."""
-    if isinstance(held, Schemas.OfScalar.Data) or [_kind_of(t) for t in schema.schemas].count(_kind_of(held)) == 1:
+    if isinstance(held, Schemas.OfScalar.Data) or isinstance(decoded, _Assigned) or [
+            _kind_of(t) for t in schema.schemas].count(_kind_of(held)) == 1:
         return decoded
     name = _named(held, store)
     return decoded if name is None else _Assigned(name, decoded, store)
@@ -481,7 +520,10 @@ def _decode_restricted(schema: Schemas.OfAny.Value, plain: PlainData, where: tup
         ((name, value),) = body.items()
         held = next((t for t in of_kind if _named(t, store) == name), None)
         if held is None:
-            raise DecodeError(f"{name!r} is not one of this value's {kind} schemas", path=path(*where, kind, name))
+            refined = _refinement_of(of_kind, name, store)
+            if refined is None:
+                raise DecodeError(f"{name!r} is not one of this value's {kind} schemas", path=path(*where, kind, name))
+            return _Assigned(name, _decode(refined, value, (*where, kind, name), store), store)
         return _restricted(schema, held, _decode(held, value, (*where, kind, name), store), store)
     fits = _fitting(schema, plain)
     if isinstance(plain, dict) and len(plain) == 1 and not fits:
@@ -494,6 +536,15 @@ def _decode_restricted(schema: Schemas.OfAny.Value, plain: PlainData, where: tup
         raise DecodeError(f"a value of any schema takes the plain form of one of its schemas, got "
                           f"{type(plain).__name__}", path=path(*where))
     return _restricted(schema, fits[0], _decode(fits[0], plain, where, store), store)
+
+
+def _refinement_of(schemas: list[Any], name: str, store: Any) -> Any:
+    """The value object schema registered as `name`, where it refines one of `schemas`; else None."""
+    try:
+        own = store.registered(name)
+    except LookupError:
+        return None
+    return own if any(isinstance(t, Schemas.OfObject.Data) and Proxies._refines(own, t) for t in schemas) else None
 
 
 def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
@@ -526,6 +577,9 @@ def _decode_index(schema: Schemas.OfContainer.Data, plain: PlainData, where: tup
     if schema.arrangement == "entries":
         raise DecodeError("a container whose index is neither ordered nor hashable is not read from snapshots yet",
                           path=path(*where))
+    if isinstance(plain, dict) and SCHEMA in plain:  # a container's index is held by its own schema only
+        raise DecodeError(f"an index is a value of its container's index schema, never marked with {SCHEMA}",
+                          path=path(*where, SCHEMA))
     record = _decode(held, plain, where)
     missing = [name for name in held.properties if name not in record.values]
     if missing:
@@ -661,7 +715,9 @@ def _set(visitor: Any, name: str, value: Any) -> None:
     """Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value, or a
     container."""
     member = getattr(visitor, name)
-    if isinstance(value, _Assigned):
+    if isinstance(value, _Assigned) and _holds_members(visitor):
+        member(value.make())
+    elif isinstance(value, _Assigned):
         member.as_value(value.make())
     elif isinstance(value, _Elements):
         if _holds_members(visitor):
@@ -1419,7 +1475,7 @@ class ToPlain:
         held = schema
         if not isinstance(held, Schemas.OfAny.Value):
             own = value.as_schema()
-            if own is not held:
+            if not Proxies._refines(own, held):
                 raise TypeError(f"value is a {own.name!r}, not an instance of the given schema")
         return _any(_Held(value), schema, _Values(self._store, self._flat))[1]
 

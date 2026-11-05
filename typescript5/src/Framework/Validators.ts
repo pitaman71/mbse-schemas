@@ -19,7 +19,8 @@
  *   schema's adjacency marked `owner()` makes an owner (object identity 47 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided));
  * - `unique(S)` clauses hold over the entries seen: entries that agree on everything outside `S` agree on `S`.
  *   Uniqueness is checked only over the entries reachable from what was validated.
- * - a value object's properties hold values of their schemas, recursively;
+ * - a value object's properties hold values of their schemas, recursively, each checked by its own schema, a
+ *   refinement's value by the refinement (`Schemas.is_a`);
  * - an intersection value holds every one of the intersection's parts, each with a value of that part's schema.
  */
 
@@ -28,7 +29,7 @@
 import * as Builders from "./Builders.js";
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
-import { _derefFirst, _key_of, scalarKey } from "./Proxies.js";
+import { _derefFirst, _key_of, _refines, scalarKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
@@ -185,10 +186,10 @@ function key(schema: unknown, value: any): string {
       key(held.element, element(e, held.element))]));
     return `container:${JSON.stringify(sortedStrings(keyed))}`;
   }
-  if (held instanceof Schemas.OfObject.Data) {
+  if (held instanceof Schemas.OfObject.Data) { // by its own schema: a refinement's value is not its base's
     const properties = [...value.as_properties as Iterable<Readers.OfProperty>].map((p) =>
       [p.as_schema().name, key(p.as_schema().schema, propertyValue(p, p.as_schema().schema))]);
-    return `object:${JSON.stringify(properties)}`;
+    return `object:${numberOf(value.as_schema())}:${JSON.stringify(properties)}`;
   }
   const record = held as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
   const members = [...record.properties].map(([name, m]) => [name, key(m.schema, member(value[name], m.schema))]);
@@ -283,7 +284,7 @@ class Checker {
       allowed = restricted.length === 0 || restricted.some((t) => t instanceof Schemas.OfScalar.Data && t.type === of.type);
       shown = String(of.tag);
     } else {
-      allowed = restricted.some((t) => t === of);
+      allowed = restricted.some((t) => _refines(of, t));
       shown = repr(of.name);
       if (restricted.length === 0) {
         try {

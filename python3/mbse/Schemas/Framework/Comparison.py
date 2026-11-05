@@ -9,8 +9,9 @@ greater than `b`, and `None` when they are incomparable.
   strings by code point, bytes lexicographically, floats by value with `-0.0` before `0.0`. NaNs equal each other
   and are incomparable with other floats. Booleans are equal or incomparable.
 - `OfObject`: equal when every property its schema declares is absent in both or equal in both; otherwise
-  incomparable. A value object compares deeply: its adjacencies participate too, and so do those of the value objects
-  it holds; a reference object's own adjacencies do not.
+  incomparable. A value object held is compared by its own schema, which may refine the one declared: two of
+  different schemas are incomparable. A value object compares deeply: its adjacencies participate too, and so do
+  those of the value objects it holds; a reference object's own adjacencies do not.
 - `OfProperty` and `OfAny` compare their values; values of different kinds are incomparable.
 - `OfUnion`: equal when both hold the same branch with equal values; otherwise incomparable.
 - `OfIntersection`: equal when every part is absent in both or equal in both; otherwise incomparable.
@@ -144,8 +145,8 @@ def _compare(schema: Any, a: Any, b: Any) -> Result:
         if type(a) is not type(b):
             return None
         return _scalars(a, b)
-    if isinstance(held, Schemas.OfObject.Data):
-        return _objects(held, a, b, deep=True)
+    if isinstance(held, Schemas.OfObject.Data):  # each by its own schema, a refinement's value too
+        return _objects(a.as_schema(), a, b, deep=True) if a.as_schema() is b.as_schema() else None
     if isinstance(held, Schemas.OfContainer.Data):
         return _containers(held, a, b)
     if isinstance(held, Schemas.OfAny.Value):  # values of any schema: comparable under one type only

@@ -42,7 +42,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 
 | Notebook | Suite | Cases | Focus |
 |---|---|---|---|
-| `01_Schemas.ipynb` | SCH | 26 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`; SCH-17 rebuilds `A` in its own block, so names it `Again.A` (a name is registered once); SCH-14 reads a one-branch flat union's int as `BigInt(card.code)` where Python reads `int(card.code)`, and compares snapshots with `equal` where Python uses `==` |
+| `01_Schemas.ipynb` | SCH | 28 | as in Python; host types are `BigInt`, `Number`, `String`, `Boolean`, `Uint8Array`; SCH-17 rebuilds `A` in its own block, so names it `Again.A` (a name is registered once); SCH-14 reads a one-branch flat union's int as `BigInt(card.code)` where Python reads `int(card.code)`, and compares snapshots with `equal` where Python uses `==` |
 | `02_Visitors.ipynb` | VIS | 7 | as in Python; conformance is checked at runtime by method presence and `Function.length`, the read-only views by the type checker; data instances are callable as a `Proxy` with a function target (`typeof` is `"function"`); the scalar sugar is `[Symbol.toPrimitive]` and `valueOf`; JavaScript's probes and `in` on a builder |
 | `03_Proxies.ipynb` | PRX | 21 | as in Python, plus JavaScript protocol probes (`then`, `toString`, symbols, `in`) on instances, adjacencies, entry builders, link members and stores, `util.inspect` of instances, builders and members, the Jupyter display hook (`Symbol.for("Jupyter.display")`, used by Deno's kernel), and the reprs of builders of value objects and adjacencies |
 | `04_Reachable.ipynb` | RCH | 8 | as in Python |
@@ -73,7 +73,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `33_References.ipynb` | REF | 9 | as in Python; a frame is a `Map`, and `resolve` gives `null` where Python gives None |
 | `34_Provenance.ipynb` | PRV | 11 | as in Python; a frame is a `Map`, and an unset property reads as `null` or `undefined` where Python reads None |
 
-Total: 273 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 275 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

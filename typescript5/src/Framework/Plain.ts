@@ -99,7 +99,7 @@ function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
     });
   } else if (held instanceof Schemas.OfObject.Data) {
     read.as_object((o: any) => {
-      if (present(o)) found.push(object(o, held, ref));
+      if (present(o)) found.push(refined(o, held, ref));
       return o;
     });
   } else if (held instanceof Schemas.OfContainer.Data) {
@@ -155,7 +155,9 @@ function registeredName(ref: Ref, own: any): string {
  * scalar by its tag (`{"scalar": {"str": "x"}}`), a container by its kind only where it is the one container schema
  * (`{"container": [...]}`), any other by its registered name (`{"object": {"crm.Phone": {...}}}`). */
 function wrapped(schema: Schemas.OfAny.Value, own: any, plain: PlainData, ref: Ref): PlainData {
-  if (fitting(schema, plain).length === 1 && !isWrapper(plain)) return plain;
+  if (fitting(schema, plain).length === 1 && !isWrapper(plain) && schema.schemas.some((t) => t === own)) {
+    return plain; // a refinement of one of its schemas is not one of them: wrapped by its own name
+  }
   const kind = kindOf(own);
   if (kind === "scalar") return new Map([[kind, new Map([[own.tag as string, plain]])]]);
   if (kind === "container" && schema.schemas.filter((t) => t instanceof Schemas.OfContainer.Data).length === 1) {
@@ -286,7 +288,7 @@ function memberValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData]
   }
   if (!present(read)) return [false, null];
   if (held instanceof Schemas.OfContainer.Data) return [true, container(read, held, ref)];
-  return [true, held instanceof Schemas.OfObject.Data ? object(read, held, ref) : record(read, held as RecordSchema, ref)];
+  return [true, held instanceof Schemas.OfObject.Data ? refined(read, held, ref) : record(read, held as RecordSchema, ref)];
 }
 
 /** A union value or an intersection value, nested as a mapping of its branch or its parts. */
@@ -297,6 +299,20 @@ function record(read: any, schema: RecordSchema, ref: Ref): PlainMap {
     if (found) out.set(name, plain);
   }
   return out;
+}
+
+/** A value object held where `schema` is declared, as `object` writes it; a refinement's value marked with its schema's
+ * registered name, `{"$schema": "P.Term2", ...}`, so that a reader never guesses it ([CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md)). */
+function refined(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref): PlainMap {
+  const own = read.as_schema();
+  if (own === schema) return object(read, schema, ref);
+  let name: string;
+  try {
+    name = (ref.store as Visitors.OfStore).name_of(own);
+  } catch { // a store's name_of refuses an unregistered schema
+    throw new TypeError("a refinement's value is marked with its schema's registered name; its schema has none");
+  }
+  return new Map([[SCHEMA, name], ...object(read, own, ref)]);
 }
 
 /** A value object, nested in what holds it, as a mapping of its properties that are set, in the schema's order; it has
@@ -647,6 +663,7 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, store:
   if (held instanceof Schemas.OfContainer.Data) return decodeContainer(held, plain, where, store);
   const [what, owner, member] = recordNames(held as RecordSchema);
   if (!(plain instanceof Map)) throw new DecodeError(`${what} must be a mapping, got ${typeName(plain)}`, { path: path(...where) });
+  if (held instanceof Schemas.OfObject.Data && plain.has(SCHEMA)) return decodeRefinement(held, plain as PlainMap, where, store);
   const record = held as RecordSchema;
   const values = new Map<string, unknown>();
   for (const [key, item] of plain as PlainMap) {
@@ -670,6 +687,33 @@ function formOf(plain: unknown): string | null {
   return Array.isArray(plain) ? "list" : null;
 }
 
+/** A value object marked with its schema, `{"$schema": name, ...}`: of `schema` itself, or of a refinement of it, built
+ * standalone through the store's builder of that name and assigned as a value; any other is refused, never guessed
+ * ([CAP-251: values of a refinement held where what it refines is declared](mbse:mbse-basis/docs/capabilities/CAP-251.md)). */
+function decodeRefinement(schema: Schemas.OfObject.Data, plain: PlainMap, where: Where, store: Visitors.OfStore | null): unknown {
+  const name = plain.get(SCHEMA);
+  const at = [...where, SCHEMA];
+  if (typeof name !== "string") {
+    throw new DecodeError(`a value object's ${SCHEMA} is its schema's registered name, got ${typeName(name)}`, { path: path(...at) });
+  }
+  let own: unknown;
+  try {
+    own = (store as Visitors.OfStore).registered(name);
+  } catch { // a store's registered refuses a name it does not hold
+    throw new DecodeError(`no schema registered as ${repr(name)}`, { path: path(...at) });
+  }
+  if (!Proxies._refines(own, schema)) {
+    throw new DecodeError(`${repr(name)} is not ${shown(schema)} or a refinement of it`, { path: path(...at) });
+  }
+  const record = decode(own as Schemas.OfAny.Data, new Map([...plain].filter(([key]) => key !== SCHEMA)), where, store);
+  return own === schema ? record : new Assigned(name, record, store as Visitors.OfStore);
+}
+
+/** A declared schema in a message: its name, quoted, or what it is. */
+function shown(schema: Schemas.OfObject.Data): string {
+  return schema.name !== null ? repr(schema.name) : "the value object's schema";
+}
+
 /** The name a restricted `OfAny`'s wrapper names one of its schemas by: a scalar's tag, else its registered name; null
  * where it has none. */
 function named(schema: unknown, store: Visitors.OfStore | null): string | null {
@@ -685,7 +729,8 @@ function named(schema: unknown, store: Visitors.OfStore | null): string | null {
  * which a Spec would not tell apart, built standalone through the store's builder of its registered name and assigned as
  * a value. */
 function restricted(schema: Schemas.OfAny.Value, held: unknown, decoded: unknown, store: Visitors.OfStore | null): unknown {
-  if (held instanceof Schemas.OfScalar.Data || schema.schemas.filter((t) => kindOf(t) === kindOf(held)).length === 1) {
+  if (held instanceof Schemas.OfScalar.Data || decoded instanceof Assigned
+    || schema.schemas.filter((t) => kindOf(t) === kindOf(held)).length === 1) {
     return decoded;
   }
   const name = named(held, store);
@@ -708,7 +753,11 @@ function decodeRestricted(schema: Schemas.OfAny.Value, plain: unknown, where: Wh
     const [name, value] = [...body][0] as [string, unknown];
     const held = ofKind.find((t) => named(t, store) === name);
     if (held === undefined) {
-      throw new DecodeError(`${repr(name)} is not one of this value's ${kind} schemas`, { path: path(...where, kind, name) });
+      const refinement = refinementOf(ofKind, name, store);
+      if (refinement === null) {
+        throw new DecodeError(`${repr(name)} is not one of this value's ${kind} schemas`, { path: path(...where, kind, name) });
+      }
+      return new Assigned(name, decode(refinement as Schemas.OfAny.Data, value, [...where, kind, name], store), store as Visitors.OfStore);
     }
     return restricted(schema, held, decode(held as Schemas.OfAny.Data, value, [...where, kind, name], store), store);
   }
@@ -726,6 +775,17 @@ function decodeRestricted(schema: Schemas.OfAny.Value, plain: unknown, where: Wh
       { path: path(...where) });
   }
   return restricted(schema, fits[0], decode(fits[0] as Schemas.OfAny.Data, plain, where, store), store);
+}
+
+/** The value object schema registered as `name`, where it refines one of `schemas`; else null. */
+function refinementOf(schemas: unknown[], name: string, store: Visitors.OfStore | null): unknown {
+  let own: unknown;
+  try {
+    own = (store as Visitors.OfStore).registered(name);
+  } catch { // a store's registered refuses a name it does not hold
+    return null;
+  }
+  return schemas.some((t) => t instanceof Schemas.OfObject.Data && Proxies._refines(own, t)) ? own : null;
 }
 
 /** A value of any schema: restricted, wrapped by its kind and schema or bare where that is unambiguous
@@ -758,6 +818,10 @@ function decodeIndex(schema: Schemas.OfContainer.Data, plain: unknown, where: Wh
   if (held instanceof Schemas.OfScalar.Data) return decode(held, plain, where);
   if (schema.arrangement === "entries") {
     throw new DecodeError("a container whose index is neither ordered nor hashable is not read from snapshots yet", { path: path(...where) });
+  }
+  if (plain instanceof Map && plain.has(SCHEMA)) { // a container's index is held by its own schema only
+    throw new DecodeError(`an index is a value of its container's index schema, never marked with ${SCHEMA}`,
+      { path: path(...where, SCHEMA) });
   }
   const record = decode(held as Schemas.OfAny.Data, plain, where) as DecodedRecord;
   const names = [...(held as Schemas.OfObject.Data).properties.keys()];
@@ -900,7 +964,8 @@ function holdsMembers(visitor: any): boolean {
 /** Writes a decoded value into the member `name`: a scalar, a value object, union value or intersection value. */
 function set(visitor: any, name: string, value: unknown): void {
   const member = visitor[name];
-  if (value instanceof Assigned) member.as_value(value.make());
+  if (value instanceof Assigned && holdsMembers(visitor)) member(value.make());
+  else if (value instanceof Assigned) member.as_value(value.make());
   else if (value instanceof DecodedElements) {
     if (holdsMembers(visitor)) member((held: any) => fillElements(held, value));
     else member.as_value((a: any) => a.as_container((held: any) => fillElements(held, value)));
@@ -1554,7 +1619,7 @@ export function ToPlain(store: Visitors.OfStore, options: { flat?: boolean } = {
     const held = schema;
     if (!(held instanceof Schemas.OfAny.Value)) {
       const own = value.as_schema();
-      if (own !== held) throw new TypeError(`value is a ${repr(own.name)}, not an instance of the given schema`);
+      if (!Proxies._refines(own, held)) throw new TypeError(`value is a ${repr(own.name)}, not an instance of the given schema`);
     }
     return anyValue(new Held(value), schema, new Document(store, flat).ref)[1];
   };

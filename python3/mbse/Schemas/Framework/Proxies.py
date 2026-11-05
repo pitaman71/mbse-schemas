@@ -811,14 +811,18 @@ class _Any(_Unassignable):
 
     def _of_any(self, kind: Any, cb: Any) -> None:
         """Where the value is of any schema, takes the schema a write of `kind` gives: the value's own, if it is one the
-        restriction allows, else the one schema of `kind` it allows; a Spec has no other schema to build by."""
-        if self._any is None or isinstance(self._type, kind):
+        restriction allows, else the one schema of `kind` it allows; a Spec has no other schema to build by. A value given
+        takes its own schema even where one is held, so that an update replaces a value of one of its schemas with one of
+        another, as a write where nothing is held would."""
+        if self._any is None:
             return
         value = cb._values.get(cb._name) if isinstance(cb, _Property) else cb
         if not _is_function(cb) and isinstance(value, (_RecordData, _RecordBuilder, _Containing)):
             if not self._allows(value._schema):
                 raise TypeError(f"{self._label} does not hold a value of {_shown_type(value._schema)}")
             self._type = value._schema
+        elif isinstance(self._type, kind):  # a Spec writes the value held, of the schema it has
+            return
         elif self._writable and self._values.get(self._name) is None:  # a Spec, where nothing is held
             self._type = self._only(kind)
             if not self._any.schemas:

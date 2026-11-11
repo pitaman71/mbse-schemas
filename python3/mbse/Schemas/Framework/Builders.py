@@ -1643,6 +1643,8 @@ class Store(Proxies.OfStore):
 
     def __init__(self) -> None:
         super().__init__()
+        self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
+        self._changes: Any = None  # what the transaction committing changed, gathered for its observers
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
@@ -1775,17 +1777,34 @@ class Store(Proxies.OfStore):
     def _transacting(self) -> Iterator[Any]:
         """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
         its plain schema (`_extend_builders`): a module's install extends a store's own schemas (install
-        D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`)."""
+        D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it
+        changed is gathered for the store's observers, which are given its effect once it has committed (`Changes`)."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         from . import Provenance
 
+        self._changes = None
         try:
             with super()._transacting() as proposals:
                 yield proposals
                 Provenance._record(self, proposals)  # at its commit, within it
         finally:
             _extend_builders(self, before)
+        gathered, self._changes = self._changes, None
+        if gathered is not None:  # once committed: a transaction that raised is observed by none
+            from . import Changes
+
+            effect = Changes._effect(self, gathered)
+            for observer in list(self._observers):
+                observer(effect)
+
+    def _settled(self, proposals: Any) -> None:
+        """A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
+        deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`)."""
+        from . import Changes
+
+        if self._observers:
+            self._changes = Changes._gather(self, proposals)
 
     def _permit(self, builder: _Builder[Any]) -> None:
         """Refuses a builder's update of a schema the store was made holding that does more than add members to it,

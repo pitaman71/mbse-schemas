@@ -209,12 +209,18 @@ class OfStore(Stores.Catalog):
         try:
             with self._writing():  # ownership is settled within the outermost
                 yield proposals
+            if below is None:
+                self._settled(proposals)
         except BaseException:
             self._proposals = below
             proposals.abort()
             raise
         self._proposals = below
         proposals.commit()
+
+    def _settled(self, proposals: Any) -> None:
+        """A transaction's writes, its ownership settled, just before they commit: nothing, in a store of proxies
+        alone."""
 
     def _commit_schemas(self, proposals: Any) -> None:
         """Applies the updates of schema objects that waited for commit: none, in a store of proxies alone."""

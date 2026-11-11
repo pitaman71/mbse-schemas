@@ -29,6 +29,7 @@
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
+import * as Changes from "./Changes.js";
 import * as Provenance from "./Provenance.js";
 import * as References from "./References.js";
 import * as PlainModule from "./Plain.js";
@@ -2065,6 +2066,11 @@ export class Store extends Proxies.OfStore {
   readonly _placed = new Map<unknown, [ModuleData, string]>();
   readonly _root: ModuleData;
 
+  /** What is given each transaction's changes at its commit (`Changes.observe`). */
+  _observers: ((effect: any) => void)[] = [];
+  /** What the transaction committing changed, gathered for its observers. */
+  _changes: Changes._Gathered | null = null;
+
   constructor() {
     super();
     const made = new Map<string, unknown>(); // its own, as the framework's installs define them, read by the bootstrap
@@ -2297,21 +2303,37 @@ export class Store extends Proxies.OfStore {
 
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
    * plain schema (`extendBuilders`): a module's install extends a store's own schemas (install
-   * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`). */
+   * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it changed is gathered
+   * for the store's observers, which are given its effect once it has committed (`Changes`). */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
+    this._changes = null;
+    let written: T;
     try {
-      return super._transacting(() => {
-        const written = write();
+      written = super._transacting(() => {
+        const result = write();
         Provenance._record(this, this._proposals!); // at its commit, within it
-        return written;
+        return result;
       });
     } finally {
       extendBuilders(this, before);
     }
+    const gathered = this._changes as Changes._Gathered | null;
+    this._changes = null;
+    if (gathered !== null) { // once committed: a transaction that threw is observed by none
+      const effect = Changes._effect(this, gathered);
+      for (const observer of [...this._observers]) observer(effect);
+    }
+    return written;
+  }
+
+  /** A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
+   * deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`). */
+  override _settled(proposals: Proposals.OfStore): void {
+    if (this._observers.length > 0) this._changes = Changes._gather(this, proposals);
   }
 
   /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under

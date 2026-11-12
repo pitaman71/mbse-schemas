@@ -998,6 +998,8 @@ def _remove(store: Any, target: Any, schema: Any, name: str, entries: list[Any] 
     relation = schema.adjacencies[name].relation
     removed = range(len(held)) if entries is None else _removed(store, relation, held, entries, frame)
     if not removed:
+        if entries is not None:  # a removal that removed nothing: what a writer whose view was stale sends (CAP-293)
+            Proxies._note_missed(store, relation)
         return
     builder = _writer(store, schema, target)
     member = getattr(builder, name)
@@ -1061,7 +1063,9 @@ def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, ent
 
     builder = _writer(store, schema, target)
     member = getattr(builder, name)
-    if Proxies._single(adjacency.relation, adjacency.me):  # one entry at most: the one held is replaced
+    # one entry at most: the one held is replaced, but where a removal from the relation removed nothing, so that the
+    # entry inserted beside it is refused at the commit (CAP-293)
+    if Proxies._single(adjacency.relation, adjacency.me) and not Proxies._missed(store, adjacency.relation):
         member(lambda held: held.remove(lambda old: old))
     member(lambda held: held.insert(fill))
     builder.update()

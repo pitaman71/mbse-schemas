@@ -718,6 +718,20 @@ function checkUniques(proposals: any): void {
   }
 }
 
+/** Notes, on the transaction open on `store`, that a removal from `relation` removed nothing (CAP-293): a removal is
+ * written only within one. */
+function noteMissed(store: any, relation: RelationSchema): void {
+  store._proposals.missed.add(relation);
+}
+
+/** Whether a removal from `relation` removed nothing in the transaction open on `store`, or a savepoint of it. */
+function missed(store: any, relation: RelationSchema): boolean {
+  for (let at = store._proposals; at instanceof Proposals.OfStore; at = at.base) {
+    if (at.missed.has(relation)) return true;
+  }
+  return false;
+}
+
 /** Throws `ValueError` where an entry breaks a `unique` clause of its relation. */
 function checkUnique(entry: _Entry, store: unknown): void {
   const part = (e: _Entry, name: string): [string, unknown] => {
@@ -2663,8 +2677,7 @@ class _AdjacencyBuilder extends Shelled {
     const entries = this._entries();
     const kept = entries.filter((entry) => !agrees(entry, spec, this._schema, builder._store));
     builder._entries.set(this._name, kept);
-    const proposals = builder._store._proposals;
-    if (kept.length === entries.length && proposals !== null) proposals.missed.add(this._schema.relation); // CAP-293
+    if (kept.length === entries.length) noteMissed(builder._store, this._schema.relation as RelationSchema); // CAP-293
     return this._proxy;
   }
 
@@ -3221,7 +3234,7 @@ export function _isVisitor(value: unknown): boolean {
 export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as _makeEmpty, makeProperty as _makeProperty,
   isFunction as _isFunction, visit as _visit, noun as _noun, withArticle as _withArticle, isObjectData as _isObjectData,
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
-  addEntry as _add_entry, sameStore as _same_store, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single,
+  addEntry as _add_entry, sameStore as _same_store, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single, noteMissed as _note_missed, missed as _missed,
   built as _built, ownerEntries as _owner_entries, ownedLinks as _owned_links, ownerAdjacencies as _owner_adjacencies,
   keyNames as _key_names };
 

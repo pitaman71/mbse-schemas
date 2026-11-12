@@ -506,6 +506,24 @@ def _check_uniques(proposals: Any) -> None:
                         _check_unique(entry, proposals.store)
 
 
+def _note_missed(store: Any, relation: RelationSchema) -> None:
+    """Notes, on the transaction open on `store`, that a removal from `relation` removed nothing (CAP-293): a removal is
+    written only within one."""
+    store._proposals.missed.add(id(relation))
+
+
+def _missed(store: Any, relation: RelationSchema) -> bool:
+    """Whether a removal from `relation` removed nothing in the transaction open on `store`, or a savepoint of it."""
+    from . import Proposals
+
+    at = store._proposals
+    while isinstance(at, Proposals.OfStore):
+        if id(relation) in at.missed:
+            return True
+        at = at.base
+    return False
+
+
 def _check_unique(entry: _Entry, store: Any) -> None:
     """Raises `ValueError` where `entry` breaks a `unique` clause of its relation."""
     def part(e: _Entry, name: str) -> Hashable:
@@ -2115,9 +2133,8 @@ class _AdjacencyBuilder(_Unassignable):
         entries = self._entries()
         kept = [e for e in entries if not _agrees(e, spec, self._schema, self._builder._store)]
         self._builder._entries[self._name] = kept
-        proposals = self._builder._store._proposals
-        if len(kept) == len(entries) and proposals is not None:  # it removed nothing (CAP-293)
-            proposals.missed.add(id(self._schema.relation))
+        if len(kept) == len(entries):  # it removed nothing (CAP-293)
+            _note_missed(self._builder._store, self._schema.relation)
         return self
 
     def clear(self) -> _AdjacencyBuilder:

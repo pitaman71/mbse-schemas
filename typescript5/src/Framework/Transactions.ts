@@ -1090,7 +1090,10 @@ function remove(store: any, target: any, schema: any, name: string, entries: Map
   frame: Frame): void {
   const relation = schema.adjacencies.get(name).relation;
   const removed = entries === null ? held.map((_, index) => index) : removedOf(store, relation, held, entries, frame);
-  if (removed.length === 0) return;
+  if (removed.length === 0) {
+    if (entries !== null) Proxies._note_missed(store, relation); // a removal that removed nothing: a stale view (CAP-293)
+    return;
+  }
   const builder = writer(store, schema, target);
   const member = builder[name];
   const written = [...member];
@@ -1149,7 +1152,11 @@ function insert(store: any, target: any, schema: any, name: string, adjacency: a
   };
   const builder = writer(store, schema, target);
   const member = builder[name];
-  if (Proxies._single(adjacency.relation, adjacency.me)) member((held: any) => held.remove((old: any) => old)); // one at most: replaced
+  // one entry at most: the one held is replaced, but where a removal from the relation removed nothing, so that the
+  // entry inserted beside it is refused at the commit (CAP-293)
+  if (Proxies._single(adjacency.relation, adjacency.me) && !Proxies._missed(store, adjacency.relation)) {
+    member((held: any) => held.remove((old: any) => old));
+  }
   member((held: any) => held.insert(fill));
   builder.update();
 }

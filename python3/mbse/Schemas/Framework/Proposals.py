@@ -29,6 +29,8 @@ class OfStore:
         self.entries_: dict[int, tuple[Any, dict[Hashable, dict[Hashable, Any]]]] = {}  # each holder's entry tables
         self.deferred: dict[int, Any] = {}  # each schema object's last builder, whose update waits for commit
         # the data objects its builders created, and those they wrote, by id: what Provenance records (`note`)
+        # the relations a removal of which removed nothing, by id: what a writer whose view was stale sends (CAP-293)
+        self.missed: set[int] = set()
         self.created: dict[int, Any] = {}
         self.written: dict[int, Any] = {}
         self.expression: Any = None  # the transaction's expression, where it has one: its record's data (Provenance)
@@ -123,6 +125,7 @@ class OfStore:
             self.base.deferred.update(self.deferred)  # in order: each waits for the transaction's commit
             self.base.created.update(self.created)
             self.base.written.update(self.written)
+            self.base.missed.update(self.missed)
         for holder, values in self.values_.values():
             into = self.base.values(holder, True)
             into.clear()

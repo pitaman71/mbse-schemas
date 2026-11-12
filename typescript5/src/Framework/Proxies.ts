@@ -262,7 +262,10 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     let written: T;
     try {
       written = this._writing(write); // ownership is settled within the outermost
-      if (below === null) this._settled(proposals);
+      if (below === null) {
+        checkUniques(proposals);
+        this._settled(proposals);
+      }
     } catch (error) {
       this._proposals = below;
       proposals.abort();
@@ -697,6 +700,52 @@ function addEntry(relation: RelationSchema, entry: any, store: unknown = null): 
 }
 
 /** The entries of `relation` that link `target` via `link`, in the order they were added. */
+/** Refuses a transaction, just before it commits, that both removed nothing by a removal from a relation and inserts
+ * an entry of it which, with the entries held, breaks a `unique` clause the relation declares: another entry of it,
+ * linking an object it links, agrees with it on the clause's other links and properties and differs on the clause's
+ * own. So a writer that appends to a container whose last another has replaced, removing `Last(c, a)` and inserting
+ * `Last(c, b)`, is refused ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)). Checking is otherwise on request
+ * ([PRI-007: three-valued checking on request](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-007)); and an entry inserted again that is held already inserts nothing, so that
+ * applying a transaction twice refuses nothing. */
+function checkUniques(proposals: any): void {
+  for (const [holder, tables] of proposals.entries_ as Map<object, Map<RelationSchema, Map<string, unknown>>>) {
+    const before = proposals.base.entries(holder) as Map<RelationSchema, Map<string, unknown>>;
+    for (const [relation, held] of tables) {
+      if (!proposals.missed.has(relation)) continue;
+      const old = before.get(relation) ?? new Map();
+      for (const [key, entry] of held) if (!old.has(key)) checkUnique(innerOf(entry) as _Entry, proposals.store);
+    }
+  }
+}
+
+/** Throws `ValueError` where an entry breaks a `unique` clause of its relation. */
+function checkUnique(entry: _Entry, store: unknown): void {
+  const part = (e: _Entry, name: string): [string, unknown] => {
+    const target = e._links.get(name);
+    if (target !== undefined && target !== null) return ["link", innerOf(target)];
+    const value = e._properties.get(name);
+    return ["value", value === undefined || value === null ? null : scalarKey(value)];
+  };
+  const same = (a: [string, unknown], b: [string, unknown]): boolean => a[0] === b[0] && a[1] === b[1];
+  const listed = (names: string[]): string => `[${names.map((n) => `'${n}'`).join(", ")}]`;
+  const relation = entry._relation;
+  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
+  const others = new Set<_Entry>();
+  for (const target of entry._links.values()) {
+    for (const e of table(target, relation, store).values()) if (innerOf(e) !== entry) others.add(innerOf(e) as _Entry);
+  }
+  for (const clause of relation.uniques) {
+    const rest = names.filter((n) => !clause.has(n)).sort();
+    const own = [...clause].sort();
+    for (const other of others) {
+      if (rest.every((n) => same(part(other, n), part(entry, n))) && own.some((n) => !same(part(other, n), part(entry, n)))) {
+        throw new ValueError(`an entry of '${relation.name}' breaks unique(${own.join(", ")}), where a removal from it `
+          + `removed nothing: entries agreeing on ${listed(rest)} differ on ${listed(own)}`);
+      }
+    }
+  }
+}
+
 function linking(relation: RelationSchema, link: string, target: unknown, store: unknown = null): any[] {
   return [...table(target, relation, store).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
 }
@@ -2611,8 +2660,11 @@ class _AdjacencyBuilder extends Shelled {
 
   remove(spec: unknown): any {
     const builder = innerOf(this._builder);
-    const kept = this._entries().filter((entry) => !agrees(entry, spec, this._schema, builder._store));
+    const entries = this._entries();
+    const kept = entries.filter((entry) => !agrees(entry, spec, this._schema, builder._store));
     builder._entries.set(this._name, kept);
+    const proposals = builder._store._proposals;
+    if (kept.length === entries.length && proposals !== null) proposals.missed.add(this._schema.relation); // CAP-293
     return this._proxy;
   }
 

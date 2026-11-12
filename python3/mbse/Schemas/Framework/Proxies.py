@@ -210,6 +210,7 @@ class OfStore(Stores.Catalog):
             with self._writing():  # ownership is settled within the outermost
                 yield proposals
             if below is None:
+                _check_uniques(proposals)
                 self._settled(proposals)
         except BaseException:
             self._proposals = below
@@ -484,6 +485,48 @@ def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> No
         return
     for target in entry._links.values():
         _table(target, id(relation), store, write=True)[key] = entry
+
+
+def _check_uniques(proposals: Any) -> None:
+    """Refuses a transaction, just before it commits, that both removed nothing by a removal from a relation and inserts
+    an entry of it which, with the entries held, breaks a `unique` clause the relation declares: another entry of it,
+    linking an object it links, agrees with it on the clause's other links and properties and differs on the clause's
+    own. So a writer that appends to a container whose last another has replaced, removing `Last(c, a)` and inserting
+    `Last(c, b)`, is refused ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)). Checking is otherwise on request
+    ([PRI-007: three-valued checking on request](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-007)); and an entry inserted again that is held already inserts nothing, so that
+    applying a transaction twice refuses nothing."""
+    base = proposals.base
+    for holder, tables in proposals.entries_.values():
+        before = base.entries(holder)
+        for relation_id, table in tables.items():
+            if relation_id in proposals.missed:
+                old = before.get(relation_id, {})
+                for key, entry in table.items():
+                    if key not in old:
+                        _check_unique(entry, proposals.store)
+
+
+def _check_unique(entry: _Entry, store: Any) -> None:
+    """Raises `ValueError` where `entry` breaks a `unique` clause of its relation."""
+    def part(e: _Entry, name: str) -> Hashable:
+        target = e._links.get(name)
+        if target is not None:
+            return ("link", id(target))
+        value = e._properties.get(name)
+        return ("value", None if value is None else _scalar_key(value))
+
+    relation = entry._relation
+    names = set(relation.entry.links) | set(relation.entry.properties)
+    others = {id(e): e for target in entry._links.values() for e in _table(target, id(relation), store).values()
+              if e is not entry}
+    for clause in relation.uniques:
+        rest = sorted(names - clause)
+        for other in others.values():
+            if all(part(other, n) == part(entry, n) for n in rest) \
+                    and any(part(other, n) != part(entry, n) for n in clause):
+                raise ValueError(f"an entry of {relation.name!r} breaks unique({', '.join(sorted(clause))}), where a "
+                                 f"removal from it removed nothing: entries agreeing on {rest} differ on "
+                                 f"{sorted(clause)}")
 
 
 def _linking(relation: RelationSchema, link: str, target: Any, store: Any = None) -> list[_Entry]:
@@ -2069,8 +2112,12 @@ class _AdjacencyBuilder(_Unassignable):
         return self
 
     def remove(self, spec: Any) -> _AdjacencyBuilder:
-        kept = [e for e in self._entries() if not _agrees(e, spec, self._schema, self._builder._store)]
+        entries = self._entries()
+        kept = [e for e in entries if not _agrees(e, spec, self._schema, self._builder._store)]
         self._builder._entries[self._name] = kept
+        proposals = self._builder._store._proposals
+        if len(kept) == len(entries) and proposals is not None:  # it removed nothing (CAP-293)
+            proposals.missed.add(id(self._schema.relation))
         return self
 
     def clear(self) -> _AdjacencyBuilder:

@@ -38,6 +38,8 @@ export class OfStore implements Visitors.OfStore {
   readonly created = new Set<object>();
   /** The data objects its builders wrote: what Provenance records (`note`). */
   readonly written = new Set<object>();
+  /** The relations a removal of which removed nothing: what a writer whose view was stale sends (CAP-293). */
+  readonly missed = new Set<object>();
   /** The transaction's expression, where it has one: its record's data (Provenance). */
   expression: unknown = null;
   /** How many schema objects the store held when the transaction began: those its updates of wait for its commit. */
@@ -148,6 +150,7 @@ export class OfStore implements Visitors.OfStore {
       for (const [original, builder] of this.deferred) this.base.deferred.set(original, builder); // in order
       for (const target of this.created) this.base.created.add(target);
       for (const target of this.written) this.base.written.add(target);
+      for (const relation of this.missed) this.base.missed.add(relation);
     }
     for (const [holder, values] of this.values_) {
       const into = this.base.values(holder, true);

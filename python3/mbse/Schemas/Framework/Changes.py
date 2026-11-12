@@ -15,6 +15,9 @@ value is, with no schema of its own. It is one upsert:
   its value, which the spec writes;
 - its spec: the relation entries the transaction removed, then those it inserted, each written on the adjacency of one
   object it links, then the properties it changed, each set to its value, written by the property's schema, or cleared.
+  An object the transaction deleted is never named: the entry that owned it is removed by its owner's key for it,
+  written on its owner's adjacency, and what its deletion removed in cascade, every entry linking it and what it
+  owned, is left to follow from that, as it does in every store that applies the effect.
 
 Applied to the store as it was before the transaction, the effect makes the same changes; applied again, it changes
 nothing. The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records
@@ -89,10 +92,12 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
             inserted.update({(relation, key): entry for key, entry in table.items() if key not in old})
             removed.update({(relation, key): entry for key, entry in old.items() if key not in table})
     made = {id(x): x for x in proposals.created.values() if isinstance(x, Proxies._ObjectData)}
+    deleted = {id(x) for entry in removed.values() for x in entry._links.values()
+               if id(x) not in made and Proxies._owner_adjacencies(_schema(x)) and not Proxies._owner_entries(x)}
     changed: list[tuple[Any, str, Any]] = []
     for holder, values in proposals.values_.values():
-        if not isinstance(holder, Proxies._ObjectData):
-            continue  # a value object's: read with the object that holds it
+        if not isinstance(holder, Proxies._ObjectData) or id(holder) in deleted:
+            continue  # a value object's, read with the object that holds it; or a deleted object's, which goes
         names = list(dict.fromkeys([*base.values(holder), *values]))
         after = {name: _value(store, holder, name) for name in names}
         with _as_committed(store):
@@ -126,7 +131,18 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
                                   if (v := _value(store, x, n)) is not None]
         return name
 
-    for verb, entries in (("remove", removed.values()), ("insert", inserted.values())):
+    for entry in removed.values():  # a deleted object's: its owning entry, by its key; the rest follows from that
+        gone = [link for link, x in entry._links.items() if id(x) in deleted]
+        if not gone:
+            continue
+        owned = _owning(entry, gone)
+        if owned is not None:
+            owner, me = owned
+            keys = {k: entry._properties[k] for k in Proxies._key_names(entry._relation, me, gone[0])}
+            gathered.entries.append((symbol(entry._links[me]), owner, "remove", {}, keys))
+    for verb, entries in (("remove", [e for e in removed.values() if not any(id(x) in deleted
+                                                                           for x in e._links.values())]),
+                          ("insert", inserted.values())):
         for entry in entries:
             link, adjacency = _writer(entry, made)
             others = {other: symbol(x) for other, x in entry._links.items() if other != link}
@@ -147,6 +163,23 @@ def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
                          "that its effect cannot write it: name one")
     _, link, name = min(choices, key=lambda choice: choice[0])
     return link, name
+
+
+def _owning(entry: Any, gone: list[str]) -> tuple[str, str] | None:
+    """Where `entry` owns the one deleted object it links, through `gone`, and its owner survives: the owner's
+    adjacency by name that writes it, and the owner's link; else None."""
+    if len(gone) != 1:
+        return None
+    x = entry._links[gone[0]]
+    if not any(a.relation is entry._relation and a.me == gone[0] for a in Proxies._owner_adjacencies(_schema(x))):
+        return None
+    (me,) = [link for link in entry._links if link != gone[0]]
+    names = [name for name, a in _schema(entry._links[me]).adjacencies.items()
+             if a.relation is entry._relation and a.me == me]
+    if not names:
+        raise ValueError(f"no owner of an entry of {entry._relation.name!r} has an adjacency to it by name, so that "
+                         "its effect cannot remove what the entry owned: name one")
+    return names[0], me
 
 
 def _effect(store: Any, gathered: _Gathered) -> Any:

@@ -72,9 +72,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `32_Installs.ipynb` | INS | 6 | as in Python; the transaction an install is given is a `Proxy`, and JavaScript's protocol probes (`then`) read as `undefined` |
 | `33_References.ipynb` | REF | 9 | as in Python; a frame is a `Map`, and `resolve` gives `null` where Python gives None |
 | `34_Provenance.ipynb` | PRV | 11 | as in Python; a frame is a `Map`, and an unset property reads as `null` or `undefined` where Python reads None |
-| `35_Changes.ipynb` | CHG | 8 | as in Python; an effect's plain form is read by `JSON.loads`, as a `Map` |
+| `35_Changes.ipynb` | CHG | 9 | as in Python; an effect's plain form is read by `JSON.loads`, as a `Map` |
 
-Total: 284 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 285 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

@@ -549,7 +549,7 @@ wheels = [
 
 [[package]]
 name = "mbse-schemas"
-version = "0.26.11"
+version = "0.26.12"
 source = { editable = "." }
 
 [package.optional-dependencies]

@@ -16,7 +16,9 @@
  *   schema, found by its value, which the spec writes;
  * - its spec: the relation entries the transaction removed, then those it inserted, each written on the adjacency of
  *   one object it links, then the properties it changed, each set to its value, written by the property's schema, or
- *   cleared.
+ *   cleared. An object the transaction deleted is never named: the entry that owned it is removed by its owner's key
+ *   for it, written on its owner's adjacency, and what its deletion removed in cascade, every entry linking it and what
+ *   it owned, is left to follow from that, as it does in every store that applies the effect.
  *
  * Applied to the store as it was before the transaction, the effect makes the same changes; applied again, it changes
  * nothing. The changes are gathered from the transaction's proposals just before it commits, after `Provenance`
@@ -96,9 +98,17 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     }
   }
   const made = new Set([...proposals.created].filter((x) => Proxies._isObjectData(x)).map((x) => Proxies._innerOf(x)));
+  const deleted = new Set<unknown>();
+  for (const entry of removed.values()) {
+    for (const x of (Proxies._innerOf(entry) as any)._links.values() as Iterable<unknown>) {
+      if (!made.has(Proxies._innerOf(x)) && Proxies._owner_adjacencies(schemaOf(x)).length > 0
+          && Proxies._owner_entries(x).length === 0) deleted.add(Proxies._innerOf(x));
+    }
+  }
   const changed: [unknown, string, unknown][] = [];
   for (const [data, values] of proposals.values_) {
-    if (!(data instanceof Proxies._internals._ObjectData)) continue; // a value object's: read with the object holding it
+    // a value object's, read with the object holding it; or a deleted object's, which goes
+    if (!(data instanceof Proxies._internals._ObjectData) || deleted.has(data)) continue;
     const holder = (data as any)._proxy; // proposals hold an object's data: read it through its proxy
     const names = [...new Set([...(base.values(data) as Map<string, unknown>).keys(), ...(values as Map<string, unknown>).keys()])];
     const after = new Map(names.map((name) => [name, value(store, holder, name)]));
@@ -137,8 +147,21 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     }
     return name;
   };
-  for (const [verb, entries] of [["remove", removed], ["insert", inserted]] as const) {
-    for (const entry of entries.values()) {
+  const gone = (state: any): string[] => [...state._links as Map<string, unknown>]
+    .filter(([, x]) => deleted.has(Proxies._innerOf(x))).map(([link]) => link);
+  for (const entry of removed.values()) { // a deleted object's: its owning entry, by its key; the rest follows from that
+    const state = Proxies._innerOf(entry) as any;
+    const owned = owning(state, gone(state));
+    if (owned !== null) {
+      const [owner, me] = owned;
+      const keys = new Map(Proxies._key_names(state._relation, me, gone(state)[0]!)
+        .map((k) => [k, state._properties.get(k)] as [string, unknown]));
+      gathered.entries.push([symbol(state._links.get(me)), owner, "remove", new Map(), keys]);
+    }
+  }
+  const kept = [...removed.values()].filter((entry) => gone(Proxies._innerOf(entry)).length === 0);
+  for (const [verb, entries] of [["remove", kept], ["insert", [...inserted.values()]]] as const) {
+    for (const entry of entries) {
       const state = Proxies._innerOf(entry) as any;
       const [link, adjacency] = writer(state, made);
       const others = new Map<string, string>();
@@ -169,6 +192,24 @@ function writer(state: any, made: Set<unknown>): [string, string] {
   }
   const [, link, name] = choices.find(([later]) => !later) ?? choices[0]!;
   return [link, name];
+}
+
+/** Where an entry owns the one deleted object it links, through `gone`, and its owner survives: the owner's adjacency
+ * by name that writes it, and the owner's link; else null. */
+function owning(state: any, gone: string[]): [string, string] | null {
+  if (gone.length !== 1) return null;
+  const x = state._links.get(gone[0]);
+  if (!Proxies._owner_adjacencies(schemaOf(x)).some((a: any) => a.relation === state._relation && a.me === gone[0])) {
+    return null;
+  }
+  const [me] = [...(state._links as Map<string, unknown>).keys()].filter((link) => link !== gone[0]) as [string];
+  const names = [...(schemaOf(state._links.get(me)).adjacencies as Map<string, any>)]
+    .filter(([, a]) => a.relation === state._relation && a.me === me).map(([name]) => name);
+  if (names.length === 0) {
+    throw new ValueError(`no owner of an entry of '${state._relation.name}' has an adjacency to it by name, so that `
+      + "its effect cannot remove what the entry owned: name one");
+  }
+  return [names[0]!, me];
 }
 
 /** The effect, built once the transaction has committed: `Mutations.OfTransaction`, one upsert. */

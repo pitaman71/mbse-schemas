@@ -92,8 +92,16 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
             inserted.update({(relation, key): entry for key, entry in table.items() if key not in old})
             removed.update({(relation, key): entry for key, entry in old.items() if key not in table})
     made = {id(x): x for x in proposals.created.values() if isinstance(x, Proxies._ObjectData)}
-    deleted = {id(x) for entry in removed.values() for x in entry._links.values()
-               if id(x) not in made and Proxies._owner_adjacencies(_schema(x)) and not Proxies._owner_entries(x)}
+    gone = {id(x) for entry in removed.values() for link, x in entry._links.items()  # owned, not present: deleted
+            if isinstance(x, Proxies._Unresolved) and Proxies._owns_through(entry._relation, link, store)}
+    for entry in [*removed.values(), *inserted.values()]:  # what it names, each the store holds: loaded (CAP-284)
+        for link, x in list(entry._links.items()):
+            if isinstance(x, Proxies._Unresolved) and id(x) not in gone:
+                # loading it links it in every entry held that waits on it; one removed, held by none, is linked here
+                entry._links[link] = x.store._resolved(x)
+    deleted = gone | {id(x) for entry in removed.values() for x in entry._links.values()
+                      if isinstance(x, Proxies._ObjectData) and id(x) not in made
+                      and Proxies._owner_adjacencies(_schema(x)) and not Proxies._owner_entries(x)}
     changed: list[tuple[Any, str, Any]] = []
     for holder, values in proposals.values_.values():
         if not isinstance(holder, Proxies._ObjectData) or id(holder) in deleted:
@@ -135,7 +143,7 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         gone = [link for link, x in entry._links.items() if id(x) in deleted]
         if not gone:
             continue
-        owned = _owning(entry, gone)
+        owned = _owning(entry, gone, store)
         if owned is not None:
             owner, me = owned
             keys = {k: entry._properties[k] for k in Proxies._key_names(entry._relation, me, gone[0])}
@@ -165,13 +173,15 @@ def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
     return link, name
 
 
-def _owning(entry: Any, gone: list[str]) -> tuple[str, str] | None:
+def _owning(entry: Any, gone: list[str], store: Any) -> tuple[str, str] | None:
     """Where `entry` owns the one deleted object it links, through `gone`, and its owner survives: the owner's
     adjacency by name that writes it, and the owner's link; else None."""
     if len(gone) != 1:
         return None
     x = entry._links[gone[0]]
-    if not any(a.relation is entry._relation and a.me == gone[0] for a in Proxies._owner_adjacencies(_schema(x))):
+    owns = Proxies._owns_through(entry._relation, gone[0], store) if isinstance(x, Proxies._Unresolved) else any(
+        a.relation is entry._relation and a.me == gone[0] for a in Proxies._owner_adjacencies(_schema(x)))
+    if not owns:
         return None
     (me,) = [link for link in entry._links if link != gone[0]]
     names = [name for name, a in _schema(entry._links[me]).adjacencies.items()

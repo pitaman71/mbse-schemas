@@ -254,12 +254,18 @@ def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> 
     return {prop.as_schema().name: _value(prop, prop.as_schema().schema, ref)[1] for prop in read.as_properties}
 
 
+def _linked_as_held(read: Any, link: str) -> Any:
+    """What an entry links through `link`, as it holds it: one of the store below's not present by its path, unread, so
+    that writing an entry loads nothing (CAP-284)."""
+    return read._links[link] if isinstance(read, Proxies._Entry) else getattr(read, link)
+
+
 def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref) -> dict[str, PlainData]:
     """An entry as a mapping: the links other than the object's own, as references, then its properties."""
     out: dict[str, PlainData] = {}
     for name in adjacency.relation.entry.links:
         if name != adjacency.me:
-            out[name] = ref(getattr(read, name))
+            out[name] = ref(_linked_as_held(read, name))
     for name, prop in adjacency.relation.entry.properties.items():
         present, plain = _value(getattr(read, name), prop.schema, ref)
         if present:
@@ -675,28 +681,33 @@ def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
 def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
     """The object a path names in `store`, or None: a schema object from the root module (`Builders.Store.held`), a
     singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
-    adjacency is `o`. In a store with a store below, an object of its below's it holds already is found by its path, one
-    it made itself through its owner's entries, and any other is the store below's, held by its path until it is read
-    (CAP-284)."""
+    adjacency is `o`. In a store with a store below, one it holds, else the store below's, loaded (CAP-284)."""
     singleton, steps = _steps(path_plain, where)
     if singleton == ".":
         return store._at(_schema_steps(path_plain, where))
     if not steps:
         return store._singletons.get(singleton)
     if store._below is not None:
-        held = store._identified(path_plain)
-        if held is not None:
-            return held
+        return store._found(path_plain)
+    owner = _by_path(store, _owner_path(singleton, steps), where)
+    return None if owner is None else _owned_by(owner, steps[-1])
+
+
+def _owner_path(singleton: str, steps: list[Any]) -> PlainData:
+    """The path of the owner of the object at the path of `singleton` and `steps`."""
     nested: PlainData = {"target": {}}
     for i, o, keys in reversed(steps[:-1]):
         nested = {"entry": {"i": i, "o": o, "properties": keys, "next": nested}}
-    owner = _by_path(store, {"singleton": singleton, "next": nested}, where)
-    if owner is None:
-        return None
-    _, o, keys = steps[-1]
+    return {"singleton": singleton, "next": nested}
+
+
+def _owned_by(owner: Any, step: Any) -> Any:
+    """The object `owner` owns by the path's last step, its keys and its owner adjacency, among the objects present;
+    else None. Keys are compared first, so that no other object is read to be told apart."""
+    _, o, keys = step
     for table in Proxies._entries_of(owner).values():
         for entry in table.values():
-            if entry._properties != keys:  # keys first, so that no other object is loaded to be told apart
+            if entry._properties != keys:
                 continue
             for link, target in entry._links.items():
                 if target is owner or not isinstance(target, Proxies._ObjectData):
@@ -706,7 +717,7 @@ def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
                          if a.owner and a.name == o and a.relation is entry._relation and a.me == link]
                 if owned:
                     return target
-    return None if store._below is None else store._identity(path_plain)
+    return None
 
 
 _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",
@@ -800,6 +811,8 @@ class _Document:
         number = self._numbers.get(id(target))
         if number is not None:
             return {"symbol": str(number)}
+        if isinstance(target, Proxies._Unresolved):  # one of the store below's not present: by its path (CAP-284)
+            return {"path": target.path}
         if isinstance(target, Proxies._ObjectData):
             if Proxies._counted(target):
                 raise ValueError(f"a document refers to a counted {self.store.name_of(target.as_schema())!r} it does "
@@ -842,7 +855,7 @@ class _Document:
             for _, adjacency, entries in self._entries(value):
                 for entry in entries:
                     for link in adjacency.relation.entry.links:
-                        target = getattr(entry, link)
+                        target = _linked_as_held(entry, link)
                         if link != adjacency.me and isinstance(target, Proxies._ObjectData) and Proxies._counted(target):
                             self._hold(target)
         written: set[int] = set()

@@ -91,11 +91,13 @@ class _Committed:
         self.store = store
 
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
+        self.store._load(holder)
         return object.__getattribute__(holder, "_own_values")
 
     def entries(self, holder: Any, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
-        """An object's own entry tables; a schema the store was made holding is never written: the store keeps the
-        entries that link it."""
+        """An object's own entry tables, an object of the store below's loaded first (CAP-284); a schema the store was
+        made holding is never written: the store keeps the entries that link it."""
+        self.store._load(holder)
         if self.store.framework(holder):
             return self.store._framework_entries.setdefault(id(holder), {})
         try:
@@ -122,8 +124,67 @@ class OfStore(Stores.Catalog):
         self._proposals: Any = None  # the proposals of the transaction open on it, and its savepoints', if any
         self._framework_entries: dict[int, dict[Hashable, dict[Hashable, Any]]] = {}  # entries linking its own schemas
         self._committed = _Committed(self)  # what it holds as committed
+        self._below: Any = None  # the store it is given below it, from which it loads what it is asked for (CAP-283)
+        self._identities: dict[str, _ObjectData] = {}  # the store below's objects, each by its path, loaded or not
+        self._loaded: set[int] = set()  # those loaded, by id
+        self._loading = 0  # how deep in loading one: what it reads then loads nothing more
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
         self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
+
+    def _below_path(self, singleton: str) -> Any:
+        """A singleton's path, where the store has a store below, from which it loads; else None."""
+        return {"singleton": singleton, "next": {"target": {}}} if self._below is not None else None
+
+    def _identity(self, path: Any) -> _ObjectData:
+        """The object of the store below's at `path`, as this store holds it: the same one each time it is named, made
+        where it is first named, and loaded when it is first read (CAP-284)."""
+        from . import JSON
+
+        key = JSON.dumps(path)
+        found = self._identities.get(key)
+        if found is None:
+            found = self._identities[key] = _ObjectData(self, None, None, path)
+        return found
+
+    def _load(self, holder: Any) -> None:
+        """Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it:
+        its schema, its property values and its entries, the objects they link each its identity, loaded when it is
+        read; written as the store's committed data, outside any transaction open, and observed by none (CAP-284)."""
+        from . import Plain
+
+        if self._loading or not isinstance(holder, _ObjectData) or id(holder) in self._loaded:
+            return
+        path = object.__getattribute__(holder, "_reference")
+        if path is None:
+            return
+        self._loaded.add(id(holder))
+        plain = self._below.document(path)
+        if plain is None:
+            raise LookupError("the store below holds no object at this path")
+        (pattern,) = plain["mutations"][0]["upsert"]["exists"]
+        ((symbol, bound),) = pattern["symbols"].items()
+        schema = Plain._by_path(self, bound["schema"][0]["$ref"], ())
+        object.__setattr__(holder, "_held_schema", schema)
+        object.__setattr__(holder, "_held_schema_name", schema.name)
+        pattern["symbols"][symbol] = {"reference": {"path": path}}
+        proposals, self._proposals = self._proposals, None
+        self._loading += 1
+        try:
+            self.transaction(Plain.FromPlain(self).Transaction(plain))
+        finally:
+            self._loading -= 1
+            self._proposals = proposals
+
+    def document(self, path: Any) -> Any:
+        """The document of the object at `path`, a one-transaction document of its properties and entries, each object
+        they link by its path ([CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md)), as plain data; None where the store holds none: what
+        a store above it loads (CAP-283)."""
+        from . import JSON, Plain
+
+        target = Plain._by_path(self, path, ())
+        if target is None:
+            return None
+        return JSON.loads(JSON.dumps(Plain.ToPlain(self)(object.__getattribute__(target, "_schema"), target)))
 
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
         """A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its
@@ -209,7 +270,7 @@ class OfStore(Stores.Catalog):
         try:
             with self._writing():  # ownership is settled within the outermost
                 yield proposals
-            if below is None:
+            if below is None and not self._loading:  # loading what the store below holds checks nothing
                 _check_uniques(proposals)
                 self._settled(proposals)
         except BaseException:
@@ -291,13 +352,13 @@ class OfStore(Stores.Catalog):
             raise ValueError(f"singleton {global_name!r} is already registered")
         super()._register(schema)
         if global_name is not None:
-            self._singletons[global_name] = _ObjectData(self, schema, schema.name)
+            self._singletons[global_name] = _ObjectData(self, schema, schema.name, self._below_path(global_name))
 
     def _declared(self, schema: Any) -> None:
         """A registered schema declared a singleton after it was registered: its instance, created with the
         declaration."""
         if isinstance(schema, ObjectSchema) and schema.singleton is not None and schema.singleton not in self._singletons:
-            self._singletons[schema.singleton] = _ObjectData(self, schema, schema.name)
+            self._singletons[schema.singleton] = _ObjectData(self, schema, schema.name, self._below_path(schema.singleton))
 
     def builder(self, name: str, instance: Any = None) -> Any:
         """A builder of an object of the schema registered as `name`; for a value object, union, intersection or
@@ -335,7 +396,10 @@ def _owner_adjacencies(schema: ObjectSchema) -> list[Schemas.OfAdjacency.Data]:
 
 
 def _counted(target: Any) -> bool:
-    """Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided))."""
+    """Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)). One of the
+    store below's not yet loaded is not: it has a path, which a counted object has not (CAP-284)."""
+    if isinstance(target, _ObjectData) and object.__getattribute__(target, "_held_schema") is None:
+        return False
     return _counted_schema(object.__getattribute__(target, "_schema"))
 
 
@@ -346,7 +410,7 @@ def _counted_schema(schema: ObjectSchema) -> bool:
 
 def _owner_entries(target: Any) -> list[_Entry]:
     """The entries that own a proxy, through its schema's adjacencies marked `owner()`."""
-    return [entry for a in _owner_adjacencies(object.__getattribute__(target, "_schema"))
+    return [entry for a in _owner_adjacencies_of(target)
             for entry in _linking(a.relation, a.me, target)]
 
 
@@ -354,8 +418,18 @@ def _owned_links(entry: _Entry) -> list[tuple[str, Any]]:
     """The links of an entry whose objects it owns: each linked proxy whose schema's adjacency marked `owner()` is the
     entry's relation through that link."""
     return [(link, target) for link, target in entry._links.items() if isinstance(target, _ObjectData)
-            and any(a.relation is entry._relation and a.me == link
-                    for a in _owner_adjacencies(object.__getattribute__(target, "_schema")))]
+            and any(a.relation is entry._relation and a.me == link for a in _owner_adjacencies_of(target))]
+
+
+def _owner_adjacencies_of(target: Any) -> list[Schemas.OfAdjacency.Data]:
+    """A proxy's adjacencies marked `owner()`; of one of the store below's not yet loaded, those of every schema its
+    store holds, since a link that owns through a relation owns whatever it links (CAP-284)."""
+    schema = object.__getattribute__(target, "_schema" if not isinstance(target, _ObjectData) else "_held_schema")
+    if schema is not None:
+        return _owner_adjacencies(schema)
+    store = object.__getattribute__(target, "_store")
+    return [a for name in store.names() if isinstance(held := store.registered(name), ObjectSchema)
+            for a in _owner_adjacencies(held)]
 
 
 def _key_names(relation: RelationSchema, owner: str, owned: str) -> list[str]:
@@ -1517,15 +1591,31 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
 class _ObjectData:
     """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members."""
 
-    __slots__ = ("_store", "_schema", "_schema_name", "_serial", "_own_values", "_adjacent", "__weakref__")
+    __slots__ = ("_store", "_held_schema", "_held_schema_name", "_reference", "_serial", "_own_values", "_adjacent",
+                 "__weakref__")
 
-    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str):
+    def __init__(self, store: OfStore, schema: ObjectSchema | None, schema_name: str | None,
+                 reference: Any = None):
         object.__setattr__(self, "_serial", next(_SERIALS))  # tells it apart in memory; never written
         object.__setattr__(self, "_adjacent", {})
         object.__setattr__(self, "_store", store)
-        object.__setattr__(self, "_schema", schema)
-        object.__setattr__(self, "_schema_name", schema_name)
+        object.__setattr__(self, "_held_schema", schema)
+        object.__setattr__(self, "_held_schema_name", schema_name)
+        object.__setattr__(self, "_reference", reference)  # its path, where it is the store's below's, to load from
         object.__setattr__(self, "_own_values", {})
+
+    @property
+    def _schema(self) -> ObjectSchema:
+        """Its schema: of one the store below holds, known once it is loaded, which reading it loads (CAP-284)."""
+        if object.__getattribute__(self, "_held_schema") is None:
+            object.__getattribute__(self, "_store")._load(self)
+        return object.__getattribute__(self, "_held_schema")
+
+    @property
+    def _schema_name(self) -> str:
+        if object.__getattribute__(self, "_held_schema_name") is None:
+            object.__getattribute__(self, "_store")._load(self)
+        return object.__getattribute__(self, "_held_schema_name")
 
     @property
     def _values(self) -> dict[str, Any]:

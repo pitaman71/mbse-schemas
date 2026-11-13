@@ -1641,8 +1641,9 @@ class Store(Proxies.OfStore):
     ...) and mutation schemas, which no other store shares (schema extension 23 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)); it changes them, as
     any schema it holds before an extension begins, only through `extend`, which only adds members."""
 
-    def __init__(self) -> None:
+    def __init__(self, below: Any = None) -> None:
         super().__init__()
+        self._below = below  # the store below it, from which it loads on demand, or None (CAP-283)
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
@@ -1787,7 +1788,8 @@ class Store(Proxies.OfStore):
         try:
             with super()._transacting() as proposals:
                 yield proposals
-                Provenance._record(self, proposals)  # at its commit, within it
+                if not self._loading:  # what the store below holds, loaded, is no transaction of this store's
+                    Provenance._record(self, proposals)  # at its commit, within it
         finally:
             _extend_builders(self, before)
         gathered, self._changes = self._changes, None

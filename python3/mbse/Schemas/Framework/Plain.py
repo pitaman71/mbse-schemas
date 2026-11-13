@@ -681,6 +681,8 @@ def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
         return store._at(_schema_steps(path_plain, where))
     if not steps:
         return store._singletons.get(singleton)
+    if store._below is not None:  # the store below's, as this store holds it (CAP-284)
+        return store._identity(path_plain)
     nested: PlainData = {"target": {}}
     for i, o, keys in reversed(steps[:-1]):
         nested = {"entry": {"i": i, "o": o, "properties": keys, "next": nested}}

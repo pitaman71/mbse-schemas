@@ -931,6 +931,7 @@ function byPath(store: any, plain: unknown, where: Where): unknown {
   const [singleton, steps] = stepsOf(plain, where);
   if (singleton === ".") return store._at(_schemaSteps(plain, where));
   if (steps.length === 0) return store._singletons.get(singleton) ?? null;
+  if (store._below !== null) return store._identity(plain); // the store below's, as this store holds it (CAP-284)
   const owner = byPath(store, pathFrom(singleton, steps.slice(0, -1)), where);
   if (owner === null) return null;
   const [, o, keys] = steps[steps.length - 1]!;

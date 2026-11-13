@@ -2306,41 +2306,77 @@ export class Store extends Proxies.OfStore {
     return this._framework.has(schema);
   }
 
-  /** The object of the store below's at `path` this store holds already, loaded or not; else null. */
-  _identified(path: unknown): unknown {
-    return this._identities.get(Json.dumps(path as PlainModule.PlainData)) ?? null;
+  /** The object at `path` the store holds, made in it or loaded from the store below, without loading anything: a
+   * singleton, one loaded by its path, or one through its owner's entries, keys compared first; else null, or
+   * undefined. */
+  _present(path: unknown): unknown {
+    const [singleton, steps] = PlainModule._steps(path, []);
+    if (steps.length === 0) return this._singletons.get(singleton); // undefined where it holds none
+    const loaded = this._identities.get(Json.dumps(path as PlainModule.PlainData));
+    if (loaded !== undefined) return loaded;
+    const owner = this._present(PlainModule._owner_path(singleton, steps));
+    if (owner == null) return null;
+    this._loading += 1; // what the store holds of the owner, as it is
+    try {
+      return PlainModule._owned_by(owner, steps[steps.length - 1]!);
+    } finally {
+      this._loading -= 1;
+    }
   }
 
-  /** Holds the object of the store below's at `path`, which this store holds not yet: the one it is each time it is named
-   * from now on (`_identified`), loaded when it is first read (CAP-284). */
-  _identity(path: unknown): unknown {
-    const made = Proxies._makeObjectData(this, null, null, path);
-    this._identities.set(Json.dumps(path as PlainModule.PlainData), made);
+  /** The object at `path`: one the store holds; else, while loading, the store below's, held by its path until it is
+   * read (`Proxies._Unresolved`); else the store below's, loaded; null where neither holds one (CAP-284). */
+  _found(path: unknown): unknown {
+    const found = this._present(path);
+    if (found != null) return found;
+    if (this._loading > 0) return new Proxies._Unresolved(this._self, path, Json.dumps(path as PlainModule.PlainData));
+    return this._fetched(path);
+  }
+
+  /** The object a link holds by its path: present, or loaded, which links it in every entry waiting on it; refused
+   * where the store below holds none. */
+  override _resolved(link: Proxies._Unresolved): unknown {
+    const found = this._present(link.path) ?? this._fetched(link.path);
+    if (found === null) throw new LookupError("the store below holds no object at this path");
+    return found;
+  }
+
+  /** The store below's object at `path`, loaded: made from the document the store below gives of it, each entry that
+   * waits on its path linking it, then its document applied; null where the store below holds none. */
+  _fetched(path: unknown): unknown {
+    const plain: any = this._below.document(path);
+    if (plain === null) return null;
+    const [pattern] = plain.get("mutations")[0].get("upsert").get("exists");
+    const [[, bound]] = [...pattern.get("symbols")];
+    const schema = PlainModule._by_path(this._self, bound.get("schema")[0].get("$ref"), []) as ObjectData;
+    const key = Json.dumps(path as PlainModule.PlainData);
+    const made = Proxies._makeObjectData(this._self as Proxies.OfStore, schema, schema.name as string, path);
+    this._identities.set(key, made);
+    const waiting = this._waiting.get(key) ?? [];
+    this._waiting.delete(key);
+    for (const entry of waiting) this._relink(entry, key, made);
+    this._load(innerOf(made), plain);
     return made;
   }
 
-  /** Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it: its
-   * schema, its property values and its entries, the objects they link each its identity, loaded when it is read;
-   * written as the store's committed data, outside any transaction open, and observed by none (CAP-284). */
-  override _load(holder: object): void {
+  /** Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it, or
+   * `plain`: its property values and its entries, written as the store's committed data, outside any transaction open,
+   * and observed by none (CAP-284). */
+  override _load(holder: object, plain: any = null): void {
     if (this._loading > 0 || !(holder instanceof Proxies._internals._ObjectData) || this._loaded.has(holder)) return;
     const path = holder._reference;
     if (path === null) return;
     this._loaded.add(holder);
-    const plain: any = this._below.document(path);
-    if (plain === null) throw new LookupError("the store below holds no object at this path");
-    const [pattern] = plain.get("mutations")[0].get("upsert").get("exists");
-    const [[symbol, bound]] = [...pattern.get("symbols")];
-    const store: any = this._self;
-    const schema = PlainModule._by_path(store, bound.get("schema")[0].get("$ref"), []) as ObjectData;
-    holder._heldSchema = schema;
-    holder._heldSchemaName = schema.name;
+    const document = plain ?? this._below.document(path);
+    const [pattern] = document.get("mutations")[0].get("upsert").get("exists");
+    const [[symbol]] = [...pattern.get("symbols")];
     pattern.get("symbols").set(symbol, new Map([["reference", new Map([["path", path]])]]));
+    const store: any = this._self;
     const proposals = this._proposals;
     this._proposals = null;
     this._loading += 1;
     try {
-      store.transaction(PlainModule.FromPlain(store).Transaction(plain));
+      store.transaction(PlainModule.FromPlain(store).Transaction(document));
     } finally {
       this._loading -= 1;
       this._proposals = proposals;

@@ -708,7 +708,7 @@ def _check_unique(entry: _Entry, store: Any) -> None:
 
     relation = entry._relation
     names = set(relation.entry.links) | set(relation.entry.properties)
-    others = {id(e): e for target in entry._links.values() if not isinstance(target, _Unresolved)
+    others = {id(e): e for target in entry._links.values()  # those an entry inserted links: present, outside loading
               for e in _table(target, id(relation), store).values() if e is not entry}
     for clause in relation.uniques:
         rest = sorted(names - clause)

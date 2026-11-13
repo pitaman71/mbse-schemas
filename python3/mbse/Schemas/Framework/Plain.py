@@ -254,10 +254,10 @@ def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> 
     return {prop.as_schema().name: _value(prop, prop.as_schema().schema, ref)[1] for prop in read.as_properties}
 
 
-def _linked_as_held(read: Any, link: str) -> Any:
+def _linked_as_held(read: Proxies._Entry, link: str) -> Any:
     """What an entry links through `link`, as it holds it: one of the store below's not present by its path, unread, so
     that writing an entry loads nothing (CAP-284)."""
-    return read._links[link] if isinstance(read, Proxies._Entry) else getattr(read, link)
+    return read._links[link]
 
 
 def _entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref) -> dict[str, PlainData]:

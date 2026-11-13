@@ -79,10 +79,19 @@ def _steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]:
         seen.add(id(current))
         adjacency, entry, owner = _owned_by(current)
         owner_link = next(link for link in entry._links if link != adjacency.me)
-        owner_schema = object.__getattribute__(owner, "_schema")
-        i = next((name for name, held in owner_schema.adjacencies.items()
+        if isinstance(owner, Proxies._Unresolved):  # an owner not present: its path, then this step (CAP-284)
+            from . import Plain
+
+            store = Proxies.store_of(current)
+            schemas = [held for name in store.names() if isinstance(held := store.registered(name), Proxies.ObjectSchema)]
+        else:
+            schemas = [object.__getattribute__(owner, "_schema")]
+        i = next((name for schema_ in schemas for name, held in schema_.adjacencies.items()
                   if held.relation is adjacency.relation and held.me == owner_link), "")
         steps.append((i, adjacency.name, dict(entry._properties)))
+        if isinstance(owner, Proxies._Unresolved):
+            singleton, above = Plain._steps(owner.path, ())
+            return singleton, above + steps[::-1]
         current = owner
 
 

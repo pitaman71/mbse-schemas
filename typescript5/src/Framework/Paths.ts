@@ -90,9 +90,18 @@ function stepsOf(obj: unknown): [string, Step[]] {
     seen.add(current);
     const [adjacency, entry, owner] = ownedBy(current);
     const ownerLink = [...entry._links.keys()].find((link: string) => link !== adjacency.me) as string;
-    const ownerSchema = Proxies._innerOf(owner)._schema as S.OfObject.Data;
-    const i = [...ownerSchema.adjacencies].find(([, held]) => held.relation === adjacency.relation && held.me === ownerLink)?.[0] ?? "";
+    const unresolved = owner instanceof Proxies._Unresolved; // an owner not present: its path, then this step (CAP-284)
+    const store: any = Proxies._store_of(current);
+    const schemas = unresolved
+      ? [...store.names()].map((name: string) => store.registered(name)).filter((held: any) => held.adjacencies instanceof Map)
+      : [Proxies._innerOf(owner)._schema as S.OfObject.Data];
+    const i = schemas.flatMap((schema: any) => [...schema.adjacencies])
+      .find(([, held]: any) => held.relation === adjacency.relation && held.me === ownerLink)?.[0] ?? "";
     steps.push([i, adjacency.name as string, new Map(entry._properties)]);
+    if (unresolved) {
+      const [singleton, above] = Plain._steps((owner as Proxies._Unresolved).path, []);
+      return [singleton, [...above, ...steps.reverse()]];
+    }
     current = owner;
   }
 }

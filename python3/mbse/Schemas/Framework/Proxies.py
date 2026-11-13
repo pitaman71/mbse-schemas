@@ -135,16 +135,19 @@ class OfStore(Stores.Catalog):
         """A singleton's path, where the store has a store below, from which it loads; else None."""
         return {"singleton": singleton, "next": {"target": {}}} if self._below is not None else None
 
-    def _identity(self, path: Any) -> _ObjectData:
-        """The object of the store below's at `path`, as this store holds it: the same one each time it is named, made
-        where it is first named, and loaded when it is first read (CAP-284)."""
+    def _identified(self, path: Any) -> _ObjectData | None:
+        """The object of the store below's at `path` this store holds already, loaded or not; else None."""
         from . import JSON
 
-        key = JSON.dumps(path)
-        found = self._identities.get(key)
-        if found is None:
-            found = self._identities[key] = _ObjectData(self, None, None, path)
-        return found
+        return self._identities.get(JSON.dumps(path))
+
+    def _identity(self, path: Any) -> _ObjectData:
+        """Holds the object of the store below's at `path`, which this store holds not yet: the one it is each time it is
+        named from now on (`_identified`), loaded when it is first read (CAP-284)."""
+        from . import JSON
+
+        made = self._identities[JSON.dumps(path)] = _ObjectData(self, None, None, path)
+        return made
 
     def _load(self, holder: Any) -> None:
         """Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it:
@@ -421,10 +424,10 @@ def _owned_links(entry: _Entry) -> list[tuple[str, Any]]:
             and any(a.relation is entry._relation and a.me == link for a in _owner_adjacencies_of(target))]
 
 
-def _owner_adjacencies_of(target: Any) -> list[Schemas.OfAdjacency.Data]:
+def _owner_adjacencies_of(target: _ObjectData) -> list[Schemas.OfAdjacency.Data]:
     """A proxy's adjacencies marked `owner()`; of one of the store below's not yet loaded, those of every schema its
     store holds, since a link that owns through a relation owns whatever it links (CAP-284)."""
-    schema = object.__getattribute__(target, "_schema" if not isinstance(target, _ObjectData) else "_held_schema")
+    schema = object.__getattribute__(target, "_held_schema")
     if schema is not None:
         return _owner_adjacencies(schema)
     store = object.__getattribute__(target, "_store")

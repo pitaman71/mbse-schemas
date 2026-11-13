@@ -926,28 +926,34 @@ export function _schemaSteps(plain: unknown, where: Where): [string, string][] {
 
 /** The object a path names in `store`, or null: a schema object from the root module (`Builders.Store.held`), a
  * singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
- * adjacency is `o`. */
+ * adjacency is `o`. In a store with a store below, an object of its below's it holds already is found by its path, one
+ * it made itself through its owner's entries, and any other is the store below's, held by its path until it is read
+ * (CAP-284). */
 function byPath(store: any, plain: unknown, where: Where): unknown {
   const [singleton, steps] = stepsOf(plain, where);
   if (singleton === ".") return store._at(_schemaSteps(plain, where));
   if (steps.length === 0) return store._singletons.get(singleton) ?? null;
-  if (store._below !== null) return store._identity(plain); // the store below's, as this store holds it (CAP-284)
+  if (store._below !== null) {
+    const held = store._identified(plain);
+    if (held !== null) return held;
+  }
   const owner = byPath(store, pathFrom(singleton, steps.slice(0, -1)), where);
   if (owner === null) return null;
   const [, o, keys] = steps[steps.length - 1]!;
   for (const table of Proxies._entries_of(owner).values()) {
     for (const entry of table.values()) {
       const state = Proxies._innerOf(entry);
+      if (!sameKeys(state._properties, keys)) continue; // keys first, so that no other object is loaded to be told apart
       for (const [link, target] of state._links) {
         if (target === owner || !(Proxies._innerOf(target) instanceof Proxies._internals._ObjectData)) continue;
         const schema = Proxies._innerOf(target)._schema as Schemas.OfObject.Data;
         const owned = [...schema.adjacencies.values(), ...schema.anonymous]
           .some((a) => a.owner && a.name === o && a.relation === state._relation && a.me === link);
-        if (owned && sameKeys(state._properties, keys)) return target;
+        if (owned) return target;
       }
     }
   }
-  return null;
+  return store._below === null ? null : store._identity(plain);
 }
 
 /** The `Visitors.OfAny` method that selects a record kind. */

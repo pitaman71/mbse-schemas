@@ -675,14 +675,18 @@ def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
 def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
     """The object a path names in `store`, or None: a schema object from the root module (`Builders.Store.held`), a
     singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
-    adjacency is `o`."""
+    adjacency is `o`. In a store with a store below, an object of its below's it holds already is found by its path, one
+    it made itself through its owner's entries, and any other is the store below's, held by its path until it is read
+    (CAP-284)."""
     singleton, steps = _steps(path_plain, where)
     if singleton == ".":
         return store._at(_schema_steps(path_plain, where))
     if not steps:
         return store._singletons.get(singleton)
-    if store._below is not None:  # the store below's, as this store holds it (CAP-284)
-        return store._identity(path_plain)
+    if store._below is not None:
+        held = store._identified(path_plain)
+        if held is not None:
+            return held
     nested: PlainData = {"target": {}}
     for i, o, keys in reversed(steps[:-1]):
         nested = {"entry": {"i": i, "o": o, "properties": keys, "next": nested}}
@@ -692,15 +696,17 @@ def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
     _, o, keys = steps[-1]
     for table in Proxies._entries_of(owner).values():
         for entry in table.values():
+            if entry._properties != keys:  # keys first, so that no other object is loaded to be told apart
+                continue
             for link, target in entry._links.items():
                 if target is owner or not isinstance(target, Proxies._ObjectData):
                     continue
                 schema = object.__getattribute__(target, "_schema")
                 owned = [a for a in (*schema.adjacencies.values(), *schema.anonymous)
                          if a.owner and a.name == o and a.relation is entry._relation and a.me == link]
-                if owned and entry._properties == keys:
+                if owned:
                     return target
-    return None
+    return None if store._below is None else store._identity(path_plain)
 
 
 _SELECT = {Schemas.OfObject.Data: "as_object", Schemas.OfUnion.Data: "as_union",

@@ -2306,13 +2306,17 @@ export class Store extends Proxies.OfStore {
     return this._framework.has(schema);
   }
 
-  /** The object of the store below's at `path`, as this store holds it: the same one each time it is named, made where it
-   * is first named, and loaded when it is first read (CAP-284). */
+  /** The object of the store below's at `path` this store holds already, loaded or not; else null. */
+  _identified(path: unknown): unknown {
+    return this._identities.get(Json.dumps(path as PlainModule.PlainData)) ?? null;
+  }
+
+  /** Holds the object of the store below's at `path`, which this store holds not yet: the one it is each time it is named
+   * from now on (`_identified`), loaded when it is first read (CAP-284). */
   _identity(path: unknown): unknown {
-    const key = Json.dumps(path as PlainModule.PlainData);
-    let found = this._identities.get(key);
-    if (found === undefined) this._identities.set(key, (found = Proxies._makeObjectData(this, null, null, path)));
-    return found;
+    const made = Proxies._makeObjectData(this, null, null, path);
+    this._identities.set(Json.dumps(path as PlainModule.PlainData), made);
+    return made;
   }
 
   /** Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it: its

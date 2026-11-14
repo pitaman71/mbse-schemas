@@ -702,10 +702,13 @@ def _owner_path(singleton: str, steps: list[Any]) -> PlainData:
 
 
 def _owned_by(owner: Any, step: Any) -> Any:
-    """The object `owner` owns by the path's last step, its keys and its owner adjacency, among the objects present;
-    else None. Keys are compared first, so that no other object is read to be told apart."""
-    _, o, keys = step
-    for table in Proxies._entries_of(owner).values():
+    """The object `owner` owns by the path's last step, among the objects present: through the relation of the owner's
+    adjacency `i`, where it has one by that name, by the step's keys and the owned object's owner adjacency `o`; else
+    None. Keys are compared first, so that no other object is read to be told apart."""
+    i, o, keys = step
+    tables = Proxies._entries_of(owner)
+    adjacency = object.__getattribute__(owner, "_schema").adjacencies.get(i)
+    for table in tables.values() if adjacency is None else [tables.get(id(adjacency.relation), {})]:
         for entry in table.values():
             if entry._properties != keys:
                 continue

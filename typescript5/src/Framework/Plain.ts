@@ -959,11 +959,14 @@ function under(path: unknown, owner: unknown): boolean {
   });
 }
 
-/** The object `owner` owns by the path's last step, its keys and its owner adjacency, among the objects present; else
+/** The object `owner` owns by the path's last step, among the objects present: through the relation of the owner's
+ * adjacency `i`, where it has one by that name, by the step's keys and the owned object's owner adjacency `o`; else
  * null. Keys are compared first, so that no other object is read to be told apart. */
 function ownedBy(owner: unknown, step: Step): unknown {
-  const [, o, keys] = step;
-  for (const table of Proxies._entries_of(owner).values()) {
+  const [i, o, keys] = step;
+  const tables = Proxies._entries_of(owner);
+  const adjacency = (Proxies._innerOf(owner)._schema as Schemas.OfObject.Data).adjacencies.get(i);
+  for (const table of adjacency === undefined ? tables.values() : [tables.get(adjacency.relation!) ?? new Map()]) {
     for (const entry of table.values()) {
       const state = Proxies._innerOf(entry);
       if (!sameKeys(state._properties, keys)) continue;

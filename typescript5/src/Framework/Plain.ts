@@ -950,6 +950,15 @@ function ownerPath(singleton: string, steps: Step[]): PlainMap {
   return pathFrom(singleton, steps.slice(0, -1));
 }
 
+/** Whether the object at `path` is the one at `owner`'s path, or one it owns, through any depth (CAP-284). */
+function under(path: unknown, owner: unknown): boolean {
+  const [[singleton, steps], [at, above]] = [stepsOf(path, []), stepsOf(owner, [])];
+  return singleton === at && steps.length >= above.length && above.every(([i, o, keys], n) => {
+    const [i2, o2, keys2] = steps[n]!;
+    return i === i2 && o === o2 && keys.size === keys2.size && [...keys].every(([k, v]) => keys2.get(k) === v);
+  });
+}
+
 /** The object `owner` owns by the path's last step, its keys and its owner adjacency, among the objects present; else
  * null. Keys are compared first, so that no other object is read to be told apart. */
 function ownedBy(owner: unknown, step: Step): unknown {
@@ -1721,4 +1730,4 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
 }
 
 export { decode as _decode, set as _set, byPath as _by_path, stepsOf as _steps, ownerPath as _owner_path,
-  ownedBy as _owned_by };
+  ownedBy as _owned_by, under as _under };

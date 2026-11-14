@@ -34,7 +34,7 @@ import * as Provenance from "./Provenance.js";
 import * as References from "./References.js";
 import * as Json from "./JSON.js";
 import * as PlainModule from "./Plain.js";
-import type * as Proposals from "./Proposals.js";
+import * as Proposals from "./Proposals.js";
 import * as Transactions from "./Transactions.js";
 import * as Proxies from "./Proxies.js";
 import { _Dunders as Dunders, _innerOf as innerOf, _makeEmpty as makeEmpty, _makeProperties as makeProperties,
@@ -2071,6 +2071,8 @@ export class Store extends Proxies.OfStore {
   _observers: ((effect: any) => void)[] = [];
   /** What the transaction committing changed, gathered for its observers. */
   _changes: Changes._Gathered | null = null;
+  /** The store below's transactions, reported while one of this store's was open. */
+  _arrived: unknown[] = [];
   /** The store, as it is reached: its `Proxy`, whose members are its schemas by name, which loading reads through. */
   _self!: Store;
 
@@ -2113,6 +2115,9 @@ export class Store extends Proxies.OfStore {
     for (const schema of this._objects) HELD_BY.set(schema as object, proxy); // the store, as it is reached
     this._self = proxy;
     this._root = this._expression(() => new ModuleBuilder(null, true, proxy).create()); // made with the store
+    if (below !== null) { // what others write to the store below, applied to what it holds (CAP-285)
+      Changes.observe(below, (effect: any) => proxy._arrive(effect));
+    }
     return proxy;
   }
 
@@ -2324,12 +2329,13 @@ export class Store extends Proxies.OfStore {
     }
   }
 
-  /** The object at `path`: one the store holds; else, while loading, the store below's, held by its path until it is
-   * read (`Proxies._Unresolved`); else the store below's, loaded; null where neither holds one (CAP-284). */
+  /** The object at `path`: one the store holds; else, while loading, or applying a transaction of the store below's, the
+   * store below's, held by its path until it is read (`Proxies._Unresolved`); else the store below's, loaded; null where
+   * neither holds one (CAP-284, CAP-285). */
   _found(path: unknown): unknown {
     const found = this._present(path);
     if (found != null) return found;
-    if (this._loading > 0) return new Proxies._Unresolved(this._self, path, Json.dumps(path as PlainModule.PlainData));
+    if (this._loading > 0 || this._applying > 0) return new Proxies._Unresolved(this._self, path, Json.dumps(path as PlainModule.PlainData));
     return this._fetched(path);
   }
 
@@ -2342,7 +2348,8 @@ export class Store extends Proxies.OfStore {
   }
 
   /** The store below's object at `path`, loaded: made from the document the store below gives of it, each entry that
-   * waits on its path linking it, then its document applied; null where the store below holds none. */
+   * waits on its path linking it, then its document applied as committed; then each transaction open on the store, or
+   * savepoint, holding those entries as it holds them; null where the store below holds none. */
   _fetched(path: unknown): unknown {
     const plain: any = this._below.document(path);
     if (plain === null) return null;
@@ -2352,10 +2359,22 @@ export class Store extends Proxies.OfStore {
     const key = Json.dumps(path as PlainModule.PlainData);
     const made = Proxies._makeObjectData(this._self as Proxies.OfStore, schema, schema.name as string, path);
     this._identities.set(key, made);
-    const waiting = this._waiting.get(key) ?? [];
+    const waiting = [...new Set(this._waiting.get(key) ?? [])].map((entry) => [entry, innerOf(entry)._key()] as [unknown, string]);
     this._waiting.delete(key);
-    for (const entry of waiting) this._relink(entry, key, made);
+    for (const [entry] of waiting) {
+      const links: Map<string, unknown> = innerOf(entry)._links;
+      for (const [name, target] of links) {
+        if (target instanceof Proxies._Unresolved && target.key === key) links.set(name, made);
+      }
+    }
+    const levels: Proposals.OfStore[] = [];
+    for (let at = this._proposals; at instanceof Proposals.OfStore; at = at.base as Proposals.OfStore) {
+      levels.push(at); // a transaction's, or a savepoint's, innermost first
+    }
+    const views = new Map<object, any>([[innerOf(made), innerOf(made)._adjacent]]);
+    this._relink(waiting, made, null, views);
     this._load(innerOf(made), plain);
+    for (const level of levels.reverse()) this._relink(waiting, made, level, views);
     return made;
   }
 
@@ -2402,23 +2421,28 @@ export class Store extends Proxies.OfStore {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
     this._changes = null;
-    let written: T;
+    let committed = false;
+    let written!: T;
     try {
       written = super._transacting(() => {
         const result = write();
-        if (this._loading === 0) { // what the store below holds, loaded, is no transaction of this store's
-          Provenance._record(this, this._proposals!); // at its commit, within it
+        if (this._loading === 0 && this._applying === 0) { // what the store below holds, loaded or applied, is no
+          Provenance._record(this, this._proposals!); // transaction of this store's; recorded at its commit, within it
         }
         return result;
       });
+      committed = true;
     } finally {
       extendBuilders(this, before);
-    }
-    const gathered = this._changes as Changes._Gathered | null;
-    this._changes = null;
-    if (gathered !== null) { // once committed: a transaction that threw is observed by none
-      const effect = Changes._effect(this, gathered);
-      for (const observer of [...this._observers]) observer(effect);
+      const gathered = committed ? this._changes : null;
+      this._changes = null;
+      const arrived = this._arrived;
+      this._arrived = [];
+      if (gathered !== null && this._observers.length > 0) { // once committed: one that threw is observed by none
+        const effect = Changes._effect(this, gathered);
+        for (const observer of [...this._observers]) observer(effect);
+      }
+      for (const plain of arrived) this._apply(plain); // in the order the store below committed them, its own among them
     }
     return written;
   }
@@ -2426,7 +2450,53 @@ export class Store extends Proxies.OfStore {
   /** A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
    * deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`). */
   override _settled(proposals: Proposals.OfStore): void {
-    if (this._observers.length > 0) this._changes = Changes._gather(this, proposals);
+    const sends = this._below !== null && this._applying === 0;
+    if (this._observers.length > 0 || sends) this._changes = Changes._gather(this, proposals);
+    if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes));
+  }
+
+  /** Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits: the
+   * store below commits them first, and a refusal there refuses the transaction (CAP-285). */
+  _send(plain: unknown): void {
+    this._below.transaction(PlainModule.FromPlain(this._below).Transaction(plain as PlainModule.PlainData));
+  }
+
+  /** A transaction the store below committed, reported: applied to the objects present; one reported while a
+   * transaction of this store's is open, its own among them, once that one ends, so that each is applied in the order
+   * the store below committed them, and its own, applied again, changes only what another changed since (CAP-285). */
+  _arrive(effect: unknown): void {
+    const plain = Changes._plain_effect(this._below, effect);
+    if (this._proposals !== null) this._arrived.push(plain);
+    else this._apply(plain);
+  }
+
+  /** Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of this
+   * store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed (CAP-285). */
+  _apply(plain: unknown): void {
+    const store: any = this._self;
+    const present = Changes._present_only(store, plain as PlainModule.PlainData);
+    if (present === null) return;
+    this._applying += 1;
+    try {
+      store.transaction(PlainModule.FromPlain(store).Transaction(present));
+    } finally {
+      this._applying -= 1;
+    }
+  }
+
+  /** Deletes in cascade, among what is present, what each object not present that the transaction deleted reaches:
+   * every entry that links it, or an object it owns, and so each object present it owns. */
+  override _unlink_gone(proposals: Proposals.OfStore): void {
+    const gone = Proxies._gone_paths(proposals, this);
+    if (gone.length === 0) return;
+    for (const [key, entries] of [...this._waiting]) {
+      const linked = entries.flatMap((entry) => [...innerOf(entry)._links.values()])
+        .filter((x) => x instanceof Proxies._Unresolved && x.key === key) as Proxies._Unresolved[];
+      if (linked.length > 0 && gone.some((g) => PlainModule._under(linked[0]!.path, g))) {
+        for (const entry of [...entries]) Proxies._discard(innerOf(entry)._relation, [entry], this);
+      }
+    }
+    this._delete_orphans();
   }
 
   /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under

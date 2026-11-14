@@ -116,13 +116,15 @@ export function _exactlyOne(name: string, symbol: any, error: new (message: stri
 
 /** The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
  * identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where the
- * store holds it, else the schema its path implies, through the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused
- * where the path cannot be followed. */
+ * store holds it, else, or where it is not present, the schema its path implies, through the store's schemas alone
+ * (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path cannot be followed. */
 export function _recordedSchema(store: any, name: string, symbol: any): any {
   const reference = _exactlyOne(name, symbol, TypeError);
   if (reference === null) return symbol.schema;
   const target = References.resolve(store, reference);
-  if (target !== null) return reader(store, target).as_schema();
+  if (target !== null && !(target instanceof Proxies._Unresolved)) { // one not present: by its path (CAP-285)
+    return reader(store, target).as_schema();
+  }
   try {
     return References._implied(store, (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path"));
   } catch (error) {
@@ -1011,8 +1013,14 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
       if (!agree(plainOf(store, held[name], relation.entry.properties.get(name)), given(body.get("mutations")[0]))) return false;
       continue;
     }
-    const target = linked(held[name]);
     const wanted = body.get("mutations")[0].get("set");
+    const state = Proxies._innerOf(held);
+    if (wanted.has("ref") && state instanceof Proxies._internals._Entry && state._links.get(name) instanceof Proxies._Unresolved) {
+      const found = resolve(store, wanted.get("ref"), frame); // one not present, compared by its path: loading nothing
+      if (JSON.stringify(Proxies._link_key(state._links.get(name))) !== JSON.stringify(Proxies._link_key(found))) return false;
+      continue;
+    }
+    const target = linked(held[name]);
     if (wanted.has("def")) {
       const definition = wanted.get("def");
       const schema = store.registered(definition.get("schema"));

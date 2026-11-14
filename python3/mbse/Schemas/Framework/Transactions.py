@@ -105,15 +105,15 @@ def _exactly_one(name: str, symbol: Any, error: type[Exception]) -> Any:
 def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
     """The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
     identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where
-    the store holds it, else the schema its path implies, through the store's schemas alone (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided));
-    refused where the path cannot be followed."""
+    the store holds it, else, or where it is not present, the schema its path implies, through the store's schemas
+    alone (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path cannot be followed."""
     from . import References
 
     reference = _exactly_one(name, symbol, TypeError)
     if reference is None:
         return symbol.schema
     target = References.resolve(store, reference)
-    if target is not None:
+    if target is not None and not isinstance(target, Proxies._Unresolved):  # one not present: by its path (CAP-285)
         return _reader(store, target).as_schema()
     try:
         return References._implied(store, Plain.ToPlain(store)(reference.as_schema(), reference)["path"])
@@ -923,8 +923,13 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: Frame) -> 
             if _plain(store, getattr(held, name), relation.entry.properties[name]) != _given(body["mutations"][0]):
                 return False
             continue
-        linked = _linked(getattr(held, name))
         given = body["mutations"][0]["set"]
+        if "ref" in given and isinstance(held, Proxies._Entry) and isinstance(held._links[name], Proxies._Unresolved):
+            found = _resolve(store, given["ref"], frame)  # one not present, compared by its path: loading nothing
+            if Proxies._link_key(held._links[name]) != Proxies._link_key(found):
+                return False
+            continue
+        linked = _linked(getattr(held, name))
         if "def" in given:
             definition = given["def"]
             schema = store.registered(definition["schema"])

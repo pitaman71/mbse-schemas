@@ -1646,6 +1646,7 @@ class Store(Proxies.OfStore):
         self._below = below  # the store below it, from which it loads on demand, or None (CAP-283)
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
+        self._arrived: list[Any] = []  # the store below's transactions, reported while one of this store's was open
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
@@ -1684,6 +1685,10 @@ class Store(Proxies.OfStore):
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
         with self._expression():  # made with the store
             self._root = ModuleBuilder(None, True, self).create()
+        if below is not None:  # what others write to the store below, applied to what it holds (CAP-285)
+            from . import Changes
+
+            Changes.observe(below, self._arrive)
 
     def held(self, path: Any) -> Any:
         """The schema object whose path is `path`, a `Paths.OfRoot` value (`Paths.of`) or its plain form; None where the
@@ -1785,28 +1790,71 @@ class Store(Proxies.OfStore):
         from . import Provenance
 
         self._changes = None
+        committed = False
         try:
             with super()._transacting() as proposals:
                 yield proposals
-                if not self._loading:  # what the store below holds, loaded, is no transaction of this store's
-                    Provenance._record(self, proposals)  # at its commit, within it
+                if not (self._loading or self._applying):  # what the store below holds, loaded or applied, is no
+                    Provenance._record(self, proposals)  # transaction of this store's; recorded at its commit, within it
+            committed = True
         finally:
             _extend_builders(self, before)
-        gathered, self._changes = self._changes, None
-        if gathered is not None:  # once committed: a transaction that raised is observed by none
-            from . import Changes
+            gathered, self._changes = self._changes if committed else None, None
+            arrived, self._arrived = self._arrived, []
+            if gathered is not None and self._observers:  # once committed: one that raised is observed by none
+                from . import Changes
 
-            effect = Changes._effect(self, gathered)
-            for observer in list(self._observers):
-                observer(effect)
+                effect = Changes._effect(self, gathered)
+                for observer in list(self._observers):
+                    observer(effect)
+            for plain in arrived:  # in the order the store below committed them, its own among them
+                self._apply(plain)
 
     def _settled(self, proposals: Any) -> None:
         """A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
         deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`)."""
         from . import Changes
 
-        if self._observers:
+        sends = self._below is not None and not self._applying
+        if self._observers or sends:
             self._changes = Changes._gather(self, proposals)
+        if sends and self._changes is not None:
+            self._send(Changes._plain(self, self._changes))
+
+    def _send(self, plain: Any) -> None:
+        """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:
+        the store below commits them first, and a refusal there refuses the transaction (CAP-285)."""
+        from . import Plain
+
+        self._below.transaction(Plain.FromPlain(self._below).Transaction(plain))
+
+    def _arrive(self, effect: Any) -> None:
+        """A transaction the store below committed, reported: applied to the objects present; one reported while a
+        transaction of this store's is open, its own among them, once that one ends, so that each is applied in the
+        order the store below committed them, and its own, applied again, changes only what another changed since
+        (CAP-285)."""
+        from . import Changes
+
+        plain = Changes._plain_effect(self._below, effect)
+        if self._proposals is not None:
+            self._arrived.append(plain)
+        else:
+            self._apply(plain)
+
+    def _apply(self, plain: Any) -> None:
+        """Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of
+        this store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed
+        (CAP-285)."""
+        from . import Changes, Plain
+
+        present = Changes._present_only(self, plain)
+        if present is None:
+            return
+        self._applying += 1
+        try:
+            self.transaction(Plain.FromPlain(self).Transaction(present))
+        finally:
+            self._applying -= 1
 
     def _permit(self, builder: _Builder[Any]) -> None:
         """Refuses a builder's update of a schema the store was made holding that does more than add members to it,

@@ -22,8 +22,9 @@ value is, with no schema of its own. It is one upsert:
 Applied to the store as it was before the transaction, the effect makes the same changes; applied again, it changes
 nothing. The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records
 it and its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an
-object is before is read from what the store holds as committed. The expression is built once the transaction has
-committed, since building it writes.
+object is before is read from what the store holds as committed. The expression is built outside the transaction's
+proposals, since building it writes: once the transaction has committed, for its observers, and, for the store below a
+store, just before, with its proposals set aside, as plain data (CAP-285).
 """
 
 from __future__ import annotations
@@ -33,7 +34,8 @@ from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
-from . import Plain, Proxies, References
+from . import JSON, Plain, Proxies, References
+from .Plain import PlainData
 
 __all__ = ["observe"]
 
@@ -92,14 +94,19 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
             inserted.update({(relation, key): entry for key, entry in table.items() if key not in old})
             removed.update({(relation, key): entry for key, entry in old.items() if key not in table})
     made = {id(x): x for x in proposals.created.values() if isinstance(x, Proxies._ObjectData)}
-    gone = {id(x) for entry in removed.values() for link, x in entry._links.items()  # owned, not present: deleted
-            if isinstance(x, Proxies._Unresolved) and Proxies._owns_through(entry._relation, link, store)}
-    for entry in [*removed.values(), *inserted.values()]:  # what it names, each the store holds: loaded (CAP-284)
+    paths = Proxies._gone_paths(proposals, store)  # owned, not present: deleted, with what they own
+
+    def gone(x: Any) -> bool:
+        path = x.path if isinstance(x, Proxies._Unresolved) else object.__getattribute__(x, "_reference")
+        return path is not None and any(Proxies._under(path, p) for p in paths)
+
+    for entry in [] if store._applying else [*removed.values(), *inserted.values()]:  # what it names: loaded (CAP-284)
         for link, x in list(entry._links.items()):
-            if isinstance(x, Proxies._Unresolved) and id(x) not in gone:
+            if isinstance(x, Proxies._Unresolved) and not gone(x):
                 # loading it links it in every entry held that waits on it; one removed, held by none, is linked here
                 entry._links[link] = x.store._resolved(x)
-    deleted = gone | {id(x) for entry in removed.values() for x in entry._links.values()
+    deleted = {id(x) for entry in removed.values() for x in entry._links.values() if gone(x)} | {
+               id(x) for entry in removed.values() for x in entry._links.values()
                       if isinstance(x, Proxies._ObjectData) and id(x) not in made
                       and Proxies._owner_adjacencies(_schema(x)) and not Proxies._owner_entries(x)}
     changed: list[tuple[Any, str, Any]] = []
@@ -122,8 +129,11 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         found = named.get(id(x))
         if found is not None:
             return found
-        counted = Proxies._counted(x)
-        if counted or id(x) in made:
+        counted = not isinstance(x, Proxies._Unresolved) and Proxies._counted(x)
+        if isinstance(x, Proxies._Unresolved):  # not present, applying the store below's transaction: by its path
+            with _as_committed(store):
+                bound = Plain.FromPlain(store)(store.registered("References.OfObject"), {"path": x.path})
+        elif counted or id(x) in made:
             for entry in [] if counted else Proxies._owner_entries(x):
                 for owner in entry._links.values():
                     if owner is not x:
@@ -140,13 +150,13 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         return name
 
     for entry in removed.values():  # a deleted object's: its owning entry, by its key; the rest follows from that
-        gone = [link for link, x in entry._links.items() if id(x) in deleted]
-        if not gone:
+        lost = [link for link, x in entry._links.items() if id(x) in deleted]
+        if not lost:
             continue
-        owned = _owning(entry, gone, store)
+        owned = _owning(entry, lost, store)
         if owned is not None:
             owner, me = owned
-            keys = {k: entry._properties[k] for k in Proxies._key_names(entry._relation, me, gone[0])}
+            keys = {k: entry._properties[k] for k in Proxies._key_names(entry._relation, me, lost[0])}
             gathered.entries.append((symbol(entry._links[me]), owner, "remove", {}, keys))
     for verb, entries in (("remove", [e for e in removed.values() if not any(id(x) in deleted
                                                                            for x in e._links.values())]),
@@ -164,7 +174,8 @@ def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
     """The link, and its object's adjacency by name, that writes an entry: preferably an object held before, not
     counted, so that what the entry links is found through it."""
     choices = [(Proxies._counted(x) or id(x) in made, link, name)
-               for link, x in entry._links.items() for name, adjacency in _schema(x).adjacencies.items()
+               for link, x in entry._links.items() if not isinstance(x, Proxies._Unresolved)
+               for name, adjacency in _schema(x).adjacencies.items()
                if adjacency.relation is entry._relation and adjacency.me == link]
     if not choices:
         raise ValueError(f"no object an entry of {entry._relation.name!r} links has an adjacency to it by name, so "
@@ -173,17 +184,17 @@ def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
     return link, name
 
 
-def _owning(entry: Any, gone: list[str], store: Any) -> tuple[str, str] | None:
-    """Where `entry` owns the one deleted object it links, through `gone`, and its owner survives: the owner's
+def _owning(entry: Any, lost: list[str], store: Any) -> tuple[str, str] | None:
+    """Where `entry` owns the one deleted object it links, through `lost`, and its owner survives: the owner's
     adjacency by name that writes it, and the owner's link; else None."""
-    if len(gone) != 1:
+    if len(lost) != 1:
         return None
-    x = entry._links[gone[0]]
-    owns = Proxies._owns_through(entry._relation, gone[0], store) if isinstance(x, Proxies._Unresolved) else any(
-        a.relation is entry._relation and a.me == gone[0] for a in Proxies._owner_adjacencies(_schema(x)))
+    x = entry._links[lost[0]]
+    owns = Proxies._owns_through(entry._relation, lost[0], store) if isinstance(x, Proxies._Unresolved) else any(
+        a.relation is entry._relation and a.me == lost[0] for a in Proxies._owner_adjacencies(_schema(x)))
     if not owns:
         return None
-    (me,) = [link for link in entry._links if link != gone[0]]
+    (me,) = [link for link in entry._links if link != lost[0]]
     names = [name for name, a in _schema(entry._links[me]).adjacencies.items()
              if a.relation is entry._relation and a.me == me]
     if not names:
@@ -192,8 +203,143 @@ def _owning(entry: Any, gone: list[str], store: Any) -> tuple[str, str] | None:
     return names[0], me
 
 
+def _plain_effect(store: Any, effect: Any) -> PlainData:
+    """An effect of `store`'s as plain data, as it is sent from one store to another."""
+    return JSON.loads(JSON.dumps(Plain.ToPlain(store).Transaction(effect)))
+
+
+def _plain(store: Any, gathered: _Gathered) -> PlainData:
+    """The effect of the transaction open, as plain data, built just before it commits, its proposals set aside, as it
+    is once it has: what a store sends the store below (CAP-285)."""
+    with _as_committed(store):
+        return _plain_effect(store, _effect(store, gathered))
+
+
+def _present_only(store: Any, plain: PlainData) -> PlainData | None:
+    """A transaction of the store below's, its effect as plain data, made to change only the objects present in `store`
+    (CAP-285): each object is named by its path, an object it created by its owner's and its owning entry's keys; a
+    property of an object present is set; an entry is written from an object present it links, through its adjacency by
+    name, and one that links none is left out; an object not present, applied, is linked by its path, loading nothing.
+    A counted object is found by its value, or made. None where it changes nothing present."""
+    (pattern,) = plain["mutations"][0]["upsert"]["exists"]
+    symbols, spec = pattern["symbols"], pattern["spec"]
+    schemas = {name: Plain._by_path(store, bound["schema"][0]["$ref"], ()) for name, bound in symbols.items()
+               if "schema" in bound}  # each symbol's schema: one created's, an object present's, or its path's
+    counted = {name for name, schema in schemas.items() if Proxies._counted_schema(schema)}
+    paths: dict[str, PlainData] = {}
+
+    def path_of(name: str) -> PlainData:
+        """The path of the object a symbol names: as its reference has it, or, where the transaction created it, as its
+        owner's, then its owning entry's keys."""
+        bound = symbols[name]
+        if "reference" in bound:
+            return bound["reference"]["path"]
+        if name not in paths:
+            paths[name] = _created_path(name, schema_of, spec, path_of)
+        return paths[name]
+
+    def schema_of(name: str) -> Any:
+        if name not in schemas:
+            schemas[name] = References._implied(store, path_of(name))
+        return schemas[name]
+
+    present = set(counted)
+    for name in symbols:
+        x = None if name in counted else store._present(path_of(name))
+        if isinstance(x, Proxies._ObjectData):
+            present.add(name)
+            schemas[name] = _schema(x)
+    kept: list[PlainData] = []
+    for item in spec:
+        ((subject, (mutation,)),) = item.items()
+        if subject in present:
+            kept.append(item)
+            continue
+        adjacency = mutation.get("as_adjacency")
+        if adjacency is None:  # a property of an object not present
+            continue
+        ((verb, body),) = adjacency["mutations"][0].items()
+        ((entry,),) = [body["entries"]]
+        links, _ = _parts(entry)
+        writer = next((link for link, symbol in links.items() if symbol in present), None)
+        if writer is None:
+            continue
+        held = schema_of(subject).adjacencies[adjacency["name"]]
+        names = [name for name, a in schemas[links[writer]].adjacencies.items()
+                 if a.relation is held.relation and a.me == writer]
+        if not names:
+            raise ValueError(f"no object present an entry of {held.relation.name!r} links has an adjacency to it by "
+                             "name, so that a transaction of the store below's cannot be applied to it: name one")
+        parts = [_link_part(held.me, subject), *(part for part in entry["mutations"]
+                                                 if part.get("as_link", {}).get("name") != writer)]
+        kept.append({links[writer]: [{"as_adjacency": {"name": names[0], "mutations": [
+            {verb: {"entries": [{"mutations": parts}]}}]}}]})
+    if not kept:
+        return None
+    used = set()  # the symbols what is kept names
+    for item in kept:
+        ((subject, (mutation,)),) = item.items()
+        used.add(subject)
+        if "as_adjacency" in mutation:
+            ((_, body),) = mutation["as_adjacency"]["mutations"][0].items()
+            used.update(symbol for entry in body["entries"] for symbol in _parts(entry)[0].values())
+    return {"mutations": [{"upsert": {"exists": [{"symbols": {
+        name: bound if name in counted else {"reference": {"path": path_of(name)}}
+        for name, bound in symbols.items() if name in used}, "spec": kept}]}}]}
+
+
+def _parts(entry: PlainData) -> tuple[dict[str, str], dict[str, PlainData]]:
+    """An entry's links, each to the symbol it is set to, and its properties, each as plain, as an effect writes it."""
+    links, keys = {}, {}
+    for part in entry["mutations"]:
+        ((kind, member),) = part.items()
+        ((_, set_),) = member["mutations"][0].items()
+        if kind == "as_link":
+            links[member["name"]] = set_["ref"]["symbol"]
+        else:
+            keys[member["name"]] = set_["value"]
+    return links, keys
+
+
+def _link_part(link: str, symbol: str) -> PlainData:
+    return {"as_link": {"name": link, "mutations": [{"set": {"ref": {"symbol": symbol}}}]}}
+
+
+def _created_path(name: str, schema_of: Callable[[str], Any], spec: list[PlainData],
+                  path_of: Callable[[str], PlainData]) -> PlainData:
+    """The path of an object a transaction created: its owner's, then the entry that owns it, which the transaction
+    inserted, through the owner's adjacency by name, by its keys."""
+    owner, i, owned, keys = _owning_inserted(name, schema_of, spec)[0]
+    singleton, steps = Plain._steps(path_of(owner), ())
+    nested: PlainData = {"target": {}}
+    for i_, o, keys_ in reversed([*steps, (i, owned.name, keys)]):
+        nested = {"entry": {"i": i_, "o": o, "properties": keys_, "next": nested}}
+    return {"singleton": singleton, "next": nested}
+
+
+def _owning_inserted(name: str, schema_of: Callable[[str], Any], spec: list[PlainData]) -> list[Any]:
+    """The entries an effect inserts that own the object a symbol names: each as its owner's symbol, the owner's
+    adjacency by name to it, the owned object's adjacency marked owner(), and the entry's keys."""
+    found = []
+    for item in spec:
+        ((subject, (mutation,)),) = item.items()
+        adjacency = mutation.get("as_adjacency", {})
+        inserted = adjacency.get("mutations", [{}])[0].get("insert", {"entries": []})["entries"]
+        held = schema_of(subject).adjacencies[adjacency["name"]] if inserted else None
+        for entry in inserted:
+            links, keys = _parts(entry)
+            links[held.me] = subject
+            for a in Proxies._owner_adjacencies(schema_of(name)):
+                if a.relation is held.relation and links.get(a.me) == name:
+                    ((owner_link, owner),) = [(link, symbol) for link, symbol in links.items() if link != a.me]
+                    i = next((n for n, b in schema_of(owner).adjacencies.items()
+                              if b.relation is a.relation and b.me == owner_link), "")
+                    found.append((owner, i, a, {k: keys[k] for k in Proxies._key_names(a.relation, owner_link, a.me)}))
+    return found
+
+
 def _effect(store: Any, gathered: _Gathered) -> Any:
-    """The effect, built once the transaction has committed: `Mutations.OfTransaction`, one upsert."""
+    """The effect, built outside the transaction's proposals: `Mutations.OfTransaction`, one upsert."""
     specs: list[Callable[[Any], Any]] = []
     for symbol, adjacency, verb, others, properties in gathered.entries:
         def fill(entry: Any, _: Any, others: dict[str, str] = others, properties: dict[str, Any] = properties) -> Any:

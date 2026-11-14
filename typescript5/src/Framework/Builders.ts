@@ -32,6 +32,7 @@ import * as Paths from "./Paths.js";
 import * as Changes from "./Changes.js";
 import * as Provenance from "./Provenance.js";
 import * as References from "./References.js";
+import * as Json from "./JSON.js";
 import * as PlainModule from "./Plain.js";
 import type * as Proposals from "./Proposals.js";
 import * as Transactions from "./Transactions.js";
@@ -2070,9 +2071,12 @@ export class Store extends Proxies.OfStore {
   _observers: ((effect: any) => void)[] = [];
   /** What the transaction committing changed, gathered for its observers. */
   _changes: Changes._Gathered | null = null;
+  /** The store, as it is reached: its `Proxy`, whose members are its schemas by name, which loading reads through. */
+  _self!: Store;
 
-  constructor() {
+  constructor(below: any = null) {
     super();
+    this._below = below; // the store below it, from which it loads on demand, or null (CAP-283)
     const made = new Map<string, unknown>(); // its own, as the framework's installs define them, read by the bootstrap
     this._meta = bootstrap(S.install, made) as Plain; // its plain schemas of schemas and basic scalars
     const paths = bootstrap(Paths.install, made);
@@ -2107,6 +2111,7 @@ export class Store extends Proxies.OfStore {
       },
     });
     for (const schema of this._objects) HELD_BY.set(schema as object, proxy); // the store, as it is reached
+    this._self = proxy;
     this._root = this._expression(() => new ModuleBuilder(null, true, proxy).create()); // made with the store
     return proxy;
   }
@@ -2301,6 +2306,92 @@ export class Store extends Proxies.OfStore {
     return this._framework.has(schema);
   }
 
+  /** The object at `path` the store holds, made in it or loaded from the store below, without loading anything: a
+   * singleton, one loaded by its path, or one through its owner's entries, keys compared first; else null, or
+   * undefined. */
+  _present(path: unknown): unknown {
+    const [singleton, steps] = PlainModule._steps(path, []);
+    if (steps.length === 0) return this._singletons.get(singleton); // undefined where it holds none
+    const loaded = this._identities.get(Json.dumps(path as PlainModule.PlainData));
+    if (loaded !== undefined) return loaded;
+    const owner = this._present(PlainModule._owner_path(singleton, steps));
+    if (owner == null) return null;
+    this._loading += 1; // what the store holds of the owner, as it is
+    try {
+      return PlainModule._owned_by(owner, steps[steps.length - 1]!);
+    } finally {
+      this._loading -= 1;
+    }
+  }
+
+  /** The object at `path`: one the store holds; else, while loading, the store below's, held by its path until it is
+   * read (`Proxies._Unresolved`); else the store below's, loaded; null where neither holds one (CAP-284). */
+  _found(path: unknown): unknown {
+    const found = this._present(path);
+    if (found != null) return found;
+    if (this._loading > 0) return new Proxies._Unresolved(this._self, path, Json.dumps(path as PlainModule.PlainData));
+    return this._fetched(path);
+  }
+
+  /** The object a link holds by its path: present, or loaded, which links it in every entry waiting on it; refused
+   * where the store below holds none. */
+  override _resolved(link: Proxies._Unresolved): unknown {
+    const found = this._present(link.path) ?? this._fetched(link.path);
+    if (found === null) throw new LookupError("the store below holds no object at this path");
+    return found;
+  }
+
+  /** The store below's object at `path`, loaded: made from the document the store below gives of it, each entry that
+   * waits on its path linking it, then its document applied; null where the store below holds none. */
+  _fetched(path: unknown): unknown {
+    const plain: any = this._below.document(path);
+    if (plain === null) return null;
+    const [pattern] = plain.get("mutations")[0].get("upsert").get("exists");
+    const [[, bound]] = [...pattern.get("symbols")];
+    const schema = PlainModule._by_path(this._self, bound.get("schema")[0].get("$ref"), []) as ObjectData;
+    const key = Json.dumps(path as PlainModule.PlainData);
+    const made = Proxies._makeObjectData(this._self as Proxies.OfStore, schema, schema.name as string, path);
+    this._identities.set(key, made);
+    const waiting = this._waiting.get(key) ?? [];
+    this._waiting.delete(key);
+    for (const entry of waiting) this._relink(entry, key, made);
+    this._load(innerOf(made), plain);
+    return made;
+  }
+
+  /** Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it, or
+   * `plain`: its property values and its entries, written as the store's committed data, outside any transaction open,
+   * and observed by none (CAP-284). */
+  override _load(holder: object, plain: any = null): void {
+    if (this._loading > 0 || !(holder instanceof Proxies._internals._ObjectData) || this._loaded.has(holder)) return;
+    const path = holder._reference;
+    if (path === null) return;
+    this._loaded.add(holder);
+    const document = plain ?? this._below.document(path);
+    const [pattern] = document.get("mutations")[0].get("upsert").get("exists");
+    const [[symbol]] = [...pattern.get("symbols")];
+    pattern.get("symbols").set(symbol, new Map([["reference", new Map([["path", path]])]]));
+    const store: any = this._self;
+    const proposals = this._proposals;
+    this._proposals = null;
+    this._loading += 1;
+    try {
+      store.transaction(PlainModule.FromPlain(store).Transaction(document));
+    } finally {
+      this._loading -= 1;
+      this._proposals = proposals;
+    }
+  }
+
+  /** The document of the object at `path`, a one-transaction document of its properties and entries, each object they
+   * link by its path ([CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md)), as plain data; null where the store holds none: what a store
+   * above it loads (CAP-283). */
+  document(path: unknown): unknown {
+    const target = PlainModule._by_path(this, path, []);
+    if (target === null) return null;
+    return Json.loads(Json.dumps(PlainModule.ToPlain(this)(innerOf(target)._schema, target) as PlainModule.PlainData));
+  }
+
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
    * plain schema (`extendBuilders`): a module's install extends a store's own schemas (install
    * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it changed is gathered
@@ -2315,7 +2406,9 @@ export class Store extends Proxies.OfStore {
     try {
       written = super._transacting(() => {
         const result = write();
-        Provenance._record(this, this._proposals!); // at its commit, within it
+        if (this._loading === 0) { // what the store below holds, loaded, is no transaction of this store's
+          Provenance._record(this, this._proposals!); // at its commit, within it
+        }
         return result;
       });
     } finally {

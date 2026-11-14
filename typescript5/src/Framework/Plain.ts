@@ -323,12 +323,18 @@ function object(read: Readers.OfObject, _schema: Schemas.OfObject.Data, ref: Ref
   return out;
 }
 
+/** What an entry links through `link`, as it holds it: one of the store below's not present by its path, unread, so
+ * that writing an entry loads nothing (CAP-284). What the writer reads is a proxy's entry. */
+function linkedAsHeld(read: any, link: string): any {
+  return Proxies._innerOf(read)._links.get(link);
+}
+
 /** An entry as a mapping: the links other than the object's own, as references, then its properties. */
 function entry(read: Readers.OfEntry, adjacency: Schemas.OfAdjacency.Data, ref: Ref): PlainMap {
   const out: PlainMap = new Map();
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   for (const name of relation.entry.links.keys()) {
-    if (name !== adjacency.me) out.set(name, ref(read[name] as Readers.OfObject));
+    if (name !== adjacency.me) out.set(name, ref(linkedAsHeld(read, name)));
   }
   for (const [name, prop] of relation.entry.properties) {
     const [found, plain] = value(read[name] as Readers.OfProperty, prop.schema, ref);
@@ -407,6 +413,7 @@ class Document {
     if (this.keying) return new Map();
     const number = this.numbers.get(target);
     if (number !== undefined) return new Map([["symbol", String(number)]]);
+    if (target instanceof Proxies._Unresolved) return new Map([["path", target.path as PlainData]]); // not present (CAP-284)
     if (Proxies._is_data(target)) {
       if (Proxies._counted(target)) {
         throw new ValueError(`a document refers to a counted ${repr(this.store.name_of(target.as_schema()))} it does not `
@@ -454,7 +461,7 @@ class Document {
       for (const [, adjacency, held] of this.entries(this.order[position])) {
         for (const e of held) {
           for (const link of (adjacency.relation as Schemas.OfRelation.Data).entry.links.keys()) {
-            const target = e[link];
+            const target = linkedAsHeld(e, link);
             if (link !== adjacency.me && Proxies._is_data(target) && Proxies._counted(target)) this.hold(target);
           }
         }
@@ -926,23 +933,37 @@ export function _schemaSteps(plain: unknown, where: Where): [string, string][] {
 
 /** The object a path names in `store`, or null: a schema object from the root module (`Builders.Store.held`), a
  * singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
- * adjacency is `o`. */
+ * adjacency is `o`. In a store with a store below, an object of its below's it holds already is found by its path, one
+ * it made itself through its owner's entries, and any other is the store below's, held by its path until it is read
+ * (CAP-284). */
 function byPath(store: any, plain: unknown, where: Where): unknown {
   const [singleton, steps] = stepsOf(plain, where);
   if (singleton === ".") return store._at(_schemaSteps(plain, where));
   if (steps.length === 0) return store._singletons.get(singleton) ?? null;
-  const owner = byPath(store, pathFrom(singleton, steps.slice(0, -1)), where);
-  if (owner === null) return null;
-  const [, o, keys] = steps[steps.length - 1]!;
+  if (store._below !== null) return store._found(plain);
+  const owner = byPath(store, ownerPath(singleton, steps), where);
+  return owner === null ? null : ownedBy(owner, steps[steps.length - 1]!);
+}
+
+/** The path of the owner of the object at the path of `singleton` and `steps`. */
+function ownerPath(singleton: string, steps: Step[]): PlainMap {
+  return pathFrom(singleton, steps.slice(0, -1));
+}
+
+/** The object `owner` owns by the path's last step, its keys and its owner adjacency, among the objects present; else
+ * null. Keys are compared first, so that no other object is read to be told apart. */
+function ownedBy(owner: unknown, step: Step): unknown {
+  const [, o, keys] = step;
   for (const table of Proxies._entries_of(owner).values()) {
     for (const entry of table.values()) {
       const state = Proxies._innerOf(entry);
+      if (!sameKeys(state._properties, keys)) continue;
       for (const [link, target] of state._links) {
         if (target === owner || !(Proxies._innerOf(target) instanceof Proxies._internals._ObjectData)) continue;
         const schema = Proxies._innerOf(target)._schema as Schemas.OfObject.Data;
         const owned = [...schema.adjacencies.values(), ...schema.anonymous]
           .some((a) => a.owner && a.name === o && a.relation === state._relation && a.me === link);
-        if (owned && sameKeys(state._properties, keys)) return target;
+        if (owned) return target;
       }
     }
   }
@@ -1699,4 +1720,5 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
     } });
 }
 
-export { decode as _decode, set as _set, byPath as _by_path, stepsOf as _steps };
+export { decode as _decode, set as _set, byPath as _by_path, stepsOf as _steps, ownerPath as _owner_path,
+  ownedBy as _owned_by };

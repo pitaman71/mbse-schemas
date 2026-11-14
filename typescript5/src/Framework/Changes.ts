@@ -98,10 +98,25 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     }
   }
   const made = new Set([...proposals.created].filter((x) => Proxies._isObjectData(x)).map((x) => Proxies._innerOf(x)));
-  const deleted = new Set<unknown>();
+  const deleted = new Set<unknown>(); // each object's state; one not present, its link (CAP-284)
+  for (const entry of removed.values()) { // owned, not present: deleted
+    const state = Proxies._innerOf(entry) as any;
+    for (const [link, x] of state._links as Map<string, unknown>) {
+      if (x instanceof Proxies._Unresolved && Proxies._owns_through(state._relation, link, store)) deleted.add(x);
+    }
+  }
+  for (const entry of [...removed.values(), ...inserted.values()]) { // what it names, each the store holds: loaded
+    const state = Proxies._innerOf(entry) as any;
+    for (const [link, x] of [...state._links] as [string, unknown][]) {
+      if (x instanceof Proxies._Unresolved && !deleted.has(x)) {
+        // loading it links it in every entry held that waits on it; one removed, held by none, is linked here
+        state._links.set(link, x.store._resolved(x));
+      }
+    }
+  }
   for (const entry of removed.values()) {
     for (const x of (Proxies._innerOf(entry) as any)._links.values() as Iterable<unknown>) {
-      if (!made.has(Proxies._innerOf(x)) && Proxies._owner_adjacencies(schemaOf(x)).length > 0
+      if (Proxies._isObjectData(x) && !made.has(Proxies._innerOf(x)) && Proxies._owner_adjacencies(schemaOf(x)).length > 0
           && Proxies._owner_entries(x).length === 0) deleted.add(Proxies._innerOf(x));
     }
   }
@@ -148,10 +163,10 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     return name;
   };
   const gone = (state: any): string[] => [...state._links as Map<string, unknown>]
-    .filter(([, x]) => deleted.has(Proxies._innerOf(x))).map(([link]) => link);
+    .filter(([, x]) => deleted.has(Proxies._innerOf(x) ?? x)).map(([link]) => link);
   for (const entry of removed.values()) { // a deleted object's: its owning entry, by its key; the rest follows from that
     const state = Proxies._innerOf(entry) as any;
-    const owned = owning(state, gone(state));
+    const owned = owning(state, gone(state), store);
     if (owned !== null) {
       const [owner, me] = owned;
       const keys = new Map(Proxies._key_names(state._relation, me, gone(state)[0]!)
@@ -196,12 +211,12 @@ function writer(state: any, made: Set<unknown>): [string, string] {
 
 /** Where an entry owns the one deleted object it links, through `gone`, and its owner survives: the owner's adjacency
  * by name that writes it, and the owner's link; else null. */
-function owning(state: any, gone: string[]): [string, string] | null {
+function owning(state: any, gone: string[], store: any): [string, string] | null {
   if (gone.length !== 1) return null;
   const x = state._links.get(gone[0]);
-  if (!Proxies._owner_adjacencies(schemaOf(x)).some((a: any) => a.relation === state._relation && a.me === gone[0])) {
-    return null;
-  }
+  const owns = x instanceof Proxies._Unresolved ? Proxies._owns_through(state._relation, gone[0]!, store)
+    : Proxies._owner_adjacencies(schemaOf(x)).some((a: any) => a.relation === state._relation && a.me === gone[0]);
+  if (!owns) return null;
   const [me] = [...(state._links as Map<string, unknown>).keys()].filter((link) => link !== gone[0]) as [string];
   const names = [...(schemaOf(state._links.get(me)).adjacencies as Map<string, any>)]
     .filter(([, a]) => a.relation === state._relation && a.me === me).map(([name]) => name);

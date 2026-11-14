@@ -204,6 +204,63 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   readonly _frameworkEntries = new Map<unknown, Tables>();
   /** What it holds as committed. */
   readonly _committed: Proposals.Base = new _Committed(this);
+  /** The store it is given below it, from which it loads what it is asked for (CAP-283), or null. */
+  _below: any = null;
+  /** The store below's objects it has loaded, each by its path. */
+  readonly _identities = new Map<string, Instance>();
+  /** The entries that link an object not present, by its path. */
+  readonly _waiting = new Map<string, unknown[]>();
+  /** Whether a relation owns through a link (`_owns_through`), by relation and link. */
+  readonly _owning = new Map<RelationSchema, Map<string, boolean>>();
+  /** Those loaded. */
+  readonly _loaded = new Set<object>();
+  /** How deep in loading one: what it reads then loads nothing more. */
+  _loading = 0;
+
+  /** A singleton's path, where the store has a store below, from which it loads; else null. */
+  _below_path(singleton: string): unknown {
+    return this._below !== null
+      ? new Map<string, unknown>([["singleton", singleton], ["next", new Map([["target", new Map()]])]]) : null;
+  }
+
+  /** Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it, or
+   * from `plain`, where given (CAP-284): the store, `Builders.Store`, does, as it finds and fetches objects by their
+   * paths, since what it reads them with, `Plain`, is built over this module. */
+  abstract _load(holder: object, plain?: unknown): void;
+
+  /** The object a link holds by its path: present, or loaded, which links it in every entry waiting on it; refused
+   * where the store below holds none. */
+  abstract _resolved(link: _Unresolved): unknown;
+
+  /** Links `made` where `entry` held its path, `key`, and holds the entry again, by its new key, in the tables of the
+   * objects it links that the store's committed data, and the transaction open, hold; an entry equal to one held goes. */
+  _relink(entry: unknown, key: string, made: unknown): void {
+    const state = innerOf(entry) as _Entry;
+    const old = state._key();
+    for (const [name, target] of state._links) {
+      if (target instanceof _Unresolved && target.key === key) state._links.set(name, made);
+    }
+    const now = state._key();
+    for (const target of state._links.values()) {
+      if (target instanceof _Unresolved) continue;
+      for (const tables of this._tables_of(target)) {
+        let held = tables.get(state._relation);
+        if (held === undefined) tables.set(state._relation, (held = new Map()));
+        if (target === made || held.delete(old)) held.set(now, held.get(now) ?? entry); // by those that held it, and `made`
+      }
+    }
+  }
+
+  /** An object's entry tables as committed, and as each transaction open on the store, or savepoint, holds them. */
+  _tables_of(target: unknown): Tables[] {
+    const holder = innerOf(target) as _ObjectData;
+    const found: Tables[] = [holder._adjacent];
+    for (let at = this._proposals; at instanceof Proposals.OfStore; at = at.base as Proposals.OfStore) {
+      const held = (at as any).entries_.get(holder);
+      if (held !== undefined) found.push(held);
+    }
+    return found;
+  }
 
   /** A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its proposals
    * have them; outside one, the store's own, which a write is refused (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided)). */
@@ -262,7 +319,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     let written: T;
     try {
       written = this._writing(write); // ownership is settled within the outermost
-      if (below === null) {
+      if (below === null && this._loading === 0) { // loading what the store below holds checks nothing
         checkUniques(proposals);
         this._settled(proposals);
       }
@@ -388,14 +445,15 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     super._register(schema);
     if (globalName !== null) {
       const name = schema.name as string;
-      this._singletons.set(globalName, makeObjectData(this, schema as ObjectSchema, name));
+      this._singletons.set(globalName, makeObjectData(this, schema as ObjectSchema, name, this._below_path(globalName)));
     }
   }
 
   /** A registered schema declared a singleton after it was registered: its instance, created with the declaration. */
   _declared(schema: any): void {
     if (schema instanceof Schemas.OfObject.Data && schema.singleton !== null && !this._singletons.has(schema.singleton)) {
-      this._singletons.set(schema.singleton, makeObjectData(this, schema as ObjectSchema, schema.name as string));
+      this._singletons.set(schema.singleton, makeObjectData(this, schema as ObjectSchema, schema.name as string,
+        this._below_path(schema.singleton)));
     }
   }
 
@@ -448,7 +506,8 @@ function ownerAdjacencies(schema: ObjectSchema): AdjacencySchema[] {
   return [...schema.adjacencies.values(), ...schema.anonymous].filter((a) => a.owner);
 }
 
-/** Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)). */
+/** Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)). One of the
+ * store below's not yet present, which a link holds by its path, is no proxy at all (CAP-284). */
 export function _counted(target: unknown): boolean {
   return _counted_schema((innerOf(target) as _ObjectData)._schema);
 }
@@ -548,6 +607,32 @@ export function scalarKey(value: unknown): string {
 
 let nextIdentity = 0;
 
+/** A link to an object of the store below's that is not present in the store: its path, held until the link is read,
+ * when the store loads it from the store below (CAP-284). An entry is held only by the objects it links that are
+ * present; one present links it again once it is loaded. */
+export class _Unresolved {
+  constructor(readonly store: any, readonly path: unknown, readonly key: string) {}
+}
+
+/** What a link contributes to its entry's key: the object linked, or the path of one not present. */
+function linkKey(target: unknown): unknown {
+  return target instanceof _Unresolved ? ["path", target.key] : identityOf(target);
+}
+
+/** Whether `relation` owns what it links through `link`, whatever that is: a schema the store holds marks its adjacency
+ * to it `owner()`; so that one of the store below's not present is known owned without reading it (CAP-284). */
+export function _owns_through(relation: RelationSchema, link: string, store: any): boolean {
+  let byLink = store._owning.get(relation);
+  if (byLink === undefined) store._owning.set(relation, (byLink = new Map()));
+  let found = byLink.get(link);
+  if (found === undefined) {
+    found = [...store._schemas.values()].some((held: unknown) => held instanceof Schemas.OfObject.Data
+      && ownerAdjacencies(held as ObjectSchema).some((a) => a.relation === relation && a.me === link));
+    byLink.set(link, found);
+  }
+  return found as boolean;
+}
+
 /** An entry of a relation, shared by the objects it links: a read-only `Visitors.OfEntry`. Its links are members
  * giving the linked instance itself (`entry.phone`), and its properties members giving a `Visitors.OfProperty`
  * (`` `${entry.label}` ``). */
@@ -568,7 +653,14 @@ class _Entry extends Shelled {
   }
 
   override _member(name: string): unknown {
-    if (this._links.has(name)) return this._links.get(name);
+    if (this._links.has(name)) {
+      const target = this._links.get(name);
+      if (target instanceof _Unresolved) { // read: loaded from the store below, which links it here again
+        const found = target.store._resolved(target);
+        if (this._links.get(name) === target) this._links.set(name, found); // an entry no object holds now, no load relinks
+      }
+      return this._links.get(name);
+    }
     const prop = this._relation.entry.properties.get(name);
     if (prop === undefined) return makeEmpty(`${repr(name)} is not a link or property of the relation`);
     return makeProperty(this._properties, name, prop, null, this._proxy, false);
@@ -586,7 +678,7 @@ class _Entry extends Shelled {
    * a list from each end, which keeps equal entries. */
   _key(): string {
     if (this._relation.open) return `entry:${this._id}`;
-    const links = [...this._links].map(([name, target]) => [name, identityOf(target)] as const).sort(byName);
+    const links = [...this._links].map(([name, target]) => [name, linkKey(target)] as const).sort(byName);
     const props = [...this._properties].map(([name, value]) => [name, scalarKey(value)] as const).sort(byName);
     return JSON.stringify([links, props]);
   }
@@ -659,12 +751,14 @@ class _Committed {
   constructor(readonly store: OfStore) {}
 
   values(holder: any): Values {
+    this.store._load(holder);
     return holder._ownValues;
   }
 
-  /** An object's own entry tables; a schema the store was made holding is never written: the store keeps the entries
-   * that link it. */
+  /** An object's own entry tables, an object of the store below's loaded first (CAP-284); a schema the store was made
+   * holding is never written: the store keeps the entries that link it. */
   entries(holder: any): Tables {
+    this.store._load(holder);
     if (this.store.framework(holder)) {
       let own = this.store._frameworkEntries.get(holder);
       if (own === undefined) this.store._frameworkEntries.set(holder, (own = new Map()));
@@ -695,8 +789,17 @@ function addEntry(relation: RelationSchema, entry: any, store: unknown = null): 
   }
   const key = state._key();
   const held = entryStore(state, store);
-  if (table(state._links.values().next().value, relation, held).has(key)) return;
-  for (const target of state._links.values()) table(target, relation, held, true).set(key, entry);
+  const present = [...state._links.values()].filter((target) => !(target instanceof _Unresolved));
+  if (table(present[0], relation, held).has(key)) return;
+  for (const target of state._links.values()) {
+    if (target instanceof _Unresolved) { // held by the objects present, linked again once it is loaded (CAP-284)
+      const waiting = target.store._waiting as Map<string, unknown[]>;
+      if (!waiting.has(target.key)) waiting.set(target.key, []);
+      waiting.get(target.key)!.push(entry);
+    } else {
+      table(target, relation, held, true).set(key, entry);
+    }
+  }
 }
 
 /** The entries of `relation` that link `target` via `link`, in the order they were added. */
@@ -771,7 +874,14 @@ function discard(relation: RelationSchema, entries: readonly unknown[], store: u
     const state: _Entry = innerOf(entry);
     const key = state._key();
     const held = entryStore(state, store);
-    for (const target of state._links.values()) table(target, relation, held, true).delete(key);
+    for (const target of state._links.values()) {
+      if (target instanceof _Unresolved) {
+        const waiting = target.store._waiting.get(target.key) as unknown[];
+        waiting.splice(waiting.indexOf(entry), 1);
+      } else {
+        table(target, relation, held, true).delete(key);
+      }
+    }
     for (const [, owned] of ownedLinks(state)) (innerOf(owned) as _ObjectData)._store._orphaned.push(owned as Instance);
   }
 }
@@ -790,6 +900,7 @@ function orders(schema: ObjectSchema, source: unknown): Orders {
     const relation = adjacency.relation as RelationSchema;
     for (const entry of linking(relation, adjacency.me, source)) {
       for (const target of (innerOf(entry) as _Entry)._links.values()) {
+        if (target instanceof _Unresolved) continue; // not present: it holds no table (CAP-284)
         const held = table(target, relation, store, true); // reordered after the update
         if (!tables.has(held)) tables.set(held, [...held.values()]);
       }
@@ -1938,7 +2049,8 @@ class _ObjectData extends Shelled {
     return valuesOf(this);
   }
 
-  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string) {
+  constructor(readonly _store: OfStore, readonly _schema: ObjectSchema, readonly _schemaName: string,
+    readonly _reference: unknown = null) { // its path, where it is the store below's, to load from
     super();
   }
 
@@ -1976,8 +2088,8 @@ class _ObjectData extends Shelled {
   }
 }
 
-function makeObjectData(store: OfStore, schema: ObjectSchema, schemaName: string): Instance {
-  const state = new _ObjectData(store, schema, schemaName);
+function makeObjectData(store: OfStore, schema: ObjectSchema, schemaName: string, reference: unknown = null): Instance {
+  const state = new _ObjectData(store, schema, schemaName, reference);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -2912,6 +3024,10 @@ class _LinkMember extends Shelled {
       return entry._proxy;
     }
     spec = _deref(spec);
+    if (spec instanceof _Unresolved) { // one of the store below's not present, which loading it links (CAP-284)
+      entry._links.set(name, spec);
+      return entry._proxy;
+    }
     if (innerOf(spec) instanceof _LinkMember) spec = innerOf(spec)._target();
     if (isRecordData(spec)) throw new ReadOnlyError("a link targets a reference object, never a value object");
     const holds = (entry._store as { holds?: (data: unknown) => boolean } | null)?.holds;
@@ -3236,7 +3352,7 @@ export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
   addEntry as _add_entry, sameStore as _same_store, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single, noteMissed as _note_missed, missed as _missed,
   built as _built, ownerEntries as _owner_entries, ownedLinks as _owned_links, ownerAdjacencies as _owner_adjacencies,
-  keyNames as _key_names };
+  keyNames as _key_names, makeObjectData as _makeObjectData };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

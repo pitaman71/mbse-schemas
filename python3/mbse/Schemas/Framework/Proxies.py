@@ -1924,7 +1924,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
             if all(name in entry._properties
                    and _scalar_key(_view(entry._properties[name], properties[name].schema)) == _scalar_key(value)
                    for name, value in keys.items()):
-                return entry._links[others[0]]
+                return getattr(entry, others[0])  # one not present: loaded
         raise LookupError(f"no entry of {self._schema.name!r} has the keys {dict(keys)!r}")
 
     def project(self, name: str) -> tuple[Any, ...]:
@@ -1932,7 +1932,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
         relation = self._schema.relation
         if name not in relation.entry.links and name not in relation.entry.properties:
             raise KeyError(f"{name!r} is not a link or property of the relation")
-        return tuple(entry._links[name] if name in relation.entry.links else
+        return tuple(getattr(entry, name) if name in relation.entry.links else
                      _view(entry._properties.get(name), relation.entry.properties[name].schema) for entry in self)
 
     def at(self, key: Any) -> _Entry:
@@ -1947,7 +1947,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
         links = self._schema.relation.entry.links
         properties = self._schema.relation.entry.properties
         for entry in self:
-            held = [entry._links[name] if name in links else _view(entry._properties.get(name), properties[name].schema)
+            held = [getattr(entry, name) if name in links else _view(entry._properties.get(name), properties[name].schema)
                     for name in names]
             if all(h is v if name in links else h is not None and _scalar_key(h) == _scalar_key(v)
                    for name, h, v in zip(names, held, wanted)):  # a target by identity, a value by schema equality

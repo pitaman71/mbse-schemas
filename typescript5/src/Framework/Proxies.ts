@@ -2310,7 +2310,7 @@ class _Adjacency extends Array<any> implements Shellable {
       const state: _Entry = innerOf(entry);
       const agrees = [...keys].every(([name, value]) => state._properties.has(name)
         && scalarKey(view(state._properties.get(name), (relation.entry.properties.get(name) as Schemas.OfProperty.Data).schema)) === scalarKey(value));
-      if (agrees) return state._links.get(others[0]!);
+      if (agrees) return (entry as any)[others[0]!]; // one not present: loaded
     }
     throw new LookupError(`no entry of ${repr(this._schema.name)} has the keys ${repr(keys)}`);
   }
@@ -2323,7 +2323,7 @@ class _Adjacency extends Array<any> implements Shellable {
     }
     return Object.freeze([...this].map((held) => {
       const state: _Entry = innerOf(held);
-      if (entry.links.has(name)) return state._links.get(name);
+      if (entry.links.has(name)) return (held as any)[name];
       return view(state._properties.has(name) ? state._properties.get(name) : null,
         (entry.properties.get(name) as Schemas.OfProperty.Data).schema);
     }));
@@ -2342,7 +2342,7 @@ class _Adjacency extends Array<any> implements Shellable {
     const { links, properties } = relation.entry;
     for (const entry of this) {
       const state: _Entry = innerOf(entry);
-      const held: unknown[] = names.map((name): unknown => links.has(name) ? state._links.get(name)
+      const held: unknown[] = names.map((name): unknown => links.has(name) ? (entry as any)[name]
         : view(state._properties.has(name) ? state._properties.get(name) : null, (properties.get(name) as Schemas.OfProperty.Data).schema));
       if (names.every((name, i) => links.has(name) ? held[i] === wanted[i]
         : held[i] !== null && scalarKey(held[i]) === scalarKey(wanted[i]))) return entry; // a target by identity, a value by schema equality

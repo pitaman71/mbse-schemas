@@ -2531,8 +2531,11 @@ export class Store extends Proxies.OfStore {
     if (present === null && direct.length === 0) return;
     this._applying += 1; // building it loads nothing either
     try {
-      const expression = Changes._as_committed(store, () => // built outside a transaction open, as any expression is
-        present === null ? null : PlainModule.FromPlain(store).Transaction(present));
+      // built outside a transaction open, as any expression is; but one taken into the transaction open, within
+      // it, where what the transaction made is present, by which the schema of each object it names is known
+      const build = (): unknown =>
+        present === null ? null : PlainModule.FromPlain(store).Transaction(present);
+      const expression = joined ? build() : Changes._as_committed(store, build);
       const write = (): void => {
         if (expression !== null) Transactions._execute(store, expression, true);
         Changes._apply_directly(store, direct);

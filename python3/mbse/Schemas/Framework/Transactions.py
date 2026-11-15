@@ -106,17 +106,21 @@ def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
     """The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
     identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where
     the store holds it, else, or where it is not present, the schema its path implies, through the store's schemas
-    alone (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path cannot be followed."""
+    alone, loading nothing where the store has a store below (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path cannot be followed."""
     from . import References
 
     reference = _exactly_one(name, symbol, TypeError)
     if reference is None:
         return symbol.schema
-    target = References.resolve(store, reference)
+    path = Plain.ToPlain(store)(reference.as_schema(), reference)["path"]
+    if store._below is not None and path.get("singleton") != ".":  # building it loads nothing (CAP-304)
+        target = store._present(path)
+    else:
+        target = References.resolve(store, reference)
     if target is not None and not isinstance(target, Proxies._Unresolved):  # one not present: by its path (CAP-285)
         return _reader(store, target).as_schema()
     try:
-        return References._implied(store, Plain.ToPlain(store)(reference.as_schema(), reference)["path"])
+        return References._implied(store, path)
     except LookupError as error:
         raise LookupError(f"symbol {name!r} is given a reference whose path {error}: a spec writes what its object's "
                           "schema declares") from None

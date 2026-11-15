@@ -25,7 +25,10 @@
  * records it and its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among
  * them; what an object is before is read from what the store holds as committed. The expression is built outside the
  * transaction's proposals, since building it writes: once the transaction has committed, for its observers, and, for
- * the store below a store, just before, with its proposals set aside, as plain data (CAP-285).
+ * the store below a store, just before, with its proposals set aside, as plain data (CAP-285). A store given a store
+ * below gives its observers, for a transaction of its own, the effect the store below reported it committed, what the
+ * store below added to it, as its record, among it, so that each store of a stack gives the same one; changes name an
+ * object not present by its path, loading nothing.
  */
 
 import { ValueError } from "./Errors.js";
@@ -109,16 +112,6 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     const path = x instanceof Proxies._Unresolved ? x.path : (Proxies._innerOf(x) as any)._reference;
     return path !== null && paths.some((p) => Plain._under(path, p));
   };
-  const naming = store._applying > 0 ? [] : [...removed.values(), ...inserted.values()]; // what it names: loaded (CAP-284)
-  for (const entry of naming) {
-    const state = Proxies._innerOf(entry) as any;
-    for (const [link, x] of [...state._links] as [string, unknown][]) {
-      if (x instanceof Proxies._Unresolved && !gone(x)) {
-        // loading it links it in every entry held that waits on it; one removed, held by none, is linked here
-        state._links.set(link, x.store._resolved(x));
-      }
-    }
-  }
   const deleted = new Set<unknown>(); // each object's state; one not present, its link
   for (const entry of removed.values()) {
     for (const x of (Proxies._innerOf(entry) as any)._links.values() as Iterable<unknown>) {
@@ -147,7 +140,7 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     if (found !== undefined) return found;
     const counted = !(x instanceof Proxies._Unresolved) && Proxies._counted(x);
     let bound: any;
-    if (x instanceof Proxies._Unresolved) { // not present, applying the store below's transaction: by its path
+    if (x instanceof Proxies._Unresolved) { // not present: by its path, loading nothing
       bound = _as_committed(store, () => Plain.FromPlain(store)(store.registered("References.OfObject"),
         new Map([["path", x.path as Plain.PlainData]])));
     } else if (counted || made.has(Proxies._innerOf(x))) {

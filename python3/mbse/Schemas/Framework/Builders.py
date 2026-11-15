@@ -1647,6 +1647,8 @@ class Store(Proxies.OfStore):
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
         self._arrived: list[Any] = []  # the store below's transactions, reported while one of this store's was open
+        self._sending = 0  # how deep in sending a transaction below: what the store below reports then is it, committed
+        self._committed_below: Any = None  # the transaction sent, as the store below reported it committed, as plain
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
@@ -1784,27 +1786,37 @@ class Store(Proxies.OfStore):
         """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
         its plain schema (`_extend_builders`): a module's install extends a store's own schemas (install
         D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it
-        changed is gathered for the store's observers, which are given its effect once it has committed (`Changes`)."""
+        changed is gathered for the store's observers, which are given its effect once it has committed (`Changes`): where
+        the store has a store below, the effect the store below reported it committed. A load within it is no transaction
+        of the store's, and leaves the one open as it is."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         from . import Provenance
 
-        self._changes = None
+        if self._loading:  # what the store below holds, loaded: no transaction of this store's, nor of the one open's
+            try:
+                with super()._transacting() as proposals:
+                    yield proposals
+            finally:
+                _extend_builders(self, before)
+            return
+        self._changes = self._committed_below = None
         committed = False
         try:
             with super()._transacting() as proposals:
                 yield proposals
-                if not (self._loading or self._applying or getattr(self._below, "records", False)):  # recorded
-                    Provenance._record(self, proposals)  # once, in the lowest store, at its commit, within it
+                if not (self._applying or getattr(self._below, "records", False)):  # recorded once, in the lowest
+                    Provenance._record(self, proposals)  # store, at its commit, within it
             committed = True
         finally:
             _extend_builders(self, before)
             gathered, self._changes = self._changes if committed else None, None
+            below, self._committed_below = self._committed_below if committed else None, None
             arrived, self._arrived = self._arrived, []
             if gathered is not None and self._observers:  # once committed: one that raised is observed by none
                 from . import Changes
 
-                effect = Changes._effect(self, gathered)
+                effect = Changes._effect(self, gathered) if below is None else self._expression_of(below)
                 for observer in list(self._observers):
                     observer(effect)
             for plain in arrived:  # in the order the store below committed them, its own among them
@@ -1831,42 +1843,65 @@ class Store(Proxies.OfStore):
     def _send(self, plain: Any, expression: Any) -> None:
         """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:
         the store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
-        `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`),
-        and its record reaches this store as the store below's writes do."""
+        `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`).
+        What the store below reports it committed, its record among it, is taken into the transaction (`_arrive`), so
+        that each store of a stack commits the same one."""
         from . import Changes, Plain
 
         if expression is not None:
             with Changes._as_committed(self):
                 given = Plain.ToPlain(self).Transaction(expression)
             plain = {**{k: v for k, v in given.items() if k != "mutations"}, **plain}
-        self._below.transaction(Plain.FromPlain(self._below).Transaction(plain))
+        self._sending += 1
+        try:
+            self._below.transaction(Plain.FromPlain(self._below).Transaction(plain))
+        finally:
+            self._sending -= 1
 
     def _arrive(self, effect: Any) -> None:
         """A transaction the store below committed, reported: applied to the objects present; one reported while a
         transaction of this store's is open, its own among them, once that one ends, so that each is applied in the
         order the store below committed them, and its own, applied again, changes only what another changed since
-        (CAP-285)."""
+        (CAP-285). One reported while this store sends it is its own, as the store below committed it: taken into it
+        first, before it commits, so that what the store below added to it, as its record, is committed with it."""
         from . import Changes
 
         plain = Changes._plain_effect(self._below, effect)
+        if self._sending:
+            self._committed_below = plain
+            self._apply(plain, joined=True)
         if self._proposals is not None:
             self._arrived.append(plain)
         else:
             self._apply(plain)
 
-    def _apply(self, plain: Any) -> None:
+    def _expression_of(self, plain: Any) -> Any:
+        """A transaction of the store below's, as plain data, as an expression of this store's, built loading nothing:
+        what this store's followers are given of a transaction of its own the store below committed, as it committed it,
+        so that each store of a stack gives the same one."""
+        from . import Changes, Plain
+
+        self._applying += 1
+        try:
+            with Changes._as_committed(self):
+                return Plain.FromPlain(self).Transaction(plain)
+        finally:
+            self._applying -= 1
+
+    def _apply(self, plain: Any, joined: bool = False) -> None:
         """Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of
         this store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed
-        (CAP-285)."""
+        (CAP-285); `joined`, within the transaction open, a savepoint of it."""
         from . import Changes, Plain, Transactions
 
         present, direct = Changes._present_only(self, plain)
         if present is None and not direct:
             return
-        expression = None if present is None else Plain.FromPlain(self).Transaction(present)
-        self._applying += 1
+        self._applying += 1  # building it loads nothing either
         try:
-            with self.transaction():
+            with Changes._as_committed(self):  # built outside a transaction open, as any expression is
+                expression = None if present is None else Plain.FromPlain(self).Transaction(present)
+            with self._joined() if joined else self.transaction():
                 if expression is not None:
                     Transactions._execute(self, expression, joined=True)
                 Changes._apply_directly(self, direct)

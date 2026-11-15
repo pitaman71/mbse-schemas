@@ -2073,6 +2073,10 @@ export class Store extends Proxies.OfStore {
   _changes: Changes._Gathered | null = null;
   /** The store below's transactions, reported while one of this store's was open. */
   _arrived: unknown[] = [];
+  /** How deep in sending a transaction below: what the store below reports then is it, committed. */
+  _sending = 0;
+  /** The transaction sent, as the store below reported it committed, as plain. */
+  _committed_below: unknown = null;
   /** The store, as it is reached: its `Proxy`, whose members are its schemas by name, which loading reads through. */
   _self!: Store;
 
@@ -2414,20 +2418,29 @@ export class Store extends Proxies.OfStore {
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
    * plain schema (`extendBuilders`): a module's install extends a store's own schemas (install
    * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it changed is gathered
-   * for the store's observers, which are given its effect once it has committed (`Changes`). */
+   * for the store's observers, which are given its effect once it has committed (`Changes`): where the store has a
+   * store below, the effect the store below reported it committed. A load within it is no transaction of the store's,
+   * and leaves the one open as it is. */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
-    this._changes = null;
+    if (this._loading > 0) { // what the store below holds, loaded: no transaction of this store's, nor of the one open's
+      try {
+        return super._transacting(write);
+      } finally {
+        extendBuilders(this, before);
+      }
+    }
+    this._changes = this._committed_below = null;
     let committed = false;
     let written!: T;
     try {
       written = super._transacting(() => {
         const result = write();
-        if (!(this._loading > 0 || this._applying > 0 || this._below?.records === true)) { // recorded once, in the
-          Provenance._record(this, this._proposals!); // lowest store, at its commit, within it
+        if (!(this._applying > 0 || this._below?.records === true)) { // recorded once, in the lowest store, at its
+          Provenance._record(this, this._proposals!); // commit, within it
         }
         return result;
       });
@@ -2436,10 +2449,12 @@ export class Store extends Proxies.OfStore {
       extendBuilders(this, before);
       const gathered = committed ? this._changes : null;
       this._changes = null;
+      const below = committed ? this._committed_below : null;
+      this._committed_below = null;
       const arrived = this._arrived;
       this._arrived = [];
       if (gathered !== null && this._observers.length > 0) { // once committed: one that threw is observed by none
-        const effect = Changes._effect(this, gathered);
+        const effect = below === null ? Changes._effect(this, gathered) : this._expression_of(below);
         for (const observer of [...this._observers]) observer(effect);
       }
       for (const plain of arrived) this._apply(plain); // in the order the store below committed them, its own among them
@@ -2464,38 +2479,66 @@ export class Store extends Proxies.OfStore {
 
   /** Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits: the
    * store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
-   * `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`), and its
-   * record reaches this store as the store below's writes do. */
+   * `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`). What the
+   * store below reports it committed, its record among it, is taken into the transaction (`_arrive`), so that each
+   * store of a stack commits the same one. */
   _send(plain: unknown, expression: unknown): void {
     if (expression !== null) {
       const given = Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression)) as Map<string, unknown>;
       plain = new Map([...[...given].filter(([k]) => k !== "mutations"), ...plain as Map<string, unknown>]);
     }
-    this._below.transaction(PlainModule.FromPlain(this._below).Transaction(plain as PlainModule.PlainData));
+    this._sending += 1;
+    try {
+      this._below.transaction(PlainModule.FromPlain(this._below).Transaction(plain as PlainModule.PlainData));
+    } finally {
+      this._sending -= 1;
+    }
   }
 
   /** A transaction the store below committed, reported: applied to the objects present; one reported while a
    * transaction of this store's is open, its own among them, once that one ends, so that each is applied in the order
-   * the store below committed them, and its own, applied again, changes only what another changed since (CAP-285). */
+   * the store below committed them, and its own, applied again, changes only what another changed since (CAP-285). One
+   * reported while this store sends it is its own, as the store below committed it: taken into it first, before it
+   * commits, so that what the store below added to it, as its record, is committed with it. */
   _arrive(effect: unknown): void {
     const plain = Changes._plain_effect(this._below, effect);
+    if (this._sending > 0) {
+      this._committed_below = plain;
+      this._apply(plain, true);
+    }
     if (this._proposals !== null) this._arrived.push(plain);
     else this._apply(plain);
   }
 
+  /** A transaction of the store below's, as plain data, as an expression of this store's, built loading nothing: what
+   * this store's followers are given of a transaction of its own the store below committed, as it committed it, so
+   * that each store of a stack gives the same one. */
+  _expression_of(plain: unknown): unknown {
+    this._applying += 1;
+    try {
+      return Changes._as_committed(this, () => PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData));
+    } finally {
+      this._applying -= 1;
+    }
+  }
+
   /** Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of this
-   * store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed (CAP-285). */
-  _apply(plain: unknown): void {
+   * store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed (CAP-285);
+   * `joined`, within the transaction open, a savepoint of it. */
+  _apply(plain: unknown, joined = false): void {
     const store: any = this._self;
     const [present, direct] = Changes._present_only(store, plain as PlainModule.PlainData);
     if (present === null && direct.length === 0) return;
-    const expression = present === null ? null : PlainModule.FromPlain(store).Transaction(present);
-    this._applying += 1;
+    this._applying += 1; // building it loads nothing either
     try {
-      store.transaction(() => {
+      const expression = Changes._as_committed(store, () => // built outside a transaction open, as any expression is
+        present === null ? null : PlainModule.FromPlain(store).Transaction(present));
+      const write = (): void => {
         if (expression !== null) Transactions._execute(store, expression, true);
         Changes._apply_directly(store, direct);
-      });
+      };
+      if (joined) store._joined(write);
+      else store.transaction(write);
     } finally {
       this._applying -= 1;
     }

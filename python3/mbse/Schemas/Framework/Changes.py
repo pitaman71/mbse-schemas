@@ -24,7 +24,10 @@ nothing. The changes are gathered from the transaction's proposals just before i
 it and its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an
 object is before is read from what the store holds as committed. The expression is built outside the transaction's
 proposals, since building it writes: once the transaction has committed, for its observers, and, for the store below a
-store, just before, with its proposals set aside, as plain data (CAP-285).
+store, just before, with its proposals set aside, as plain data (CAP-285). A store given a store below gives its
+observers, for a transaction of its own, the effect the store below reported it committed, what the store below added
+to it, as its record, among it, so that each store of a stack gives the same one; changes name an object not present
+by its path, loading nothing.
 """
 
 from __future__ import annotations
@@ -100,11 +103,6 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         path = x.path if isinstance(x, Proxies._Unresolved) else object.__getattribute__(x, "_reference")
         return path is not None and any(Proxies._under(path, p) for p in paths)
 
-    for entry in [] if store._applying else [*removed.values(), *inserted.values()]:  # what it names: loaded (CAP-284)
-        for link, x in list(entry._links.items()):
-            if isinstance(x, Proxies._Unresolved) and not gone(x):
-                # loading it links it in every entry held that waits on it; one removed, held by none, is linked here
-                entry._links[link] = x.store._resolved(x)
     deleted = {id(x) for entry in removed.values() for x in entry._links.values() if gone(x)} | {
                id(x) for entry in removed.values() for x in entry._links.values()
                       if isinstance(x, Proxies._ObjectData) and id(x) not in made
@@ -130,7 +128,7 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         if found is not None:
             return found
         counted = not isinstance(x, Proxies._Unresolved) and Proxies._counted(x)
-        if isinstance(x, Proxies._Unresolved):  # not present, applying the store below's transaction: by its path
+        if isinstance(x, Proxies._Unresolved):  # not present: by its path, loading nothing
             with _as_committed(store):
                 bound = Plain.FromPlain(store)(store.registered("References.OfObject"), {"path": x.path})
         elif counted or id(x) in made:

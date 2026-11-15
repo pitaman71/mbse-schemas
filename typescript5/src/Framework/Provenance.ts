@@ -167,9 +167,8 @@ function other(relation: any): string {
 function held(store: any, relation: string, directory: string, key: string, value: string): any {
   const schema = store.registered(relation);
   const found = Proxies._linking(schema, "directory", store.singleton(directory), store)
-    .map((entry: any) => Proxies._innerOf(entry))
-    .find((entry: any) => entry._properties.get(key) === value);
-  return found === undefined ? null : found._links.get(other(schema));
+    .find((entry: any) => Proxies._innerOf(entry)._properties.get(key) === value);
+  return found === undefined ? null : (found as any)[other(schema)];
 }
 
 /** Adds an entry of the relation registered as `relation`. */
@@ -215,7 +214,7 @@ export function _record(store: any, proposals: Proposals.OfStore): void {
   for (const target of written) {
     if (!extended(store, (target as any).as_schema())) continue;
     const holding = Proxies._linking(modifiedBy, "object", target, store);
-    if (holding.length === 1 && Proxies._innerOf(holding[0])._links.get("transaction") === record) continue;
+    if (holding.length === 1 && (holding[0] as any).transaction === record) continue;
     Proxies._discard(modifiedBy, holding, store); // the tail: the one it held, replaced
     link(store, "Provenance.ModifiedBy", [["object", target], ["transaction", record]]);
   }
@@ -246,7 +245,7 @@ function madeRecord(store: any, expression: unknown, uid: string): any {
     link(store, "Provenance.Who", [["session", found], ["identity", identity]]);
   } else {
     const whose = Proxies._linking(store.registered("Provenance.Who"), "session", found, store)
-      .map((entry: any) => Proxies._innerOf(entry)._links.get("identity"));
+      .map((entry: any) => entry.identity);
     if (whose.length !== 1 || whose[0] !== identity) {
       throw new ValueError(`session ${repr(sid)} is another identity's, not ${repr(who)}'s: a session has one identity `
         + "(Provenance.Who)");

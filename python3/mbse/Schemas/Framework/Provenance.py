@@ -155,7 +155,7 @@ def _held(store: Any, relation: str, directory: str, key: str, value: str) -> An
     holds none."""
     held = store.registered(relation)
     other = next(link for link in held.entry.links if link != "directory")
-    return next((entry._links[other] for entry in Proxies._linking(held, "directory", store.singleton(directory), store)
+    return next((getattr(entry, other) for entry in Proxies._linking(held, "directory", store.singleton(directory), store)
                  if entry._properties.get(key) == value), None)
 
 
@@ -204,7 +204,7 @@ def _record(store: Any, proposals: Any) -> None:
         if not _extended(store, target.as_schema()):
             continue
         held = Proxies._linking(modified_by, "object", target, store)
-        if [entry._links["transaction"] for entry in held] == [record]:
+        if [entry.transaction for entry in held] == [record]:
             continue
         Proxies._discard(id(modified_by), held, store)  # the tail: the one it held, replaced
         _link(store, "Provenance.ModifiedBy", {"object": target, "transaction": record})
@@ -242,7 +242,7 @@ def _made_record(store: Any, expression: Any, uid: str) -> Any:
                               "Provenance.Identities", "name", who)
         _link(store, "Provenance.Who", {"session": found, "identity": identity})
     else:
-        whose = [entry._links["identity"] for entry in Proxies._linking(store.registered("Provenance.Who"), "session",
+        whose = [entry.identity for entry in Proxies._linking(store.registered("Provenance.Who"), "session",
                                                                         found, store)]
         if whose != [identity]:
             raise ValueError(f"session {sid!r} is another identity's, not {who!r}'s: a session has one identity "

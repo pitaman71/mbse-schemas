@@ -116,17 +116,21 @@ export function _exactlyOne(name: string, symbol: any, error: new (message: stri
 
 /** The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
  * identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where the
- * store holds it, else, or where it is not present, the schema its path implies, through the store's schemas alone
- * (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path cannot be followed. */
+ * store holds it, else, or where it is not present, the schema its path implies, through the store's schemas alone,
+ * loading nothing where the store has a store below (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path
+ * cannot be followed. */
 export function _recordedSchema(store: any, name: string, symbol: any): any {
   const reference = _exactlyOne(name, symbol, TypeError);
   if (reference === null) return symbol.schema;
-  const target = References.resolve(store, reference);
-  if (target !== null && !(target instanceof Proxies._Unresolved)) { // one not present: by its path (CAP-285)
+  const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path") as Map<string, unknown>;
+  const target = store._below !== null && path.get("singleton") !== "." // building it loads nothing (CAP-304)
+    ? store._present(path)
+    : References.resolve(store, reference);
+  if (target != null && !(target instanceof Proxies._Unresolved)) { // one not present: by its path (CAP-285)
     return reader(store, target).as_schema();
   }
   try {
-    return References._implied(store, (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path"));
+    return References._implied(store, path);
   } catch (error) {
     throw new LookupError(`symbol ${repr(name)} is given a reference whose path ${(error as Error).message}: a spec writes `
       + "what its object's schema declares");

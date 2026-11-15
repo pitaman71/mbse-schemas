@@ -63,6 +63,8 @@ function noArguments(method: string, args: unknown[]): void {
 
 /** Each schema object's store, which gives its path (`Paths.of`): a form is frozen; its store is not one of its fields. */
 const HELD_BY = new WeakMap<object, Store>();
+/** The key under which a transaction's saved state holds the log of changes to objects with no name of their own. */
+const UNNAMED_LOG = new Map<unknown, unknown>();
 
 /** The store holding a schema object; undefined where none does. */
 export function _heldBy(data: unknown): Store | undefined {
@@ -2251,25 +2253,32 @@ export class Store extends Proxies.OfStore {
     const saved = super._saved();
     for (const held of [this._modules, this._placed]) saved.set(held as Map<unknown, unknown>, [...held]);
     saved.set(this._objects as unknown as Map<unknown, unknown>, [...this._objects].map((data) => [data, data]));
+    const began = this._unnamedLog === null; // the transaction that began the log ends it, not one nested in it
     this._unnamedLog ??= [];
-    saved.set(this._unnamedLog as unknown as Map<unknown, unknown>, [[this._unnamedLog.length, null]]); // where they began
+    saved.set(UNNAMED_LOG, [[this._unnamedLog, this._unnamedLog.length], [began, null]]); // the log, and where it began
     return saved;
+  }
+
+  /** Ends the log of changes to objects with no name of their own, where the transaction whose saved state this is
+   * began it: a transaction nested in one open, as a load is, leaves the open one's log as it is. */
+  private _endUnnamedLog(saved: Map<Map<unknown, unknown>, [unknown, unknown][]>): void {
+    const [, [began]] = saved.get(UNNAMED_LOG) as [[unknown, unknown], [boolean, unknown]];
+    if (began) this._unnamedLog = null;
   }
 
   override _restore(saved: Map<Map<unknown, unknown>, [unknown, unknown][]>): void {
     const objects = saved.get(this._objects as unknown as Map<unknown, unknown>) as [unknown, unknown][];
     saved.delete(this._objects as unknown as Map<unknown, unknown>);
-    const [[began]] = saved.get(this._unnamedLog as unknown as Map<unknown, unknown>) as [[number, unknown]];
-    saved.delete(this._unnamedLog as unknown as Map<unknown, unknown>);
+    const [[log, began]] = saved.get(UNNAMED_LOG) as [[[object, boolean][], number]];
+    this._endUnnamedLog(saved);
+    saved.delete(UNNAMED_LOG);
     super._restore(saved);
     this._objects.clear();
     for (const [data] of objects) this._objects.add(data);
-    const log = this._unnamedLog as [object, boolean][];
-    for (const [data, unnamed] of log.splice(began as number).reverse()) {
+    for (const [data, unnamed] of log.splice(began).reverse()) {
       if (unnamed) this._unnamed.add(data);
       else this._unnamed.delete(data);
     }
-    if (this._proposals === null) this._unnamedLog = null; // the transaction's own: it ended
   }
 
   /** Applies the updates of schema objects that waited for the transaction's commit, in order; where one is refused,
@@ -2282,7 +2291,7 @@ export class Store extends Proxies.OfStore {
         applied.push([original, Object.keys(original).map((name) => [name, original[name]])]);
         builder.update();
       }
-      this._unnamedLog = null;
+      this._endUnnamedLog(proposals.saved);
     } catch (error) {
       for (const [original, fields] of applied.reverse()) {
         for (const [name, value] of fields) original[name] = value;

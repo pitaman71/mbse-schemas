@@ -1899,7 +1899,9 @@ class Store(Proxies.OfStore):
             return
         self._applying += 1  # building it loads nothing either
         try:
-            with Changes._as_committed(self):  # built outside a transaction open, as any expression is
+            # built outside a transaction open, as any expression is; but one taken into the transaction open, within
+            # it, where what the transaction made is present, by which the schema of each object it names is known
+            with contextlib.nullcontext() if joined else Changes._as_committed(self):
                 expression = None if present is None else Plain.FromPlain(self).Transaction(present)
             with self._joined() if joined else self.transaction():
                 if expression is not None:

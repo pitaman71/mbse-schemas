@@ -6,7 +6,14 @@ store's builders is transient: it lives only while the program holds it. `Visito
 implementation meets; `Builders.Store` (dynamic instances) implements it, and generated code will. Everything that
 looks a schema up by name takes a store: `Plain.ToPlain(store)`, `Plain.FromPlain(store)`, the JSON and YAML forms,
 `Validators.Validate(store)`. Stores are isolated from one another; objects move between them as
-snapshots. Selecting objects by a condition is an extension, in mbse-expressions.
+snapshots, or a store is given another below it. Selecting objects by a condition is an extension, in mbse-expressions.
+
+`Below` is what a store asks of the store below it, which any store below implements, whatever it is kept in, being no
+`Builders.Store` nor knowing one ([CAP-306: a public store-below interface](mbse:mbse-basis/docs/capabilities/README.md#CAP-306)): an object's document by its
+path, `document(path)`; a transaction's changes, given as plain data, committed or refused, and what it committed of
+them given back, `commit(plain)`; each transaction it commits given to its followers in order, `follow(follower)`;
+and whether it records the transactions it commits, `records`. Everything given and given back is plain data, as a
+store above writes and reads it ([CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283), [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285)).
 
 `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
 extents from the roots.
@@ -22,12 +29,34 @@ seed.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
-from typing import Any, Protocol
+from collections.abc import Callable, Iterable
+from typing import Any, Protocol, runtime_checkable
 
 from . import Reachable, Readers, Schemas
 
-__all__ = ["Store", "Catalog", "Combined", "Random", "PCG32"]
+__all__ = ["Store", "Catalog", "Combined", "Below", "Random", "PCG32"]
+
+
+@runtime_checkable
+class Below(Protocol):
+    """What a store asks of the store below it (CAP-306), each given and given back as plain data."""
+
+    records: bool
+    """Whether it records each transaction it commits (`Provenance`), itself or through the store below it, so that a
+    store above it records none."""
+
+    def document(self, path: Any) -> Any:
+        """The document of the object at `path`, a `Paths.OfRoot` value as plain data: a one-transaction document of its
+        properties and entries, each object they link by its path; None where it holds none."""
+
+    def commit(self, plain: Any) -> Any:
+        """Commits a transaction given as plain data (`Plain.ToPlain(store).Transaction`): its changes, with its `uid`,
+        `when`, `session` and `where` where it has them; refused, raising, as the store refuses it. Gives back what it
+        committed, as plain data, what it added among it (as its record); None where it changed nothing."""
+
+    def follow(self, follower: Callable[[Any], None]) -> Callable[[], None]:
+        """Gives `follower` each transaction it commits, as plain data, in the order it commits them, once each;
+        gives back a function that ends it."""
 
 
 class Random(Protocol):

@@ -1794,8 +1794,8 @@ class Store(Proxies.OfStore):
         try:
             with super()._transacting() as proposals:
                 yield proposals
-                if not (self._loading or self._applying or self._below is not None):  # recorded once, in the lowest
-                    Provenance._record(self, proposals)  # store, at its commit, within it
+                if not (self._loading or self._applying or getattr(self._below, "records", False)):  # recorded
+                    Provenance._record(self, proposals)  # once, in the lowest store, at its commit, within it
             committed = True
         finally:
             _extend_builders(self, before)
@@ -1820,6 +1820,13 @@ class Store(Proxies.OfStore):
             self._changes = Changes._gather(self, proposals)
         if sends and self._changes is not None:
             self._send(Changes._plain(self, self._changes), proposals.expression)
+
+    @property
+    def records(self) -> bool:
+        """Whether the store records each transaction it commits (`Provenance`), itself or through the store below it,
+        so that a store above it records none: a store records one where the store below it does not, the lowest store
+        that does, an object a store below is that has no `records` recording none."""
+        return True
 
     def _send(self, plain: Any, expression: Any) -> None:
         """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:

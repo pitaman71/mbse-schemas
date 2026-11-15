@@ -121,12 +121,12 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
     if not (removed or inserted or changed):
         return None
     gathered = _Gathered()
-    named: dict[int, str] = {}
+    named: dict[Any, str] = {}  # by the object, or the path of one not present
 
     def symbol(x: Any) -> str:
         """The symbol of an object the effect names, declared where first needed: a created owned object's after its
         owner's."""
-        found = named.get(id(x))
+        found = named.get(Proxies._link_key(x))
         if found is not None:
             return found
         counted = not isinstance(x, Proxies._Unresolved) and Proxies._counted(x)
@@ -142,7 +142,7 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         else:
             with _as_committed(store):
                 bound = References.of(store, x)
-        name = named[id(x)] = f"o{len(named)}"
+        name = named[Proxies._link_key(x)] = f"o{len(named)}"
         gathered.symbols[name] = bound
         if counted:  # found by its value, which it never changes
             gathered.assigned += [(name, n, v, p.schema) for n, p in _schema(x).properties.items()
@@ -172,15 +172,19 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
 
 def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
     """The link, and its object's adjacency by name, that writes an entry: preferably an object held before, not
-    counted, so that what the entry links is found through it."""
-    choices = [(Proxies._counted(x) or id(x) in made, link, name)
-               for link, x in entry._links.items() if not isinstance(x, Proxies._Unresolved)
-               for name, adjacency in _schema(x).adjacencies.items()
+    counted, so that what the entry links is found through it; one present before one not present, of the schema its
+    path implies (CAP-285)."""
+    def schema(x: Any) -> Any:
+        return References._implied(x.store, x.path) if isinstance(x, Proxies._Unresolved) else _schema(x)
+
+    choices = [(not isinstance(x, Proxies._Unresolved) and (Proxies._counted(x) or id(x) in made),
+                isinstance(x, Proxies._Unresolved), link, name)
+               for link, x in entry._links.items() for name, adjacency in schema(x).adjacencies.items()
                if adjacency.relation is entry._relation and adjacency.me == link]
     if not choices:
         raise ValueError(f"no object an entry of {entry._relation.name!r} links has an adjacency to it by name, so "
                          "that its effect cannot write it: name one")
-    _, link, name = min(choices, key=lambda choice: choice[0])
+    _, _, link, name = min(choices, key=lambda choice: choice[:2])
     return link, name
 
 
@@ -215,12 +219,14 @@ def _plain(store: Any, gathered: _Gathered) -> PlainData:
         return _plain_effect(store, _effect(store, gathered))
 
 
-def _present_only(store: Any, plain: PlainData) -> PlainData | None:
+def _present_only(store: Any, plain: PlainData) -> tuple[PlainData | None, list[Any]]:
     """A transaction of the store below's, its effect as plain data, made to change only the objects present in `store`
     (CAP-285): each object is named by its path, an object it created by its owner's and its owning entry's keys; a
     property of an object present is set; an entry is written from an object present it links, through its adjacency by
     name, and one that links none is left out; an object not present, applied, is linked by its path, loading nothing.
-    A counted object is found by its value, or made. None where it changes nothing present."""
+    A counted object is found by its value, or made. Gives that effect, None where it changes nothing present, and the
+    entries no object present it links has an adjacency to by name, to apply directly (`_apply_directly`): each its
+    relation, its verb, and its links' paths and properties as plain."""
     (pattern,) = plain["mutations"][0]["upsert"]["exists"]
     symbols, spec = pattern["symbols"], pattern["spec"]
     schemas = {name: Plain._by_path(store, bound["schema"][0]["$ref"], ()) for name, bound in symbols.items()
@@ -250,6 +256,7 @@ def _present_only(store: Any, plain: PlainData) -> PlainData | None:
             present.add(name)
             schemas[name] = _schema(x)
     kept: list[PlainData] = []
+    direct: list[Any] = []
     for item in spec:
         ((subject, (mutation,)),) = item.items()
         if subject in present:
@@ -260,22 +267,27 @@ def _present_only(store: Any, plain: PlainData) -> PlainData | None:
             continue
         ((verb, body),) = adjacency["mutations"][0].items()
         ((entry,),) = [body["entries"]]
-        links, _ = _parts(entry)
-        writer = next((link for link, symbol in links.items() if symbol in present), None)
-        if writer is None:
+        links, keys = _parts(entry)
+        if not any(symbol in present for symbol in links.values()):
             continue
         held = schema_of(subject).adjacencies[adjacency["name"]]
-        names = [name for name, a in schemas[links[writer]].adjacencies.items()
-                 if a.relation is held.relation and a.me == writer]
-        if not names:
-            raise ValueError(f"no object present an entry of {held.relation.name!r} links has an adjacency to it by "
-                             "name, so that a transaction of the store below's cannot be applied to it: name one")
+        writers = [(link, name) for link, symbol in links.items() if symbol in present
+                   for name, a in schemas[symbol].adjacencies.items() if a.relation is held.relation and a.me == link]
+        if not writers:  # written to the objects present it links directly, each other linked by its path
+            if any(symbol in counted for symbol in links.values()):
+                raise ValueError(f"a counted object an entry of {held.relation.name!r} links, which a transaction of the "
+                                 "store below's changes, has no adjacency to it by name, nor has any other object "
+                                 "present it links, so that it cannot be found to apply it: name one")
+            direct.append((held.relation, verb, {**{link: path_of(symbol) for link, symbol in links.items()},
+                                                  held.me: path_of(subject)}, keys))
+            continue
+        writer, name = writers[0]
         parts = [_link_part(held.me, subject), *(part for part in entry["mutations"]
                                                  if part.get("as_link", {}).get("name") != writer)]
-        kept.append({links[writer]: [{"as_adjacency": {"name": names[0], "mutations": [
+        kept.append({links[writer]: [{"as_adjacency": {"name": name, "mutations": [
             {verb: {"entries": [{"mutations": parts}]}}]}}]})
     if not kept:
-        return None
+        return None, direct
     used = set()  # the symbols what is kept names
     for item in kept:
         ((subject, (mutation,)),) = item.items()
@@ -285,7 +297,29 @@ def _present_only(store: Any, plain: PlainData) -> PlainData | None:
             used.update(symbol for entry in body["entries"] for symbol in _parts(entry)[0].values())
     return {"mutations": [{"upsert": {"exists": [{"symbols": {
         name: bound if name in counted else {"reference": {"path": path_of(name)}}
-        for name, bound in symbols.items() if name in used}, "spec": kept}]}}]}
+        for name, bound in symbols.items() if name in used}, "spec": kept}]}}]}, direct
+
+
+def _apply_directly(store: Any, direct: list[Any]) -> None:
+    """Writes, within the transaction open on `store`, each entry `_present_only` gave to apply directly, in the tables
+    of the objects present it links, each other linked by its path: inserted, unless one equal to it is held; removed,
+    each held equal to it."""
+    from . import JSON
+
+    for relation, verb, paths, keys in direct:
+        links = {}
+        for link, path in paths.items():
+            found = store._present(path)
+            links[link] = found if found is not None else Proxies._Unresolved(store, path, JSON.dumps(path))
+        properties = {name: Plain.FromPlain(store)(relation.entry.properties[name].schema, value)
+                      for name, value in keys.items()}
+        entry = Proxies._Entry(relation, links, properties)
+        present = [x for x in links.values() if isinstance(x, Proxies._ObjectData)]
+        held = [e for e in Proxies._table(present[0], id(relation), store).values() if e._value() == entry._value()]
+        if verb == "insert" and not held:
+            Proxies._add_entry(relation, entry, store)
+        elif verb == "remove":
+            Proxies._discard(id(relation), held, store)
 
 
 def _parts(entry: PlainData) -> tuple[dict[str, str], dict[str, PlainData]]:

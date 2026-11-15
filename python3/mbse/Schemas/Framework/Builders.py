@@ -1794,8 +1794,8 @@ class Store(Proxies.OfStore):
         try:
             with super()._transacting() as proposals:
                 yield proposals
-                if not (self._loading or self._applying):  # what the store below holds, loaded or applied, is no
-                    Provenance._record(self, proposals)  # transaction of this store's; recorded at its commit, within it
+                if not (self._loading or self._applying or getattr(self._below, "records", False)):  # recorded
+                    Provenance._record(self, proposals)  # once, in the lowest store, at its commit, within it
             committed = True
         finally:
             _extend_builders(self, before)
@@ -1819,13 +1819,26 @@ class Store(Proxies.OfStore):
         if self._observers or sends:
             self._changes = Changes._gather(self, proposals)
         if sends and self._changes is not None:
-            self._send(Changes._plain(self, self._changes))
+            self._send(Changes._plain(self, self._changes), proposals.expression)
 
-    def _send(self, plain: Any) -> None:
+    @property
+    def records(self) -> bool:
+        """Whether the store records each transaction it commits (`Provenance`), itself or through the store below it,
+        so that a store above it records none: a store records one where the store below it does not, the lowest store
+        that does, an object a store below is that has no `records` recording none."""
+        return True
+
+    def _send(self, plain: Any, expression: Any) -> None:
         """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:
-        the store below commits them first, and a refusal there refuses the transaction (CAP-285)."""
-        from . import Plain
+        the store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
+        `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`),
+        and its record reaches this store as the store below's writes do."""
+        from . import Changes, Plain
 
+        if expression is not None:
+            with Changes._as_committed(self):
+                given = Plain.ToPlain(self).Transaction(expression)
+            plain = {**{k: v for k, v in given.items() if k != "mutations"}, **plain}
         self._below.transaction(Plain.FromPlain(self._below).Transaction(plain))
 
     def _arrive(self, effect: Any) -> None:
@@ -1845,14 +1858,18 @@ class Store(Proxies.OfStore):
         """Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of
         this store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed
         (CAP-285)."""
-        from . import Changes, Plain
+        from . import Changes, Plain, Transactions
 
-        present = Changes._present_only(self, plain)
-        if present is None:
+        present, direct = Changes._present_only(self, plain)
+        if present is None and not direct:
             return
+        expression = None if present is None else Plain.FromPlain(self).Transaction(present)
         self._applying += 1
         try:
-            self.transaction(Plain.FromPlain(self).Transaction(present))
+            with self.transaction():
+                if expression is not None:
+                    Transactions._execute(self, expression, joined=True)
+                Changes._apply_directly(self, direct)
         finally:
             self._applying -= 1
 

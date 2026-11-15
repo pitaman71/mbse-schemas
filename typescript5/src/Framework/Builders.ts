@@ -2426,8 +2426,8 @@ export class Store extends Proxies.OfStore {
     try {
       written = super._transacting(() => {
         const result = write();
-        if (this._loading === 0 && this._applying === 0) { // what the store below holds, loaded or applied, is no
-          Provenance._record(this, this._proposals!); // transaction of this store's; recorded at its commit, within it
+        if (!(this._loading > 0 || this._applying > 0 || this._below?.records === true)) { // recorded once, in the
+          Provenance._record(this, this._proposals!); // lowest store, at its commit, within it
         }
         return result;
       });
@@ -2452,12 +2452,25 @@ export class Store extends Proxies.OfStore {
   override _settled(proposals: Proposals.OfStore): void {
     const sends = this._below !== null && this._applying === 0;
     if (this._observers.length > 0 || sends) this._changes = Changes._gather(this, proposals);
-    if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes));
+    if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes), proposals.expression);
+  }
+
+  /** Whether the store records each transaction it commits (`Provenance`), itself or through the store below it, so
+   * that a store above it records none: a store records one where the store below it does not, the lowest store that
+   * does, an object a store below is that has no `records` recording none. */
+  get records(): boolean {
+    return true;
   }
 
   /** Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits: the
-   * store below commits them first, and a refusal there refuses the transaction (CAP-285). */
-  _send(plain: unknown): void {
+   * store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
+   * `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`), and its
+   * record reaches this store as the store below's writes do. */
+  _send(plain: unknown, expression: unknown): void {
+    if (expression !== null) {
+      const given = Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression)) as Map<string, unknown>;
+      plain = new Map([...[...given].filter(([k]) => k !== "mutations"), ...plain as Map<string, unknown>]);
+    }
     this._below.transaction(PlainModule.FromPlain(this._below).Transaction(plain as PlainModule.PlainData));
   }
 
@@ -2474,11 +2487,15 @@ export class Store extends Proxies.OfStore {
    * store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed (CAP-285). */
   _apply(plain: unknown): void {
     const store: any = this._self;
-    const present = Changes._present_only(store, plain as PlainModule.PlainData);
-    if (present === null) return;
+    const [present, direct] = Changes._present_only(store, plain as PlainModule.PlainData);
+    if (present === null && direct.length === 0) return;
+    const expression = present === null ? null : PlainModule.FromPlain(store).Transaction(present);
     this._applying += 1;
     try {
-      store.transaction(PlainModule.FromPlain(store).Transaction(present));
+      store.transaction(() => {
+        if (expression !== null) Transactions._execute(store, expression, true);
+        Changes._apply_directly(store, direct);
+      });
     } finally {
       this._applying -= 1;
     }

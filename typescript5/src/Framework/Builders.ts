@@ -2075,10 +2075,12 @@ export class Store extends Proxies.OfStore {
   _changes: Changes._Gathered | null = null;
   /** The store below's transactions, reported while one of this store's was open. */
   _arrived: unknown[] = [];
-  /** How deep in sending a transaction below: what the store below reports then is it, committed. */
-  _sending = 0;
-  /** The transaction sent, as the store below reported it committed, as plain. */
+  /** The transaction sent, as the store below gave back what it committed, as plain. */
   _committed_below: unknown = null;
+  /** Where `commit` is given what the transaction it runs committed. */
+  _giving_back: unknown[] | null = null;
+  /** Whether the transaction open gathers its changes to give them back (`commit`). */
+  _reporting = false;
   /** The store, as it is reached: its `Proxy`, whose members are its schemas by name, which loading reads through. */
   _self!: Store;
 
@@ -2122,7 +2124,7 @@ export class Store extends Proxies.OfStore {
     this._self = proxy;
     this._root = this._expression(() => new ModuleBuilder(null, true, proxy).create()); // made with the store
     if (below !== null) { // what others write to the store below, applied to what it holds (CAP-285)
-      Changes.observe(below, (effect: any) => proxy._arrive(effect));
+      below.follow((plain: unknown) => proxy._arrive(plain));
     }
     return proxy;
   }
@@ -2443,28 +2445,33 @@ export class Store extends Proxies.OfStore {
       }
     }
     this._changes = this._committed_below = null;
+    const givingBack = this._giving_back; // `commit`'s, for this transaction alone
+    this._giving_back = null;
+    this._reporting = givingBack !== null;
     let committed = false;
     let written!: T;
     try {
       written = super._transacting(() => {
         const result = write();
-        if (!(this._applying > 0 || this._below?.records === true)) { // recorded once, in the lowest store, at its
-          Provenance._record(this, this._proposals!); // commit, within it
+        if (!(this._applying > 0 || (this._below !== null && this._below.records))) { // recorded once, in the
+          Provenance._record(this, this._proposals!); // lowest store, at its commit, within it
         }
         return result;
       });
       committed = true;
     } finally {
       extendBuilders(this, before);
+      this._reporting = false;
       const gathered = committed ? this._changes : null;
       this._changes = null;
       const below = committed ? this._committed_below : null;
       this._committed_below = null;
       const arrived = this._arrived;
       this._arrived = [];
-      if (gathered !== null && this._observers.length > 0) { // once committed: one that threw is observed by none
-        const effect = below === null ? Changes._effect(this, gathered) : this._expression_of(below);
-        for (const observer of [...this._observers]) observer(effect);
+      if (gathered !== null && (this._observers.length > 0 || givingBack !== null)) { // once committed: one that
+        const effect = below === null ? Changes._effect(this, gathered) : this._expression_of(below); // threw is
+        for (const observer of [...this._observers]) observer(effect); // observed by none
+        if (givingBack !== null) givingBack.push(below !== null ? below : Changes._plain_effect(this, effect));
       }
       for (const plain of arrived) this._apply(plain); // in the order the store below committed them, its own among them
     }
@@ -2475,46 +2482,59 @@ export class Store extends Proxies.OfStore {
    * deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`). */
   override _settled(proposals: Proposals.OfStore): void {
     const sends = this._below !== null && this._applying === 0;
-    if (this._observers.length > 0 || sends) this._changes = Changes._gather(this, proposals);
+    if (this._observers.length > 0 || sends || this._reporting) this._changes = Changes._gather(this, proposals);
     if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes), proposals.expression);
   }
 
   /** Whether the store records each transaction it commits (`Provenance`), itself or through the store below it, so
    * that a store above it records none: a store records one where the store below it does not, the lowest store that
-   * does, an object a store below is that has no `records` recording none. */
+   * does (`Stores.Below`). */
   get records(): boolean {
     return true;
+  }
+
+  /** Commits a transaction given as plain data, its changes, with its `uid`, `when`, `session` and `where` where it has
+   * them, refused as the store refuses it; gives back what it committed, as plain data, what it added among it, as its
+   * record; null where it changed nothing: what a store above asks of the store below it (`Stores.Below`, CAP-306). */
+  commit(plain: unknown): unknown {
+    const transaction = PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData);
+    const given: unknown[] = [];
+    this._giving_back = given;
+    try {
+      this._self.transaction(transaction);
+    } finally {
+      this._giving_back = null;
+    }
+    return given.length > 0 ? given[0] : null;
+  }
+
+  /** Gives `follower` each transaction the store commits, as plain data, in the order it commits them; gives back a
+   * function that ends it (`Stores.Below`, CAP-306). */
+  follow(follower: (plain: unknown) => void): () => void {
+    return Changes.observe(this, (effect: any) => follower(Changes._plain_effect(this._self, effect)));
   }
 
   /** Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits: the
    * store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
    * `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`). What the
-   * store below reports it committed, its record among it, is taken into the transaction (`_arrive`), so that each
-   * store of a stack commits the same one. */
+   * store below gives back it committed, its record among it, is taken into the transaction, so that each store of a
+   * stack commits the same one, and is what the store's followers are given of it. */
   _send(plain: unknown, expression: unknown): void {
     if (expression !== null) {
       const given = Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression)) as Map<string, unknown>;
       plain = new Map([...[...given].filter(([k]) => k !== "mutations"), ...plain as Map<string, unknown>]);
     }
-    this._sending += 1;
-    try {
-      this._below.transaction(PlainModule.FromPlain(this._below).Transaction(plain as PlainModule.PlainData));
-    } finally {
-      this._sending -= 1;
+    const committed = this._below.commit(plain);
+    if (committed !== null) {
+      this._committed_below = committed;
+      this._apply(committed, true);
     }
   }
 
-  /** A transaction the store below committed, reported: applied to the objects present; one reported while a
+  /** A transaction the store below committed, given as plain data: applied to the objects present; one given while a
    * transaction of this store's is open, its own among them, once that one ends, so that each is applied in the order
-   * the store below committed them, and its own, applied again, changes only what another changed since (CAP-285). One
-   * reported while this store sends it is its own, as the store below committed it: taken into it first, before it
-   * commits, so that what the store below added to it, as its record, is committed with it. */
-  _arrive(effect: unknown): void {
-    const plain = Changes._plain_effect(this._below, effect);
-    if (this._sending > 0) {
-      this._committed_below = plain;
-      this._apply(plain, true);
-    }
+   * the store below committed them, and its own, applied again, changes only what another changed since (CAP-285). */
+  _arrive(plain: unknown): void {
     if (this._proposals !== null) this._arrived.push(plain);
     else this._apply(plain);
   }

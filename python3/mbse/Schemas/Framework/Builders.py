@@ -1647,8 +1647,9 @@ class Store(Proxies.OfStore):
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
         self._arrived: list[Any] = []  # the store below's transactions, reported while one of this store's was open
-        self._sending = 0  # how deep in sending a transaction below: what the store below reports then is it, committed
-        self._committed_below: Any = None  # the transaction sent, as the store below reported it committed, as plain
+        self._committed_below: Any = None  # the transaction sent, as the store below gave back what it committed, as plain
+        self._giving_back: list[Any] | None = None  # where `commit` is given what the transaction it runs committed
+        self._reporting = False  # whether the transaction open gathers its changes to give them back (`commit`)
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
@@ -1688,9 +1689,7 @@ class Store(Proxies.OfStore):
         with self._expression():  # made with the store
             self._root = ModuleBuilder(None, True, self).create()
         if below is not None:  # what others write to the store below, applied to what it holds (CAP-285)
-            from . import Changes
-
-            Changes.observe(below, self._arrive)
+            below.follow(self._arrive)
 
     def held(self, path: Any) -> Any:
         """The schema object whose path is `path`, a `Paths.OfRoot` value (`Paths.of`) or its plain form; None where the
@@ -1801,24 +1800,29 @@ class Store(Proxies.OfStore):
                 _extend_builders(self, before)
             return
         self._changes = self._committed_below = None
+        giving_back, self._giving_back = self._giving_back, None  # `commit`'s, for this transaction alone
+        self._reporting = giving_back is not None
         committed = False
         try:
             with super()._transacting() as proposals:
                 yield proposals
-                if not (self._applying or getattr(self._below, "records", False)):  # recorded once, in the lowest
-                    Provenance._record(self, proposals)  # store, at its commit, within it
+                if not (self._applying or (self._below is not None and self._below.records)):  # recorded once, in
+                    Provenance._record(self, proposals)  # the lowest store, at its commit, within it
             committed = True
         finally:
             _extend_builders(self, before)
+            self._reporting = False
             gathered, self._changes = self._changes if committed else None, None
             below, self._committed_below = self._committed_below if committed else None, None
             arrived, self._arrived = self._arrived, []
-            if gathered is not None and self._observers:  # once committed: one that raised is observed by none
-                from . import Changes
+            if gathered is not None and (self._observers or giving_back is not None):  # once committed: one that
+                from . import Changes  # raised is observed by none
 
                 effect = Changes._effect(self, gathered) if below is None else self._expression_of(below)
                 for observer in list(self._observers):
                     observer(effect)
+                if giving_back is not None:
+                    giving_back.append(below if below is not None else Changes._plain_effect(self, effect))
             for plain in arrived:  # in the order the store below committed them, its own among them
                 self._apply(plain)
 
@@ -1828,7 +1832,7 @@ class Store(Proxies.OfStore):
         from . import Changes
 
         sends = self._below is not None and not self._applying
-        if self._observers or sends:
+        if self._observers or sends or self._reporting:
             self._changes = Changes._gather(self, proposals)
         if sends and self._changes is not None:
             self._send(Changes._plain(self, self._changes), proposals.expression)
@@ -1837,39 +1841,54 @@ class Store(Proxies.OfStore):
     def records(self) -> bool:
         """Whether the store records each transaction it commits (`Provenance`), itself or through the store below it,
         so that a store above it records none: a store records one where the store below it does not, the lowest store
-        that does, an object a store below is that has no `records` recording none."""
+        that does (`Stores.Below`)."""
         return True
+
+    def commit(self, plain: Any) -> Any:
+        """Commits a transaction given as plain data, its changes, with its `uid`, `when`, `session` and `where` where it
+        has them, refused as the store refuses it; gives back what it committed, as plain data, what it added among it,
+        as its record; None where it changed nothing: what a store above asks of the store below it (`Stores.Below`,
+        CAP-306)."""
+        from . import Plain
+
+        transaction = Plain.FromPlain(self).Transaction(plain)
+        given: list[Any] = []
+        self._giving_back = given
+        try:
+            self.transaction(transaction)
+        finally:
+            self._giving_back = None
+        return given[0] if given else None
+
+    def follow(self, follower: Any) -> Any:
+        """Gives `follower` each transaction the store commits, as plain data, in the order it commits them; gives back
+        a function that ends it (`Stores.Below`, CAP-306)."""
+        from . import Changes
+
+        return Changes.observe(self, lambda effect: follower(Changes._plain_effect(self, effect)))
 
     def _send(self, plain: Any, expression: Any) -> None:
         """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:
         the store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
         `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`).
-        What the store below reports it committed, its record among it, is taken into the transaction (`_arrive`), so
-        that each store of a stack commits the same one."""
+        What the store below gives back it committed, its record among it, is taken into the transaction, so that each
+        store of a stack commits the same one, and is what the store's followers are given of it."""
         from . import Changes, Plain
 
         if expression is not None:
             with Changes._as_committed(self):
                 given = Plain.ToPlain(self).Transaction(expression)
             plain = {**{k: v for k, v in given.items() if k != "mutations"}, **plain}
-        self._sending += 1
-        try:
-            self._below.transaction(Plain.FromPlain(self._below).Transaction(plain))
-        finally:
-            self._sending -= 1
+        committed = self._below.commit(plain)
+        if committed is not None:
+            self._committed_below = committed
+            self._apply(committed, joined=True)
 
-    def _arrive(self, effect: Any) -> None:
-        """A transaction the store below committed, reported: applied to the objects present; one reported while a
-        transaction of this store's is open, its own among them, once that one ends, so that each is applied in the
+    def _arrive(self, plain: Any) -> None:
+        """A transaction the store below committed, given as plain data: applied to the objects present; one given while
+        a transaction of this store's is open, its own among them, once that one ends, so that each is applied in the
         order the store below committed them, and its own, applied again, changes only what another changed since
-        (CAP-285). One reported while this store sends it is its own, as the store below committed it: taken into it
-        first, before it commits, so that what the store below added to it, as its record, is committed with it."""
-        from . import Changes
-
-        plain = Changes._plain_effect(self._below, effect)
-        if self._sending:
-            self._committed_below = plain
-            self._apply(plain, joined=True)
+        (CAP-285)."""
         if self._proposals is not None:
             self._arrived.append(plain)
         else:

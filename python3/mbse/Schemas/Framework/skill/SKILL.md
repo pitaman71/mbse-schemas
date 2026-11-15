@@ -192,6 +192,23 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    [PRI-013: nondeterminism passed in](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-013).
    - Python: [RND-02: A split stream is determined by the seed and the key alone](mbse:mbse-schemas/python3/tests/21_Random.ipynb#RND-02) · TypeScript: [RND-02: A split stream is determined by the seed and the key alone](mbse:mbse-schemas/typescript5/tests/21_Random.ipynb#RND-02)
    - Python: [RND-03: A source is given to what draws from it; a store holds none](mbse:mbse-schemas/python3/tests/21_Random.ipynb#RND-03) · TypeScript: [RND-03: A source is given to what draws from it; a store holds none](mbse:mbse-schemas/typescript5/tests/21_Random.ipynb#RND-03)
+15. **Stack a store on the store below it.** *Why*: a program holds one store, which loads what it reads from where
+   the data is kept, on demand, and sends what it writes there, with no snapshot taken or moved; whatever keeps it, in
+   memory, a database or another process over a network, is the same to the program. *When*: data kept elsewhere than
+   in the program's memory, or shared with other programs. *How*: give the store the one below it,
+   `Builders.Store(below)`, and install the same schemas in both; read and write as with any store. Every transaction
+   is committed below first, a refusal there refusing it; what others commit below is applied to the objects the
+   store holds, and its followers told. A store below is anything that implements `Stores.Below`: `document(path)`,
+   `commit(plain)`, `follow(follower)` and `records`, everything given and given back as plain data; a `Builders.Store`
+   is one, and a store kept in a database, or a client of one over a network, implements it, being no
+   `Builders.Store` and overriding nothing of one.
+   [CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283),
+   [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285),
+   [CAP-306: a public store-below interface](mbse:mbse-basis/docs/capabilities/README.md#CAP-306).
+   - Python: [BLW-01: Nothing is loaded until it is read; reading an object loads it alone, an entry linking one not yet loaded holding it by its path until the link is read](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-01) · TypeScript: [BLW-01: Nothing is loaded until it is read; reading an object loads it alone, an entry linking one not yet loaded holding it by its path until the link is read](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-01)
+   - Python: [BLW-09: A transaction above is written through: the store below commits it first, within it, and a refusal there refuses it; what another wrote below meanwhile is applied once it ends, in the order the store below committed it](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-09) · TypeScript: [BLW-09: A transaction above is written through: the store below commits it first, within it, and a refusal there refuses it; what another wrote below meanwhile is applied once it ends, in the order the store below committed it](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-09)
+   - Python: [BLW-10: What another writes below is applied above to the objects present alone, loading nothing: an object it made, or one not present, is linked by its path; the followers above are told, and so is a store above that one; a counted object it links is found by its value, or made](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-10) · TypeScript: [BLW-10: What another writes below is applied above to the objects present alone, loading nothing: an object it made, or one not present, is linked by its path; the followers above are told, and so is a store above that one; a counted object it links is found by its value, or made](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-10)
+   - Python: [BLW-18: A store below is anything that implements `Stores.Below`: one that is no `Builders.Store`, everything given and given back as JSON text, as over a network, is loaded from, written through, followed and refused by as one is](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-18) · TypeScript: [BLW-18: A store below is anything that implements `Stores.Below`: one that is no `Builders.Store`, everything given and given back as JSON text, as over a network, is loaded from, written through, followed and refused by as one is](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-18)
 
 ## Load the reference for your task
 <!-- no case: a table routing each task to its reference -->

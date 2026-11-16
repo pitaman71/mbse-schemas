@@ -125,7 +125,7 @@ export function _recordedSchema(store: any, name: string, symbol: any): any {
   const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path") as Map<string, unknown>;
   const target = store._below !== null && path.get("singleton") !== "." // building it loads nothing (CAP-304)
     ? store._present(path)
-    : References.resolve(store, reference);
+    : References._designated(store, reference);
   if (target != null && !(target instanceof Proxies._Unresolved)) { // one not present: by its path (CAP-285)
     return reader(store, target).as_schema();
   }
@@ -569,7 +569,7 @@ function reference(store: any, target: unknown): PlainMap {
  * `subterm`, the term that was processing the frame, by its path in the transaction's expression on the wire
  * (`Plain.ToPlain(store).Transaction`), as a decoding error locates what it reads there
  * (`$.mutations[0].map.then[0].update`); its `kind`, the name of the error's class (`ValueError`); and its `message`.
- * `error` is the error itself, where it arose here, null where the annotation was read back (`References.resolve`). */
+ * `error` is the error itself, where it arose here, null where the annotation was made otherwise. */
 export class FrameError {
   constructor(readonly subterm: string, readonly kind: string, readonly message: string,
     readonly error: unknown = null) {}
@@ -869,7 +869,7 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
     if (frame.has(name)) continue;
     const reference = _givenReference(symbol);
     if (reference !== null) { // what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
-      const target = References.resolve(store, reference);
+      const target = References._designated(store, reference);
       frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
       continue;
     }

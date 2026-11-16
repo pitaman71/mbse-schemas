@@ -133,8 +133,8 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    `.owner(...)`, by its owner's path and its key, which a naming pattern on the key can give; everything else is
    counted. `store.singleton(...)` gives a singleton, `store.Instances` finds one by its global name, and any
    adjacency looks its entries up by their keys. Designate an object, a relation entry or a frame with a reference,
-   `References.of(store, x)`, a value written and read as any is, and find what it designates with
-   `References.resolve`; a counted object has none.
+   `References.of(store, x)`, a value written and read as any is, and find what it designates within a transaction,
+   as every read of a store's data is: a map whose symbol is given the reference binds it; a counted object has none.
    [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md),
    [CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md),
    [CAP-133: no durable references to counted objects](mbse:mbse-basis/docs/capabilities/CAP-133.md).

@@ -117,7 +117,7 @@ def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
     if store._below is not None and path.get("singleton") != ".":  # building it loads nothing (CAP-304)
         target = store._present(path)
     else:
-        target = References.resolve(store, reference)
+        target = References._designated(store, reference)
     if target is not None and not isinstance(target, Proxies._Unresolved):  # one not present: by its path (CAP-285)
         return _reader(store, target).as_schema()
     try:
@@ -505,8 +505,8 @@ class FrameError:
     the expression it arose, `subterm`, the term that was processing the frame, by its path in the transaction's
     expression on the wire (`Plain.ToPlain(store).Transaction`), as a decoding error locates what it reads there
     (`$.mutations[0].map.then[0].update`); its `kind`, the name of the error's class (`ValueError`); and its `message`.
-    `error` is the error itself, where it arose here, None where the annotation was read back (`References.resolve`);
-    it is not compared."""
+    `error` is the error itself, where it arose here, None where the annotation was made otherwise; it is not
+    compared."""
 
     subterm: str
     kind: str
@@ -795,7 +795,7 @@ def _bind(store: Any, pattern: Any, frame: dict[str, Any], upsert: bool,
             continue
         reference = _given_reference(symbol)
         if reference is not None:  # what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
-            target = References.resolve(store, reference)
+            target = References._designated(store, reference)
             frames = [] if target is None else [{**partial, name: target} for partial in frames]
             continue
         schema = symbol.schema

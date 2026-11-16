@@ -2328,12 +2328,25 @@ export class Store extends Proxies.OfStore {
 
   /** The object at `path` the store holds, made in it or loaded from the store below, without loading anything: a
    * singleton, one loaded by its path, or one through its owner's entries, keys compared first; else null, or
-   * undefined. */
+   * undefined. One loaded and since deleted is none: deleted as committed, its path is forgotten, free to name another. */
   _present(path: unknown): unknown {
     const [singleton, steps] = PlainModule._steps(path, []);
     if (steps.length === 0) return this._singletons.get(singleton); // undefined where it holds none
-    const loaded = this._identities.get(Json.dumps(path as PlainModule.PlainData));
-    if (loaded !== undefined) return loaded;
+    const key = Json.dumps(path as PlainModule.PlainData);
+    const loaded = this._identities.get(key);
+    if (loaded !== undefined) {
+      if (this._loading > 0 || !Proxies._deleted(loaded)) return loaded; // loading, its owner's entry may be yet to come; it deletes nothing
+      const proposals = this._proposals;
+      this._proposals = null;
+      let committed: boolean;
+      try {
+        committed = Proxies._deleted(loaded);
+      } finally {
+        this._proposals = proposals;
+      }
+      if (!committed) return null; // deleted within the transaction open: none, its path kept so that it is not fetched
+      this._identities.delete(key);
+    }
     const owner = this._present(PlainModule._owner_path(singleton, steps));
     if (owner == null) return null;
     this._loading += 1; // what the store holds of the owner, as it is
@@ -2351,6 +2364,7 @@ export class Store extends Proxies.OfStore {
     const found = this._present(path);
     if (found != null) return found;
     if (this._loading > 0 || this._applying > 0) return new Proxies._Unresolved(this._self, path, Json.dumps(path as PlainModule.PlainData));
+    if (this._identities.has(Json.dumps(path as PlainModule.PlainData))) return null; // deleted within the transaction open: the store below's is not it
     return this._fetched(path);
   }
 

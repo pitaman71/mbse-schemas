@@ -35,7 +35,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as Builders from "./Builders.js";
-import { LookupError, ValueError } from "./Errors.js";
+import { LookupError, path as plainPath, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
@@ -565,23 +565,89 @@ function reference(store: any, target: unknown): PlainMap {
 
 // --- The executor ---
 
-/** A frame: the objects its symbols bind, by symbol. */
-export type Frame = Map<string, any>;
+/** An error annotated on a frame ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)): where in the expression it arose,
+ * `subterm`, the term that was processing the frame, by its path in the transaction's expression on the wire
+ * (`Plain.ToPlain(store).Transaction`), as a decoding error locates what it reads there
+ * (`$.mutations[0].map.then[0].update`); its `kind`, the name of the error's class (`ValueError`); and its `message`.
+ * `error` is the error itself, where it arose here, null where the annotation was read back (`References.resolve`). */
+export class FrameError {
+  constructor(readonly subterm: string, readonly kind: string, readonly message: string,
+    readonly error: unknown = null) {}
+
+  /** Whether `other` is the same annotation: its subterm, kind and message, the error itself not compared. */
+  equals(other: unknown): boolean {
+    return other instanceof FrameError && other.subterm === this.subterm && other.kind === this.kind
+      && other.message === this.message;
+  }
+}
+
+/** A frame: the objects its symbols bind, by symbol, a `Map`; and its `errors`, each what failed as a term processed
+ * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did. */
+export class Frame extends Map<string, any> {
+  readonly errors: FrameError[];
+
+  constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = []) {
+    super(bound);
+    this.errors = [...errors];
+  }
+}
+
+/** A transaction a frame of which is annotated with an error: dropped, whole (CAP-124). */
+class Uncommitted extends Error {}
 
 type Members = Map<string, any>[];
 
+/** The objects a frame binds, by symbol, as the executor binds them. */
+type Bound = Map<string, any>;
+
 /** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
  * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
- * in its proposals and written when it ends, or dropped where it throws. Gives the frames its chain ends with. */
+ * in its proposals and written when it ends. Gives the frames its chain ends with. Where a frame is annotated with an
+ * error, it commits nothing and throws the first error annotated, the one that arose first, as it arose, its `frames`
+ * all the frames, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
 export function _execute(store: any, transaction: any, joined = false): Frame[] {
+  const frames = _frames(store, transaction, joined);
+  const failed = frames.find((frame) => frame.errors.length > 0);
+  if (failed !== undefined) {
+    const error = failed.errors[0]!.error as any; // annotated here
+    error.frames = frames;
+    throw error;
+  }
+  return frames;
+}
+
+/** The frames a transaction's expression gives, throwing nothing for an error a term meets processing a frame: that
+ * frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its chain
+ * ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped, whole
+ * (CAP-124), else committed, a decoder's (`joined`) into the transaction open. What a layer streaming the frames it
+ * makes would give, not throwing ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)). An error in the expression itself, found before it
+ * runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its `frames`
+ * all the frames, none annotated. */
+export function _frames(store: any, transaction: any, joined = false): Frame[] {
   const root = next(transaction, "mutations");
-  if (root !== null) check(store, root, new Set());
-  const write = (): Frame[] => (root === null ? [new Map()] : run(store, root, [new Map()]));
-  if (joined) return store._joined(write); // a decoder's: a savepoint of the one open
-  return store._transacting(() => {
-    store._proposals.expression = transaction; // what its record gives (Provenance)
-    return write();
-  });
+  let made: Frame[] = [];
+  const write = (): void => {
+    const failed: Frame[] = [];
+    made = root === null ? [new Frame()] : run(store, root, [new Frame()], ["mutations", 0, kindOf(store, root)], failed);
+    made.push(...failed);
+    if (failed.length > 0) throw new Uncommitted();
+  };
+  try {
+    if (root !== null) check(store, root, new Set());
+    if (joined) {
+      store._joined(write); // a decoder's: a savepoint of the one open
+    } else {
+      store._transacting(() => {
+        store._proposals.expression = transaction; // what its record gives (Provenance)
+        write();
+      });
+    }
+  } catch (error) {
+    if (error instanceof Uncommitted) return made;
+    (error as any).frames = made;
+    throw error;
+  }
+  return made;
 }
 
 /** The term a term's adjacency of one entry links (91): a transaction's root, a term's next; null where it holds none. */
@@ -744,40 +810,51 @@ function extent(store: any, schema: any): any[] {
   return [...store._objects].filter((held) => !store.framework(held) && reader(store, held).as_schema() === schema);
 }
 
-/** The frames a term, and those after it, make of `frames`: those its chain ends with. */
-function run(store: any, term: any, frames: Frame[]): Frame[] {
+/** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
+ * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
+ * `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
+function run(store: any, term: any, frames: Frame[], at: (string | number)[], failed: Frame[]): Frame[] {
   const kind = kindOf(store, term);
-  if (kind === "map") {
-    const pattern = patternOf(term, "symbols", kind);
-    frames = frames.flatMap((frame) => bind(store, pattern, frame, false));
-  } else if (kind === "upsert") {
-    const pattern = patternOf(term, "exists", kind);
-    const key = store.member(term, "key");
-    frames = frames.flatMap((frame) => bind(store, pattern, frame, true, key));
-  } else if (kind === "update") {
-    const pattern = patternOf(term, "apply", kind);
-    for (const frame of frames) writeSpec(store, pattern, frame);
+  if (kind === "map" || kind === "upsert" || kind === "update") {
+    const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
+    const key = kind === "upsert" ? store.member(term, "key") : null;
+    const made: Frame[] = [];
+    for (const frame of frames) {
+      try {
+        if (kind === "update") {
+          writeSpec(store, pattern, frame);
+          made.push(frame);
+        } else {
+          made.push(...bind(store, pattern, frame, kind === "upsert", key).map((found) => new Frame(found)));
+        }
+      } catch (error) {
+        frame.errors.push(new FrameError(plainPath(...at), (error as Error).name, (error as Error).message, error));
+        failed.push(frame);
+      }
+    }
+    frames = made;
   } else if (kind === "reduce") {
     const dropped: string[] = [...term.symbols][0].collector.symbols;
     const unique = new Map<string, Frame>();
     for (const frame of frames) {
-      const kept: Frame = new Map([...frame].filter(([name]) => !dropped.includes(name)));
+      const kept = new Frame([...frame].filter(([name]) => !dropped.includes(name)));
       const identity = JSON.stringify([...kept].map(([name, target]) => [name, Proxies._key_of(reader(store, target))]));
       if (!unique.has(identity)) unique.set(identity, kept);
     }
     frames = [...unique.values()];
   } else if (kind === "partition") {
-    let arms = [...term.branches].map((entry: any) => entry.branch);
+    let arms: [(string | number)[], any][] = [...term.branches].map((entry: any, index: number) =>
+      [[...at, "branches", index], entry.branch]);
     const first = store.member(term, "first");
     if (arms.length > 0 && (first || store.member(term, "last"))) { // every branch matches, none requiring constraints (87)
-      arms = [first ? arms[0] : arms[arms.length - 1]];
+      arms = [first ? arms[0]! : arms[arms.length - 1]!];
     }
     const otherwise = next(term, "none");
-    if (arms.length === 0 && otherwise !== null) arms = [otherwise];
-    frames = arms.flatMap((arm) => run(store, arm, frames.map((frame) => new Map(frame))));
+    if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
+    frames = arms.flatMap(([armAt, arm]) => run(store, arm, frames.map((frame) => new Frame(frame)), armAt, failed));
   }
   const after = next(term, "then");
-  return after === null ? frames : run(store, after, frames);
+  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], failed);
 }
 
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
@@ -785,9 +862,9 @@ function run(store: any, term: any, frames: Frame[]): Frame[] {
  * where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a symbol,
  * and writes its spec where it does not hold; a counted object it created before from the same frame, for the same
  * symbol and key, it finds again (63), and finds none otherwise (102). */
-function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unknown = null): Frame[] {
+function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unknown = null): Bound[] {
   const members = membersOf(pattern);
-  let frames: Frame[] = [new Map(frame)];
+  let frames: Bound[] = [new Map(frame)];
   for (const [name, symbol] of pattern.symbols) {
     if (frame.has(name)) continue;
     const reference = _givenReference(symbol);
@@ -797,7 +874,7 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
       continue;
     }
     const schema = symbol.schema;
-    const grown: Frame[] = [];
+    const grown: Bound[] = [];
     for (const partial of frames) {
       if (schema.singleton !== null) {
         grown.push(new Map([...partial, [name, store.singleton(schema.singleton)]]));
@@ -842,14 +919,14 @@ function bind(store: any, pattern: any, frame: Frame, upsert: boolean, key: unkn
 }
 
 /** The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's. */
-function schemaIn(store: any, pattern: any, name: string, frame: Frame): any {
+function schemaIn(store: any, pattern: any, name: string, frame: Bound): any {
   const schema = pattern.symbols.get(name).schema;
   return schema === null ? reader(store, frame.get(name)).as_schema() : schema;
 }
 
 /** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
  * that reached it, each as it is told apart in memory. */
-function _upsert_index(store: any, key: unknown, name: string, frame: Frame): string {
+function _upsert_index(store: any, key: unknown, name: string, frame: Bound): string {
   return JSON.stringify([key, name, sortedStrings([...frame.keys()])
     .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
 }
@@ -891,7 +968,7 @@ function created(store: any, schema: any, identifying: Members): any {
  * gives, one where they give its keys, every one where they leave them open, none where none agrees; null where no spec
  * gives such an entry. */
 function locate(store: any, pattern: any, members: Map<string, Members>, name: string, schema: any,
-  frame: Frame): unknown[] | null {
+  frame: Bound): unknown[] | null {
   const owning = [...schema.adjacencies.values(), ...schema.anonymous].filter((a: any) => a.owner);
   for (const [other, items] of members) {
     if (!frame.has(other) || owning.length === 0) continue;
@@ -944,7 +1021,7 @@ function only(item: Map<string, any>): [string, any] {
 /** Whether what a spec gives of an object holds of `target`: its properties' values, the entries it inserts held, and
  * those it removes absent, none where it clears the adjacency. Finding the object of a symbol (`partial`, the frame as
  * bound so far), an entry linking a symbol not yet bound is left out. */
-function holds(store: any, target: any, schema: any, members: Members, frame: Frame, partial: Frame | null): boolean {
+function holds(store: any, target: any, schema: any, members: Members, frame: Bound, partial: Bound | null): boolean {
   const visitor = reader(store, target);
   for (const member of members) {
     const [kind, body] = only(member);
@@ -1009,7 +1086,7 @@ function agree([present, plain]: [boolean, unknown], [wanted, value]: [boolean, 
 }
 
 /** Whether an entry held, read, is one a spec gives: the objects it links, and its properties' values. */
-function matches(store: any, relation: any, held: any, entry: Map<string, any>, frame: Frame): boolean {
+function matches(store: any, relation: any, held: any, entry: Map<string, any>, frame: Bound): boolean {
   for (const item of entry.get("mutations")) {
     const [kind, body] = only(item);
     const name = body.get("name");
@@ -1038,7 +1115,7 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
 }
 
 /** The object a spec's reference names: the one a symbol binds, or the one at a path. */
-function resolve(store: any, ref: Map<string, any>, frame: Frame): any {
+function resolve(store: any, ref: Map<string, any>, frame: Bound): any {
   if (ref.has("symbol")) return frame.get(ref.get("symbol"));
   const found = Plain._by_path(store, ref.get("path"), []);
   if (found === null || found === undefined) throw new LookupError("no object of the store has the path a spec refers to");
@@ -1046,13 +1123,13 @@ function resolve(store: any, ref: Map<string, any>, frame: Frame): any {
 }
 
 /** Writes a pattern's spec over a frame where it does not hold (object identity 76 in [CAP-137: patterns of symbols, variables and specs](mbse:mbse-basis/docs/capabilities/CAP-137.md#decided)). */
-function writeSpec(store: any, pattern: any, frame: Frame): void {
+function writeSpec(store: any, pattern: any, frame: Bound): void {
   for (const [name, members] of membersOf(pattern)) write(store, frame.get(name), schemaIn(store, pattern, name, frame), members, frame);
 }
 
 /** Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and the
  * objects it defines made, and a pattern's spec, as recorded. */
-function write(store: any, target: any, schema: any, members: Members, frame: Frame): void {
+function write(store: any, target: any, schema: any, members: Members, frame: Bound): void {
   for (const member of members) {
     const [kind, body] = only(member);
     if (kind === "spec") {
@@ -1090,7 +1167,7 @@ function write(store: any, target: any, schema: any, members: Members, frame: Fr
 }
 
 /** The positions of the entries `held` that agree with one of the entries a spec removes. */
-function removedOf(store: any, relation: any, held: any[], entries: Map<string, any>[], frame: Frame): number[] {
+function removedOf(store: any, relation: any, held: any[], entries: Map<string, any>[], frame: Bound): number[] {
   return held.flatMap((candidate, index) =>
     (entries.some((entry) => matches(store, relation, candidate, entry, frame)) ? [index] : []));
 }
@@ -1099,7 +1176,7 @@ function removedOf(store: any, relation: any, held: any[], entries: Map<string, 
  * or every entry where it gives null (`clear`); through the object's builder, which removes the entries it holds at
  * those positions, so that removing an owning entry deletes what it owned (object identity 48 in [CAP-121: owned objects deleted in cascade](mbse:mbse-basis/docs/capabilities/CAP-121.md#decided)). */
 function remove(store: any, target: any, schema: any, name: string, entries: Map<string, any>[] | null, held: any[],
-  frame: Frame): void {
+  frame: Bound): void {
   const relation = schema.adjacencies.get(name).relation;
   const removed = entries === null ? held.map((_, index) => index) : removedOf(store, relation, held, entries, frame);
   if (removed.length === 0) {
@@ -1115,7 +1192,7 @@ function remove(store: any, target: any, schema: any, name: string, entries: Map
 
 /** The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal entry a
  * spec gives is the k-th such entry held; null where none agrees. */
-function match(store: any, relation: any, held: any[], entry: Map<string, any>, frame: Frame): unknown {
+function match(store: any, relation: any, held: any[], entry: Map<string, any>, frame: Bound): unknown {
   const index = held.findIndex((candidate) => matches(store, relation, candidate, entry, frame));
   return index < 0 ? null : held.splice(index, 1)[0];
 }
@@ -1133,7 +1210,7 @@ function defining(store: any, schema: any, name: string, defined: any): any {
 
 /** Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most. */
 function insert(store: any, target: any, schema: any, name: string, adjacency: any, entry: Map<string, any>,
-  frame: Frame): void {
+  frame: Bound): void {
   const links = new Map<string, unknown>();
   const values = new Map<string, unknown>();
   for (const item of entry.get("mutations")) {

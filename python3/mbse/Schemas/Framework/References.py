@@ -22,7 +22,8 @@ Value schemas, which every store holds, its own, as it holds `Paths`:
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
 included; `resolve(store, reference)` gives what a reference designates, or None where the store holds none, loading
 from a store below what the store does not hold; `present(store, reference)` gives what it designates among what the
-store holds, and never loads (CAP-311). A counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+store holds, and never loads; `implied(store, reference)` gives the schema a reference implies, through the store's
+schemas alone (CAP-311). A counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
 binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
@@ -40,7 +41,7 @@ from . import Paths, Plain, Proxies
 from . import Schemas as S
 from .Builders import _builder_for
 
-__all__ = ["install", "of", "present", "resolve", "validate"]
+__all__ = ["implied", "install", "of", "present", "resolve", "validate"]
 
 
 def install(txn: Any) -> Any:
@@ -98,6 +99,33 @@ def validate(pattern: Any) -> list[str]:
         except ValueError as error:
             problems.append(str(error))
     return problems
+
+
+def implied(store: Any, reference: Any) -> Any:
+    """*(agent)* The schema a reference implies, through the store's schemas alone, reading no data and loading nothing
+    ([CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)): of an object reference (`References.OfObject`), the schema its path implies, the one schema
+    that declares its singleton, then, for each step, the one schema that declares the step's owner adjacency; of a
+    schema object's, the meta-schema of the schema object the store holds; of an entry reference
+    (`References.OfEntry`), the relation its relation's path names. It gives the schema of what `present` gives where
+    that is present, and the schema of what `resolve` would load where it is not. `LookupError`, saying where the path
+    cannot be followed; `TypeError` for any other value, a frame's reference, which binds several objects, and a
+    parameter's, whose schema its binding gives (CAP-313), among them."""
+    schema = reference.as_schema() if hasattr(reference, "as_schema") else None
+    if schema is store.registered("References.OfObject"):
+        path = Plain.ToPlain(store)(schema, reference)["path"]
+        held = _loaded(store, path) if path.get("singleton") == "." else None  # a schema object, never loaded
+        if held is not None:
+            return store._meta_builder_class(held)(held, False, store).as_schema()  # its builder's
+        try:
+            return _implied(store, path)
+        except LookupError as error:
+            raise LookupError(f"the reference's path {error}") from None
+    if schema is store.registered("References.OfEntry"):
+        relation = store.held(Plain.ToPlain(store)(schema, reference)["relation"])
+        if not isinstance(relation, S.OfRelation.Data):
+            raise LookupError("the reference's relation names no relation the store holds")
+        return relation
+    raise TypeError("References.implied takes a References.OfObject or OfEntry value of the store's")
 
 
 def _implied(store: Any, path_plain: Any) -> Any:

@@ -203,7 +203,8 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    is one, and a store kept in a database, or a client of one over a network, implements it, being no
    `Builders.Store` and overriding nothing of one. `References.resolve` loads what a reference designates from the
    store below where the store does not hold it; `References.present` gives it only where the store holds it, made
-   there or loaded already, and asks the store below for nothing.
+   there or loaded already, and asks the store below for nothing. `References.implied` gives the schema a reference
+   implies, through the store's schemas alone, for what is not present as for what is.
    [CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283),
    [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285),
    [CAP-306: a public store-below interface](mbse:mbse-basis/docs/capabilities/README.md#CAP-306),
@@ -213,6 +214,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [BLW-10: What another writes below is applied above to the objects present alone, loading nothing: an object it made, or one not present, is linked by its path; the followers above are told, and so is a store above that one; a counted object it links is found by its value, or made](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-10) · TypeScript: [BLW-10: What another writes below is applied above to the objects present alone, loading nothing: an object it made, or one not present, is linked by its path; the followers above are told, and so is a store above that one; a counted object it links is found by its value, or made](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-10)
    - Python: [BLW-18: A store below is anything that implements `Stores.Below`: one that is no `Builders.Store`, everything given and given back as JSON text, as over a network, is loaded from, written through, followed and refused by as one is](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-18) · TypeScript: [BLW-18: A store below is anything that implements `Stores.Below`: one that is no `Builders.Store`, everything given and given back as JSON text, as over a network, is loaded from, written through, followed and refused by as one is](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-18)
    - Python: [REF-12: A resolution that never loads](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-12) · TypeScript: [REF-12: A resolution that never loads](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-12)
+   - Python: [REF-13: The schema a reference implies, through the store's schemas alone](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-13) · TypeScript: [REF-13: The schema a reference implies, through the store's schemas alone](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-13)
    - Python: [BLW-19: An install a store above runs, a transaction that writes schemas, is run by the store below first, through `Stores.Below`, so that a store below given no schemas of its own holds them, and takes the writes that follow](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-19) · TypeScript: [BLW-19: An install a store above runs, a transaction that writes schemas, is run by the store below first, through `Stores.Below`, so that a store below given no schemas of its own holds them, and takes the writes that follow](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-19)
 
 ## Load the reference for your task

@@ -23,7 +23,8 @@
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
  * included; `resolve(store, reference)` gives what a reference designates, or null where the store holds none, loading
  * from a store below what the store does not hold; `present(store, reference)` gives what it designates among what the
- * store holds, and never loads (CAP-311). A counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+ * store holds, and never loads; `implied(store, reference)` gives the schema a reference implies, through the store's
+ * schemas alone (CAP-311). A counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
@@ -138,6 +139,34 @@ function entryOf(store: any, entry: any): Callback {
   const links = new Map([...entry._links.keys()].map((link: string) => [link, object(store, entry._proxy[link])])); // each read
   const properties = new Map(entry._properties);
   return (e: any) => e.relation(relation).links(links).properties(properties);
+}
+
+/** *(agent)* The schema a reference implies, through the store's schemas alone, reading no data and loading nothing
+ * ([CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)): of an object reference (`References.OfObject`), the schema its path implies, the one schema that
+ * declares its singleton, then, for each step, the one schema that declares the step's owner adjacency; of a schema
+ * object's, the meta-schema of the schema object the store holds; of an entry reference (`References.OfEntry`), the
+ * relation its relation's path names. It gives the schema of what `present` gives where that is present, and the
+ * schema of what `resolve` would load where it is not. `LookupError`, saying where the path cannot be followed;
+ * `TypeError` for any other value, a frame's reference, which binds several objects, and a parameter's, whose schema
+ * its binding gives (CAP-313), among them. */
+export function implied(store: any, reference: any): any {
+  const schema = typeof reference?.as_schema === "function" ? reference.as_schema() : undefined;
+  if (schema === store.registered("References.OfObject")) {
+    const path = (Plain.ToPlain(store)(schema, reference) as Map<string, any>).get("path");
+    const held = path.get("singleton") === "." ? findLoaded(store, path) : null; // a schema object, never loaded
+    if (held !== null) return new (store._meta_builder_class(held))(held, false, store).as_schema(); // its builder's
+    try {
+      return _implied(store, path);
+    } catch (error) {
+      throw new LookupError(`the reference's path ${(error as Error).message}`);
+    }
+  }
+  if (schema === store.registered("References.OfEntry")) {
+    const relation = store.held((Plain.ToPlain(store)(schema, reference) as Map<string, any>).get("relation"));
+    if (!(relation instanceof S.OfRelation.Data)) throw new LookupError("the reference's relation names no relation the store holds");
+    return relation;
+  }
+  throw new TypeError("References.implied takes a References.OfObject or OfEntry value of the store's");
 }
 
 /** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the one

@@ -28,20 +28,26 @@ where every link and property the removal gives agrees with it, so that run agai
 
 A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
 schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
+
+`cached(store, transaction, below)` is a cache layer's interpretation of a transaction, `store` the cache over a layer
+below it, `below`, a function given the transaction that gives back a stream of frames ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)): it forwards the
+transaction and interprets it at once over what it holds, giving each frame it binds fully before the layer below
+answers, then each of the layer below's that differs from the one it gave with the same bindings, or that it gave none
+of, then each it gave that the layer below gave none of, retracted. `store.transaction` is unchanged.
 """
 
 from __future__ import annotations
 
 import weakref
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
-from . import Errors, Plain, Proxies
+from . import Errors, JSON, Plain, Proxies, References
 from . import Schemas as S
 
-__all__ = ["Frame", "FrameError"]
+__all__ = ["Frame", "FrameError", "cached"]
 
 
 def _recorded(store: Any, symbols: Mapping[str, Any], spec: Any) -> dict[str, list[Any]]:
@@ -515,12 +521,15 @@ class FrameError:
 
 
 class Frame(dict[str, Any]):
-    """A frame: the objects its symbols bind, by symbol; and its `errors`, each what failed as a term processed it
-    ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did."""
+    """A frame: the objects its symbols bind, by symbol; its `errors`, each what failed as a term processed it
+    ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did; and whether it is `retracted`: a frame a cache layer gave
+    early, given again where the layer below gives none with its bindings ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310))."""
 
-    def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = ()):
+    def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = (),
+                 retracted: bool = False):
         super().__init__(bound or {})
         self.errors: list[FrameError] = list(errors)
+        self.retracted = retracted
 
 
 class _Uncommitted(Exception):
@@ -742,6 +751,13 @@ def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], 
     """The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
     chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
     `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309))."""
+    frames = _step(store, term, frames, at, failed)
+    after = _next(term, "then")
+    return frames if after is None else _run(store, after, frames, (*at, "then", 0, _kind(store, after)), failed)
+
+
+def _step(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], failed: list[Frame]) -> list[Frame]:
+    """The frames a term makes of `frames`, those after it left out: as `_run`."""
     kind = _kind(store, term)
     if kind in ("map", "upsert", "update"):
         pattern = _pattern(term, {"map": "symbols", "upsert": "exists", "update": "apply"}[kind], kind)
@@ -763,7 +779,7 @@ def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], 
         unique: dict[tuple[Any, ...], Frame] = {}
         for frame in frames:
             kept = Frame({name: target for name, target in frame.items() if name not in dropped})
-            unique.setdefault(tuple((name, Proxies._key_of(_reader(store, target))) for name, target in kept.items()), kept)
+            unique.setdefault(_frame_key(store, kept), kept)
         frames = list(unique.values())
     elif kind == "partition":
         arms = [((*at, "branches", index), entry.branch) for index, entry in enumerate(term.branches)]
@@ -775,8 +791,13 @@ def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], 
             arms = [((*at, "none", 0, _kind(store, otherwise)), otherwise)]
         frames = [found for arm_at, arm in arms
                   for found in _run(store, arm, [Frame(frame) for frame in frames], arm_at, failed)]
-    after = _next(term, "then")
-    return frames if after is None else _run(store, after, frames, (*at, "then", 0, _kind(store, after)), failed)
+    return frames
+
+
+def _frame_key(store: Any, frame: Mapping[str, Any]) -> tuple[Any, ...]:
+    """What tells a frame apart from another, as a reduce does: each symbol with its object, as it is told apart in
+    memory."""
+    return tuple((name, Proxies._key_of(_reader(store, target))) for name, target in frame.items())
 
 
 def _bind(store: Any, pattern: Any, frame: dict[str, Any], upsert: bool,
@@ -1145,3 +1166,169 @@ def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, ent
         member(lambda held: held.remove(lambda old: old))
     member(lambda held: held.insert(fill))
     builder.update()
+
+
+# --- A cache layer ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)) ---
+
+def cached(store: Any, transaction: Any, below: Callable[[Any], Iterable[Any]]) -> Iterator[Frame]:
+    """A cache layer's interpretation of a transaction, `store` the cache, a stream of frames (a generator) ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)). It
+    does two things at once: it forwards the transaction, a `Mutations.OfTransaction` of `store`'s, to the layer below,
+    `below`, which gives back a stream of frames, each a `References.OfFrame` of `store`'s with what it witnesses
+    (`References.witnessed`); and it interprets the transaction over what the cache holds, partially (`_partial`). It
+    gives, in order:
+
+    - each frame the cache binds fully, as soon as it does, before the layer below answers: its writes, speculative, are
+      the cache's at once;
+    - each frame of the layer below's that the cache gave none with the same bindings, or whose witness differs from the
+      one it gave, in a property's value or in its errors: the cache takes it, the objects it binds, made where it holds
+      none, and the values it witnesses (`_held`), and gives it again, as the layer below gave it;
+    - each frame it gave early with bindings the layer below gave no frame of, again, marked `retracted`.
+
+    A client replaces each frame by the last one with the same bindings, and drops it where that one is retracted. Where
+    the layer below refuses the transaction, a frame of it annotated with an error (CAP-309), what the cache wrote of the
+    transaction, speculatively or from the layer below's frames, is undone before that frame is given, and its frames
+    reach the client as they come, annotated; likewise undone where the stream ends early, the layer below raising, which
+    is raised, or the client closing it, so that the cache keeps only what the layer below's stream, ended, confirms.
+    An error in the expression itself is raised before the transaction is forwarded. The cache's own frames are given
+    while its speculative writes are open, in a transaction of `store`'s: a client opens no other on it meanwhile."""
+    root = _next(transaction, "mutations")
+    if root is not None:
+        _check(store, root, set())
+    return _cached(store, transaction, root, iter(below(transaction)))
+
+
+def _cached(store: Any, transaction: Any, root: Any, answers: Iterator[Any]) -> Iterator[Frame]:
+    """`cached`'s stream, the transaction forwarded: the cache's frames, then the layer below's, then retractions."""
+    plain, schema = Plain.ToPlain(store), store.registered("References.OfFrame")
+    given: dict[str, tuple[Any, Frame]] = {}  # each frame given, by its bindings: what it witnessed, as plain, and it
+    undo: list[tuple[str, Any, Any]] = []  # what the cache overwrote, in order (`Proposals.OfStore.undo`)
+    with store._transacting() as proposals:
+        proposals.expression, proposals.undo = transaction, undo  # its speculative writes
+        for frame in _partial(store, root, ("mutations", 0), Frame(), set()):
+            witness = plain(schema, References.witnessed(store, frame))
+            given[_bindings(witness)] = (witness, frame)
+            yield frame
+    seen: set[str] = set()
+    refused = False
+    try:
+        for reference in answers:
+            witness = plain(schema, reference)
+            key = _bindings(witness)
+            seen.add(key)
+            if "errors" in witness or refused:  # the layer below refuses the transaction: what the cache wrote of it
+                refused = True  # undone, before the frame is given; what the layer below witnesses never held
+                _undo(store, undo)
+            else:
+                with store._transacting() as proposals:
+                    proposals.undo = undo
+                    _held(store, witness)
+            if key not in given or given[key][0] != witness:
+                frame = _resolved(store, witness)
+                given[key] = (witness, frame)
+                yield frame
+    except BaseException:  # the layer below raised, or the client closed the stream
+        _undo(store, undo)
+        raise
+    for key, (_, frame) in list(given.items()):
+        if key not in seen:
+            yield Frame(frame, retracted=True)
+
+
+def _partial(store: Any, term: Any, at: tuple[str | int, ...], frame: Frame, seen: set[Any]) -> Iterator[Frame]:
+    """The partial-aware interpretation of a transaction's expression over what a cache holds, one frame at a time
+    ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)): given the residual, `term`, the subterm to evaluate, by `at`, the path in the root expression's
+    wire form of the link to it (`_run`'s, its kind not yet added), and `frame`, the symbols bound before it; the
+    candidates of each symbol it should bind are those the cache holds, which `_bind` qualifies by the spec. Gives each
+    frame the chain from `term` ends with as soon as it does: a frame with every symbol bound, at the leaf (`term` None),
+    is given before the next candidate is tried. A term that fails to process a frame, as one does in a cache that does
+    not hold what a spec refers to, leaves no write of it (a savepoint), and the frame is left to the layer below. `seen`:
+    what each reduce has given, which it gives once."""
+    if term is None:
+        yield frame
+        return
+    kind = _kind(store, term)
+    at = (*at, kind)
+    if kind == "reduce":
+        made = _step(store, term, [frame], at, [])
+        identity = (at, _frame_key(store, made[0]))
+        if identity in seen:
+            return
+        seen.add(identity)
+    else:
+        failed: list[Frame] = []
+        try:
+            with store._joined():
+                made = _step(store, term, [frame], at, failed)
+                if failed:
+                    raise _Uncommitted()
+        except Exception:  # _Uncommitted, or any other: what the cache cannot do is the layer below's
+            return
+    for found in made:
+        yield from _partial(store, _next(term, "then"), (*at, "then", 0), found, seen)
+
+
+def _bindings(witness: Any) -> str:
+    """What tells a frame's bindings apart, across layers: its symbols' references, as plain."""
+    return JSON.dumps({name: witness["binds"][name] for name in sorted(witness.get("binds", {}))})
+
+
+def _resolved(store: Any, witness: Any) -> Frame:
+    """A frame of the layer below's, given as plain, as the cache gives it: each symbol bound to the object its
+    reference designates, where the cache holds it, and its errors."""
+    bound = {name: References._resolve_object(store, given) for name, given in witness.get("binds", {}).items()}
+    return Frame({name: target for name, target in bound.items() if target is not None},
+                 [FrameError(error["subterm"], error["kind"], error["message"]) for error in witness.get("errors", [])])
+
+
+def _held(store: Any, witness: Any) -> None:
+    """What a frame of the layer below's, given as plain, binds and witnesses, taken by the cache: each object it binds,
+    made where the cache holds none (`_taken`), and each value it witnesses, written where the cache holds another, a
+    property it leaves out cleared."""
+    for given in witness.get("binds", {}).values():
+        _taken(store, given["path"])
+    values_of = store.registered("References.OfProperties").properties["properties"].schema.element
+    for assigned in witness.get("assigns", []):
+        target = References._resolve_object(store, assigned["object"])
+        values = {name: Plain._decode(values_of, value, (), store)
+                  for name, value in assigned.get("properties", {}).items()}
+        schema = _reader(store, target).as_schema()
+        for name in schema.properties:
+            if store.member(target, name) != values.get(name):
+                builder = _writer(store, schema, target)
+                Plain._set(builder, name, values.get(name))
+                builder.update()
+
+
+def _taken(store: Any, path: Any) -> Any:
+    """The object at `path`, a reference's, in the cache: the one it holds, else one made there, owned by the object
+    at its owner's path, taken in the same way, through the entry the path's last step gives, as the store's schemas
+    imply its schema (`References._implied`)."""
+    found = Plain._by_path(store, path, ())
+    if found is not None:
+        return found
+    singleton, steps = Plain._steps(path, ())
+    owner = _taken(store, Plain._owner_path(singleton, steps))
+    i, o, keys = steps[-1]
+    schema = References._implied(store, path)
+    relation = _reader(store, owner).as_schema().adjacencies[i].relation
+    link = next(name for name in relation.entry.links if name != schema.adjacencies[o].me)
+
+    def owning(entry: Any) -> Any:
+        for name, value in keys.items():
+            Plain._set(entry, name, Plain._decode(relation.entry.properties[name].schema, value, (), store))
+        return getattr(entry, link)(owner)
+
+    builder = _writer(store, schema)
+    getattr(builder, o)(lambda adjacency: adjacency.insert(owning))
+    return builder.create()
+
+
+def _undo(store: Any, undo: list[tuple[str, Any, Any]]) -> None:
+    """Undoes what a cache wrote of a transaction (`Proposals.OfStore.undo`): each object's values and entry tables as
+    they were before, in one transaction, the last overwritten first."""
+    with store._transacting() as proposals:
+        for kind, holder, held in reversed(undo):
+            into = getattr(proposals, kind)(holder, True)
+            into.clear()
+            into.update(held)
+    undo.clear()

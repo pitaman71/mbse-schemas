@@ -8,7 +8,9 @@ hold into the base; aborted, they are dropped, and the store's registries are as
 over proposals are a savepoint: a write within a transaction that may fail alone, as a decoder's does.
 
 The updates of schema objects that existed before the transaction began wait in its proposals too, and are applied when
-it commits; a savepoint's are its transaction's once it commits.
+it commits; a savepoint's are its transaction's once it commits. Given a list as their `undo`, a transaction's proposals
+append to it, as they commit, what they overwrite, so that it can be undone (a cache layer's speculative writes,
+`Transactions.cached`).
 """
 
 from __future__ import annotations
@@ -34,6 +36,9 @@ class OfStore:
         self.created: dict[int, Any] = {}
         self.written: dict[int, Any] = {}
         self.expression: Any = None  # the transaction's expression, where it has one: its record's data (Provenance)
+        # where given a list, what its commit overwrites, each holder's values or entry tables as they were, appended
+        # in order: what undoes it (a cache layer's speculative writes, `Transactions.cached`)
+        self.undo: list[tuple[str, Any, Any]] | None = None
         outer = base if isinstance(base, OfStore) else None
         # the schema objects held when the transaction began, numbered below it: those its updates of wait for its commit
         self.existing: int = outer.existing if outer is not None else store._existing()
@@ -128,10 +133,14 @@ class OfStore:
             self.base.missed.update(self.missed)
         for holder, values in self.values_.values():
             into = self.base.values(holder, True)
+            if self.undo is not None:
+                self.undo.append(("values", holder, dict(into)))
             into.clear()
             into.update(values)
         for holder, tables in self.entries_.values():
             into = self.base.entries(holder, True)
+            if self.undo is not None:
+                self.undo.append(("entries", holder, {key: dict(table) for key, table in into.items()}))
             into.clear()
             into.update(tables)
 

@@ -16,7 +16,8 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
-included; `resolve(store, reference)` gives what a reference designates, or None where the store holds none. A
+included; `witnessed(store, frame)`, a frame's with what it witnesses, each object it binds with its property values, as
+a layer of a stack gives it to the layer above ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)); `resolve(store, reference)` gives what a reference designates, or None where the store holds none. A
 counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
@@ -35,7 +36,7 @@ from . import Paths, Plain, Proxies
 from . import Schemas as S
 from .Builders import _builder_for
 
-__all__ = ["install", "of", "resolve", "validate"]
+__all__ = ["install", "of", "resolve", "validate", "witnessed"]
 
 
 def install(txn: Any) -> Any:
@@ -166,6 +167,22 @@ def of(store: Any, x: Any) -> Any:
     if isinstance(x, Proxies._Entry):
         return store.References.OfEntry(_entry(store, x))
     return store.References.OfObject(_object(store, x))
+
+
+def witnessed(store: Any, frame: Mapping[str, Any]) -> Any:
+    """The reference of a frame, as `of` gives it, with what it witnesses (`assigns`): each object it binds, in order,
+    with the values its properties hold, those unset left out; what a layer of a stack gives the layer above, which
+    compares them with what it holds ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310))."""
+    from . import Transactions
+
+    assigns = []
+    for target in frame.values():
+        schema = Transactions._reader(store, target).as_schema()
+        values = {name: store.member(target, name) for name in schema.properties}
+        held = {name: value for name, value in values.items() if value is not None}
+        assigns.append(lambda x, t=target, h=held: x.as_object(lambda p: p.object(_object(store, t)).properties(h)))
+    framed = _frame(store, frame)
+    return store.References.OfFrame(lambda f: framed(f).assigns(assigns))
 
 
 def resolve(store: Any, reference: Any) -> Any:

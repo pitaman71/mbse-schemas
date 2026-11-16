@@ -95,8 +95,7 @@ schemas from anything a program holds; the builders make a new version beside a 
    (`for_object`). `Parametrics.validate(store, schema)` checks them; a schema's own `validate()` does not. Binding
    them is mbse-expressions'. A parameter reference, `References.OfParameter`, built through its `name` alone,
    designates a parameter by its name and holds nothing else. It is a value, written and read as any value is. A
-   binding in the scope that encloses it resolves it, so that `References.resolve` gives none for it, and
-   `References.of` makes none.
+   binding in the scope that encloses it resolves it, not a store, and `References.of` makes none.
    [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md),
    [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md),
    [CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311).

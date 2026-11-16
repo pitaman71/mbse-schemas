@@ -89,10 +89,12 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 ## Handing frames on
 
 - `References.of(store, frame)` gives a frame's reference, the reference of each object it binds, which a response
-  can carry and `References.resolve(store, ref)` turns back into the frame; each can start a query of its own, as a
-  symbol's reference. A relation entry has a reference too, and every reference is written and read as any value is.
+  can carry. The program it is handed to resolves it within a transaction, as every read of a store's data is: a map
+  whose symbols are given the references it binds gives the frame again, and each reference can start a query of its
+  own, as a symbol's reference ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)). A relation entry has a reference too, matched by a
+  pattern over the objects it links, and every reference is written and read as any value is.
   - Python: [T10.7: Handing frames on](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.7) · TypeScript: [T10.7: Handing frames on](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.7)
-  - Python: [REF-05: A frame a transaction gave back: each symbol's object, resolved to the frame](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-05) · TypeScript: [REF-05: A frame a transaction gave back: each symbol's object, resolved to the frame](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-05)
+  - Python: [REF-05: A frame a transaction gave back: each symbol's object; a map whose symbols are given its references gives the frame again](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-05) · TypeScript: [REF-05: A frame a transaction gave back: each symbol's object; a map whose symbols are given its references gives the frame again](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-05)
   - Python: [REF-04: A relation entry by its relation's path and all its links and properties](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-04) · TypeScript: [REF-04: A relation entry by its relation's path and all its links and properties](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-04)
   - Python: [REF-07: A reference written and read back as a value](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-07) · TypeScript: [REF-07: A reference written and read back as a value](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-07)
 - A frame's reference carries the errors annotated on it (`References.OfError`), so that a response reports what

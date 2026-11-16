@@ -21,8 +21,11 @@
  *   resolves it, not a store.
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
- * included; `resolve(store, reference)` gives what a reference designates, or null where the store holds none. A
- * counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+ * included. A reference is resolved within a transaction, as every read of a store's data is: a pattern's symbol given
+ * an object's reference binds what it designates, and no function resolves one from outside the transaction
+ * ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)). An entry's reference is matched by a pattern over the objects it links,
+ * and a frame's by a pattern whose symbols are given the references it binds. A counted object has no reference, nor a
+ * frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
@@ -179,63 +182,12 @@ export function of(store: any, x: unknown): any {
   return store.References.OfObject(object(store, x));
 }
 
-/** What `reference` designates in `store`: an object, an entry, or a frame, a map of symbols to objects; null where the
- * store holds none. A parameter reference (`References.OfParameter`) gives null: a binding in the scope that encloses it
- * resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). */
-export function resolve(store: any, reference: any): unknown {
-  const resolvers: [string, (store: any, plain: any) => unknown][] = [["References.OfObject", resolveObject],
-    ["References.OfEntry", resolveEntry], ["References.OfFrame", resolveFrame], ["References.OfParameter", resolveParameter]];
-  const schema = typeof reference?.as_schema === "function" ? reference.as_schema() : undefined;
-  const found = resolvers.find(([name]) => store.registered(name) === schema);
-  if (found === undefined) {
-    throw new TypeError("References.resolve takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the "
-      + "store's");
-  }
-  return found[1](store, Plain.ToPlain(store)(schema, reference));
-}
-
-/** Null: a parameter reference is resolved by a binding in its scope, never by a store. */
-function resolveParameter(): null {
-  return null;
-}
-
-function resolveObject(store: any, plain: Map<string, any>): unknown {
+/** The object a `References.OfObject` designates in `store`, or null where the store holds none: what a pattern's symbol
+ * given the reference binds, within the transaction that runs it (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). */
+export function _designated(store: any, reference: any): unknown {
   try {
-    return Plain._by_path(store, plain.get("path"), []) ?? null;
+    return Plain._by_path(store, (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, any>).get("path"), []) ?? null;
   } catch { // a schema object's path whose steps name no entries: nothing has it (only DecodeError is thrown)
     return null;
   }
-}
-
-function resolveFrame(store: any, plain: Map<string, any>): Transactions.Frame | null {
-  const frame = new Transactions.Frame(null, ((plain.get("errors") ?? []) as Map<string, any>[]).map((e) =>
-    new Transactions.FrameError(e.get("subterm"), e.get("kind"), e.get("message"))));
-  for (const [name, given] of (plain.get("binds") ?? new Map()) as Map<string, any>) {
-    const target = resolveObject(store, given);
-    if (target === null) return null;
-    frame.set(name, target);
-  }
-  return frame;
-}
-
-function resolveEntry(store: any, plain: Map<string, any>): unknown {
-  const relation = store.held(plain.get("relation"));
-  if (!(relation instanceof S.OfRelation.Data)) return null;
-  const links = new Map<string, unknown>();
-  for (const [link, given] of (plain.get("links") ?? new Map()) as Map<string, any>) {
-    const target = resolveObject(store, given);
-    if (target === null) return null;
-    links.set(link, target);
-  }
-  if (links.size === 0) return null;
-  const [first, target] = [...links][0]!;
-  const want = Plain._symbol(plain);
-  for (const entry of Proxies._linking(relation, first, target, store)) {
-    const inner = Proxies._innerOf(entry);
-    if (inner._links.size === links.size && [...links].every(([link, held]) => inner._links.get(link) === held)
-      && Plain._symbol(Plain.ToPlain(store)(store.References.OfEntry.as_schema(), of(store, entry))) === want) {
-      return entry;
-    }
-  }
-  return null;
 }

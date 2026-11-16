@@ -95,6 +95,9 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   - Python: [REF-05: A frame a transaction gave back: each symbol's object, resolved to the frame](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-05) · TypeScript: [REF-05: A frame a transaction gave back: each symbol's object, resolved to the frame](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-05)
   - Python: [REF-04: A relation entry by its relation's path and all its links and properties](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-04) · TypeScript: [REF-04: A relation entry by its relation's path and all its links and properties](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-04)
   - Python: [REF-07: A reference written and read back as a value](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-07) · TypeScript: [REF-07: A reference written and read back as a value](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-07)
+- A frame's reference carries the errors annotated on it (`References.OfError`), so that a response reports what
+  failed with the frames; resolved, the frame has them again.
+  - Python: [REF-10: A frame annotated with errors](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-10) · TypeScript: [REF-10: A frame annotated with errors](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-10)
 - A frame can act as a *witness*, carrying the property values an object holds and the relation entries that make it
   hold, each object given by its reference. The executor's frames carry neither; a service writes them
   ([CAP-131: frames witness values and entries](mbse:mbse-basis/docs/capabilities/CAP-131.md)).
@@ -136,3 +139,13 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - **No partial writes.** A transaction that raises, or that is refused when it ends (an owned object with no owner),
   writes nothing. Transactions on one store do not nest.
   - Python: [TXN-11: A transaction's imperative scope](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-11) · TypeScript: [TXN-11: A transaction's imperative scope](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-11)
+- **Every error is reported, on the frame it concerns.** An error a term meets on a frame (a path that resolves to
+  nothing, ...) does not stop the others: that frame is annotated with it (`frame.errors`, each its `subterm`, the
+  failing term's path in the expression's wire form, its `kind` and its `message`) and kept as bound as it was. Then
+  nothing is written, and `store.transaction` raises the first such error, of its own class, with every frame in
+  `error.frames`: read them to report all that failed, not only the first. An error in the expression itself is
+  raised before any frame is made (`frames` empty); one at the commit carries the frames unannotated
+  ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)).
+  - Python: [TXN-18: A transaction whose frames partly fail is uncommitted, whole](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-18) · TypeScript: [TXN-18: A transaction whose frames partly fail is uncommitted, whole](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-18)
+  - Python: [TXN-19: Every error is reported](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-19) · TypeScript: [TXN-19: Every error is reported](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-19)
+  - Python: [TXN-20: Errors of no one frame](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-20) · TypeScript: [TXN-20: Errors of no one frame](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-20)

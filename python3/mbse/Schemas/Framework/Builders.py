@@ -2025,7 +2025,9 @@ class Store(Proxies.OfStore):
         """Executes a transaction (object identity 85 to 97 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a `Mutations.OfTransaction`, or a
         callback building one, its root term given through `mutations`. Every write it makes is held apart until it
         ends, and dropped where it raises. Gives the frames its chain of terms ends with, each the objects its symbols
-        bind, by symbol. With no `spec`, a transaction's imperative scope (98), `with store.transaction(): ...`, within
+        bind, by symbol (`Transactions.Frame`). Where a term fails to process a frame, the frame is annotated with the
+        error (its `errors`) and the others go on; then nothing is written, and the error that arose first is raised,
+        its `frames` every frame, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). With no `spec`, a transaction's imperative scope (98), `with store.transaction(): ...`, within
         which builders write as they do anywhere, all or nothing."""
         from . import Transactions
 

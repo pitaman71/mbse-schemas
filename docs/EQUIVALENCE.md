@@ -85,6 +85,7 @@ noticed.
 | Integers | `int` | `bigint` | `number` cannot tell `1` from `1.0` and rounds above 2^53 | SCH-03, JSN-05, JSN-07 |
 | Plain mappings | `dict` | `Map<string, PlainData>` | object literals reorder integer-like keys and mishandle `__proto__` | SCH-11, PLN-02 |
 | Schema data equality | `==` | `.equals()` | no operator overloading | SCH-01, SCH-15 |
+| A transaction's frames (`Transactions.Frame`) and the errors annotated on them (`Transactions.FrameError`) | a frame a `dict` subclass with `errors`; an error a frozen dataclass, compared with `==`, its `error` None where read back | a frame a `Map` subclass with `errors`; an error a class, compared by `.equals()`, its `error` `null` where read back | each language's mapping, as plain mappings are; no operator overloading | TXN-18, REF-10 |
 | Adjacencies in proxies (`Proxies.OfAdjacency.Data`) | a `tuple` subclass; `at(key)` takes a tuple for a key of several values | a callable `Proxy` over a frozen `Array` subclass, so `instanceof Array` but not `Array.isArray`; its `at(key)` replaces the array's `at(index)`, and its `map` and `filter` make plain arrays; `at(key)` takes an array for a key of several values | each language's read-only sequence, and a member is callable | PRX-18, PRX-19 |
 | A module's schemas by name (`Builders.Store.module(path).schemas`) | a `dict` | a `Map` | only a `Map` keeps every key's order | SNP-01 |
 | Outcomes (`Validators.Check`) | an `Outcome` is a dataclass, compared with `==` | an `Outcome` is a class, compared by its fields | no operator overloading | VAL-16 |

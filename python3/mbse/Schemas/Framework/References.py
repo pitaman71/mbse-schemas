@@ -20,10 +20,8 @@ Value schemas, which every store holds, its own, as it holds `Paths`:
   resolves it, not a store.
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
-included; `resolve(store, reference)` gives what a reference designates, or None where the store holds none, loading
-from a store below what the store does not hold; `present(store, reference)` gives what it designates among what the
-store holds, and never loads; `implied(store, reference)` gives the schema a reference implies, through the store's
-schemas alone (CAP-311). A counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+included; `resolve(store, reference)` gives what a reference designates, or None where the store holds none. A
+counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
 binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
@@ -41,7 +39,7 @@ from . import Paths, Plain, Proxies
 from . import Schemas as S
 from .Builders import _builder_for
 
-__all__ = ["implied", "install", "of", "present", "resolve", "validate"]
+__all__ = ["install", "of", "resolve", "validate"]
 
 
 def install(txn: Any) -> Any:
@@ -99,33 +97,6 @@ def validate(pattern: Any) -> list[str]:
         except ValueError as error:
             problems.append(str(error))
     return problems
-
-
-def implied(store: Any, reference: Any) -> Any:
-    """*(agent)* The schema a reference implies, through the store's schemas alone, reading no data and loading nothing
-    ([CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)): of an object reference (`References.OfObject`), the schema its path implies, the one schema
-    that declares its singleton, then, for each step, the one schema that declares the step's owner adjacency; of a
-    schema object's, the meta-schema of the schema object the store holds; of an entry reference
-    (`References.OfEntry`), the relation its relation's path names. It gives the schema of what `present` gives where
-    that is present, and the schema of what `resolve` would load where it is not. `LookupError`, saying where the path
-    cannot be followed; `TypeError` for any other value, a frame's reference, which binds several objects, and a
-    parameter's, whose schema its binding gives (CAP-313), among them."""
-    schema = reference.as_schema() if hasattr(reference, "as_schema") else None
-    if schema is store.registered("References.OfObject"):
-        path = Plain.ToPlain(store)(schema, reference)["path"]
-        held = _loaded(store, path) if path.get("singleton") == "." else None  # a schema object, never loaded
-        if held is not None:
-            return store._meta_builder_class(held)(held, False, store).as_schema()  # its builder's
-        try:
-            return _implied(store, path)
-        except LookupError as error:
-            raise LookupError(f"the reference's path {error}") from None
-    if schema is store.registered("References.OfEntry"):
-        relation = store.held(Plain.ToPlain(store)(schema, reference)["relation"])
-        if not isinstance(relation, S.OfRelation.Data):
-            raise LookupError("the reference's relation names no relation the store holds")
-        return relation
-    raise TypeError("References.implied takes a References.OfObject or OfEntry value of the store's")
 
 
 def _implied(store: Any, path_plain: Any) -> Any:
@@ -208,93 +179,58 @@ def of(store: Any, x: Any) -> Any:
 
 def resolve(store: Any, reference: Any) -> Any:
     """What `reference` designates in `store`: an object, an entry, or a frame, a mapping of symbols to objects; None
-    where the store holds none. In a store with a store below, an object the store does not hold is the store below's,
-    loaded (CAP-284); `present` gives what the store holds and loads nothing. A parameter reference
-    (`References.OfParameter`) gives None: a binding in the scope that encloses it resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313))."""
-    return _designated(store, reference, "resolve", _loaded)
-
-
-def present(store: Any, reference: Any) -> Any:
-    """*(agent)* What `reference` designates among what `store` holds, what it has present: an object made in it or
-    loaded into it, an entry among those it holds, or a frame whose every object it holds; None otherwise. It never
-    fetches from a store below, so that a reference to an object the store does not hold gives None where `resolve`
-    would load it; `implied` then gives the schema the reference implies ([CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)). A
-    parameter reference gives None, as `resolve` gives."""
-    return _designated(store, reference, "present", _held)
-
-
-def _designated(store: Any, reference: Any, verb: str, find: Any) -> Any:
-    """What `reference` designates, each object it names found by `find`: `_loaded`, which may load from the store
-    below, or `_held`, which never does."""
+    where the store holds none. A parameter reference (`References.OfParameter`) gives None: a binding in the scope that
+    encloses it resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313))."""
     names = {"References.OfObject": _resolve_object, "References.OfEntry": _resolve_entry,
              "References.OfFrame": _resolve_frame, "References.OfParameter": _resolve_parameter}
     schema = reference.as_schema() if hasattr(reference, "as_schema") else None
     found = next((resolver for name, resolver in names.items() if store.registered(name) is schema), None)
     if found is None:
-        raise TypeError(f"References.{verb} takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the "
+        raise TypeError("References.resolve takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the "
                         "store's")
-    return found(store, Plain.ToPlain(store)(schema, reference), find)
+    return found(store, Plain.ToPlain(store)(schema, reference))
 
 
-def _loaded(store: Any, path: Any) -> Any:
-    """The object at `path`: one the store holds, else, in a store with a store below, the store below's, loaded."""
-    try:
-        return Plain._by_path(store, path, ())
-    except Plain.DecodeError:  # a schema object's path whose steps name no entries: nothing has it
-        return None
-
-
-def _held(store: Any, path: Any) -> Any:
-    """The object at `path` that the store holds, loading nothing: a schema object, which a store never loads, or one
-    made in it or loaded into it (`_present`)."""
-    if path.get("singleton") == ".":
-        return _loaded(store, path)
-    return store._present(path)
-
-
-def _resolve_parameter(store: Any, plain: Any, find: Any) -> Any:
+def _resolve_parameter(store: Any, plain: Any) -> Any:
     """None: a parameter reference is resolved by a binding in its scope, never by a store."""
     return None
 
 
-def _resolve_object(store: Any, plain: Any, find: Any) -> Any:
-    return find(store, plain["path"])
+def _resolve_object(store: Any, plain: Any) -> Any:
+    try:
+        return Plain._by_path(store, plain["path"], ())
+    except Plain.DecodeError:  # a schema object's path whose steps name no entries: nothing has it
+        return None
 
 
-def _resolve_frame(store: Any, plain: Any, find: Any) -> Any:
+def _resolve_frame(store: Any, plain: Any) -> Any:
     from . import Transactions
 
     frame = Transactions.Frame(errors=[Transactions.FrameError(e["subterm"], e["kind"], e["message"])
                                        for e in plain.get("errors", [])])
     for name, given in plain.get("binds", {}).items():
-        target = _resolve_object(store, given, find)
+        target = _resolve_object(store, given)
         if target is None:
             return None
         frame[name] = target
     return frame
 
 
-def _resolve_entry(store: Any, plain: Any, find: Any) -> Any:
+def _resolve_entry(store: Any, plain: Any) -> Any:
     relation = store.held(plain["relation"])
     if not isinstance(relation, S.OfRelation.Data):
         return None
     links = {}
     for link, given in plain.get("links", {}).items():
-        target = _resolve_object(store, given, find)
+        target = _resolve_object(store, given)
         if target is None:
             return None
         links[link] = target
     if not links:
         return None
     first, target = next(iter(links.items()))
-    if find is _held:  # the entries the store holds of the object, as it holds them, loading none
-        store._loading += 1
-    try:
-        for entry in Proxies._linking(relation, first, target, store):
-            if entry._links.keys() == links.keys() and all(entry._links[link] is held for link, held in links.items()) \
-                    and Plain.ToPlain(store)(store.References.OfEntry.as_schema(), of(store, entry)) == plain:
-                return entry
-    finally:
-        if find is _held:
-            store._loading -= 1
+    for entry in Proxies._linking(relation, first, target, store):
+        if entry._links.keys() == links.keys() and all(entry._links[link] is held for link, held in links.items()) \
+                and Plain.ToPlain(store)(store.References.OfEntry.as_schema(), of(store, entry)) == plain:
+            return entry
     return None

@@ -21,10 +21,8 @@
  *   resolves it, not a store.
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
- * included; `resolve(store, reference)` gives what a reference designates, or null where the store holds none, loading
- * from a store below what the store does not hold; `present(store, reference)` gives what it designates among what the
- * store holds, and never loads; `implied(store, reference)` gives the schema a reference implies, through the store's
- * schemas alone (CAP-311). A counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+ * included; `resolve(store, reference)` gives what a reference designates, or null where the store holds none. A
+ * counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
@@ -141,34 +139,6 @@ function entryOf(store: any, entry: any): Callback {
   return (e: any) => e.relation(relation).links(links).properties(properties);
 }
 
-/** *(agent)* The schema a reference implies, through the store's schemas alone, reading no data and loading nothing
- * ([CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)): of an object reference (`References.OfObject`), the schema its path implies, the one schema that
- * declares its singleton, then, for each step, the one schema that declares the step's owner adjacency; of a schema
- * object's, the meta-schema of the schema object the store holds; of an entry reference (`References.OfEntry`), the
- * relation its relation's path names. It gives the schema of what `present` gives where that is present, and the
- * schema of what `resolve` would load where it is not. `LookupError`, saying where the path cannot be followed;
- * `TypeError` for any other value, a frame's reference, which binds several objects, and a parameter's, whose schema
- * its binding gives (CAP-313), among them. */
-export function implied(store: any, reference: any): any {
-  const schema = typeof reference?.as_schema === "function" ? reference.as_schema() : undefined;
-  if (schema === store.registered("References.OfObject")) {
-    const path = (Plain.ToPlain(store)(schema, reference) as Map<string, any>).get("path");
-    const held = path.get("singleton") === "." ? findLoaded(store, path) : null; // a schema object, never loaded
-    if (held !== null) return new (store._meta_builder_class(held))(held, false, store).as_schema(); // its builder's
-    try {
-      return _implied(store, path);
-    } catch (error) {
-      throw new LookupError(`the reference's path ${(error as Error).message}`);
-    }
-  }
-  if (schema === store.registered("References.OfEntry")) {
-    const relation = store.held((Plain.ToPlain(store)(schema, reference) as Map<string, any>).get("relation"));
-    if (!(relation instanceof S.OfRelation.Data)) throw new LookupError("the reference's relation names no relation the store holds");
-    return relation;
-  }
-  throw new TypeError("References.implied takes a References.OfObject or OfEntry value of the store's");
-}
-
 /** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the one
  * schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`, marked
  * owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds what a
@@ -210,52 +180,18 @@ export function of(store: any, x: unknown): any {
 }
 
 /** What `reference` designates in `store`: an object, an entry, or a frame, a map of symbols to objects; null where the
- * store holds none. In a store with a store below, an object the store does not hold is the store below's, loaded
- * (CAP-284); `present` gives what the store holds and loads nothing. A parameter reference (`References.OfParameter`)
- * gives null: a binding in the scope that encloses it resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). */
+ * store holds none. A parameter reference (`References.OfParameter`) gives null: a binding in the scope that encloses it
+ * resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). */
 export function resolve(store: any, reference: any): unknown {
-  return designated(store, reference, "resolve", findLoaded);
-}
-
-/** *(agent)* What `reference` designates among what `store` holds, what it has present: an object made in it or loaded
- * into it, an entry among those it holds, or a frame whose every object it holds; null otherwise. It never fetches from
- * a store below, so that a reference to an object the store does not hold gives null where `resolve` would load it;
- * `implied` then gives the schema the reference implies ([CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)). A parameter reference gives null,
- * as `resolve` gives. */
-export function present(store: any, reference: any): unknown {
-  return designated(store, reference, "present", findHeld);
-}
-
-type Find = (store: any, path: any) => unknown;
-
-/** What `reference` designates, each object it names found by `find`: `findLoaded`, which may load from the store
- * below, or `findHeld`, which never does. */
-function designated(store: any, reference: any, verb: string, find: Find): unknown {
-  const resolvers: [string, (store: any, plain: any, find: Find) => unknown][] = [["References.OfObject", resolveObject],
+  const resolvers: [string, (store: any, plain: any) => unknown][] = [["References.OfObject", resolveObject],
     ["References.OfEntry", resolveEntry], ["References.OfFrame", resolveFrame], ["References.OfParameter", resolveParameter]];
   const schema = typeof reference?.as_schema === "function" ? reference.as_schema() : undefined;
   const found = resolvers.find(([name]) => store.registered(name) === schema);
   if (found === undefined) {
-    throw new TypeError(`References.${verb} takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the `
+    throw new TypeError("References.resolve takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the "
       + "store's");
   }
-  return found[1](store, Plain.ToPlain(store)(schema, reference), find);
-}
-
-/** The object at `path`: one the store holds, else, in a store with a store below, the store below's, loaded. */
-function findLoaded(store: any, path: any): unknown {
-  try {
-    return Plain._by_path(store, path, []) ?? null;
-  } catch { // a schema object's path whose steps name no entries: nothing has it (only DecodeError is thrown)
-    return null;
-  }
-}
-
-/** The object at `path` that the store holds, loading nothing: a schema object, which a store never loads, or one made
- * in it or loaded into it (`_present`). */
-function findHeld(store: any, path: any): unknown {
-  if (path.get("singleton") === ".") return findLoaded(store, path);
-  return store._present(path) ?? null;
+  return found[1](store, Plain.ToPlain(store)(schema, reference));
 }
 
 /** Null: a parameter reference is resolved by a binding in its scope, never by a store. */
@@ -263,44 +199,43 @@ function resolveParameter(): null {
   return null;
 }
 
-function resolveObject(store: any, plain: Map<string, any>, find: Find): unknown {
-  return find(store, plain.get("path"));
+function resolveObject(store: any, plain: Map<string, any>): unknown {
+  try {
+    return Plain._by_path(store, plain.get("path"), []) ?? null;
+  } catch { // a schema object's path whose steps name no entries: nothing has it (only DecodeError is thrown)
+    return null;
+  }
 }
 
-function resolveFrame(store: any, plain: Map<string, any>, find: Find): Transactions.Frame | null {
+function resolveFrame(store: any, plain: Map<string, any>): Transactions.Frame | null {
   const frame = new Transactions.Frame(null, ((plain.get("errors") ?? []) as Map<string, any>[]).map((e) =>
     new Transactions.FrameError(e.get("subterm"), e.get("kind"), e.get("message"))));
   for (const [name, given] of (plain.get("binds") ?? new Map()) as Map<string, any>) {
-    const target = resolveObject(store, given, find);
+    const target = resolveObject(store, given);
     if (target === null) return null;
     frame.set(name, target);
   }
   return frame;
 }
 
-function resolveEntry(store: any, plain: Map<string, any>, find: Find): unknown {
+function resolveEntry(store: any, plain: Map<string, any>): unknown {
   const relation = store.held(plain.get("relation"));
   if (!(relation instanceof S.OfRelation.Data)) return null;
   const links = new Map<string, unknown>();
   for (const [link, given] of (plain.get("links") ?? new Map()) as Map<string, any>) {
-    const target = resolveObject(store, given, find);
+    const target = resolveObject(store, given);
     if (target === null) return null;
     links.set(link, target);
   }
   if (links.size === 0) return null;
   const [first, target] = [...links][0]!;
   const want = Plain._symbol(plain);
-  if (find === findHeld) store._loading += 1; // the entries the store holds of the object, as it holds them, loading none
-  try {
-    for (const entry of Proxies._linking(relation, first, target, store)) {
-      const inner = Proxies._innerOf(entry);
-      if (inner._links.size === links.size && [...links].every(([link, held]) => inner._links.get(link) === held)
-        && Plain._symbol(Plain.ToPlain(store)(store.References.OfEntry.as_schema(), of(store, entry))) === want) {
-        return entry;
-      }
+  for (const entry of Proxies._linking(relation, first, target, store)) {
+    const inner = Proxies._innerOf(entry);
+    if (inner._links.size === links.size && [...links].every(([link, held]) => inner._links.get(link) === held)
+      && Plain._symbol(Plain.ToPlain(store)(store.References.OfEntry.as_schema(), of(store, entry))) === want) {
+      return entry;
     }
-  } finally {
-    if (find === findHeld) store._loading -= 1;
   }
   return null;
 }

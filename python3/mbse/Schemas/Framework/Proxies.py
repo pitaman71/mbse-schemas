@@ -140,15 +140,26 @@ class OfStore(Stores.Catalog):
 
     def _present(self, path: Any) -> _ObjectData | None:
         """The object at `path` the store holds, made in it or loaded from the store below, without loading anything:
-        a singleton, one loaded by its path, or one through its owner's entries, keys compared first; else None."""
+        a singleton, one loaded by its path, or one through its owner's entries, keys compared first; else None. One
+        loaded and since deleted is none: deleted as committed, its path is forgotten, free to name another."""
         from . import JSON, Plain
 
         singleton, steps = Plain._steps(path, ())
         if not steps:
             return self._singletons.get(singleton)
-        loaded = self._identities.get(JSON.dumps(path))
+        key = JSON.dumps(path)
+        loaded = self._identities.get(key)
         if loaded is not None:
-            return loaded
+            if self._loading or not _deleted(loaded):  # loading, its owner's entry may be yet to come; it deletes nothing
+                return loaded
+            proposals, self._proposals = self._proposals, None
+            try:
+                committed = _deleted(loaded)
+            finally:
+                self._proposals = proposals
+            if not committed:  # deleted within the transaction open: none, its path kept so that it is not fetched
+                return None
+            del self._identities[key]
         owner = self._present(Plain._owner_path(singleton, steps))
         if owner is None:
             return None
@@ -169,6 +180,8 @@ class OfStore(Stores.Catalog):
             return found
         if self._loading or self._applying:
             return _Unresolved(self, path, JSON.dumps(path))
+        if JSON.dumps(path) in self._identities:  # deleted within the transaction open: the store below's is not it
+            return None
         return self._fetched(path)
 
     def _resolved(self, link: _Unresolved) -> _ObjectData:
@@ -499,6 +512,11 @@ def _key_of(visitor: Any) -> Any:
 def _owner_adjacencies(schema: ObjectSchema) -> list[Schemas.OfAdjacency.Data]:
     """A schema's adjacencies marked `owner()`: an object of it is owned; a non-singleton without them is counted."""
     return [a for a in (*schema.adjacencies.values(), *schema.anonymous) if a.owner]
+
+
+def _deleted(target: Any) -> bool:
+    """Whether an owned object is deleted, as its store has it: no entry owns it."""
+    return bool(_owner_adjacencies(object.__getattribute__(target, "_schema"))) and not _owner_entries(target)
 
 
 def _counted(target: Any) -> bool:

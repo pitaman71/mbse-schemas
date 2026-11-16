@@ -122,13 +122,9 @@ export function _exactlyOne(name: string, symbol: any, error: new (message: stri
 export function _recordedSchema(store: any, name: string, symbol: any): any {
   const reference = _exactlyOne(name, symbol, TypeError);
   if (reference === null) return symbol.schema;
+  const target = References.present(store, reference); // building it loads nothing (CAP-304, CAP-311)
+  if (target !== null) return reader(store, target).as_schema();
   const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path") as Map<string, unknown>;
-  const target = store._below !== null && path.get("singleton") !== "." // building it loads nothing (CAP-304)
-    ? store._present(path)
-    : References.resolve(store, reference);
-  if (target != null && !(target instanceof Proxies._Unresolved)) { // one not present: by its path (CAP-285)
-    return reader(store, target).as_schema();
-  }
   try {
     return References._implied(store, path);
   } catch (error) {

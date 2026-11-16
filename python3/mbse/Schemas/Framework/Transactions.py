@@ -113,13 +113,10 @@ def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
     reference = _exactly_one(name, symbol, TypeError)
     if reference is None:
         return symbol.schema
-    path = Plain.ToPlain(store)(reference.as_schema(), reference)["path"]
-    if store._below is not None and path.get("singleton") != ".":  # building it loads nothing (CAP-304)
-        target = store._present(path)
-    else:
-        target = References.resolve(store, reference)
-    if target is not None and not isinstance(target, Proxies._Unresolved):  # one not present: by its path (CAP-285)
+    target = References.present(store, reference)  # building it loads nothing (CAP-304, CAP-311)
+    if target is not None:
         return _reader(store, target).as_schema()
+    path = Plain.ToPlain(store)(reference.as_schema(), reference)["path"]
     try:
         return References._implied(store, path)
     except LookupError as error:

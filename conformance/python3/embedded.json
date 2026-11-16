@@ -9,7 +9,8 @@
                 "0": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -39,7 +40,8 @@
                 "1": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -69,7 +71,8 @@
                 "2": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -99,7 +102,8 @@
                 "3": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -129,7 +133,8 @@
                 "4": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -159,7 +164,8 @@
                 "5": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -189,7 +195,8 @@
                 "6": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -219,7 +226,8 @@
                 "7": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -275,7 +283,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "1"
                                               }
                                             }
@@ -305,7 +313,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "2"
                                               }
                                             }
@@ -335,7 +343,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "3"
                                               }
                                             }
@@ -365,7 +373,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "4"
                                               }
                                             }
@@ -395,7 +403,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "5"
                                               }
                                             }
@@ -484,7 +492,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "path": {
                                                                                 "singleton": ".",
                                                                                 "next": {
@@ -570,7 +578,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "path": {
                                                                                 "singleton": ".",
                                                                                 "next": {
@@ -674,7 +682,7 @@
                                                                                                     "mutations": [
                                                                                                       {
                                                                                                         "set": {
-                                                                                                          "ref": {
+                                                                                                          "reference": {
                                                                                                             "path": {
                                                                                                               "singleton": ".",
                                                                                                               "next": {
@@ -728,7 +736,7 @@
                                                                                                     "mutations": [
                                                                                                       {
                                                                                                         "set": {
-                                                                                                          "ref": {
+                                                                                                          "reference": {
                                                                                                             "path": {
                                                                                                               "singleton": ".",
                                                                                                               "next": {
@@ -882,7 +890,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "symbol": "3"
                                                                             }
                                                                           }
@@ -958,7 +966,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "path": {
                                                                                 "singleton": ".",
                                                                                 "next": {
@@ -1044,7 +1052,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "symbol": "1"
                                                                             }
                                                                           }
@@ -1137,7 +1145,7 @@
                                                                                                     "mutations": [
                                                                                                       {
                                                                                                         "set": {
-                                                                                                          "ref": {
+                                                                                                          "reference": {
                                                                                                             "symbol": "1"
                                                                                                           }
                                                                                                         }
@@ -1215,7 +1223,7 @@
                                                                                                                                                                 "mutations": [
                                                                                                                                                                   {
                                                                                                                                                                     "set": {
-                                                                                                                                                                      "ref": {
+                                                                                                                                                                      "reference": {
                                                                                                                                                                         "path": {
                                                                                                                                                                           "singleton": ".",
                                                                                                                                                                           "next": {
@@ -1400,7 +1408,7 @@
                                                                                                     "mutations": [
                                                                                                       {
                                                                                                         "set": {
-                                                                                                          "ref": {
+                                                                                                          "reference": {
                                                                                                             "path": {
                                                                                                               "singleton": ".",
                                                                                                               "next": {
@@ -1453,7 +1461,7 @@
                                                                                                     "mutations": [
                                                                                                       {
                                                                                                         "set": {
-                                                                                                          "ref": {
+                                                                                                          "reference": {
                                                                                                             "path": {
                                                                                                               "singleton": ".",
                                                                                                               "next": {
@@ -1644,7 +1652,7 @@
                                                                                                                                                                 "mutations": [
                                                                                                                                                                   {
                                                                                                                                                                     "set": {
-                                                                                                                                                                      "ref": {
+                                                                                                                                                                      "reference": {
                                                                                                                                                                         "path": {
                                                                                                                                                                           "singleton": ".",
                                                                                                                                                                           "next": {
@@ -1787,7 +1795,7 @@
                                                                                                                                                                 "mutations": [
                                                                                                                                                                   {
                                                                                                                                                                     "set": {
-                                                                                                                                                                      "ref": {
+                                                                                                                                                                      "reference": {
                                                                                                                                                                         "path": {
                                                                                                                                                                           "singleton": ".",
                                                                                                                                                                           "next": {
@@ -1873,7 +1881,7 @@
                                                                                                                                                                 "mutations": [
                                                                                                                                                                   {
                                                                                                                                                                     "set": {
-                                                                                                                                                                      "ref": {
+                                                                                                                                                                      "reference": {
                                                                                                                                                                         "path": {
                                                                                                                                                                           "singleton": ".",
                                                                                                                                                                           "next": {
@@ -2172,7 +2180,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "symbol": "3"
                                                                             }
                                                                           }
@@ -2248,7 +2256,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "path": {
                                                                                 "singleton": ".",
                                                                                 "next": {
@@ -2345,7 +2353,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "6"
                                               }
                                             }
@@ -2375,7 +2383,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "7"
                                               }
                                             }
@@ -2579,7 +2587,7 @@
                                                                       "mutations": [
                                                                         {
                                                                           "set": {
-                                                                            "ref": {
+                                                                            "reference": {
                                                                               "symbol": "6"
                                                                             }
                                                                           }
@@ -2641,7 +2649,8 @@
                 "0": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -2671,7 +2680,8 @@
                 "1": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -2692,7 +2702,8 @@
                 "2": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -2713,7 +2724,8 @@
                 "3": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -2734,7 +2746,8 @@
                 "4": {
                   "schema": [
                     {
-                      "$ref": {
+                      "$schema": "References.OfObject",
+                      "path": {
                         "singleton": ".",
                         "next": {
                           "entry": {
@@ -2771,7 +2784,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "1"
                                               }
                                             }
@@ -2789,7 +2802,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "2"
                                               }
                                             }
@@ -2807,7 +2820,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "3"
                                               }
                                             }
@@ -2825,7 +2838,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "4"
                                               }
                                             }
@@ -2872,7 +2885,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "2"
                                               }
                                             }
@@ -2890,7 +2903,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "3"
                                               }
                                             }
@@ -2908,7 +2921,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "ref": {
+                                              "reference": {
                                                 "symbol": "4"
                                               }
                                             }

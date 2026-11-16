@@ -4,7 +4,8 @@
       - symbols:
           '0':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -22,7 +23,8 @@
                           target: {}
           '1':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -40,7 +42,8 @@
                           target: {}
           '2':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -58,7 +61,8 @@
                           target: {}
           '3':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -76,7 +80,8 @@
                           target: {}
           '4':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -94,7 +99,8 @@
                           target: {}
           '5':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -112,7 +118,8 @@
                           target: {}
           '6':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -144,7 +151,7 @@
                         name: schema
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '1'
                     - as_property:
                         name: name
@@ -156,7 +163,7 @@
                         name: schema
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '2'
                     - as_property:
                         name: name
@@ -168,7 +175,7 @@
                         name: schema
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '3'
                     - as_property:
                         name: name
@@ -180,7 +187,7 @@
                         name: schema
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '4'
                     - as_property:
                         name: name
@@ -226,7 +233,7 @@
                                             name: relation
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   symbol: '3'
                     - as_property:
                         name: name
@@ -256,7 +263,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -317,7 +324,7 @@
                                             name: relation
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   symbol: '3'
                     - as_property:
                         name: name
@@ -347,7 +354,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -387,7 +394,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -427,7 +434,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -467,7 +474,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -507,7 +514,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -596,7 +603,7 @@
                                             name: schema
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   path:
                                                     singleton: '.'
                                                     next:
@@ -634,7 +641,7 @@
                         name: schema
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '5'
                     - as_property:
                         name: name
@@ -646,7 +653,7 @@
                         name: schema
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '6'
                     - as_property:
                         name: name
@@ -734,7 +741,7 @@
                                             name: relation
                                             mutations:
                                             - set:
-                                                ref:
+                                                reference:
                                                   symbol: '5'
                     - as_property:
                         name: name
@@ -747,7 +754,8 @@
       - symbols:
           '0':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -765,7 +773,8 @@
                           target: {}
           '1':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -777,7 +786,8 @@
                       target: {}
           '2':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -789,7 +799,8 @@
                       target: {}
           '3':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -801,7 +812,8 @@
                       target: {}
           '4':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -813,7 +825,8 @@
                       target: {}
           '5':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -825,7 +838,8 @@
                       target: {}
           '6':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -837,7 +851,8 @@
                       target: {}
           '7':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -849,7 +864,8 @@
                       target: {}
           '8':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -861,7 +877,8 @@
                       target: {}
           '9':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -873,7 +890,8 @@
                       target: {}
           '10':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -885,7 +903,8 @@
                       target: {}
           '11':
             schema:
-            - $ref:
+            - $schema: References.OfObject
+              path:
                 singleton: '.'
                 next:
                   entry:
@@ -907,77 +926,77 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '1'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '2'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '3'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '4'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '5'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '6'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '7'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '8'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '9'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '10'
                   - mutations:
                     - as_link:
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '11'
         - '1':
           - as_property:
@@ -995,7 +1014,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '2'
                     - as_property:
                         name: slot
@@ -1007,7 +1026,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '3'
                     - as_property:
                         name: slot
@@ -1019,7 +1038,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '4'
                     - as_property:
                         name: slot
@@ -1031,7 +1050,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '5'
                     - as_property:
                         name: slot
@@ -1043,7 +1062,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '6'
                     - as_property:
                         name: slot
@@ -1055,7 +1074,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '7'
                     - as_property:
                         name: slot
@@ -1067,7 +1086,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '8'
                     - as_property:
                         name: slot
@@ -1079,7 +1098,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '9'
                     - as_property:
                         name: slot
@@ -1091,7 +1110,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '10'
                     - as_property:
                         name: slot
@@ -1103,7 +1122,7 @@
                         name: item
                         mutations:
                         - set:
-                            ref:
+                            reference:
                               symbol: '11'
                     - as_property:
                         name: slot

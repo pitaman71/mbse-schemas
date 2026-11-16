@@ -13,10 +13,17 @@ reading one executes it, in the store given.
    document is one transaction of one upsert: its objects are symbols numbered from the root, `"0"`, each naming its
    schema by its path; what it does not hold (a singleton, an owned object, a schema object) it refers to by path; each
    entry is written once, from the first object holding it. Give a `uid` where the same document may be read again.
-   [CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md).
+   A reference to an object is written one way, as a `References.OfObject`, `{"path": ...}`. It is bare where the
+   schema the reader expects says that the node holds a reference: a link's `{"reference": {"path": ...}}`, or
+   `{"reference": {"symbol": "1"}}` for an object the document holds. It is marked with its schema's name,
+   `{"$schema": "References.OfObject", "path": ...}`, where an object could be nested in its place, as in a symbol's
+   schema list; a reader never guesses that an unmarked mapping is a reference.
+   [CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md),
+   [CAP-316: one written form for references](mbse:mbse-basis/docs/capabilities/README.md#CAP-316).
    - Python: [T06.1: One object](mbse:mbse-schemas/python3/tutorials/06_Saving_And_Loading.ipynb#T06.1) · TypeScript: [T06.1: One object](mbse:mbse-schemas/typescript5/tutorials/06_Saving_And_Loading.ipynb#T06.1)
    - Python: [T06.2: A whole graph](mbse:mbse-schemas/python3/tutorials/06_Saving_And_Loading.ipynb#T06.2) · TypeScript: [T06.2: A whole graph](mbse:mbse-schemas/typescript5/tutorials/06_Saving_And_Loading.ipynb#T06.2)
    - Python: [PLN-02: The exact document format](mbse:mbse-schemas/python3/tests/05_Plain.ipynb#PLN-02) · TypeScript: [PLN-02: The exact document format](mbse:mbse-schemas/typescript5/tests/05_Plain.ipynb#PLN-02)
+   - Python: [PLN-19: A reference is written one way](mbse:mbse-schemas/python3/tests/05_Plain.ipynb#PLN-19) · TypeScript: [PLN-19: A reference is written one way](mbse:mbse-schemas/typescript5/tests/05_Plain.ipynb#PLN-19)
 2. **Reading a document.** *Why*: loading is executing the transaction it holds, in the store you give, so the same
    rules apply as to any write. *How*: `Plain.FromPlain(store)(schema, data)` executes it and gives the root, within
    an open transaction as a savepoint. It binds a singleton's symbol to the singleton and an owned object's to the

@@ -67,7 +67,7 @@ export function members(document: any): Map<string, Map<string, unknown>> {
         out.get(symbol)!.set(body.get("name"), body.get("mutations")[0].get("insert").get("entries").map((entry: any) => new Map(
           entry.get("mutations").flatMap((verb: any) => [...verb.values()]).map((part: any) => {
             const set = part.get("mutations")[0].get("set");
-            return [part.get("name"), set.has("value") ? set.get("value") : set.get("ref")];
+            return [part.get("name"), set.has("value") ? set.get("value") : set.get("reference")];
           }))));
       }
     }
@@ -79,7 +79,7 @@ export function members(document: any): Map<string, Map<string, unknown>> {
 export function schema_names(document: any): Map<string, string> {
   const names = new Map<string, string>();
   for (const [symbol, held] of document.get("mutations")[0].get("upsert").get("exists")[0].get("symbols")) {
-    let step = held.get("schema")[0].get("$ref").get("next");
+    let step = held.get("schema")[0].get("path").get("next");
     const parts: string[] = [];
     while (step.has("entry")) {
       parts.push(step.get("entry").get("properties").get("name"));

@@ -87,7 +87,7 @@ def _description_problems(description: Any, where: str = "") -> list[str]:
 
 
 def _reserved(names: Any) -> list[str]:
-    """Problems with names that start with `$`, which the wire format keeps for its own markers (`$ref`, `$schema`,
+    """Problems with names that start with `$`, which the wire format keeps for its own markers (`$schema`,
     `$id`)."""
     return [f"name {name!r} is reserved: names starting with '$' belong to the wire format"
             for name in names if isinstance(name, str) and name.startswith("$")]

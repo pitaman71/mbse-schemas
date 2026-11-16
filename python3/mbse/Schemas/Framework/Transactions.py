@@ -12,9 +12,9 @@ A spec is recorded as a `Mutations.OfPattern`, plain data: for each symbol, the 
 order. A property written is `{"as_property": {"name": ..., "mutations": [{"set": {"value": ...}}]}}`, its value as
 `Plain` writes a property's; an adjacency's entries are `{"as_adjacency": {"name": ..., "mutations": [{"insert":
 {"entries": [...]}}]}}`, each entry `{"mutations": [...]}` of its links (`as_link`) and properties (`as_property`), as a
-snapshot writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
-{"symbol": "ada"}}`, to an object by its path, `{"ref": {"path": ...}}` (a schema object, a singleton or an owned
-object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`. An adjacency's
+snapshot writes an entry, leaving out the object's own link. A link's `reference` names the object another symbol binds,
+`{"reference": {"symbol": "ada"}}`, or an object by its path, `{"reference": {"path": ...}}` (a schema object, a
+singleton or an owned object), as `References.OfObject` writes one; or the link defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`. An adjacency's
 entries are removed as a builder's adjacency removes them, `knows(lambda a: a.remove(lambda e: e.known(_.bob)))`,
 recorded `{"remove": {"entries": [...]}}`, and all of them by `clear()`, recorded `{"clear": {}}`.
 
@@ -443,7 +443,7 @@ class _Entry(Proxies._Unassignable):
         mutations = []
         for link, held in self._links.items():
             target = {"def": {"schema": self._store.name_of(held.schema), "mutations": held.plain()}} \
-                if isinstance(held, _State) else {"ref": held}
+                if isinstance(held, _State) else {"reference": held}
             mutations.append({"as_link": {"name": link, "mutations": [{"set": target}]}})
         names = Plain._Values(self._store)
         for name, prop in self._relation.entry.properties.items():
@@ -893,7 +893,7 @@ def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str,
             relation = _schema(store, pattern, other, frame).adjacencies[body["name"]].relation
             for entry in (entry for verb, entries in _verbs(body) if verb == "insert" for entry in entries):
                 link = next((part["as_link"]["name"] for part in entry["mutations"] if "as_link" in part
-                             and part["as_link"]["mutations"][0]["set"].get("ref", {}).get("symbol") == name), None)
+                             and part["as_link"]["mutations"][0]["set"].get("reference", {}).get("symbol") == name), None)
                 if link is None or not any(a.relation is relation and a.me == link for a in owning):
                     continue
                 given = [part["as_property"] for part in entry["mutations"] if "as_property" in part]
@@ -963,8 +963,8 @@ def _symbol_refs(entry: Any) -> list[dict[str, Any]]:
         (kind, body), = item.items()
         if kind == "as_link":
             held = body["mutations"][0]["set"]
-            if "ref" in held and "symbol" in held["ref"]:
-                found.append(held["ref"])
+            if "reference" in held and "symbol" in held["reference"]:
+                found.append(held["reference"])
             elif "def" in held:
                 for member in held["def"]["mutations"]:
                     (member_kind, member_body), = member.items()
@@ -995,8 +995,8 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: dict[str, 
                 return False
             continue
         given = body["mutations"][0]["set"]
-        if "ref" in given and isinstance(held, Proxies._Entry) and isinstance(held._links[name], Proxies._Unresolved):
-            found = _resolve(store, given["ref"], frame)  # one not present, compared by its path: loading nothing
+        if "reference" in given and isinstance(held, Proxies._Entry) and isinstance(held._links[name], Proxies._Unresolved):
+            found = _resolve(store, given["reference"], frame)  # one not present, compared by its path: loading nothing
             if Proxies._link_key(held._links[name]) != Proxies._link_key(found):
                 return False
             continue
@@ -1007,7 +1007,7 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: dict[str, 
             if _reader(store, linked).as_schema() is not schema or not _holds(
                     store, linked, schema, definition["mutations"], frame, None):
                 return False
-        elif linked is not _resolve(store, given["ref"], frame):
+        elif linked is not _resolve(store, given["reference"], frame):
             return False
     return True
 
@@ -1128,7 +1128,7 @@ def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, ent
             _write(store, made, defined, definition["mutations"], frame)
             links[body["name"]] = made
         else:
-            links[body["name"]] = _resolve(store, given["ref"], frame)
+            links[body["name"]] = _resolve(store, given["reference"], frame)
 
     def fill(added: Any) -> Any:
         for link, linked in links.items():

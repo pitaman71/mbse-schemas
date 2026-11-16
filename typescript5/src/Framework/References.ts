@@ -1,7 +1,8 @@
 /**
- * References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md)).
+ * References: one format for what designates an object, a relation entry, a frame or a parameter ([CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md);
+ * [CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)).
  *
- * Three value schemas, which every store holds, its own, as it holds `Paths`:
+ * Value schemas, which every store holds, its own, as it holds `Paths`:
  *
  * - `References.OfObject`, a singleton or other non-counted reference object: a value object whose one property, `path`, is a
  *   singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
@@ -14,7 +15,10 @@
  * - `References.OfProperties`, property values an object is witnessed to hold: its `object`, a `References.OfObject`,
  *   and its `properties`, each its value;
  * - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
- *   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
+ *   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one;
+ * - `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
+ *   proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
+ *   resolves it, not a store.
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
  * included; `resolve(store, reference)` gives what a reference designates, or null where the store holds none. A
@@ -43,7 +47,7 @@ export function install(txn: any): any {
   const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
   return txn.uid("mbse.Schemas.References/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
     .symbols({OfObject: S.OfObject, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject,
-      OfError: S.OfObject, OfSymbol: S.OfObject})
+      OfError: S.OfObject, OfSymbol: S.OfObject, OfParameter: S.OfObject})
     .spec([
       (_: any) => _.OfObject.name("References.OfObject").properties({
         path: txn.Paths.OfRoot, // a singleton's, an owned object's or a schema object's
@@ -68,6 +72,9 @@ export function install(txn: any): any {
         subterm: S.OfStr, // where in the expression: a path in its wire form, `$.mutations[0].map`
         kind: S.OfStr, // the error's class's name
         message: S.OfStr,
+      }),
+      (_: any) => _.OfParameter.name("References.OfParameter").properties({
+        name: S.OfStr, // the parameter's name, and nothing else (CAP-311)
       }),
       // --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
       (_: any) => _.OfSymbol.name("Schemas.OfSymbol").properties({ reference: _.OfObject }),
@@ -162,7 +169,9 @@ export function _implied(store: any, pathPlain: unknown): any {
 
 /** The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, refused for a counted
  * object; of a relation entry (`References.OfEntry`); of a frame `store.transaction` gave back, a map of symbols to
- * objects (`References.OfFrame`), refused where it binds a counted object. */
+ * objects (`References.OfFrame`), refused where it binds a counted object. It gives no `References.OfParameter`, since
+ * a parameter is not an object that a store holds: a parameter reference is built by its name,
+ * `store.References.OfParameter((p: any) => p.name(...))`. */
 export function of(store: any, x: unknown): any {
   if (x instanceof Map) return store.References.OfFrame(frameOf(store, x));
   const inner = Proxies._innerOf(x);
@@ -171,16 +180,23 @@ export function of(store: any, x: unknown): any {
 }
 
 /** What `reference` designates in `store`: an object, an entry, or a frame, a map of symbols to objects; null where the
- * store holds none. */
+ * store holds none. A parameter reference (`References.OfParameter`) gives null: a binding in the scope that encloses it
+ * resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). */
 export function resolve(store: any, reference: any): unknown {
   const resolvers: [string, (store: any, plain: any) => unknown][] = [["References.OfObject", resolveObject],
-    ["References.OfEntry", resolveEntry], ["References.OfFrame", resolveFrame]];
+    ["References.OfEntry", resolveEntry], ["References.OfFrame", resolveFrame], ["References.OfParameter", resolveParameter]];
   const schema = typeof reference?.as_schema === "function" ? reference.as_schema() : undefined;
   const found = resolvers.find(([name]) => store.registered(name) === schema);
   if (found === undefined) {
-    throw new TypeError("References.resolve takes a References.OfObject, OfEntry or OfFrame value of the store's");
+    throw new TypeError("References.resolve takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the "
+      + "store's");
   }
   return found[1](store, Plain.ToPlain(store)(schema, reference));
+}
+
+/** Null: a parameter reference is resolved by a binding in its scope, never by a store. */
+function resolveParameter(): null {
+  return null;
 }
 
 function resolveObject(store: any, plain: Map<string, any>): unknown {

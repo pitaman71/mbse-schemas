@@ -128,7 +128,7 @@ class OfStore(Stores.Catalog):
         self._identities: dict[str, _ObjectData] = {}  # the store below's objects it has loaded, each by its path
         self._waiting: dict[str, list[_Entry]] = {}  # the entries that link an object not present, by its path
         self._owning: dict[tuple[int, str], bool] = {}  # whether a relation owns through a link (`_owns_through`)
-        self._loaded: set[int] = set()  # those loaded, by id
+        self._loaded: weakref.WeakSet[Any] = weakref.WeakSet()  # those loaded, held weakly: an id, reused, would not do
         self._loading = 0  # how deep in loading one: what it reads then loads nothing more
         self._applying = 0  # how deep in applying a transaction of the store below's: it loads nothing (CAP-285)
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
@@ -259,12 +259,12 @@ class OfStore(Stores.Catalog):
         observed by none (CAP-284)."""
         from . import Plain
 
-        if self._loading or not isinstance(holder, _ObjectData) or id(holder) in self._loaded:
+        if self._loading or not isinstance(holder, _ObjectData) or holder in self._loaded:
             return
         path = object.__getattribute__(holder, "_reference")
         if path is None:
             return
-        self._loaded.add(id(holder))
+        self._loaded.add(holder)
         plain = self._below.document(path) if plain is None else plain
         (pattern,) = plain["mutations"][0]["upsert"]["exists"]
         ((symbol, _),) = pattern["symbols"].items()

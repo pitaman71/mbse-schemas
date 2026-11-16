@@ -116,40 +116,150 @@ interface Shellable {
   _readOnly(): string;
 }
 
+// --- Lifetimes: a visitor lives within the transaction that made it (CAP-315) ---
+
+/** The life of the visitors made within one transaction, the outermost open on a store: ended when it ends, after which
+ * each of them is refused ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). It holds the shell it gave of each durable
+ * object, by that object's state, so that a transaction sees one shell of each. */
+export class _Life {
+  ended = false;
+  readonly shells = new Map<object, any>();
+
+  end(): void {
+    this.ended = true;
+    this.shells.clear();
+  }
+}
+
+/** The life of the shell whose member or method runs: what a visitor made meanwhile lives by, so that one made from a
+ * visitor of a transaction lives within it, and one made from a durable object, or by the library itself, lives on. */
+let CURRENT: _Life | null = null;
+
+/** Each shell's life, where it has one. */
+const LIVES = new WeakMap<object, _Life>();
+
+function refused(): ValueError {
+  return new ValueError("a visitor lives only within the transaction that made it: read the store again within a "
+    + "transaction, by a reference kept (store.transaction)");
+}
+
+/** Refuses the use of a visitor whose transaction has ended. */
+function check(life: _Life | null | undefined): void {
+  if (life !== null && life !== undefined && life.ended) throw refused();
+}
+
+/** Runs `run` as a member or method of a shell whose life is `life`. */
+function within<T>(life: _Life | null, run: () => T): T {
+  const outer = CURRENT;
+  CURRENT = life;
+  try {
+    return run();
+  } finally {
+    CURRENT = outer;
+  }
+}
+
+/** Whether `inner` is the state of a durable object, one the store holds: a data object, a relation entry, a value
+ * object or a container's value. Its first shell is durable; a transaction's are others over the same state. */
+function durableKind(inner: unknown): boolean {
+  return inner instanceof _ObjectData || inner instanceof _RecordData || inner instanceof _Entry
+    || inner instanceof _ContainerData;
+}
+
+/** The durable shell of a shell a transaction gave, refused where its transaction has ended; any other value itself. */
+export function _durable(value: unknown): any {
+  const inner = innerOf(value);
+  if (inner === undefined || !durableKind(inner)) return value;
+  check(LIVES.get(value as object));
+  return inner._proxy;
+}
+
+/** `value` as a visitor of the transaction whose life is `life`: a durable object, a relation entry, a value object or a
+ * container's value, as a shell over its state that lives within the transaction, one per transaction; any other
+ * value, or with no life, itself. */
+export function _wrap(value: unknown, life: _Life | null): any {
+  if (life === null) return value;
+  const inner = innerOf(value);
+  if (inner === undefined || !durableKind(inner)) return value;
+  check(LIVES.get(value as object));
+  let found = life.shells.get(inner);
+  if (found === undefined) life.shells.set(inner, (found = shell(inner, CALLS.get(inner._proxy), FROZEN.has(inner._proxy), life)));
+  return found;
+}
+
+/** `value`, what the library gives a program back, as a visitor of the transaction open on `store`; where none is open,
+ * of the one the library opened and ended to make it, so that it is refused (CAP-315). */
+export function _given_out(store: any, value: unknown): any {
+  let life: _Life | null = store?._life ?? null;
+  if (life === null) {
+    life = new _Life();
+    life.end();
+  }
+  return _wrap(value, life);
+}
+
+/** What calling a durable shell does, and whether it is frozen, so that a transaction's shells over its state do the
+ * same. */
+const CALLS = new WeakMap<object, (spec: unknown) => unknown>();
+const FROZEN = new WeakSet<object>();
+
 /** A proxy over `inner`: its own methods and fields first, then its members, by name; called, `call` (a function
- * target, its `name` and `length` hidden, which `call` serves). */
-function shell(inner: Shellable, call?: (spec: unknown) => unknown, frozen = false): any {
+ * target, its `name` and `length` hidden, which `call` serves). It lives by `life`: by default, a durable object's first
+ * shell lives on, and any other visitor by the life of the shell whose member or method made it (CAP-315). */
+function shell(inner: Shellable, call?: (spec: unknown) => unknown, frozen = false,
+  life: _Life | null = durableKind(inner) ? null : CURRENT): any {
   const refuse = (): never => {
     throw new AttributeError(inner._readOnly());
   };
-  const target: any = call === undefined ? {} : (spec: unknown) => call(spec);
+  const target: any = call === undefined ? {} : (spec: unknown) => {
+    check(life);
+    return within(life, () => _wrap(call(spec), life));
+  };
   delete target.name; // hidden, so that members of these names are the schema's
   delete target.length;
   // Node's inspect reads the hook through the proxy (Node 22) or formats the proxy's target (later): the target carries
   // it, and the proxy serves the target's.
-  Object.defineProperty(target, INSPECT, { value: () => (inner as any)[REPR]() });
+  Object.defineProperty(target, INSPECT, { value: () => {
+    check(life);
+    return (inner as any)[REPR]();
+  } });
   Object.setPrototypeOf(target, Object.getPrototypeOf(inner)); // so that `instanceof` names its class
   if (frozen) Object.freeze(target);
   const proxy = new Proxy(target, {
     get: (_target, prop) => {
       if (prop === INSPECT) return target[INSPECT];
-      if (typeof prop === "symbol" || prop.startsWith("_")
-        || (prop in inner && !(prop in OBJECT_MEMBERS && inner._declares(prop)))) { // a declared name wins over Object's
-        const value = Reflect.get(inner, prop, inner);
-        return typeof value === "function" && prop !== "constructor" && !INNER.has(value) ? value.bind(inner) : value;
+      check(life);
+      const own = typeof prop === "symbol" || prop.startsWith("_"); // its own state, which the library reads
+      if (own || (prop in inner && !(prop in OBJECT_MEMBERS && inner._declares(prop)))) { // a declared name wins over Object's
+        const value = within(life, () => Reflect.get(inner, prop, inner));
+        if (typeof value === "function" && prop !== "constructor" && !INNER.has(value)) {
+          return (...args: unknown[]) => {
+            check(life);
+            return within(life, () => own ? value.apply(inner, args) : _wrap(value.apply(inner, args), life));
+          };
+        }
+        return own ? value : _wrap(value, life);
       }
       if (_probes.has(prop) && !inner._declares(prop)) return undefined;
-      return inner._member(prop);
+      return within(life, () => _wrap(inner._member(prop), life));
     },
-    has: (_target, prop) => typeof prop === "symbol" || prop.startsWith("_") ? Reflect.has(inner, prop)
-      : prop in inner || inner._declares(prop),
+    has: (_target, prop) => {
+      check(life);
+      return typeof prop === "symbol" || prop.startsWith("_") ? Reflect.has(inner, prop)
+        : prop in inner || inner._declares(prop);
+    },
     set: refuse,
     defineProperty: refuse,
     deleteProperty: refuse,
     setPrototypeOf: refuse,
   });
-  inner._proxy = proxy;
+  if (inner._proxy === undefined) { // its first shell: a durable object's, which the store holds
+    inner._proxy = proxy;
+    if (call !== undefined) CALLS.set(proxy, call);
+    if (frozen) FROZEN.add(proxy);
+  }
   INNER.set(proxy, inner);
+  if (life !== null) LIVES.set(proxy, life);
   return proxy;
 }
 
@@ -220,6 +330,8 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   _loading = 0;
   /** How deep in applying a transaction of the store below's: it loads nothing (CAP-285). */
   _applying = 0;
+  /** The life of the visitors the transaction open made (CAP-315). */
+  _life: _Life | null = null;
 
   /** A singleton's path, where the store has a store below, from which it loads; else null. */
   _below_path(singleton: string): unknown {
@@ -326,7 +438,14 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
    * it began. One is open on a store at a time; each store's is its own. */
   _transacting<T>(write: () => T): T {
     if (this._proposals !== null) throw new ValueError("a transaction is open: transactions do not nest");
-    return this._proposing(write);
+    const outer = this._life; // a transaction open when the store loads (`_load`)
+    const life = this._life = new _Life();
+    try {
+      return this._proposing(write);
+    } finally {
+      life.end();
+      this._life = outer;
+    }
   }
 
   /** Proposals over what the store holds, or over the transaction open's (a savepoint): committed when `write` returns,
@@ -413,7 +532,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
         const fillers = [...this._schemas.values()].filter((schema) => schema instanceof Schemas.OfObject.Data
           && schema.fills(relation, link)) as ObjectSchema[];
         if (fillers.length === 1 && fillers[0]!.singleton !== null) {
-          possible.push([adjacency, link, this.singleton(fillers[0]!.singleton)]);
+          possible.push([adjacency, link, this._singleton_of(fillers[0]!.singleton)]);
         }
       }
       const names = owners.map((a) => repr(a.name || (a.relation as RelationSchema).name)).join(", ");
@@ -490,7 +609,32 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 
   /** The value an instance or value object holds in its property `name`. */
   member(instance: unknown, name: string): unknown {
-    return read(instance, name);
+    check(LIVES.get(instance as object)); // refused where its transaction has ended, as any use of it is
+    return _wrap(read(instance, name), LIVES.get(instance as object) ?? null); // a visitor of the instance's transaction
+  }
+
+  /** The singleton named `name`, a visitor of the transaction open, refused where none is open: every read of a
+   * store's data is made within a transaction ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). */
+  override singleton(name: string): any {
+    return _wrap(this._singleton_of(name), this._reading());
+  }
+
+  /** The durable singleton named `name`, read by the store itself. */
+  _singleton_of(name: string): any {
+    return super.singleton(name);
+  }
+
+  /** The reference objects of `name` reachable from the singletons, visitors of the transaction open, refused where
+   * none is open. */
+  override extent(name: string): readonly any[] {
+    const life = this._reading();
+    return within(null, () => super.extent(name)).map((found) => _wrap(found, life));
+  }
+
+  /** The life of the transaction open, refused where none is open (CAP-315). */
+  _reading(): _Life {
+    if (this._life === null) throw new ValueError("a store is read only within a transaction (store.transaction)");
+    return this._life;
   }
 
   /** The name of the schema of what `link` links: the reference object schema the link declares, else the one object
@@ -583,7 +727,9 @@ export function store_of(value: unknown): OfStore {
 
 /** The object a value object belongs to, or null for a reference object or a value object not yet placed. */
 export function owner_of(value: unknown): unknown {
-  return isRecordData(value) ? innerOf(value)._owner : null;
+  if (!isRecordData(value)) return null;
+  check(LIVES.get(value as object));
+  return _wrap(innerOf(value)._owner, LIVES.get(value as object) ?? null);
 }
 
 function sameStore(store: OfStore | null, value: unknown): void {
@@ -747,7 +893,8 @@ class _Entry extends Shelled {
 }
 
 function makeEntry(relation: RelationSchema, links: Map<string, any>, properties: Values): any {
-  return shell(new _Entry(relation, new Map(links), new Map(properties)));
+  return shell(new _Entry(relation, new Map([...links].map(([name, target]) => [name, _durable(target)])),
+    new Map(properties)));
 }
 
 function byName(a: readonly [string, unknown], b: readonly [string, unknown]): number {
@@ -926,6 +1073,7 @@ function checkUnique(entry: _Entry, store: unknown): void {
 }
 
 function linking(relation: RelationSchema, link: string, target: unknown, store: unknown = null): any[] {
+  target = _durable(target);
   return [...table(target, relation, store).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
 }
 
@@ -1014,7 +1162,7 @@ export function _derefFirst<R, A extends unknown[]>(fn: (schema: any, ...rest: A
 
 /** Hands `visitor` to a function Spec, which reads or writes through it; its return value is the visitor's own. */
 function visit(spec: unknown, visitor: unknown): void {
-  (spec as (visitor: unknown) => unknown)(visitor);
+  (spec as (visitor: unknown) => unknown)(_wrap(visitor, CURRENT)); // a visitor of the transaction the caller's is
 }
 
 /** A Spec given for a value object or an intersection value writes that value, present even where the Spec writes
@@ -1303,8 +1451,18 @@ class _Any {
     } else if ((isRecordData(held) || isRecordBuilder(held)) && _refines(innerOf(held)._schema, _schema)) {
       this._type = innerOf(held)._schema; // a refinement's value, held where its refined schema is declared
     }
+    const life = CURRENT; // it lives by the life of the visitor that made it (CAP-315)
     return new Proxy(this, { // a member of the value's kind, where its schema has one (`_kindMember`)
-      get: (target, prop, receiver) => prop in target ? Reflect.get(target, prop, receiver) : target._kindMember(prop),
+      get: (target, prop, receiver) => {
+        check(life);
+        if (!(prop in target)) return within(life, () => _wrap(target._kindMember(prop), life));
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value !== "function" || (typeof prop === "string" && prop.startsWith("_"))) return value;
+        return (...args: unknown[]) => {
+          check(life);
+          return within(life, () => _wrap(value.apply(receiver, args), life));
+        };
+      },
     });
   }
 
@@ -1471,11 +1629,12 @@ class _Any {
       }
       return;
     }
+    value = _durable(value);
     if (!(innerOf(value) instanceof _Containing) || innerOf(value)._schema !== this._type) {
       throw new TypeError(`${this._label} takes a container of its schema or a Spec, got ${typeName(value)}`);
     }
     this._touch();
-    this._values.set(this._name, value);
+    this._values.set(this._name, givenValue(value));
   }
 
   _hand(cb: unknown, empty: unknown): this {
@@ -1527,13 +1686,14 @@ class _Any {
    * object may be of a refinement of the schema declared (`_refines`). */
   _replace(value: unknown): void {
     if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
+    value = _durable(value);
     const declared = this._any !== null ? this._type : this._schema;
     if (!(isRecordData(value) || isRecordBuilder(value)) || !_refines(innerOf(value)._schema, declared)) {
       throw new TypeError(`${this._label} takes ${withArticle(noun(this._type))} or a Spec, got ${typeName(value)}`);
     }
     this._touch();
     this._type = innerOf(value)._schema;
-    this._values.set(this._name, value);
+    this._values.set(this._name, givenValue(value));
   }
 
   /** Writes a `Specs.Callback`'s value form: a scalar, a value object, union value or intersection value (a flat
@@ -1541,6 +1701,7 @@ class _Any {
   write(value: unknown): void {
     write(this._writable, `${this._label} is read-only; write through a builder`);
     if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
+    value = _durable(value);
     if (this._any !== null && (isRecordData(value) || isRecordBuilder(value) || isContaining(value))) {
       this._ofAny(innerOf(value)._schema.constructor, value);
     }
@@ -1656,7 +1817,7 @@ abstract class _Containing extends Shelled {
   _element(key: string, index: unknown): _Any {
     const at = Array.isArray(index) ? index.map((i) => repr(i)).join(", ") : repr(index);
     return new _Any(this._items, key, this._schema.element, this._store, this._writable, `${this._label}[${at}]`,
-      () => this._indices.set(key, index));
+      () => this._indices.set(key, copyHeld(_durable(index)))); // a value object given as an index: its own copy
   }
 
   /** The number of positions: in a dense container of int indices, every index from 0 to the last (and every cell of
@@ -1704,14 +1865,14 @@ abstract class _Containing extends Shelled {
   /** The elements by index, for a container arranged as a dict; `cb` is not called otherwise. */
   as_dict(cb: unknown): any {
     if (this._schema.arrangement === "dict") {
-      visit(cb, new Map(this._keys().map((key) => [this._indices.get(key), this._element(key, this._indices.get(key))])));
+      visit(cb, new Map(this._keys().map((key) => [_wrap(this._indices.get(key), CURRENT), this._element(key, this._indices.get(key))])));
     }
     return this._proxy;
   }
 
   /** Each element present with its index, in order, for every container. */
   as_entries(cb: unknown): any {
-    visit(cb, this._keys().map((key) => [this._indices.get(key), this._element(key, this._indices.get(key))])[Symbol.iterator]());
+    visit(cb, this._keys().map((key) => [_wrap(this._indices.get(key), CURRENT), this._element(key, this._indices.get(key))])[Symbol.iterator]());
     return this._proxy;
   }
 
@@ -1758,7 +1919,7 @@ abstract class _Containing extends Shelled {
     this._touch();
     if (isFunction(spec)) {
       visit(spec, this._proxy);
-    } else if (innerOf(spec) instanceof _Containing && innerOf(spec)._schema === this._schema) {
+    } else if (innerOf(spec = _durable(spec)) instanceof _Containing && innerOf(spec)._schema === this._schema) {
       const given: _Containing = innerOf(spec);
       this._items.clear();
       for (const [key, value] of given._items) this._items.set(key, value);
@@ -1835,6 +1996,13 @@ function isValueSchema(schema: unknown): schema is RecordSchema | Schemas.OfCont
 
 /** A builder of a standalone value of a value object, union, intersection or container schema, starting from `source`
  * if given: its `create()` gives a value, held by nothing until assigned. */
+/** A value object or a container's value given to be held: one held by nothing, which is data the program keeps, copied,
+ * so that it stays data and the store holds its own durable copy (CAP-315); one held, as it is, copied when placed
+ * (`stage`). */
+function givenValue(value: unknown): unknown {
+  return (isRecordData(value) || isContainerData(value)) && storeOf(value) === null ? copyHeld(value) : value;
+}
+
 function standalone(schema: RecordSchema | Schemas.OfContainer.Data, source: unknown, store: OfStore): any {
   if (schema instanceof Schemas.OfContainer.Data) {
     return makeContainerBuilder(schema, source, store, () => undefined, `a ${repr(schema.name)}`);
@@ -1844,7 +2012,7 @@ function standalone(schema: RecordSchema | Schemas.OfContainer.Data, source: unk
 
 function makeContainerBuilder(schema: Schemas.OfContainer.Data, source: unknown, store: OfStore | null,
   attach: (builder: unknown) => void, label: string, parent: unknown = null): any {
-  const state = new _ContainerBuilder(schema, source, store, attach, label, parent);
+  const state = new _ContainerBuilder(schema, _durable(source), store, attach, label, parent);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -1866,7 +2034,20 @@ function isContainerBuilder(value: unknown): boolean {
 class _Iterator {
   _at = -1;
 
-  constructor(readonly _container: _Containing) {}
+  constructor(readonly _container: _Containing) {
+    const life = CURRENT; // it lives by the life of the visitor that made it (CAP-315)
+    return new Proxy(this, {
+      get: (target, prop, receiver) => {
+        check(life);
+        const value = Reflect.get(target, prop, receiver);
+        if (typeof value !== "function" || (typeof prop === "string" && prop.startsWith("_"))) return value;
+        return (...args: unknown[]) => {
+          check(life);
+          return within(life, () => value.apply(receiver, args));
+        };
+      },
+    });
+  }
 
   first(): this {
     this._at = 0;
@@ -2376,7 +2557,7 @@ class _Adjacency extends Array<any> implements Shellable {
 
 function makeAdjacency(entries: readonly unknown[], schema: AdjacencySchema, owner: unknown): any {
   const state = new _Adjacency();
-  state.push(...entries);
+  state.push(...entries.map((entry) => _wrap(entry, CURRENT))); // visitors of the transaction its owner's is
   state._schema = schema;
   state._owner = owner;
   const proxy = shell(state, (spec) => state._call(spec), true);
@@ -2531,6 +2712,16 @@ function copy(record: unknown): unknown {
 }
 
 /** A copy of a held value: of a value object, or of a container and the value objects it holds. */
+/** A copy of a held value, data held by nothing (Transactions: what a frame given back assigns). */
+export function _copied(value: unknown): unknown {
+  return copyHeld(value);
+}
+
+/** The state behind a shell. */
+export function _stateOf(value: unknown): any {
+  return innerOf(value);
+}
+
 function copyHeld(value: unknown): unknown {
   if (isRecordData(value)) return copy(value);
   if (isContainerData(value)) {
@@ -2685,6 +2876,7 @@ class _RecordBuilder extends Shelled {
       this._touch();
       visit(spec, this._proxy);
     } else {
+      spec = _durable(spec);
       if (!isRecordData(spec) || !_refines(innerOf(spec)._schema, this._declared)) {
         throw new TypeError(`${withArticle(noun(this._schema))} or a Spec is expected, got ${typeName(spec)}`);
       }
@@ -2712,7 +2904,7 @@ class _RecordBuilder extends Shelled {
 
 function makeRecordBuilder(schema: RecordSchema, source: unknown = null, store: OfStore | null = null,
   attach: ((builder: unknown) => void) | null = null, parent: unknown = null, declared: RecordSchema | null = null): any {
-  const state = new _RecordBuilder(schema, source, store, attach, parent, declared);
+  const state = new _RecordBuilder(schema, _durable(source), store, attach, parent, declared);
   return shell(state, (spec) => state._call(spec));
 }
 
@@ -3082,7 +3274,7 @@ class _LinkMember extends Shelled {
       entry._links.set(name, builder);
       return entry._proxy;
     }
-    spec = _deref(spec);
+    spec = _durable(_deref(spec));
     if (spec instanceof _Unresolved) { // one of the store below's not present, which loading it links (CAP-284)
       entry._links.set(name, spec);
       return entry._proxy;
@@ -3269,14 +3461,14 @@ class _ObjectBuilder extends Shelled {
     noArguments("create", args);
     if (this._source !== null) throw new ValueError("create() is only valid without a source instance; use clone() or update()");
     this._notSingleton("create");
-    return this._store._writing(() => this._noted(this._write(this._new()), true));
+    return this._given(this._store._writing(() => this._noted(this._write(this._new()), true)));
   }
 
   clone(...args: unknown[]): Instance {
     noArguments("clone", args);
     if (this._source === null) throw new ValueError("clone() is only valid with a source instance");
     this._notSingleton("clone");
-    return this._store._writing(() => this._noted(this._write(this._new()), true));
+    return this._given(this._store._writing(() => this._noted(this._write(this._new()), true)));
   }
 
   /** A new object of the builder's schema; one whose schema declares an owner is given it when the outermost write
@@ -3298,8 +3490,14 @@ class _ObjectBuilder extends Shelled {
       }
       const written = this._write(this._source!, rewritten);
       reorder(tables, rewritten);
-      return this._noted(written, false);
+      return this._given(this._noted(written, false));
     });
+  }
+
+  /** What a builder gives back: a visitor of the transaction open, the durable object made with none open, as an
+   * expression's (CAP-315). */
+  _given(made: Instance): Instance {
+    return _wrap(made, this._store._life);
   }
 
   /** An object it created or wrote, noted in the proposals of the transaction open, if any (Provenance). */
@@ -3353,6 +3551,7 @@ function noArguments(method: string, args: unknown[]): void {
 }
 
 function makeObjectBuilder(store: OfStore, schema: ObjectSchema, schemaName: string, instance?: unknown): DynamicBuilder {
+  instance = _durable(instance);
   if (!schema.ref) {
     throw new TypeError(`${repr(schemaName)} is a value object schema; build a value through its owner, or standalone `
       + "through the store");
@@ -3414,7 +3613,7 @@ export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as
   makeProperties as _makeProperties, innerOf as _innerOf, storeOf as _store_of, linking as _linking,
   addEntry as _add_entry, sameStore as _same_store, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single, noteMissed as _note_missed, missed as _missed,
   built as _built, ownerEntries as _owner_entries, ownedLinks as _owned_links, ownerAdjacencies as _owner_adjacencies,
-  keyNames as _key_names, makeObjectData as _makeObjectData, linkKey as _link_key, table as _table };
+  keyNames as _key_names, makeObjectData as _makeObjectData, linkKey as _link_key, table as _table, read as _read };
 
 /** Internal classes, exposed for protocol conformance tests. */
 export const _internals = { makeRecordBuilder, _ObjectData, _RecordData, _Entry, _Empty, _Scalar, _Any, _Property, _Properties, _Adjacency,

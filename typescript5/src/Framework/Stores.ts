@@ -291,7 +291,8 @@ export class Combined implements Visitors.OfStore {
 
 /** A store's singletons, by global name: a catalog's or a combined store's, or none. */
 function roots(store: Visitors.OfStore): ReadonlyMap<string, Readers.OfObject> {
-  return (store as { _singletons?: ReadonlyMap<string, Readers.OfObject> })._singletons ?? new Map();
+  const held = (store as { _singletons?: ReadonlyMap<string, Readers.OfObject> })._singletons ?? new Map();
+  return new Map([...held.keys()].map((name) => [name, store.singleton(name)])); // as the store gives them (CAP-315)
 }
 
 export { roots as _roots };

@@ -446,6 +446,7 @@ class Document {
   }
 
   run(schema: Schemas.OfObject.Data, root: Readers.OfObject, reachable: boolean, uid: string | undefined): PlainMap {
+    root = Proxies._durable(root); // what it links is read as the store holds it
     if (root.as_schema() !== schema) {
       throw new TypeError(`value is a ${repr(root.as_schema().name)}, not an instance of the given schema`);
     }
@@ -1702,7 +1703,8 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
     }
   };
   /** Reads a document, executing its transaction, and gives its root (`readDocument`). */
-  const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown => readDocument(store, schema, plain);
+  const OfObject = (schema: Schemas.OfObject.Data, plain: unknown): unknown =>
+    Proxies._given_out(store, readDocument(store, schema, plain));
   const Value = (schema: unknown, plain: unknown): unknown => {
     let decoded = decode(schema as Schemas.OfAny.Data, plain, [], store);
     if (decoded instanceof DecodedRecord || decoded instanceof DecodedElements) {
@@ -1725,7 +1727,8 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
   };
   const named = Proxies._derefFirst; // a path names its schema
   return Object.assign(named(call), { OfScalar: named(OfScalar), OfObject: named(OfObject), Reachable: named(OfObject),
-    Value: named(Value), Snapshot: (snapshot: unknown, ignored?: Ignored[]): unknown[] => readSnapshot(store, snapshot, ignored ?? null),
+    Value: named(Value), Snapshot: (snapshot: unknown, ignored?: Ignored[]): unknown[] =>
+      readSnapshot(store, snapshot, ignored ?? null).map((read) => Proxies._given_out(store, read)),
     Transaction: (plain: unknown): unknown => {
       const schema = store.registered("Mutations.OfTransaction");
       return (store as any).Mutations.OfTransaction((t: any) => built(store, t, schema, plain, []));

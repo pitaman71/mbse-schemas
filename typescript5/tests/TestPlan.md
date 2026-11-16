@@ -74,8 +74,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `34_Provenance.ipynb` | PRV | 11 | as in Python; a frame is a `Map`, and an unset property reads as `null` or `undefined` where Python reads None |
 | `35_Changes.ipynb` | CHG | 9 | as in Python; an effect's plain form is read by `JSON.loads`, as a `Map` |
 | `36_Below.ipynb` | BLW | 21 | as in Python; a store given a store below is `new B.Store(below)`, a path given it is a `Map` (read by `JSON.loads`), the objects loaded are a `Set`, counted by `size`, and the store given none has `_below` `null`; BLW-08, BLW-10, BLW-11 and BLW-12 read an entry's link as it holds it through `Proxies._innerOf`, and name its class with `Repr.typeName`; a transaction refused (BLW-09, BLW-15) is checked with `raises` around `store.transaction(() => ...)`; BLW-18 checks a store below with `Stores.isBelow(x)` where Python has `isinstance(x, Stores.Below)` |
+| `37_Lifetimes.ipynb` | LIF | 6 | as in Python; the imperative transaction is `store.transaction(() => { ... })`, a frame's `assigns` a `Map` of `Map`s, a transaction's visitor a second shell over the durable object's state (docs/EQUIVALENCE.md) |
 
-Total: 314 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 320 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

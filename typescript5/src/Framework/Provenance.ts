@@ -166,7 +166,7 @@ function other(relation: any): string {
  * holds none. */
 function held(store: any, relation: string, directory: string, key: string, value: string): any {
   const schema = store.registered(relation);
-  const found = Proxies._linking(schema, "directory", store.singleton(directory), store)
+  const found = Proxies._linking(schema, "directory", store._singleton_of(directory), store)
     .find((entry: any) => Proxies._innerOf(entry)._properties.get(key) === value);
   return found === undefined ? null : (found as any)[other(schema)];
 }
@@ -179,7 +179,7 @@ function link(store: any, relation: string, links: [string, unknown][], properti
 
 /** Gives an object its entry in a directory singleton, keyed by `value`. */
 function place(store: any, made: unknown, relation: string, directory: string, key: string, value: string): any {
-  link(store, relation, [["directory", store.singleton(directory)], [other(store.registered(relation)), made]],
+  link(store, relation, [["directory", store._singleton_of(directory)], [other(store.registered(relation)), made]],
     [[key, value]]);
   return made;
 }

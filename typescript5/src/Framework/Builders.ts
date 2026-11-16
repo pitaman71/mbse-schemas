@@ -2219,7 +2219,7 @@ export class Store extends Proxies.OfStore {
     if (Proxies._isFunction(spec) && spec.length === 0) return this._transacting(spec as () => unknown); // its scope (98)
     const transaction = Proxies._isFunction(spec) // a callback building one, given the store's schemas by name besides (78)
       ? this.Mutations.OfTransaction((t: any) => (spec as (txn: unknown) => unknown)(makeTransaction(this, t))) : spec;
-    return Transactions._execute(this, transaction);
+    return Transactions._execute(this, Proxies._durable(transaction), false, true);
   }
 
   /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
@@ -2426,7 +2426,7 @@ export class Store extends Proxies.OfStore {
     this._proposals = null;
     this._loading += 1;
     try {
-      store.transaction(PlainModule.FromPlain(store).Transaction(document));
+      Transactions._execute(store, PlainModule.FromPlain(store).Transaction(document)); // its frames given back to none
     } finally {
       this._loading -= 1;
       this._proposals = proposals;
@@ -2524,7 +2524,7 @@ export class Store extends Proxies.OfStore {
     const given: unknown[] = [];
     this._giving_back = given;
     try {
-      this._self.transaction(transaction);
+      Transactions._execute(this._self, transaction); // what it gives back is plain data: no frames given back
     } finally {
       this._giving_back = null;
     }
@@ -2534,7 +2534,7 @@ export class Store extends Proxies.OfStore {
   /** Runs an install given as plain data, a transaction that writes schemas, finding what the store holds already;
    * refused as the store refuses it (`Stores.Below`, CAP-306). */
   install(plain: unknown): void {
-    this._self.transaction(PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData));
+    Transactions._execute(this._self, PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData));
   }
 
   /** Sends a transaction that writes schemas, as plain data, to the store below, within the transaction, before it
@@ -2759,7 +2759,7 @@ function makeInstances(store: Store, name: string): any {
       if (typeof part === "symbol" || Proxies._probes.has(part)) return undefined;
       if (part.startsWith("_")) throw new AttributeError(part);
       const dotted = name === "" ? part : `${name}.${part}`;
-      return store._singletons.has(dotted) ? store._singletons.get(dotted) : makeInstances(store, dotted);
+      return store._singletons.has(dotted) ? store.singleton(dotted) : makeInstances(store, dotted);
     },
   });
 }

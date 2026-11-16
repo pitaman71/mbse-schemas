@@ -2334,7 +2334,7 @@ export class Store extends Proxies.OfStore {
   _present(path: unknown): unknown {
     const [singleton, steps] = PlainModule._steps(path, []);
     if (steps.length === 0) return this._singletons.get(singleton); // undefined where it holds none
-    const key = Json.dumps(path as PlainModule.PlainData);
+    const key = Proxies._identity(path);
     const loaded = this._identities.get(key);
     if (loaded !== undefined) {
       if (this._loading > 0 || !Proxies._deleted(loaded)) return loaded; // loading, its owner's entry may be yet to come; it deletes nothing
@@ -2365,8 +2365,8 @@ export class Store extends Proxies.OfStore {
   _found(path: unknown): unknown {
     const found = this._present(path);
     if (found != null) return found;
-    if (this._loading > 0 || this._applying > 0) return new Proxies._Unresolved(this._self, path, Json.dumps(path as PlainModule.PlainData));
-    if (this._identities.has(Json.dumps(path as PlainModule.PlainData))) return null; // deleted within the transaction open: the store below's is not it
+    if (this._loading > 0 || this._applying > 0) return new Proxies._Unresolved(this._self, path);
+    if (this._identities.has(Proxies._identity(path))) return null; // deleted within the transaction open: the store below's is not it
     return this._fetched(path);
   }
 
@@ -2387,7 +2387,7 @@ export class Store extends Proxies.OfStore {
     const [pattern] = plain.get("mutations")[0].get("upsert").get("exists");
     const [[, bound]] = [...pattern.get("symbols")];
     const schema = PlainModule._by_path(this._self, bound.get("schema")[0].get("$ref"), []) as ObjectData;
-    const key = Json.dumps(path as PlainModule.PlainData);
+    const key = Proxies._identity(path);
     const made = Proxies._makeObjectData(this._self as Proxies.OfStore, schema, schema.name as string, path);
     this._identities.set(key, made);
     const waiting = [...new Set(this._waiting.get(key) ?? [])].map((entry) => [entry, innerOf(entry)._key()] as [unknown, string]);

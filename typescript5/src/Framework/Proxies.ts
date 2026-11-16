@@ -41,6 +41,8 @@
 
 import { toHex } from "./Bytes.js";
 import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from "./Errors.js";
+import * as Json from "./JSON.js";
+import type { PlainData } from "./Plain.js";
 import { compareStrings, REPR, repr, sortedStrings, Tuple, TYPE_NAME, typeName } from "./Repr.js";
 import * as Proposals from "./Proposals.js";
 import * as Schemas from "./Schemas.js";
@@ -633,7 +635,23 @@ let nextIdentity = 0;
  * when the store loads it from the store below (CAP-284). An entry is held only by the objects it links that are
  * present; one present links it again once it is loaded. */
 export class _Unresolved {
-  constructor(readonly store: any, readonly path: unknown, readonly key: string) {}
+  readonly key: string;
+  constructor(readonly store: any, readonly path: unknown) {
+    this.key = _identity(path);
+  }
+}
+
+/** An object's identity by its path, in one canonical form: the path's JSON, each mapping's keys in sorted order, so
+ * that two equal paths have one identity whatever the order of their keys ([CAP-311: references
+ * stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)). */
+export function _identity(path: unknown): string {
+  return Json.dumps(sortedKeys(path as PlainData));
+}
+
+/** `value`, a path's plain data, with each mapping's keys in sorted order; a path holds no lists. */
+function sortedKeys(value: PlainData): PlainData {
+  if (value instanceof Map) return new Map(sortedStrings([...value.keys()]).map((key) => [key, sortedKeys(value.get(key)!)]));
+  return value;
 }
 
 /** What a link contributes to its entry's key: the object linked, or the path of one not present. */

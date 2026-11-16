@@ -302,13 +302,11 @@ def _apply_directly(store: Any, direct: list[Any]) -> None:
     """Writes, within the transaction open on `store`, each entry `_present_only` gave to apply directly, in the tables
     of the objects present it links, each other linked by its path: inserted, unless one equal to it is held; removed,
     each held equal to it."""
-    from . import JSON
-
     for relation, verb, paths, keys in direct:
         links = {}
         for link, path in paths.items():
             found = store._present(path)
-            links[link] = found if found is not None else Proxies._Unresolved(store, path, JSON.dumps(path))
+            links[link] = found if found is not None else Proxies._Unresolved(store, path)
         properties = {name: Plain.FromPlain(store)(relation.entry.properties[name].schema, value)
                       for name, value in keys.items()}
         entry = Proxies._Entry(relation, links, properties)

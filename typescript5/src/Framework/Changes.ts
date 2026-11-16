@@ -348,7 +348,7 @@ export function _apply_directly(store: any, direct: _Direct[]): void {
     const links = new Map<string, unknown>();
     for (const [link, path] of paths) {
       const found = store._present(path);
-      links.set(link, found ?? new Proxies._Unresolved(store, path, Json.dumps(path)));
+      links.set(link, found ?? new Proxies._Unresolved(store, path));
     }
     const properties = new Map([...keys].map(([name, value]) =>
       [name, Plain.FromPlain(store)(relation.entry.properties.get(name).schema, value)] as [string, unknown]));

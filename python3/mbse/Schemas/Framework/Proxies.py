@@ -142,12 +142,12 @@ class OfStore(Stores.Catalog):
         """The object at `path` the store holds, made in it or loaded from the store below, without loading anything:
         a singleton, one loaded by its path, or one through its owner's entries, keys compared first; else None. One
         loaded and since deleted is none: deleted as committed, its path is forgotten, free to name another."""
-        from . import JSON, Plain
+        from . import Plain
 
         singleton, steps = Plain._steps(path, ())
         if not steps:
             return self._singletons.get(singleton)
-        key = JSON.dumps(path)
+        key = _identity(path)
         loaded = self._identities.get(key)
         if loaded is not None:
             if self._loading or not _deleted(loaded):  # loading, its owner's entry may be yet to come; it deletes nothing
@@ -173,14 +173,12 @@ class OfStore(Stores.Catalog):
         """The object at `path`: one the store holds; else, while loading, or applying a transaction of the store
         below's, the store below's, held by its path until it is read (`_Unresolved`); else the store below's, loaded;
         None where neither holds one (CAP-284, CAP-285)."""
-        from . import JSON
-
         found = self._present(path)
         if found is not None:
             return found
         if self._loading or self._applying:
-            return _Unresolved(self, path, JSON.dumps(path))
-        if JSON.dumps(path) in self._identities:  # deleted within the transaction open: the store below's is not it
+            return _Unresolved(self, path)
+        if _identity(path) in self._identities:  # deleted within the transaction open: the store below's is not it
             return None
         return self._fetched(path)
 
@@ -196,7 +194,7 @@ class OfStore(Stores.Catalog):
         """The store below's object at `path`, loaded: made from the document the store below gives of it, each entry
         that waits on its path linking it, then its document applied as committed; then each transaction open on the
         store, or savepoint, holding those entries as it holds them; None where the store below holds none."""
-        from . import JSON, Plain
+        from . import Plain
 
         plain = self._below.document(path)
         if plain is None:
@@ -204,7 +202,7 @@ class OfStore(Stores.Catalog):
         (pattern,) = plain["mutations"][0]["upsert"]["exists"]
         ((_, bound),) = pattern["symbols"].items()
         schema = Plain._by_path(self, bound["schema"][0]["$ref"], ())
-        key = JSON.dumps(path)
+        key = _identity(path)
         made = self._identities[key] = _ObjectData(self, schema, schema.name, path)
         waiting = [(entry, entry._key()) for entry in {id(e): e for e in self._waiting.pop(key, [])}.values()]
         for entry, _ in waiting:
@@ -602,8 +600,24 @@ class _Unresolved:
 
     __slots__ = ("store", "path", "key")
 
-    def __init__(self, store: Any, path: Any, key: str) -> None:
-        self.store, self.path, self.key = store, path, key
+    def __init__(self, store: Any, path: Any) -> None:
+        self.store, self.path, self.key = store, path, _identity(path)
+
+
+def _identity(path: Any) -> str:
+    """An object's identity by its path, in one canonical form: the path's JSON, each mapping's keys in sorted order, so
+    that two equal paths have one identity whatever the order of their keys ([CAP-311: references
+    stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311))."""
+    from . import JSON
+
+    return JSON.dumps(_sorted_keys(path))
+
+
+def _sorted_keys(value: Any) -> Any:
+    """`value`, a path's plain data, with each mapping's keys in sorted order; a path holds no lists."""
+    if isinstance(value, dict):
+        return {key: _sorted_keys(value[key]) for key in sorted(value)}
+    return value
 
 
 def _link_key(target: Any) -> Hashable:

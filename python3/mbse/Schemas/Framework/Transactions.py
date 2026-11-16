@@ -1269,34 +1269,36 @@ def _partial(store: Any, term: Any, at: tuple[str | int, ...], frame: Frame, see
 
 def _bindings(witness: Any) -> str:
     """What tells a frame's bindings apart, across layers: its symbols' references, as plain."""
-    return JSON.dumps({name: witness["binds"][name] for name in sorted(witness.get("binds", {}))})
+    return JSON.dumps({name: witness["binds"][name] for name in sorted(witness["binds"])})
 
 
 def _resolved(store: Any, witness: Any) -> Frame:
     """A frame of the layer below's, given as plain, as the cache gives it: each symbol bound to the object its
     reference designates, where the cache holds it, and its errors."""
-    bound = {name: References._resolve_object(store, given) for name, given in witness.get("binds", {}).items()}
+    bound = {name: References._resolve_object(store, given) for name, given in witness["binds"].items()}
     return Frame({name: target for name, target in bound.items() if target is not None},
                  [FrameError(error["subterm"], error["kind"], error["message"]) for error in witness.get("errors", [])])
 
 
 def _held(store: Any, witness: Any) -> None:
     """What a frame of the layer below's, given as plain, binds and witnesses, taken by the cache: each object it binds,
-    made where the cache holds none (`_taken`), and each value it witnesses, written where the cache holds another, a
-    property it leaves out cleared."""
-    for given in witness.get("binds", {}).values():
-        _taken(store, given["path"])
+    made where the cache holds none (`_taken`), and, where an object holds values other than those it witnesses, each
+    of its properties written as witnessed, one left out cleared."""
+    plain, schema = Plain.ToPlain(store), store.registered("References.OfFrame")
     values_of = store.registered("References.OfProperties").properties["properties"].schema.element
-    for assigned in witness.get("assigns", []):
+    for given in witness["binds"].values():
+        _taken(store, given["path"])
+    for assigned in witness["assigns"]:
         target = References._resolve_object(store, assigned["object"])
-        values = {name: Plain._decode(values_of, value, (), store)
-                  for name, value in assigned.get("properties", {}).items()}
-        schema = _reader(store, target).as_schema()
-        for name in schema.properties:
-            if store.member(target, name) != values.get(name):
-                builder = _writer(store, schema, target)
-                Plain._set(builder, name, values.get(name))
-                builder.update()
+        if plain(schema, References.witnessed(store, {"": target}))["assigns"][0] != assigned:
+            declared = _reader(store, target).as_schema()
+            values = {name: None for name in declared.properties}
+            values.update({name: Plain._decode(values_of, value, (), store)
+                           for name, value in assigned["properties"].items()})
+            builder = _writer(store, declared, target)
+            for name, value in values.items():
+                Plain._set(builder, name, value)
+            builder.update()
 
 
 def _taken(store: Any, path: Any) -> Any:

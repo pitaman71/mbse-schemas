@@ -160,26 +160,31 @@ with store.transaction():  # the data: written within one transaction
     bookers = {str(e['booker'].name): e['booker'].as_schema().name for e in entries(Room, restored, 'bookings')}
     assert bookers == {'Grace': 'Staff', 'Mia': 'Student'}
 
-# --- Reachability and round trips across the three-link relation ---
+    # --- Reachability and round trips across the three-link relation ---
 
-component = Reachable.of(fall)
-assert component[0] is fall
-assert {o.as_schema().name for o in component} == {'Term', 'Student', 'Course', 'Room', 'Staff'}
+    # Every read is within a transaction, and these objects are counted: nothing names them after this one ends, so
+    # they are reached and sent within it.
 
-archive = Builders.Store()  # another store: a document read into it builds new objects of the same graph
-Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
-for root, schema, its in [(fall, Term, archive.Term), (mia, Student, archive.Student), (noah, Student, archive.Student)]:
-    graph = Plain.ToPlain(store).Reachable(schema, root)
-    restored = Plain.FromPlain(archive).Reachable(its, graph)
-    assert restored is not root
-    assert Plain.ToPlain(archive).Reachable(its, restored) == graph
+    component = Reachable.of(fall)
+    assert component[0] is fall
+    assert {o.as_schema().name for o in component} == {'Term', 'Student', 'Course', 'Room', 'Staff'}
 
-# Apart from Noah's duplicate enrollments, the whole component is valid.
-problems = validate.Reachable(Term, fall)
-assert len(problems) == 1 and problems[0].startswith('unique('), problems
+    archive = Builders.Store()  # another store: a document read into it builds new objects of the same graph
+    # The same schemas, its own: a store's snapshot writes them.
+    Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())
+    with archive.transaction():  # what a document builds is read within a transaction of its store
+        for root, schema, its in [(fall, Term, archive.Term), (mia, Student, archive.Student), (noah, Student, archive.Student)]:
+            graph = Plain.ToPlain(store).Reachable(schema, root)
+            restored = Plain.FromPlain(archive).Reachable(its, graph)
+            assert restored is not root
+            assert Plain.ToPlain(archive).Reachable(its, restored) == graph
 
-# -0.0 keeps its sign through a round trip.
-scores = [e.get('score') for e in entries(Student, noah, 'enrollments')]
-assert any(s == 0.0 and math.copysign(1, s) < 0 for s in scores)
+    # Apart from Noah's duplicate enrollments, the whole component is valid.
+    problems = validate.Reachable(Term, fall)
+    assert len(problems) == 1 and problems[0].startswith('unique('), problems
+
+    # -0.0 keeps its sign through a round trip.
+    scores = [e.get('score') for e in entries(Student, noah, 'enrollments')]
+    assert any(s == 0.0 and math.copysign(1, s) < 0 for s in scores)
 
 print('University: all checks passed')

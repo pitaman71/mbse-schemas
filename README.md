@@ -53,15 +53,16 @@ def install(txn):
 
 store = Builders.Store()  # schemas and the objects built with them belong to a store
 store.transaction(install)  # a store is written within transactions, all or nothing
-with store.transaction():
+with store.transaction():  # and read within one: an object read lives only within the transaction that made it
     alice = store.Contact(lambda c: c.name('Alice').addresses(lambda a: a.insert(
         lambda e: e.address(lambda x: x.street('10 Downing Street')).label('home'))))
+    text = JSON.ToJSON(store).Reachable(store.Contact, alice)  # a document: the whole graph, one transaction, each object once
 
-text = JSON.ToJSON(store).Reachable(store.Contact, alice)  # a document: the whole graph, one transaction, each object once
 other = Builders.Store()  # another store, the same schemas installed in it, its own
 other.transaction(install)
-copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # read by executing it: the same graph, built anew in it
-assert JSON.ToJSON(other).Reachable(other.Contact, copy) == text and Validators.Validate(other).Reachable(other.Contact, copy) == []
+with other.transaction():
+    copy = JSON.FromJSON(other).Reachable(other.Contact, text)  # read by executing it: the same graph, built anew in it
+    assert JSON.ToJSON(other).Reachable(other.Contact, copy) == text and Validators.Validate(other).Reachable(other.Contact, copy) == []
 ```
 
 The document holds Alice and her address, each once, as one transaction: reading it finds or makes them and writes

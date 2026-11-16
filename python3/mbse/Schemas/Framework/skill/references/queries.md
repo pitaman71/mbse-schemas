@@ -38,7 +38,12 @@ binds keeps its object.
   - Python: [TXN-08: Reduce and partition](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-08) · TypeScript: [TXN-08: Reduce and partition](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-08)
 
 `store.transaction` gives back the frames its chain ends with, each a mapping from symbol to object: with no terms,
-one empty frame; where nothing matches, none. A transaction can be built first, with
+one empty frame; where nothing matches, none. A frame given back holds no object itself, since what reads one lives
+only within its transaction ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)): each symbol's
+object by its reference (a schema object as itself), and `assigns`, by symbol, the values the transaction left in the
+properties its specs name, as data. A symbol that binds a counted object is refused (`LookupError`), though the frame
+still lists it. To read more of an object, read the store within a transaction: from a singleton, or by giving its
+reference to a symbol. A transaction can be built first, with
 `store.Mutations.OfTransaction(...)`, then run, or written out as a journal's entry
 ([Saving, loading and exchanging data](serialization.md)).
 
@@ -52,11 +57,11 @@ A pattern's `symbols` maps each symbol name to one of these
   - Python: [T10.2: Map: symbols ranging over a schema's objects](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.2) · TypeScript: [T10.2: Map: symbols ranging over a schema's objects](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.2)
 - **A singleton's schema**: the symbol binds the singleton itself, with no spec needed.
   - Python: [T10.3: Following an adjacency](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.3) · TypeScript: [T10.3: Following an adjacency](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.3)
-- **A reference**, made by `References.of(store, x)` or read from a request: the symbol binds the one object the
-  reference designates, or none, and its spec writes that object's schema's members. Where the store holds nothing
-  there, a map gives no frame and an upsert creates nothing; the spec is still written, by the schema the reference's
-  path implies, so that a store holding only the schemas (a client's) writes it and the store holding the data runs
-  it. A path the schemas cannot follow is refused when the spec is written.
+- **A reference**, made by `References.of(store, x)`, held by a frame given back, or read from a request: the symbol
+  binds the one object the reference designates, or none, and its spec writes that object's schema's members. Where
+  the store holds nothing there, a map gives no frame and an upsert creates nothing; the spec is still written, by the
+  schema the reference's path implies, so that a store holding only the schemas (a client's) writes it and the store
+  holding the data runs it. A path the schemas cannot follow is refused when the spec is written.
   [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md).
   - Python: [T10.3: Following an adjacency](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.3) · TypeScript: [T10.3: Following an adjacency](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.3)
   - Python: [REF-09: A pattern's symbol given a reference in place of a schema](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-09) · TypeScript: [REF-09: A pattern's symbol given a reference in place of a schema](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-09)
@@ -101,11 +106,12 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   failed with the frames; resolved, the frame has them again.
   - Python: [REF-10: A frame annotated with errors](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-10) · TypeScript: [REF-10: A frame annotated with errors](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-10)
 - A frame can act as a *witness*, carrying the property values an object holds and the relation entries that make it
-  hold, each object given by its reference. The executor's frames carry neither; a service writes them
+  hold, each object given by its reference. The executor's frames carry the values their specs name, `assigns`,
+  which `References.of(store, frame)` writes; a service writes the rest
   ([CAP-131: frames witness values and entries](mbse:mbse-basis/docs/capabilities/CAP-131.md)).
   - Python: [REF-08: A frame as a witness](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-08) · TypeScript: [REF-08: A frame as a witness](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-08)
-- **A counted object has no reference**, an upsert's included, nor a frame or an entry that binds or links one. A map
-  finds only what the store reaches from its singletons. To designate an object, make it a singleton's or an owner's
+- **A counted object has no reference**, an upsert's included, nor a frame or an entry that binds or links one: a
+  frame given back refuses its symbol. A map finds only what the store reaches from its singletons. To designate an object, make it a singleton's or an owner's
   ([CAP-133: no durable references to counted objects](mbse:mbse-basis/docs/capabilities/CAP-133.md)).
   - Python: [REF-03: A counted object has no reference, nor a frame that binds one](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-03) · TypeScript: [REF-03: A counted object has no reference, nor a frame that binds one](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-03)
 

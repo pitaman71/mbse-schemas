@@ -8,7 +8,7 @@ reading one executes it, in the store given.
 
 1. **A document: an object, or a graph.** *Why*: one flat document holds shared and cyclic data without duplicates,
    and names each object's schema, so the reader never guesses. *When*: sending or saving an object and what it
-   reaches. *How*: `Plain.ToPlain(store)(schema, value)` writes an object's document, the root alone, refused where it
+   reaches. *How*: within a transaction, as every read of an object is, `Plain.ToPlain(store)(schema, value)` writes an object's document, the root alone, refused where it
    links a counted object; `.Reachable(schema, root)` writes the root and the counted objects reachable from it. A
    document is one transaction of one upsert: its objects are symbols numbered from the root, `"0"`, each naming its
    schema by its path; what it does not hold (a singleton, an owned object, a schema object) it refers to by path; each
@@ -19,7 +19,8 @@ reading one executes it, in the store given.
    - Python: [PLN-02: The exact document format](mbse:mbse-schemas/python3/tests/05_Plain.ipynb#PLN-02) · TypeScript: [PLN-02: The exact document format](mbse:mbse-schemas/typescript5/tests/05_Plain.ipynb#PLN-02)
 2. **Reading a document.** *Why*: loading is executing the transaction it holds, in the store you give, so the same
    rules apply as to any write. *How*: `Plain.FromPlain(store)(schema, data)` executes it and gives the root, within
-   an open transaction as a savepoint. It binds a singleton's symbol to the singleton and an owned object's to the
+   an open transaction as a savepoint; the root lives only within that transaction, so call it within one to read
+   what it decodes (with none open, it runs its own, and what it gives back is already refused). It binds a singleton's symbol to the singleton and an owned object's to the
    object its owning entry names, writing what the document holds and keeping what it omits; it makes counted objects
    anew, unless, under the same `uid`, it is read again while they are held. A document is how objects move between
    stores.

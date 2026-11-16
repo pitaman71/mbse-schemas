@@ -81,19 +81,26 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [T02.6: Entries form a set, because the relation says so](mbse:mbse-schemas/python3/tutorials/02_An_Address_Book.ipynb#T02.6) · TypeScript: [T02.6: Entries form a set, because the relation says so](mbse:mbse-schemas/typescript5/tutorials/02_An_Address_Book.ipynb#T02.6)
    - Python: [T05.2: Reading unique(S)](mbse:mbse-schemas/python3/tutorials/05_A_Price_List.ipynb#T05.2) · TypeScript: [T05.2: Reading unique(S)](mbse:mbse-schemas/typescript5/tutorials/05_A_Price_List.ipynb#T05.2)
    - Python: [EMB-13: An empty value object is present, never absent](mbse:mbse-schemas/python3/tests/14_Embedded.ipynb#EMB-13) · TypeScript: [EMB-13: An empty value object is present, never absent](mbse:mbse-schemas/typescript5/tests/14_Embedded.ipynb#EMB-13)
-5. **Read through visitors; change through builders, within a transaction.** *Why*: a change can touch several
-   objects at once, so it is assembled in one place and takes effect at one moment, all of it or none. *When*: every
-   write, to a schema or to data. *How*: an object is read-only; each member is its property's visitor, read with
+5. **Read through visitors; change through builders; both within a transaction.** *Why*: a change can touch several
+   objects at once, so it is assembled in one place and takes effect at one moment, all of it or none; and what a read
+   sees is the store as that transaction has it. *When*: every write, to a schema or to data, and every read of data.
+   *How*: an object is read-only; each member is its property's visitor, read with
    `get()`. One call builds: given a callback it creates, given an object and a callback it updates that object,
    given an object alone it clones it. Entries are inserted and removed through an adjacency's visitor (`insert`,
    `remove`, which removes every entry agreeing with a template, and `clear`), or given as a list of what they link
    (the peer shorthand). An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
    each entry's link or property, and `at(key)` the entry by the key its relation declares. Write within
-   `store.transaction`; a write outside one is refused, and one that raises writes nothing. A schema that existed
-   before a transaction changes when it ends, so write data of a schema you extend in the next one.
+   `store.transaction`; a write outside one is refused, and one that raises writes nothing. Read within one too: an
+   object, and every visitor read from it (a member, an adjacency, an entry, a value it holds), lives only within the
+   transaction that made it, and any use after it ends is refused, so a later transaction reads the store again,
+   finding an object from a singleton or by a reference kept. What you copy out (a `str`, plain data) is yours, stale
+   from then on. A value built on its own (a value schema's `create()`, a reference) is plain data, readable anywhere;
+   given to an object, it is copied. A schema that existed before a transaction changes when it ends, so write data of
+   a schema you extend in the next one; a schema object is not a visitor, and is read anywhere.
    [CAP-107: one visitor protocol reads and writes data](mbse:mbse-basis/docs/capabilities/CAP-107.md),
    [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md),
-   [CAP-125: imperative transaction scope](mbse:mbse-basis/docs/capabilities/CAP-125.md).
+   [CAP-125: imperative transaction scope](mbse:mbse-basis/docs/capabilities/CAP-125.md),
+   [CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md).
    - Python: [T01.3: Making contacts](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.3) · TypeScript: [T01.3: Making contacts](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.3)
    - Python: [T01.4: Instances are read-only](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.4) · TypeScript: [T01.4: Instances are read-only](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.4)
    - Python: [T01.5: Changing things: one call, three meanings](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.5) · TypeScript: [T01.5: Changing things: one call, three meanings](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.5)
@@ -131,10 +138,12 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    object is updated in place, shared between programs, or referred to. *How*: a singleton (`.singleton(...)`) is
    found by its global name; an owned object, linked to its owner by a keyed relation whose adjacency is marked
    `.owner(...)`, by its owner's path and its key, which a naming pattern on the key can give; everything else is
-   counted. `store.singleton(...)` gives a singleton, `store.Instances` finds one by its global name, and any
-   adjacency looks its entries up by their keys. Designate an object, a relation entry or a frame with a reference,
-   `References.of(store, x)`, a value written and read as any is, and find what it designates within a transaction,
-   as every read of a store's data is: a map whose symbol is given the reference binds it; a counted object has none.
+   counted. Within a transaction, `store.singleton(...)` gives a singleton, `store.Instances` finds one by its global
+   name, and any adjacency looks its entries up by their keys. Designate an object, a relation entry or a frame with a
+   reference, `References.of(store, x)`, a value written and read as any is, which outlives the transaction, and find
+   what it designates within a transaction, as every read of a store's data is: a map whose symbol is given the
+   reference binds it. A counted object has none: after the transaction that made it, a program reaches it only
+   through what links it.
    [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md),
    [CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md),
    [CAP-133: no durable references to counted objects](mbse:mbse-basis/docs/capabilities/CAP-133.md).
@@ -257,10 +266,11 @@ difference (mbse-schemas' [Equivalence of the implementations](mbse:mbse-schemas
   - Python: [T06.5: Loading errors: DecodeError](mbse:mbse-schemas/python3/tutorials/06_Saving_And_Loading.ipynb#T06.5) · TypeScript: [T06.5: Loading errors: DecodeError](mbse:mbse-schemas/typescript5/tutorials/06_Saving_And_Loading.ipynb#T06.5)
   - Python: [PRX-04: Finding F2 (pinned): names that collide with builder or instance members](mbse:mbse-schemas/python3/tests/03_Proxies.ipynb#PRX-04) · TypeScript: [PRX-04: Finding F2 (pinned): names that collide with builder or instance members](mbse:mbse-schemas/typescript5/tests/03_Proxies.ipynb#PRX-04)
 - **Traps of both.** A relation has two links or more, and a value object no adjacencies. Setting a value object into
-  a property or an entry copies it (`Proxies.owner_of(x)` gives the object it belongs to); edit one in place through
-  a callback. A schema builder's value properties take exactly their schema's values (a reference object schema is
-  marked with true, never `1`), and a reference to another schema object is a list of what it links, even where only
-  one is allowed.
+  a property or an entry copies it: one built on its own stays the program's, held by nothing, and what the object
+  holds is its own copy (`Proxies.owner_of(x)` gives the object it belongs to); edit one in place through a callback.
+  A schema builder's value properties take exactly their schema's values (a reference object schema is marked with
+  true, never `1`), and a reference to another schema object is a list of what it links, even where only one is
+  allowed.
   - Python: [SCH-13: OfRelation.validate covers link, property and uniqueness problems](mbse:mbse-schemas/python3/tests/01_Schemas.ipynb#SCH-13) · TypeScript: [SCH-13: OfRelation.validate covers link, property and uniqueness problems](mbse:mbse-schemas/typescript5/tests/01_Schemas.ipynb#SCH-13)
   - Python: [EMB-09: Value objects hold containers of their own](mbse:mbse-schemas/python3/tests/14_Embedded.ipynb#EMB-09) · TypeScript: [EMB-09: Value objects hold containers of their own](mbse:mbse-schemas/typescript5/tests/14_Embedded.ipynb#EMB-09)
   - Python: [BLD-06: Property shorthands](mbse:mbse-schemas/python3/tests/25_Builders.ipynb#BLD-06) · TypeScript: [BLD-06: Property shorthands](mbse:mbse-schemas/typescript5/tests/25_Builders.ipynb#BLD-06)

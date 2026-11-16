@@ -82,15 +82,15 @@ with store.transaction():
         .raw(b'\x00\xff' * 4)
         .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
     ))
-plain = Plain.ToPlain(store)(Reading, sample)
-assert JSON.loads(JSON.ToJSON(store)(Reading, sample)) == plain
-assert YAML.loads(YAML.ToYAML(store)(Reading, sample)) == plain
-assert JSON.loads(JSON.ToJSON(store)(Reading, sample, indent=2)) == plain  # formatting does not change content
+    plain = Plain.ToPlain(store)(Reading, sample)
+    assert JSON.loads(JSON.ToJSON(store)(Reading, sample)) == plain
+    assert YAML.loads(YAML.ToYAML(store)(Reading, sample)) == plain
+    assert JSON.loads(JSON.ToJSON(store)(Reading, sample, indent=2)) == plain  # formatting does not change content
 
-for back in (from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))):
-    assert (back.observed.get(), back.quality.get(), back.valid.get(), back.raw.get(), back.note.get()) == (
-        sample.observed.get(), sample.quality.get(), sample.valid.get(), sample.raw.get(), sample.note.get())
-    assert validate(Reading, back) == []
+    for back in (from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))):
+        assert (back.observed.get(), back.quality.get(), back.valid.get(), back.raw.get(), back.note.get()) == (
+            sample.observed.get(), sample.quality.get(), sample.valid.get(), sample.raw.get(), sample.note.get())
+        assert validate(Reading, back) == []
 
 # --- Strings that YAML readers like to misread ---
 
@@ -108,8 +108,8 @@ with store.transaction():
 # WMO identifiers keep their leading zeros in both encodings.
 with store.transaction():
     paris = store.Station(lambda s: s.wmo_id('07149').name('Paris-Orly'))
-assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id.get() == '07149'
-assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '07149'
+    assert from_json(Station, JSON.ToJSON(store)(Station, paris)).wmo_id.get() == '07149'
+    assert from_yaml(Station, YAML.ToYAML(store)(Station, paris)).wmo_id.get() == '07149'
 
 # --- Hand-written YAML follows the YAML 1.2 core schema ---
 
@@ -124,19 +124,20 @@ def written(*members):
                                                          for name, value in members))
 
 
-reading = from_yaml(Reading, written(
-    ('observed', '2026-09-28T12:00:00Z   # unquoted, but stays a string'),
-    ('quality', '010                     # ten, not eight'),
-    ('value', '.inf'),
-    ('valid', 'true'),
-    ('note', '1:30                       # a string, not ninety'),
-))
-assert (reading.observed.get(), reading.quality.get(), reading.value.get(), reading.valid.get(), reading.note.get()) == (
-    '2026-09-28T12:00:00Z', 10, math.inf, True, '1:30')
+with store.transaction():  # a decoder gives back objects of the transaction open: they are read within it
+    reading = from_yaml(Reading, written(
+        ('observed', '2026-09-28T12:00:00Z   # unquoted, but stays a string'),
+        ('quality', '010                     # ten, not eight'),
+        ('value', '.inf'),
+        ('valid', 'true'),
+        ('note', '1:30                       # a string, not ninety'),
+    ))
+    assert (reading.observed.get(), reading.quality.get(), reading.value.get(), reading.valid.get(), reading.note.get()) == (
+        '2026-09-28T12:00:00Z', 10, math.inf, True, '1:30')
 
-# 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
-with raises(DecodeError):
-    from_yaml(Reading, written(('valid', 'yes')))
+    # 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
+    with raises(DecodeError):
+        from_yaml(Reading, written(('valid', 'yes')))
 
 # --- Malformed text is rejected ---
 
@@ -167,21 +168,23 @@ with store.transaction():
         .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(11.5).valid(True)).sensor('temp')))
         .readings(lambda a: a.insert(lambda x: x.reading(lambda r: r.observed('2026-09-28T06:00:00Z').value(71.0).valid(True)).sensor('rh')))
     ))
-graph = Plain.ToPlain(store).Reachable(Station, lyon)
-for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON),
-                      (YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML)]:
-    elsewhere = Builders.Store()  # read into another store: new objects of the same graph
-    Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
-    restored = decoder(elsewhere).Reachable(elsewhere.Station, text)
-    assert restored is not lyon
-    assert str(restored.name) == 'Lyon-Saint-Exupéry'
-    assert Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored) == graph
-    assert Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored) == []
+    graph = Plain.ToPlain(store).Reachable(Station, lyon)
+    for text, decoder in [(JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON),
+                          (YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML)]:
+        elsewhere = Builders.Store()  # read into another store: new objects of the same graph
+        # The same schemas, its own: a store's snapshot writes them.
+        Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot())
+        with elsewhere.transaction():  # what a document builds is read within a transaction of its store
+            restored = decoder(elsewhere).Reachable(elsewhere.Station, text)
+            assert restored is not lyon
+            assert str(restored.name) == 'Lyon-Saint-Exupéry'
+            assert Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored) == graph
+            assert Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored) == []
 
-# An object's document holds it alone, in any encoding: lyon's, which links counted readings, is refused.
-with raises(ValueError):
-    JSON.ToJSON(store)(Station, lyon)
-with raises(ValueError):
-    YAML.ToYAML(store)(Station, lyon)
+    # An object's document holds it alone, in any encoding: lyon's, which links counted readings, is refused.
+    with raises(ValueError):
+        JSON.ToJSON(store)(Station, lyon)
+    with raises(ValueError):
+        YAML.ToYAML(store)(Station, lyon)
 
 print('TextEncodings: all checks passed')

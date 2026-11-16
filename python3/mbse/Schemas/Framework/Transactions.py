@@ -516,24 +516,84 @@ class FrameError:
 
 class Frame(dict[str, Any]):
     """A frame: the objects its symbols bind, by symbol; and its `errors`, each what failed as a term processed it
-    ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did."""
+    ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
 
-    def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = ()):
+    One `store.transaction` gives back holds bindings and assignments, not visitors ([CAP-315: every read within a
+    transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a
+    value that outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by
+    symbol, the values the transaction left in the properties its terms' specs name for it, as data, harvested within
+    it. A counted object has no reference: the frame refuses it, its symbol read raising `LookupError`, and assigns
+    nothing of it."""
+
+    def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = (),
+                 assigns: Mapping[str, Mapping[str, Any]] | None = None):
         super().__init__(bound or {})
         self.errors: list[FrameError] = list(errors)
+        self.assigns: dict[str, dict[str, Any]] = {name: dict(values) for name, values in (assigns or {}).items()}
+
+    def __getitem__(self, name: str) -> Any:
+        found = super().__getitem__(name)
+        if isinstance(found, _Refused):
+            raise LookupError(f"symbol {name!r} of the frame: {found.message}")
+        return found
+
+    def get(self, name: str, default: Any = None) -> Any:  # type: ignore[override]
+        return self[name] if name in self else default
+
+
+class _Refused:
+    """What a frame given back holds for a symbol that binds a counted object, which has no reference: its every use is
+    refused, saying why."""
+
+    def __init__(self, message: str):
+        self.message = message
+
+    def __getattr__(self, name: str) -> Any:
+        raise LookupError(self.message)
+
+    def __repr__(self) -> str:
+        return "<refused: a counted object>"
+
+
+def _given_back(store: Any, frames: list[Frame], named: dict[str, list[str]]) -> list[Frame]:
+    """The frames a transaction gives back, made within it: each symbol's object by its reference, and what it
+    assigns, as data (CAP-315)."""
+    from . import References
+
+    if store._unowned:  # the owners the store gives, settled first, so that each object has its path
+        store._settle_owners()
+    given = []
+    for frame in frames:
+        bound: dict[str, Any] = {}
+        assigns: dict[str, dict[str, Any]] = {}
+        for symbol, target in dict.items(frame):
+            if not isinstance(target, Proxies._ObjectData):
+                bound[symbol] = target  # a schema object, as itself
+                continue
+            if Proxies._counted(target):
+                bound[symbol] = _Refused(f"a counted {target._schema_name!r} has no reference: nothing names it (make "
+                                         "it a singleton's or an owner's)")
+                continue
+            bound[symbol] = References.of(store, target)
+            values = store.values(target)
+            held = {name: Proxies._copied(values[name]) for name in named.get(symbol, ()) if name in values}
+            if held:
+                assigns[symbol] = held
+        given.append(Frame(bound, frame.errors, assigns))
+    return given
 
 
 class _Uncommitted(Exception):
     """A transaction a frame of which is annotated with an error: dropped, whole (CAP-124)."""
 
 
-def _execute(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
+def _execute(store: Any, transaction: Any, joined: bool = False, given: bool = False) -> list[Frame]:
     """Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
     stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
     in its proposals and written when it ends. Gives the frames its chain ends with. Where a frame is annotated with an
     error, it commits nothing and raises the first error annotated, the one that arose first, as it arose, its
     `frames` all the frames, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309))."""
-    frames = _frames(store, transaction, joined)
+    frames = _frames(store, transaction, joined, given)
     failed = next((frame for frame in frames if frame.errors), None)
     if failed is not None:
         error = failed.errors[0].error
@@ -543,14 +603,15 @@ def _execute(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
     return frames
 
 
-def _frames(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
+def _frames(store: Any, transaction: Any, joined: bool = False, given: bool = False) -> list[Frame]:
     """The frames a transaction's expression gives, raising nothing for an error a term meets processing a frame: that
     frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its
     chain ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped,
     whole (CAP-124), else committed, a decoder's (`joined`) into the transaction open. What a layer streaming the frames
     it makes would give, not raising ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)). An error in the expression itself, found
     before it runs, is raised, its `frames` none; one raised at the commit, which no frame made, is raised as it is, its
-    `frames` all the frames, none annotated."""
+    `frames` all the frames, none annotated. `given`, those `store.transaction` gives back: bindings and assignments,
+    made before it commits (`_given_back`)."""
     root = _next(transaction, "mutations")
     made: list[Frame] = []
     try:
@@ -561,9 +622,12 @@ def _frames(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
             if proposals is not None:
                 proposals.expression = transaction  # what its record gives (Provenance)
             failed: list[Frame] = []
+            named: dict[str, list[str]] = {}
             made = [Frame()] if root is None else _run(store, root, [Frame()], ("mutations", 0, _kind(store, root)),
-                                                       failed)
+                                                       failed, named)
             made += failed
+            if given:
+                made = _given_back(store, made, named)
             if failed:
                 raise _Uncommitted()
     except _Uncommitted:
@@ -724,7 +788,7 @@ def _linked(value: Any) -> Any:
     from . import Builders
 
     if not isinstance(value, Builders._Link):
-        return value
+        return Proxies._durable(value)  # compared by identity with what frames bind: durable objects
     target = value._target()
     return target._original if isinstance(target, Builders._Builder) else target
 
@@ -733,18 +797,24 @@ def _extent(store: Any, schema: Any) -> list[Any]:
     """The objects a symbol of `schema` ranges over: a meta-schema's, the named schema objects of its kind the store
     holds, the framework's left out; data's, those the store reaches from its singletons."""
     if not _meta(store, schema):
-        return list(store.extent(store.name_of(schema)))
+        return [Proxies._durable(found) for found in store.extent(store.name_of(schema))]
     return [held for held in store._objects.values()
             if not store.framework(held) and _reader(store, held).as_schema() is schema]
 
 
-def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], failed: list[Frame]) -> list[Frame]:
+def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], failed: list[Frame],
+         named: dict[str, list[str]]) -> list[Frame]:
     """The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
     chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
-    `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309))."""
+    `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). `named` gathers, by symbol, the properties the
+    specs name, in order: what the frames given back assign."""
     kind = _kind(store, term)
     if kind in ("map", "upsert", "update"):
         pattern = _pattern(term, {"map": "symbols", "upsert": "exists", "update": "apply"}[kind], kind)
+        for symbol, items in _members(pattern).items():
+            names = named.setdefault(symbol, [])
+            names += [body["name"] for item in items for kind_, body in item.items()
+                      if kind_ == "as_property" and body["name"] not in names]
         key = store.member(term, "key") if kind == "upsert" else None
         made: list[Frame] = []
         for frame in frames:
@@ -774,9 +844,9 @@ def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], 
         if not arms and otherwise is not None:
             arms = [((*at, "none", 0, _kind(store, otherwise)), otherwise)]
         frames = [found for arm_at, arm in arms
-                  for found in _run(store, arm, [Frame(frame) for frame in frames], arm_at, failed)]
+                  for found in _run(store, arm, [Frame(frame) for frame in frames], arm_at, failed, named)]
     after = _next(term, "then")
-    return frames if after is None else _run(store, after, frames, (*at, "then", 0, _kind(store, after)), failed)
+    return frames if after is None else _run(store, after, frames, (*at, "then", 0, _kind(store, after)), failed, named)
 
 
 def _bind(store: Any, pattern: Any, frame: dict[str, Any], upsert: bool,
@@ -795,21 +865,21 @@ def _bind(store: Any, pattern: Any, frame: dict[str, Any], upsert: bool,
             continue
         reference = _given_reference(symbol)
         if reference is not None:  # what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
-            target = References._designated(store, reference)
+            target = Proxies._durable(References._designated(store, reference))
             frames = [] if target is None else [{**partial, name: target} for partial in frames]
             continue
         schema = symbol.schema
         grown = []
         for partial in frames:
             if schema.singleton is not None:
-                grown.append({**partial, name: store.singleton(schema.singleton)})
+                grown.append({**partial, name: store._singleton_of(schema.singleton)})
                 continue
             if upsert and Proxies._counted_schema(schema) and not _meta(store, schema):  # found only by what made it (102)
                 index = _upsert_index(store, key, name, frame)
                 held = store._upserted.get(index)
                 made = held() if held is not None else None
                 if made is None:
-                    made = _writer(store, schema).create()
+                    made = Proxies._durable(_writer(store, schema).create())
                     store._upserted[index] = weakref.ref(made)
                 grown.append({**partial, name: made})
                 continue
@@ -873,7 +943,7 @@ def _created(store: Any, schema: Any, identifying: list[Any]) -> Any:
         if kind == "as_property":
             prop = schema.properties[body["name"]]
             Plain._set(builder, body["name"], Plain._decode(prop.schema, body["mutations"][0]["set"]["value"], (), store))
-    return builder.create()
+    return Proxies._durable(builder.create())
 
 
 def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str, schema: Any,
@@ -1015,8 +1085,8 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: dict[str, 
 def _resolve(store: Any, ref: dict[str, Any], frame: dict[str, Any]) -> Any:
     """The object a spec's reference names: the one a symbol binds, or the one at a path."""
     if "symbol" in ref:
-        return frame[ref["symbol"]]
-    found = Plain._by_path(store, ref["path"], ())
+        return Proxies._durable(frame[ref["symbol"]])
+    found = Proxies._durable(Plain._by_path(store, ref["path"], ()))
     if found is None:
         raise LookupError("no object of the store has the path a spec refers to")
     return found
@@ -1124,7 +1194,7 @@ def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, ent
         if "def" in given:
             definition = given["def"]
             defined = store.registered(definition["schema"])
-            made = _defining(store, schema, name, defined).create()
+            made = Proxies._durable(_defining(store, schema, name, defined).create())
             _write(store, made, defined, definition["mutations"], frame)
             links[body["name"]] = made
         else:

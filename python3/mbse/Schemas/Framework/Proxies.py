@@ -25,7 +25,19 @@ intersection value's parts are members giving the visitor of their own schema's 
 writing one branch clears any other.
 
 Reads never raise: a visitor of an absent value, of a value of another kind, or of a member the schema lacks reads as
-empty. The one raise is a write that the visitor's mode, or the value, forbids: `Errors.ReadOnlyError`.
+empty. The one raise is a write that the visitor's mode, or the value, forbids: `Errors.ReadOnlyError`; and a visitor
+used after its transaction ended, below.
+
+Every read of a store's data is made within a transaction ([CAP-315: every read within a transaction or through a
+follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). The store holds each object durably: its identity and its committed state, an
+`_ObjectData`, as each relation entry, value object and container's value is held, which the store's own code reads
+and writes. A transaction gives the program proxies: the same class used twice, each wrapping the durable object
+(`_durable`) and sharing its state, read and written through the transaction's proposals, which are its commit
+layer, and living by the transaction's life (`_Life`), the outermost open on the store. Every visitor read from a
+proxy lives by the same life, and is refused (`ValueError`) once the transaction ends; `store.singleton(...)` is
+refused with none open. One made with no transaction open on its store, as an expression built outside one, has no
+life and lives on, as a standalone value held by nothing, which is data, does. Within a transaction, the store gives one
+proxy of each durable object, so that identity holds within it.
 """
 
 from __future__ import annotations
@@ -52,6 +64,110 @@ SCALARS = (int, float, str, bool, bytes)
 
 
 _SERIALS = itertools.count(1)  # proxies' serial numbers, in the order made
+_get = object.__getattribute__
+
+
+# --- Lifetimes: a visitor lives within the transaction that made it (CAP-315) ---
+
+
+class _Life:
+    """The life of the visitors made within one transaction, the outermost open on a store: ended when it ends, after
+    which each of them is refused ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). It holds the
+    proxy it gave of each durable object, by that object, so that a transaction sees one proxy of each."""
+
+    __slots__ = ("ended", "proxies")
+
+    def __init__(self) -> None:
+        self.ended = False
+        self.proxies: dict[Any, Any] = {}
+
+    def end(self) -> None:
+        self.ended = True
+        self.proxies.clear()
+
+
+def _refused() -> ValueError:
+    """A visitor used after its transaction ended: refused, as a write outside a transaction is."""
+    return ValueError("a visitor lives only within the transaction that made it: read the store again within a "
+                        "transaction, by a reference kept (store.transaction)")
+
+
+def _check(life: _Life | None) -> None:
+    """Refuses the use of a visitor whose transaction has ended."""
+    if life is not None and life.ended:
+        raise _refused()
+
+
+class _Lived:
+    """A visitor, whose every use checks that the transaction that made it, its `_life`, is open still; a durable object,
+    or a visitor made with no transaction open on its store, has none, and lives on."""
+
+    __slots__ = ()
+
+    def __getattribute__(self, name: str) -> Any:
+        if name != "__class__":
+            _check(_get(self, "_life"))
+        return _get(self, name)
+
+
+def _life_of(store: Any) -> _Life | None:
+    """The life of the transaction open on `store`, the outermost; None where none is open, or no store holds it."""
+    return getattr(store, "_life", None) if store is not None else None
+
+
+def _durable(value: Any) -> Any:
+    """The durable object a proxy wraps, refused where the proxy's transaction has ended; any other value itself."""
+    if isinstance(value, _WRAPPED):
+        _check(_get(value, "_life"))
+        held = _get(value, "_durable")
+        if held is not None:
+            return held
+    return value
+
+
+def _wrap(value: Any, life: _Life | None) -> Any:
+    """`value` as a visitor of the transaction whose life is `life`: a durable object, a relation entry, a value object or
+    a container's value, wrapped in a proxy of the same class, one per transaction, which shares its state and lives
+    within the transaction; any other value, or with no life, itself."""
+    if life is None or not isinstance(value, _WRAPPED):
+        return value
+    value = _durable(value)
+    found = life.proxies.get(value)
+    if found is None:
+        found = life.proxies[value] = _proxy(value, life)
+    return found
+
+
+def _proxy(durable: Any, life: _Life) -> Any:
+    """A proxy wrapping `durable`, of its class: its state, shared, and its life."""
+    cls = type(durable)
+    made = cls.__new__(cls)
+    if isinstance(durable, _ContainerData):
+        made.__dict__.update(durable.__dict__)
+    else:
+        for name in cls.__slots__:
+            if name not in ("__weakref__", "_durable", "_life"):
+                object.__setattr__(made, name, _get(durable, name))
+    object.__setattr__(made, "_durable", durable)
+    object.__setattr__(made, "_life", life)
+    return made
+
+
+def _given_out(store: Any, value: Any) -> Any:
+    """`value`, what the library gives a program back, as a visitor of the transaction open on `store`; where none is
+    open, of the one the library opened and ended to make it, so that it is refused (CAP-315)."""
+    life = _life_of(store)
+    if life is None:
+        life = _Life()
+        life.end()
+    return _wrap(value, life)
+
+
+def _lives(visitor: Any, life: _Life | None) -> None:
+    """Gives a visitor made from another the life of that one."""
+    if life is not None:
+        object.__setattr__(visitor, "_life", life)
+
 
 # --- Stores ---
 
@@ -133,6 +249,7 @@ class OfStore(Stores.Catalog):
         self._applying = 0  # how deep in applying a transaction of the store below's: it loads nothing (CAP-285)
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
         self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
+        self._life: _Life | None = None  # the life of the visitors the transaction open made (CAP-315)
 
     def _below_path(self, singleton: str) -> Any:
         """A singleton's path, where the store has a store below, from which it loads; else None."""
@@ -257,6 +374,8 @@ class OfStore(Stores.Catalog):
         observed by none (CAP-284)."""
         from . import Plain
 
+        from . import Transactions
+
         if self._loading or not isinstance(holder, _ObjectData) or holder in self._loaded:
             return
         path = object.__getattribute__(holder, "_reference")
@@ -270,7 +389,7 @@ class OfStore(Stores.Catalog):
         proposals, self._proposals = self._proposals, None
         self._loading += 1
         try:
-            self.transaction(Plain.FromPlain(self).Transaction(plain))
+            Transactions._execute(self, Plain.FromPlain(self).Transaction(plain))  # its frames given back to none
         finally:
             self._loading -= 1
             self._proposals = proposals
@@ -289,7 +408,8 @@ class OfStore(Stores.Catalog):
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
         """A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its
         proposals have them; outside one, the store's own, which a write is refused (object identity
-        44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided))."""
+        44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided), 100 in [CAP-149: data accessed through the store protocol](mbse:mbse-basis/docs/capabilities/CAP-149.md#decided)). A proxy's are the durable object's it wraps."""
+        holder = _durable(holder)
         if self._proposals is not None:
             return self._proposals.values(holder, write)
         if write:
@@ -298,7 +418,8 @@ class OfStore(Stores.Catalog):
 
     def entries(self, holder: Any, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
         """The entry tables of an object, by relation (`Visitors.OfStore`): within a transaction, as its proposals have
-        them; outside one, the store's own, which a write is refused."""
+        them; outside one, the store's own, which a write is refused. A proxy's are the durable object's it wraps."""
+        holder = _durable(holder)
         if self._proposals is not None:
             return self._proposals.entries(holder, write)
         if write:
@@ -356,8 +477,13 @@ class OfStore(Stores.Catalog):
         before it began. One is open on a store at a time; each store's is its own."""
         if self._proposals is not None:
             raise ValueError("a transaction is open: transactions do not nest")
-        with self._proposing() as proposals:
-            yield proposals
+        outer, self._life = self._life, _Life()  # outer: a transaction open when the store loads (`_load`)
+        try:
+            with self._proposing() as proposals:
+                yield proposals
+        finally:
+            self._life.end()
+            self._life = outer
 
     @contextlib.contextmanager
     def _proposing(self) -> Iterator[Any]:
@@ -414,7 +540,7 @@ class OfStore(Stores.Catalog):
                 fillers = [schema for schema in self._schemas.values()
                            if isinstance(schema, ObjectSchema) and schema.fills(adjacency.relation, link)]
                 if len(fillers) == 1 and fillers[0].singleton is not None:
-                    possible.append((adjacency, link, self.singleton(fillers[0].singleton)))
+                    possible.append((adjacency, link, self._singleton_of(fillers[0].singleton)))
             names = ", ".join(repr(a.name or a.relation.name) for a in owners)
             if len(possible) != 1:
                 raise ValueError(f"a {target._schema_name!r} needs an owner through {names}: give it one, since "
@@ -486,8 +612,30 @@ class OfStore(Stores.Catalog):
         return _ObjectBuilder(self, self.schema(name), name, instance)
 
     def member(self, instance: Any, name: str) -> Any:
-        """The value an instance or value object holds in its property `name`."""
-        return _read(instance, name)
+        """The value an instance or value object holds in its property `name`: a value object, a visitor of the
+        transaction the instance's is."""
+        return _wrap(_read(instance, name), _get(instance, "_life") if isinstance(instance, _WRAPPED) else None)
+
+    def singleton(self, name: str) -> Any:
+        """The singleton named `name`, a visitor of the transaction open, refused where none is open: every read of a
+        store's data is made within a transaction ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided))."""
+        return _wrap(self._singleton_of(name), self._reading())
+
+    def _singleton_of(self, name: str) -> Any:
+        """The durable singleton named `name`, read by the store itself."""
+        return super().singleton(name)
+
+    def extent(self, name: str) -> tuple[Any, ...]:
+        """The reference objects of `name` reachable from the singletons, visitors of the transaction open, refused
+        where none is open."""
+        life = self._reading()
+        return tuple(_wrap(found, life) for found in super().extent(name))
+
+    def _reading(self) -> _Life:
+        """The life of the transaction open, refused where none is open (CAP-315)."""
+        if self._life is None:
+            raise ValueError("a store is read only within a transaction (store.transaction)")
+        return self._life
 
     def _filled(self, relation: RelationSchema, link: str) -> str:
         """The name of the schema of what `link` links: the reference object schema the link declares, else the one object
@@ -565,8 +713,12 @@ def store_of(value: Any) -> OfStore:
 
 
 def owner_of(value: Any) -> Any:
-    """The object a value object belongs to, or None for a reference object or a value object not yet placed."""
-    return object.__getattribute__(value, "_owner") if isinstance(value, _RecordData) else None
+    """The object a value object belongs to, or None for a reference object or a value object not yet placed: a
+    visitor of the transaction the value object's is."""
+    if not isinstance(value, _RecordData):
+        return None
+    _check(_get(value, "_life"))
+    return _wrap(_get(value, "_owner"), _get(value, "_life"))
 
 
 def _same_store(store: OfStore | None, value: Any) -> None:
@@ -659,17 +811,19 @@ def _gone_paths(proposals: Any, store: Any) -> list[Any]:
     return found
 
 
-class _Entry:
+class _Entry(_Lived):
     """An entry of a relation, shared by the objects it links: a read-only `Visitors.OfEntry`. Its links are members
     giving the linked instance itself (`entry.phone`), and its properties members giving a `Visitors.OfProperty`
-    (`str(entry.label)`)."""
+    (`str(entry.label)`). Durable, it is read within a transaction through a proxy wrapping it (CAP-315)."""
 
-    __slots__ = ("_relation", "_links", "_properties")
+    __slots__ = ("_relation", "_links", "_properties", "_durable", "_life")
 
     def __init__(self, relation: RelationSchema, links: Mapping[str, _ObjectData], properties: Mapping[str, Scalar]):
         object.__setattr__(self, "_relation", relation)
-        object.__setattr__(self, "_links", dict(links))
+        object.__setattr__(self, "_links", {name: _durable(target) for name, target in links.items()})
         object.__setattr__(self, "_properties", dict(properties))
+        object.__setattr__(self, "_durable", None)
+        object.__setattr__(self, "_life", None)
 
     def as_schema(self) -> Schemas.OfEntry.Data:
         return self._relation.entry
@@ -681,7 +835,7 @@ class _Entry:
             target = self._links[name]
             if isinstance(target, _Unresolved):  # read: loaded from the store below, which links it in every entry
                 target = self._links[name] = target.store._resolved(target)  # that waits on it, this one too
-            return target
+            return _wrap(target, self._life)
         prop = self._relation.entry.properties.get(name)
         if prop is None:
             return _Empty(f"{name!r} is not a link or property of the relation")
@@ -808,6 +962,7 @@ def _check_unique(entry: _Entry, store: Any) -> None:
 
 def _linking(relation: RelationSchema, link: str, target: Any, store: Any = None) -> list[_Entry]:
     """The entries of `relation` that link `target` via `link`, in the order they were added."""
+    target = _durable(target)
     return [entry for entry in _table(target, id(relation), store).values() if entry._links.get(link) is target]
 
 
@@ -908,10 +1063,12 @@ def _converted(value: Any, host: type, label: str) -> Any:
     return value
 
 
-class _Unassignable:
+class _Unassignable(_Lived):
     """A visitor whose members are written by calling them, never by assignment: assigning any name not starting with
-    `_` (its own state) is refused, so that a write is never silently lost."""
+    `_` (its own state) is refused, so that a write is never silently lost. One made from a visitor of a transaction
+    lives within that transaction (`_life`, CAP-315)."""
 
+    _life: _Life | None = None
     _refusal = "a visitor's members cannot be assigned: call a member to write through it"
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -1062,6 +1219,7 @@ class _Scalar(_Dunders):
         self._values, self._name, self._schema, self._writable = values, name, schema, writable
         self._label_text, self._parent, self._on_write = label, parent, on_write
         self._restriction = restriction
+        _lives(self, _get(parent, "_life") if parent is not None else None)
 
     def _scalar(self) -> Any:
         return self.get()
@@ -1116,7 +1274,8 @@ class _Any(_Unassignable):
     own visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold."""
 
     def __init__(self, values: dict[str, Any], name: str, schema: Any, store: OfStore | None, writable: bool,
-                 label: str, on_write: Callable[[], None] | None = None):
+                 label: str, on_write: Callable[[], None] | None = None, life: _Life | None = None):
+        _lives(self, life)
         self._values, self._name, self._store, self._writable = values, name, store, writable
         self._schema, self._label, self._on_write = schema, label, on_write
         self._type = schema
@@ -1190,7 +1349,7 @@ class _Any(_Unassignable):
             ((branch, held),) = value._values.items()
             if type(held) in (int, float, str, bool, bytes):
                 _visit(cb, _Scalar(value._values, branch, self._type.properties[branch].schema,
-                                   False, self._label))
+                                   False, self._label, self))
                 return self
         _visit(cb, _Empty(f"{self._label} holds no scalar"))
         return self
@@ -1212,7 +1371,7 @@ class _Any(_Unassignable):
         if not self._writable:
             if isinstance(value, _ContainerData):
                 if _is_function(cb):
-                    _visit(cb, value)
+                    _visit(cb, _wrap(value, self._life))
                     return self
                 raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
             return self._hand(cb, _Empty(f"{self._label} is not set"))
@@ -1258,10 +1417,11 @@ class _Any(_Unassignable):
                 else:
                     builder.at(index).write(element)
             return
+        value = _durable(value)
         if not isinstance(value, _Containing) or value._schema is not self._type:
             raise TypeError(f"{self._label} takes a container of its schema or a Spec, got {type(value).__name__}")
         self._touch()
-        self._values[self._name] = value
+        self._values[self._name] = _given_value(value)
 
     def _hand(self, cb: Any, empty: _Empty) -> _Any:
         empty._hand(cb)
@@ -1276,7 +1436,7 @@ class _Any(_Unassignable):
         if not self._writable:
             if isinstance(value, _RecordData):
                 if _is_function(cb):
-                    _visit(cb, value)
+                    _visit(cb, _wrap(value, self._life))
                     return self
                 raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
             return self._hand(cb, _Empty(f"{self._label} is read-only; write through a builder"))
@@ -1310,12 +1470,13 @@ class _Any(_Unassignable):
         object may be of a refinement of the schema declared (`_refines`)."""
         if isinstance(value, _Property):
             value = value._values.get(value._name)
+        value = _durable(value)
         declared = self._type if self._any is not None else self._schema
         if not isinstance(value, (_RecordData, _RecordBuilder)) or not _refines(value._schema, declared):
             raise TypeError(f"{self._label} takes {_a(_noun(self._type))} or a Spec, got {type(value).__name__}")
         self._touch()
         self._type = value._schema
-        self._values[self._name] = value
+        self._values[self._name] = _given_value(value)
 
     def __getattr__(self, name: str) -> Any:
         """A member of the value's kind, where its schema has one: a union's branch, an object's property, an
@@ -1327,7 +1488,8 @@ class _Any(_Unassignable):
         if self._writable:  # the builder is attached when a member is written, not when it is read
             return getattr(self._builder(), name)
         value = self._values.get(self._name)
-        return getattr(value, name) if isinstance(value, _RecordData) else _Empty(f"{self._label} is not set")
+        return getattr(_wrap(value, self._life), name) if isinstance(value, _RecordData) else _Empty(
+            f"{self._label} is not set")
 
     def write(self, value: Any) -> None:
         """Writes a `Specs.Callback`'s value form: a scalar, a value object, union value or intersection value (a flat
@@ -1335,6 +1497,7 @@ class _Any(_Unassignable):
         _write(self._writable, f"{self._label} is read-only; write through a builder")
         if isinstance(value, _Property):
             value = value._values.get(value._name)
+        value = _durable(value)
         if self._any is not None and isinstance(value, (_RecordData, _RecordBuilder, _Containing)):
             self._of_any(type(value._schema), value)
         held = self._type
@@ -1352,6 +1515,15 @@ class _Any(_Unassignable):
     def clear(self) -> None:
         _write(self._writable, f"{self._label} is read-only; write through a builder")
         self._values.pop(self._name, None)
+
+def _given_value(value: Any) -> Any:
+    """A value object or a container's value given to be held: one held by nothing, which is data the program keeps,
+    copied, so that it stays data and the store holds its own durable copy (CAP-315); one held, as it is, copied when
+    placed (`_stage`)."""
+    if isinstance(value, (_RecordData, _ContainerData)) and _store_of(value) is None:
+        return _copied(value)
+    return value
+
 
 def _kind_members(schema: Any) -> set[str]:
     """The names a value of a union, object or intersection schema has as members: its branches, properties or parts."""
@@ -1435,14 +1607,15 @@ class _Containing(_Unassignable):
         return sorted(self._items) if self._schema.arrangement in ("dense", "sparse") else list(self._items)
 
     def _index(self, key: Hashable) -> Any:
-        return self._indices.get(key, key)
+        return _wrap(self._indices.get(key, key), self._life)
 
     def _element(self, key: Hashable, index: Any) -> _Any:
         def wrote() -> None:
-            self._indices[key] = index
+            self._indices[key] = _copied(_durable(index))  # a value object given as an index: the container's own copy
 
         at = ", ".join(map(repr, index)) if isinstance(index, tuple) else repr(index)
-        return _Any(self._items, key, self._schema.element, self._store, self._writable, f"{self._label}[{at}]", wrote)
+        return _Any(self._items, key, self._schema.element, self._store, self._writable, f"{self._label}[{at}]", wrote,
+                    self._life)
 
     def __len__(self) -> int:
         """The number of positions: in a dense container of int indices, every index from 0 to the last (and every
@@ -1521,7 +1694,7 @@ class _Containing(_Unassignable):
         self._touch()
         if _is_function(spec):
             _visit(spec, self)
-        elif isinstance(spec, _Containing) and spec._schema is self._schema:
+        elif isinstance(spec := _durable(spec), _Containing) and spec._schema is self._schema:
             self._items.clear()
             self._items.update(spec._items)
             self._indices.clear()
@@ -1540,7 +1713,10 @@ def _negative(index: Any) -> bool:
 
 
 class _ContainerData(_Containing):
-    """A container's value, read-only."""
+    """A container's value, read-only: durable, as an object's, and read within a transaction through a proxy wrapping
+    it (`_durable`), which lives within it (CAP-315); one held by nothing is data, read anywhere."""
+
+    _durable: _ContainerData | None = None
 
     def __init__(self, schema: Schemas.OfContainer.Data, items: dict[Hashable, Any], indices: dict[Hashable, Any]):
         self._setup(schema, items, indices, None, "the container")
@@ -1554,6 +1730,7 @@ class _ContainerBuilder(_Containing):
 
     def __init__(self, schema: Schemas.OfContainer.Data, source: _ContainerData | None, store: OfStore | None,
                  attach: Callable[[_ContainerBuilder], None], label: str, parent: Any = None):
+        source = _durable(source)
         items = dict(source._items) if source is not None else {}
         indices = dict(source._indices) if source is not None else {}
         self._setup(schema, items, indices, store, label)
@@ -1580,6 +1757,7 @@ class _Iterator(_Unassignable):
     last. Past an end, a builder's `as_item` extends the container there."""
 
     def __init__(self, container: _Containing):
+        _lives(self, container._life)
         self._container, self._at = container, -1
 
     def _positions(self) -> list[Any]:
@@ -1665,12 +1843,13 @@ class _Property(_Dunders):
 
     def __init__(self, values: dict[str, Any], name: str, schema: Schemas.OfProperty.Data, store: OfStore | None,
                  parent: Any, writable: bool, on_write: Callable[[], None] | None = None):
+        _lives(self, _get(parent, "_life") if parent is not None else None)
         self._values, self._name, self._schema, self._store = values, name, schema, store
         self._parent, self._writable, self._on_write = parent, writable, on_write
 
     def _any(self) -> _Any:
         return _Any(self._values, self._name, self._schema.schema, self._store, self._writable, self._label(),
-                    self._on_write)
+                    self._on_write, self._life)
 
     def _label(self) -> str:
         return f"property {self._name!r}"
@@ -1727,6 +1906,7 @@ class _Properties(_Unassignable):
     """`Visitors.OfObject.as_properties`: the properties present, iterated, or called with a callback for each."""
 
     def __init__(self, owner: Any, properties: list[Any]):
+        _lives(self, _get(owner, "_life"))
         self._owner, self._properties = owner, properties
 
     def __iter__(self) -> Iterator[Any]:
@@ -1754,7 +1934,8 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
     if isinstance(held, Schemas.OfScalar.Data):
         return _Scalar(values, name, held, writable, label, parent, on_write)
     if not writable:
-        return value if isinstance(value, (_RecordData, _ContainerData)) else _Empty(f"{label} is not set")
+        return _wrap(value, _get(parent, "_life")) if isinstance(value, (_RecordData, _ContainerData)) else _Empty(
+            f"{label} is not set")
     if isinstance(value, (_RecordBuilder, _ContainerBuilder)):
         return value
     if isinstance(held, Schemas.OfContainer.Data):
@@ -1776,13 +1957,18 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
 # --- Data instances ---
 
 
-class _ObjectData:
-    """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members."""
+class _ObjectData(_Lived):
+    """A proxy instance: a read-only `Visitors.OfObject`, whose properties and adjacencies are members. The class is
+    used twice: a durable object, which the store holds, with its identity and its committed state; and, within a
+    transaction, a proxy wrapping it (`_durable`), sharing its state, which the transaction reads and writes through
+    its proposals and which lives only within it (`_life`, CAP-315)."""
 
     __slots__ = ("_store", "_schema", "_schema_name", "_reference", "_serial", "_own_values", "_adjacent",
-                 "__weakref__")
+                 "_durable", "_life", "__weakref__")
 
     def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, reference: Any = None):
+        object.__setattr__(self, "_durable", None)
+        object.__setattr__(self, "_life", None)
         object.__setattr__(self, "_serial", next(_SERIALS))  # tells it apart in memory; never written
         object.__setattr__(self, "_adjacent", {})
         object.__setattr__(self, "_store", store)
@@ -1823,17 +2009,18 @@ class _ObjectData:
         return self
 
 
-class _RecordData:
+class _RecordData(_Lived):
     """A value object: the value of a property whose schema is an `OfObject`, a read-only `Visitors.OfObject`; or a
     union or intersection value, a read-only `Visitors.OfUnion` or `Visitors.OfIntersection`, whose branches or parts
     are members giving the visitor of their own schema's kind. It belongs to one owner and has no identity of its own;
-    nothing links it, so it has no adjacencies."""
+    nothing links it, so it has no adjacencies. As an object's, it is durable, and read within a transaction through a
+    proxy wrapping it (`_durable`), which lives within it (CAP-315); one held by nothing is data, read anywhere."""
 
-    __slots__ = ("_schema", "_own_values", "_owner", "_source", "_copy_of")
+    __slots__ = ("_schema", "_own_values", "_owner", "_source", "_copy_of", "_durable", "_life")
 
     def __init__(self, schema: Any, values: dict[str, Any], source: _RecordData | None = None, copy_of: Any = None):
         for name, value in (("_schema", schema), ("_own_values", dict(values)), ("_owner", None), ("_source", source),
-                            ("_copy_of", copy_of)):
+                            ("_copy_of", copy_of), ("_durable", None), ("_life", None)):
             object.__setattr__(self, name, value)
 
     @property
@@ -1877,16 +2064,19 @@ def _member(owner: Any, name: str) -> Any:
         return _kind_visitor(values, name, schema.properties[name].schema, store, owner, False, f"{kind} {name!r}")
     if name in schema.properties:
         return _Property(values, name, schema.properties[name], store, owner, False)
+    life = _get(owner, "_life")
     part = _owning_part(schema, name)
     if part is not None:
         held = values.get(part)
-        return _member(held, name) if isinstance(held, _RecordData) else _Empty(f"part {part!r} is not set")
+        return _member(_wrap(held, life), name) if isinstance(held, _RecordData) else _Empty(f"part {part!r} is not set")
     if isinstance(schema, Schemas.OfUnion.Data) and schema.flat:  # a flat union's value reads as its branch's
         held = next(iter(values.values()), None)
-        return _member(held, name) if isinstance(held, _RecordData) else _Empty(f"{name!r} is not a member of the branch held")
+        return _member(_wrap(held, life), name) if isinstance(held, _RecordData) else _Empty(
+            f"{name!r} is not a member of the branch held")
     adjacency = schema.adjacencies.get(name) if isinstance(schema, ObjectSchema) else None
     if adjacency is not None:
-        return _Adjacency(_linking(adjacency.relation, adjacency.me, owner), adjacency, owner)
+        return _Adjacency([_wrap(entry, life) for entry in _linking(adjacency.relation, adjacency.me, owner)], adjacency,
+                          owner)
     return _Empty(f"{name!r} is not a member of {_a(_noun(schema))}")
 
 
@@ -1914,8 +2104,21 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
 
     def __new__(cls, entries: Any, schema: Schemas.OfAdjacency.Data, owner: Any) -> _Adjacency:
         adjacency = super().__new__(cls, entries)
+        _lives(adjacency, _get(owner, "_life"))
         adjacency._schema, adjacency._owner = schema, owner
         return adjacency
+
+    def __iter__(self) -> Iterator[Any]:
+        _check(_get(self, "_life"))
+        return tuple.__iter__(self)
+
+    def __len__(self) -> int:
+        _check(_get(self, "_life"))
+        return tuple.__len__(self)
+
+    def __getitem__(self, index: Any) -> Any:
+        _check(_get(self, "_life"))
+        return tuple.__getitem__(self, index)
 
     def as_schema(self) -> Schemas.OfAdjacency.Data:
         return self._schema
@@ -1965,7 +2168,8 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
         if name not in relation.entry.links and name not in relation.entry.properties:
             raise KeyError(f"{name!r} is not a link or property of the relation")
         return tuple(getattr(entry, name) if name in relation.entry.links else
-                     _view(entry._properties.get(name), relation.entry.properties[name].schema) for entry in self)
+                     _wrap(_view(entry._properties.get(name), relation.entry.properties[name].schema), self._life)
+                     for entry in self)
 
     def at(self, key: Any) -> _Entry:
         """The entry whose key is `key`: one value for a key of one link or property, else a tuple of them in
@@ -2206,6 +2410,7 @@ class _RecordBuilder(_Unassignable):
 
     def __init__(self, schema: Any, source: _RecordData | None = None, store: OfStore | None = None,
                  attach: Callable[[_RecordBuilder], None] | None = None, parent: Any = None, declared: Any = None):
+        source = _durable(source)
         self._schema, self._source, self._copy_of, self._store = schema, source, None, store
         self._attach, self._parent = attach, parent
         self._declared = schema if declared is None else declared  # what a value given must be, or refine
@@ -2262,6 +2467,7 @@ class _RecordBuilder(_Unassignable):
             self._touch()
             _visit(spec, self)
         else:
+            spec = _durable(spec)
             if not isinstance(spec, _RecordData) or not _refines(spec._schema, self._declared):
                 raise TypeError(f"{_a(_noun(self._schema))} or a Spec is expected, got {type(spec).__name__}")
             self._schema = spec._schema
@@ -2586,7 +2792,7 @@ class _LinkMember(_Unassignable):
             _visit(spec, builder)
             entry._links[name] = builder
             return entry
-        spec = _deref(spec)
+        spec = _durable(_deref(spec))
         if isinstance(spec, _Unresolved):  # one of the store below's not present, which loading it links (CAP-284)
             entry._links[name] = spec
             return entry
@@ -2710,6 +2916,7 @@ class _ObjectBuilder(_Unassignable):
         self._store, self._schema, self._schema_name, self._source = store, schema, schema_name, instance
         self._values: dict[str, Any] = {}
         self._entries: dict[str, list[_EntryBuilder]] = {}
+        instance = self._source = _durable(instance)
         if instance is not None:
             if not isinstance(instance, _ObjectData):
                 raise TypeError("a builder's source must be a proxy instance")
@@ -2748,14 +2955,19 @@ class _ObjectBuilder(_Unassignable):
             raise ValueError("create() is only valid without a source instance; use clone() or update()")
         self._not_singleton("create")
         with self._store._writing():
-            return self._noted(self._write(self._new()), True)
+            return self._given(self._noted(self._write(self._new()), True))
 
     def clone(self) -> _ObjectData:
         if self._source is None:
             raise ValueError("clone() is only valid with a source instance")
         self._not_singleton("clone")
         with self._store._writing():
-            return self._noted(self._write(self._new()), True)
+            return self._given(self._noted(self._write(self._new()), True))
+
+    def _given(self, made: _ObjectData) -> _ObjectData:
+        """What a builder gives back: a visitor of the transaction open, the durable object made with none open, as an
+        expression's (CAP-315)."""
+        return _wrap(made, self._store._life)
 
     def _new(self) -> _ObjectData:
         """A new object of the builder's schema; one whose schema declares an owner is given it when the outermost write
@@ -2775,7 +2987,7 @@ class _ObjectBuilder(_Unassignable):
                 _discard_linking(adjacency.relation, adjacency.me, self._source)
             written = self._write(self._source, rewritten)
             _reorder(orders, rewritten)
-        return self._noted(written, False)
+        return self._given(self._noted(written, False))
 
     def _noted(self, target: _ObjectData, created: bool) -> _ObjectData:
         """An object it created or wrote, noted in the proposals of the transaction open, if any (Provenance)."""
@@ -2821,6 +3033,9 @@ class _ObjectBuilder(_Unassignable):
                         rewritten[id(entry._source)] = _table(target, id(relation), self._store)[built._key()]
         return target
 
+
+_WRAPPED = (_ObjectData, _RecordData, _Entry, _ContainerData)
+"""The classes used twice: durable, as a store holds them, and as a transaction's proxies wrapping them (CAP-315)."""
 
 _VALUES = (_ObjectData, _RecordData, _Entry, _Property, _Scalar, _RecordBuilder, _LinkMember, _Adjacency,
            _AdjacencyBuilder, _Empty, _EntryBuilder, _Containing, _Iterator, _Them, _Chained, _Named)

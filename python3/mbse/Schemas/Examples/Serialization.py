@@ -66,9 +66,11 @@ for schema in [Sample, Currency, Product, Money, Prices, Denomination]:
     assert schema.validate() == [], (schema.name, schema.validate())
     assert store.registered(schema.name) is schema
 
-# --- Scalar values at their edges ---
-
+# Every read is within a transaction, and the objects below are counted (neither singletons nor owned): nothing names
+# them after the transaction that made them, so these checks are made within one transaction.
 with store.transaction():
+    # --- Scalar values at their edges ---
+
     edge = store.Sample(lambda s: (
         s
         .label('日本語 🚀 \u0000 "quoted" \\ back')  # non-ASCII, emoji, NUL, quotes, backslash
@@ -76,63 +78,59 @@ with store.transaction():
         .count(2**100)  # Python ints are unbounded
         .ratio(-0.0)
         .flag(False)  # a present False is not an absent property
-))
-plain = Plain.ToPlain(store)(Sample, edge)
-fields = members(plain)['0']  # the root's members: a document's objects are symbols, the root's '0'
-assert fields['payload'] == 'AP8QAP8QAP8Q'  # bytes become base64 text
-assert fields['flag'] is False and fields['count'] == 2**100
+    ))
+    plain = Plain.ToPlain(store)(Sample, edge)
+    fields = members(plain)['0']  # the root's members: a document's objects are symbols, the root's '0'
+    assert fields['payload'] == 'AP8QAP8QAP8Q'  # bytes become base64 text
+    assert fields['flag'] is False and fields['count'] == 2**100
 
-# Plain data is JSON-encodable, and survives a JSON round trip.
-restored = Plain.FromPlain(store)(Sample, json.loads(json.dumps(plain)))
-assert restored.label.get() == edge.label.get() and bytes(restored.payload) == bytes(edge.payload) and int(restored.count) == 2**100
-assert float(restored.ratio) == 0.0 and math.copysign(1, float(restored.ratio)) < 0  # the sign of -0.0 survives
-assert restored.flag.get() is False
+    # Plain data is JSON-encodable, and survives a JSON round trip.
+    restored = Plain.FromPlain(store)(Sample, json.loads(json.dumps(plain)))
+    assert restored.label.get() == edge.label.get() and bytes(restored.payload) == bytes(edge.payload) and int(restored.count) == 2**100
+    assert float(restored.ratio) == 0.0 and math.copysign(1, float(restored.ratio)) < 0  # the sign of -0.0 survives
+    assert restored.flag.get() is False
 
-# Empty values are present values.
-with store.transaction():
+    # Empty values are present values.
     empty = store.Sample(lambda s: s.label('').payload(b'').count(0).ratio(0.0))
-back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
-assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
-assert back.flag.get() is None  # never set, so absent
+    back = Plain.FromPlain(store)(Sample, Plain.ToPlain(store)(Sample, empty))
+    assert (back.label.get(), back.payload.get(), back.count.get(), back.ratio.get()) == ('', b'', 0, 0.0)
+    assert back.flag.get() is None  # never set, so absent
 
-# An object with nothing set is a symbol of its schema with no members.
-with store.transaction():
+    # An object with nothing set is a symbol of its schema with no members.
     blank = store.Sample(lambda s: s)
-assert members(Plain.ToPlain(store)(Sample, blank)) == {'0': {}} and schema_names(Plain.ToPlain(store)(Sample, blank)) == {'0': 'Sample'}
+    assert members(Plain.ToPlain(store)(Sample, blank)) == {'0': {}} and schema_names(Plain.ToPlain(store)(Sample, blank)) == {'0': 'Sample'}
 
-# Per-kind entry points.
-assert Plain.ToPlain(store)(store.Schemas.OfBytes.as_schema(), b'\x01') == Plain.ToPlain(store).OfScalar(store.Schemas.OfBytes.as_schema(), b'\x01') == 'AQ=='
-assert Plain.FromPlain(store).OfScalar(store.Schemas.OfInt.as_schema(), 7) == 7
+    # Per-kind entry points.
+    assert Plain.ToPlain(store)(store.Schemas.OfBytes.as_schema(), b'\x01') == Plain.ToPlain(store).OfScalar(store.Schemas.OfBytes.as_schema(), b'\x01') == 'AQ=='
+    assert Plain.FromPlain(store).OfScalar(store.Schemas.OfInt.as_schema(), 7) == 7
 
-# --- Strict scalar types ---
+    # --- Strict scalar types ---
 
-# Distinct scalar types are never coerced into each other, in either direction. Reading a wrong type is a problem in
-# the data: a DecodeError (a ValueError) located by a path, here the root.
-from_plain = Plain.FromPlain(store)
-for scalar, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), (str, b'x'), (str, None)]:
+    # Distinct scalar types are never coerced into each other, in either direction. Reading a wrong type is a problem in
+    # the data: a DecodeError (a ValueError) located by a path, here the root.
+    from_plain = Plain.FromPlain(store)
+    for scalar, bad in [(int, True), (int, 1.0), (int, '1'), (float, 1), (bool, 0), (str, b'x'), (str, None)]:
+        with raises(DecodeError):
+            from_plain(Schemas.OfScalar.Data(scalar), bad)
     with raises(DecodeError):
-        from_plain(Schemas.OfScalar.Data(scalar), bad)
-with raises(DecodeError):
-    from_plain(store.Schemas.OfBytes.as_schema(), b'raw')  # bytes arrive as base64 text
-with raises(DecodeError):
-    from_plain(store.Schemas.OfBytes.as_schema(), 'not base64!')
+        from_plain(store.Schemas.OfBytes.as_schema(), b'raw')  # bytes arrive as base64 text
+    with raises(DecodeError):
+        from_plain(store.Schemas.OfBytes.as_schema(), 'not base64!')
 
-# The builder does not validate; the serializer does.
-with store.transaction():
+    # The builder does not validate; the serializer does.
     sloppy = store.Sample(lambda s: s.count('3'))
     assert sloppy.count.get() == '3'
-with raises(TypeError):
-    Plain.ToPlain(store)(Sample, sloppy)
+    with raises(TypeError):
+        Plain.ToPlain(store)(Sample, sloppy)
 
-# Validation reports it without serializing.
-validate = Validators.Validate(store)
-assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
-assert validate(Sample, edge) == [] and validate(Sample, blank) == []
-assert validate(store.Schemas.OfInt.as_schema(), True) == ['expected int, got bool']
+    # Validation reports it without serializing.
+    validate = Validators.Validate(store)
+    assert validate(Sample, sloppy) == ['Sample#0.count: expected int, got str']
+    assert validate(Sample, edge) == [] and validate(Sample, blank) == []
+    assert validate(store.Schemas.OfInt.as_schema(), True) == ['expected int, got bool']
 
-# --- A map: product -> [currency] -> money ---
+    # --- A map: product -> [currency] -> money ---
 
-with store.transaction():  # the data: written within a transaction, all or nothing
     jpy = store.iso4217.Currency(lambda c: c.code('JPY').numeric('392').minor_units(0))
     eur = store.iso4217.Currency(lambda c: c.code('EUR').numeric('978').minor_units(2))
     widget = store.Product(lambda p: (
@@ -141,67 +139,66 @@ with store.transaction():  # the data: written within a transaction, all or noth
         .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1500).currency(lambda a: a.insert(lambda d: d.currency(jpy)))).currency('JPY')))
         .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(1299).currency(lambda a: a.insert(lambda d: d.currency(eur)))).currency('EUR')))
     ))
-by_currency = {e['currency']: int(e['price'].amount) for e in entries(Product, widget, 'prices')}
-assert by_currency == {'JPY': 1500, 'EUR': 1299}
+    by_currency = {e['currency']: int(e['price'].amount) for e in entries(Product, widget, 'prices')}
+    assert by_currency == {'JPY': 1500, 'EUR': 1299}
 
-graph = Plain.ToPlain(store).Reachable(Product, widget)
-assert sorted(m['code'] for m in members(graph).values() if 'code' in m) == ['EUR', 'JPY']
-assert set(schema_names(graph).values()) == {'Product', 'Money', 'iso4217.Currency'}  # each symbol of its schema
-again = from_plain.Reachable(Product, json.loads(json.dumps(graph)))
-assert {e['currency']: int(e['price'].amount) for e in entries(Product, again, 'prices')} == by_currency
+    graph = Plain.ToPlain(store).Reachable(Product, widget)
+    assert sorted(m['code'] for m in members(graph).values() if 'code' in m) == ['EUR', 'JPY']
+    assert set(schema_names(graph).values()) == {'Product', 'Money', 'iso4217.Currency'}  # each symbol of its schema
+    again = from_plain.Reachable(Product, json.loads(json.dumps(graph)))
+    assert {e['currency']: int(e['price'].amount) for e in entries(Product, again, 'prices')} == by_currency
 
-assert validate.Reachable(Product, widget) == []
+    assert validate.Reachable(Product, widget) == []
 
-# uniques('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
-with store.transaction():
+    # uniques('price') on Prices: (product, currency) determine the price. A second JPY price breaks it.
     gadget = store.Product(lambda p: (
         p
         .sku('G-1')
         .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(900)).currency('JPY')))
         .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(950)).currency('JPY')))
     ))
-assert validate(Product, gadget) == ['unique(price) violated: entries agreeing on [\'currency\', \'product\'] differ on [\'price\']']
+    assert validate(Product, gadget) == ['unique(price) violated: entries agreeing on [\'currency\', \'product\'] differ on [\'price\']']
 
-# The root must be an instance of the schema given.
-assert validate(Currency, widget) != []
+    # The root must be an instance of the schema given.
+    assert validate(Currency, widget) != []
 
-# --- Malformed documents are rejected ---
+    # --- Malformed documents are rejected ---
 
-good = Plain.ToPlain(store).Reachable(Product, widget)
-
-
-def mutated(change):
-    document = json.loads(json.dumps(good))
-    change(document)
-    return document
+    good = Plain.ToPlain(store).Reachable(Product, widget)
 
 
-def spec(document):
-    return document['mutations'][0]['upsert']['exists'][0]['spec']
+    def mutated(change):
+        document = json.loads(json.dumps(good))
+        change(document)
+        return document
 
 
-bad_documents = [
-    [],  # not a document
-    {'mutations': []},  # it binds no root
-    mutated(lambda d: spec(d).append({'99': []})),  # not a symbol of its pattern
-    mutated(lambda d: spec(d)[0]['0'].append({'as_property': {'name': 'colour', 'mutations': [{'set': {'value': 'red'}}]}})),
-    mutated(lambda d: spec(d)[0]['0'][0]['as_property']['mutations'][0]['set'].__setitem__('value', 5)),  # sku: text
-]
-for document in bad_documents:
-    with raises(DecodeError):
-        from_plain.Reachable(Product, document)
+    def spec(document):
+        return document['mutations'][0]['upsert']['exists'][0]['spec']
 
-# An object's document holds it alone: widget's, which links counted prices, is refused.
-with raises(ValueError):
-    Plain.ToPlain(store)(Product, widget)
 
-# The root must be an instance of the schema given.
-with raises(TypeError):
-    Plain.ToPlain(store)(Currency, widget)
+    bad_documents = [
+        [],  # not a document
+        {'mutations': []},  # it binds no root
+        mutated(lambda d: spec(d).append({'99': []})),  # not a symbol of its pattern
+        mutated(lambda d: spec(d)[0]['0'].append({'as_property': {'name': 'colour', 'mutations': [{'set': {'value': 'red'}}]}})),
+        mutated(lambda d: spec(d)[0]['0'][0]['as_property']['mutations'][0]['set'].__setitem__('value', 5)),  # sku: text
+    ]
+    for document in bad_documents:
+        with raises(DecodeError):
+            from_plain.Reachable(Product, document)
 
-# --- Store corner cases ---
+    # An object's document holds it alone: widget's, which links counted prices, is refused.
+    with raises(ValueError):
+        Plain.ToPlain(store)(Product, widget)
 
-with store.transaction():  # each refused before it writes
+    # The root must be an instance of the schema given.
+    with raises(TypeError):
+        Plain.ToPlain(store)(Currency, widget)
+
+    # --- Store corner cases ---
+
+    # Each is refused before it writes.
     with raises(ValueError):
         store.Schemas.OfObject(lambda o: o.name('Sample'))  # a named schema's identity is its name, which Sample holds
     with raises(AttributeError):
@@ -214,8 +211,8 @@ with store.transaction():  # each refused before it writes
         store.Product(jpy)  # the source instance must have the builder's schema
     with raises(TypeError):
         store.Product(lambda p: p.colour('red'))  # not a property or adjacency: it reads as empty, and refuses a write
-with raises(AttributeError):
-    widget.sku = 'W-2'  # instances are read-only
+    with raises(AttributeError):
+        widget.sku = 'W-2'  # instances are read-only
 
 # A schema named 'schema' is shadowed by the store's schema() method, but still reachable by name.
 

@@ -540,6 +540,11 @@ function ownerEntries(target: unknown): unknown[] {
     .flatMap((a) => linking(a.relation as RelationSchema, a.me, target));
 }
 
+/** Whether an owned object is deleted, as its store has it: no entry owns it. */
+export function _deleted(target: unknown): boolean {
+  return ownerAdjacencies((innerOf(target) as _ObjectData)._schema).length > 0 && ownerEntries(target).length === 0;
+}
+
 /** The links of an entry whose objects it owns: each linked proxy whose schema's adjacency marked `owner()` is the
  * entry's relation through that link. */
 function ownedLinks(state: _Entry): [string, unknown][] {

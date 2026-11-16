@@ -1832,6 +1832,9 @@ class Store(Proxies.OfStore):
         from . import Changes
 
         sends = self._below is not None and not self._applying
+        if sends and proposals.expression is not None and (
+                proposals.deferred or set(self._objects) != set(proposals.saved["_objects"])):
+            self._send_install(proposals.expression)  # it writes schemas: the store below's, first
         if self._observers or sends or self._reporting:
             self._changes = Changes._gather(self, proposals)
         if sends and self._changes is not None:
@@ -1859,6 +1862,22 @@ class Store(Proxies.OfStore):
         finally:
             self._giving_back = None
         return given[0] if given else None
+
+    def install(self, plain: Any) -> None:
+        """Runs an install given as plain data, a transaction that writes schemas, finding what the store holds
+        already; refused as the store refuses it (`Stores.Below`, CAP-306)."""
+        from . import Plain
+
+        self.transaction(Plain.FromPlain(self).Transaction(plain))
+
+    def _send_install(self, expression: Any) -> None:
+        """Sends a transaction that writes schemas, as plain data, to the store below, within the transaction, before
+        it commits, so that the store below holds the schemas this store holds, and a refusal there refuses it."""
+        from . import Changes, Plain
+
+        with Changes._as_committed(self):
+            plain = Plain.ToPlain(self).Transaction(expression)
+        self._below.install(plain)
 
     def follow(self, follower: Any) -> Any:
         """Gives `follower` each transaction the store commits, as plain data, in the order it commits them; gives back

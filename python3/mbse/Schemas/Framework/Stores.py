@@ -11,8 +11,9 @@ snapshots, or a store is given another below it. Selecting objects by a conditio
 `Below` is what a store asks of the store below it, which any store below implements, whatever it is kept in, being no
 `Builders.Store` nor knowing one ([CAP-306: a public store-below interface](mbse:mbse-basis/docs/capabilities/README.md#CAP-306)): an object's document by its
 path, `document(path)`; a transaction's changes, given as plain data, committed or refused, and what it committed of
-them given back, `commit(plain)`; each transaction it commits given to its followers in order, `follow(follower)`;
-and whether it records the transactions it commits, `records`. Everything given and given back is plain data, as a
+them given back, `commit(plain)`; an install, a transaction that writes schemas, run, `install(plain)`; each
+transaction it commits given to its followers in order, `follow(follower)`; and whether it records the transactions it
+commits, `records`. Everything given and given back is plain data, as a
 store above writes and reads it ([CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283), [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285)).
 
 `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
@@ -53,6 +54,10 @@ class Below(Protocol):
         """Commits a transaction given as plain data (`Plain.ToPlain(store).Transaction`): its changes, with its `uid`,
         `when`, `session` and `where` where it has them; refused, raising, as the store refuses it. Gives back what it
         committed, as plain data, what it added among it (as its record); None where it changed nothing."""
+
+    def install(self, plain: Any) -> None:
+        """Runs an install given as plain data (`Plain.ToPlain(store).Transaction`), a transaction that writes schemas,
+        as a store runs any install, finding what it holds already; refused, raising, as the store refuses it."""
 
     def follow(self, follower: Callable[[Any], None]) -> Callable[[], None]:
         """Gives `follower` each transaction it commits, as plain data, in the order it commits them, once each;

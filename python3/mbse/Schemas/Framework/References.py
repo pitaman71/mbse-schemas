@@ -1,6 +1,7 @@
-"""References: one format for what designates an object, a relation entry or a frame ([CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md)).
+"""References: one format for what designates an object, a relation entry, a frame or a parameter ([CAP-130: references to objects, entries and frames](mbse:mbse-basis/docs/capabilities/CAP-130.md);
+[CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311)).
 
-Three value schemas, which every store holds, its own, as it holds `Paths`:
+Value schemas, which every store holds, its own, as it holds `Paths`:
 
 - `References.OfObject`, a singleton or other non-counted reference object: a value object whose one property, `path`, is a
   singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
@@ -13,7 +14,10 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
 - `References.OfProperties`, property values an object is witnessed to hold: its `object`, a `References.OfObject`,
   and its `properties`, each its value;
 - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
-  `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
+  `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one;
+- `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
+  proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
+  resolves it, not a store.
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
 included; `resolve(store, reference)` gives what a reference designates, or None where the store holds none. A
@@ -45,7 +49,7 @@ def install(txn: Any) -> Any:
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.References/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({"OfObject": S.OfObject, "OfFrame": S.OfObject, "OfProperties": S.OfObject, "OfEntry": S.OfObject,
-                  "OfError": S.OfObject, "OfSymbol": S.OfObject})
+                  "OfError": S.OfObject, "OfSymbol": S.OfObject, "OfParameter": S.OfObject})
         .spec([
             lambda _: _.OfObject.name("References.OfObject").properties({
                 "path": txn.Paths.OfRoot,  # a singleton's, an owned object's or a schema object's
@@ -70,6 +74,9 @@ def install(txn: Any) -> Any:
                 "subterm": S.OfStr,  # where in the expression: a path in its wire form, `$.mutations[0].map`
                 "kind": S.OfStr,  # the error's class's name
                 "message": S.OfStr,
+            }),
+            lambda _: _.OfParameter.name("References.OfParameter").properties({
+                "name": S.OfStr,  # the parameter's name, and nothing else (CAP-311)
             }),
             # --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
             lambda _: _.OfSymbol.name("Schemas.OfSymbol").properties({"reference": _.OfObject}),
@@ -160,7 +167,9 @@ def _entry(store: Any, entry: Any) -> Any:
 def of(store: Any, x: Any) -> Any:
     """The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, refused for a
     counted object; of a relation entry (`References.OfEntry`); of a frame `store.transaction` gave back, a mapping of
-    symbols to objects (`References.OfFrame`), refused where it binds a counted object."""
+    symbols to objects (`References.OfFrame`), refused where it binds a counted object. It gives no
+    `References.OfParameter`, since a parameter is not an object that a store holds: a parameter reference is built
+    by its name, `store.References.OfParameter(lambda p: p.name(...))`."""
     if isinstance(x, Mapping):
         return store.References.OfFrame(_frame(store, x))
     if isinstance(x, Proxies._Entry):
@@ -170,14 +179,21 @@ def of(store: Any, x: Any) -> Any:
 
 def resolve(store: Any, reference: Any) -> Any:
     """What `reference` designates in `store`: an object, an entry, or a frame, a mapping of symbols to objects; None
-    where the store holds none."""
+    where the store holds none. A parameter reference (`References.OfParameter`) gives None: a binding in the scope that
+    encloses it resolves it, not a store ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313))."""
     names = {"References.OfObject": _resolve_object, "References.OfEntry": _resolve_entry,
-             "References.OfFrame": _resolve_frame}
+             "References.OfFrame": _resolve_frame, "References.OfParameter": _resolve_parameter}
     schema = reference.as_schema() if hasattr(reference, "as_schema") else None
     found = next((resolver for name, resolver in names.items() if store.registered(name) is schema), None)
     if found is None:
-        raise TypeError("References.resolve takes a References.OfObject, OfEntry or OfFrame value of the store's")
+        raise TypeError("References.resolve takes a References.OfObject, OfEntry, OfFrame or OfParameter value of the "
+                        "store's")
     return found(store, Plain.ToPlain(store)(schema, reference))
+
+
+def _resolve_parameter(store: Any, plain: Any) -> Any:
+    """None: a parameter reference is resolved by a binding in its scope, never by a store."""
+    return None
 
 
 def _resolve_object(store: Any, plain: Any) -> Any:

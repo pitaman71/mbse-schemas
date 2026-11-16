@@ -93,12 +93,17 @@ schemas from anything a program holds; the builders make a new version beside a 
    parameters, not one per value. *How*: install `Parametrics` before use; in a spec, give a schema of any kind a set of
    parameters, each named, described, and for a value of a schema (`for_value`) or an object of an object schema
    (`for_object`). `Parametrics.validate(store, schema)` checks them; a schema's own `validate()` does not. Binding
-   them is mbse-expressions'.
+   them is mbse-expressions'. A parameter reference, `References.OfParameter`, built through its `name` alone,
+   designates a parameter by its name and holds nothing else. It is a value, written and read as any value is. A
+   binding in the scope that encloses it resolves it, so that `References.resolve` gives none for it, and
+   `References.of` makes none.
    [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md),
-   [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md).
+   [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md),
+   [CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311).
    - Python: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.5) · TypeScript: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.5)
    - Python: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-02) · TypeScript: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-02)
    - Python: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-03) · TypeScript: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-03)
+   - Python: [REF-11: A parameter reference holds its parameter's name and nothing else](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-11) · TypeScript: [REF-11: A parameter reference holds its parameter's name and nothing else](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-11)
 
 ## Practices
 

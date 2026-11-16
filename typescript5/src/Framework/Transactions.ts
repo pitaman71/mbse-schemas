@@ -30,6 +30,12 @@
  *
  * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
  * schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
+ *
+ * `cached(store, transaction, below)` is a cache layer's interpretation of a transaction, `store` the cache over a layer
+ * below it, `below`, a function given the transaction that gives back a stream of frames, an `Observable` ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)):
+ * it forwards the transaction and interprets it at once over what it holds, giving each frame it binds fully before the
+ * layer below answers, then each of the layer below's that differs from the one it gave with the same bindings, or that
+ * it gave none of, then each it gave that the layer below gave none of, retracted. `store.transaction` is unchanged.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -39,6 +45,7 @@ import { LookupError, path as plainPath, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
+import type * as Proposals from "./Proposals.js";
 import * as Proxies from "./Proxies.js";
 import * as References from "./References.js";
 import { repr, sortedStrings, TYPE_NAME } from "./Repr.js";
@@ -581,12 +588,14 @@ export class FrameError {
   }
 }
 
-/** A frame: the objects its symbols bind, by symbol, a `Map`; and its `errors`, each what failed as a term processed
- * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did. */
+/** A frame: the objects its symbols bind, by symbol, a `Map`; its `errors`, each what failed as a term processed it
+ * ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did; and whether it is `retracted`: a frame a cache layer gave early,
+ * given again where the layer below gives none with its bindings ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)). */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
 
-  constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = []) {
+  constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = [],
+    readonly retracted = false) {
     super(bound);
     this.errors = [...errors];
   }
@@ -814,6 +823,13 @@ function extent(store: any, schema: any): any[] {
  * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
  * `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
 function run(store: any, term: any, frames: Frame[], at: (string | number)[], failed: Frame[]): Frame[] {
+  frames = step(store, term, frames, at, failed);
+  const after = next(term, "then");
+  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], failed);
+}
+
+/** The frames a term makes of `frames`, those after it left out: as `run`. */
+function step(store: any, term: any, frames: Frame[], at: (string | number)[], failed: Frame[]): Frame[] {
   const kind = kindOf(store, term);
   if (kind === "map" || kind === "upsert" || kind === "update") {
     const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
@@ -838,7 +854,7 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], fa
     const unique = new Map<string, Frame>();
     for (const frame of frames) {
       const kept = new Frame([...frame].filter(([name]) => !dropped.includes(name)));
-      const identity = JSON.stringify([...kept].map(([name, target]) => [name, Proxies._key_of(reader(store, target))]));
+      const identity = frameKey(store, kept);
       if (!unique.has(identity)) unique.set(identity, kept);
     }
     frames = [...unique.values()];
@@ -853,8 +869,13 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], fa
     if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
     frames = arms.flatMap(([armAt, arm]) => run(store, arm, frames.map((frame) => new Frame(frame)), armAt, failed));
   }
-  const after = next(term, "then");
-  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], failed);
+  return frames;
+}
+
+/** What tells a frame apart from another, as a reduce does: each symbol with its object, as it is told apart in
+ * memory. */
+function frameKey(store: any, frame: Frame): string {
+  return JSON.stringify([...frame].map(([name, target]) => [name, Proxies._key_of(reader(store, target))]));
 }
 
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
@@ -1249,3 +1270,284 @@ function insert(store: any, target: any, schema: any, name: string, adjacency: a
   member((held: any) => held.insert(fill));
   builder.update();
 }
+
+// --- A cache layer ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)) ---
+
+/** What a stream gives its values to (`Observable`): where it has `start`, its subscription, before anything else; each
+ * value; then its end, an error or its completion. */
+export interface Observer<T> {
+  start?(subscription: Subscription): void;
+  next(value: T): void;
+  error(error: unknown): void;
+  complete(): void;
+}
+
+/** What `Observable.subscribe` gives back: `unsubscribe()` ends the stream for its observer; `closed`, whether it has
+ * ended, by its end or by `unsubscribe()`. */
+export interface Subscription {
+  unsubscribe(): void;
+  readonly closed: boolean;
+}
+
+/** A stream of values, the framework's own minimal observable: `subscribe({ next, error, complete })` runs it for that
+ * observer, and gives back a subscription, which `unsubscribe()` ends, as does one the observer's `start` is given, for
+ * a stream that gives its values while it is subscribed. Nothing reaches the observer once the stream has
+ * ended; an error thrown while it is subscribed reaches its `error`. It is shaped as the ECMAScript Observable proposal
+ * and RxJS have it, and gives itself back from `[Symbol.observable]()` (`"@@observable"` where the runtime defines no
+ * such symbol), so that their `from` takes it; it depends on no package ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310), "Typescript
+ * observable"). Python's streams are generators. */
+export class Observable<T> {
+  /** `produce` is given the observer, which delivers nothing once the stream has ended, and gives back what ends the
+   * stream where its subscriber unsubscribes first. */
+  constructor(private readonly produce: (observer: Observer<T> & Subscription) => () => void) {}
+
+  subscribe(observer: Observer<T>): Subscription {
+    const sink = new Sink(observer);
+    observer.start?.(sink);
+    try {
+      sink.started(this.produce(sink));
+    } catch (error) {
+      sink.error(error);
+    }
+    return sink;
+  }
+}
+
+for (const key of [Reflect.get(Symbol, "observable"), "@@observable"].filter((found) => found !== undefined)) {
+  Object.defineProperty(Observable.prototype, key, { value: function (this: unknown): unknown { return this; } });
+}
+
+/** One subscription to an `Observable`: the observer it delivers to, while the stream has not ended. */
+class Sink<T> implements Observer<T>, Subscription {
+  closed = false;
+  private unsubscribed = false;
+  private teardown = (): void => {};
+
+  constructor(private readonly observer: Observer<T>) {}
+
+  next(value: T): void {
+    if (!this.closed) this.observer.next(value);
+  }
+
+  error(error: unknown): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.observer.error(error);
+  }
+
+  complete(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.observer.complete();
+  }
+
+  unsubscribe(): void {
+    if (this.closed) return;
+    this.closed = this.unsubscribed = true;
+    this.teardown();
+  }
+
+  /** What ends the stream, once it has started: at once, where its subscriber unsubscribed while it started. */
+  started(teardown: () => void): void {
+    this.teardown = teardown;
+    if (this.unsubscribed) teardown();
+  }
+}
+
+/** The client ended a cache layer's stream while the cache was giving its own frames: its writes dropped. */
+class Ended extends Error {}
+
+/** A cache layer's interpretation of a transaction, `store` the cache, a stream of frames (an `Observable`) ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)). It
+ * does two things at once: it forwards the transaction, a `Mutations.OfTransaction` of `store`'s, to the layer below,
+ * `below`, which gives back a stream of frames (an `Observable`), each a `References.OfFrame` of `store`'s with what it
+ * witnesses (`References.witnessed`); and it interprets the transaction over what the cache holds, partially
+ * (`partial`). Subscribed, it gives, in order:
+ *
+ * - each frame the cache binds fully, as soon as it does, before the layer below answers: its writes, speculative, are
+ *   the cache's at once;
+ * - each frame of the layer below's that the cache gave none with the same bindings, or whose witness differs from the
+ *   one it gave, in a property's value or in its errors: the cache takes it, the objects it binds, made where it holds
+ *   none, and the values it witnesses (`held`), and gives it again, as the layer below gave it;
+ * - each frame it gave early with bindings the layer below gave no frame of, again, marked `retracted`.
+ *
+ * A client replaces each frame by the last one with the same bindings, and drops it where that one is retracted. Where
+ * the layer below refuses the transaction, a frame of it annotated with an error (CAP-309), what the cache wrote of the
+ * transaction, speculatively or from the layer below's frames, is undone before that frame is given, and its frames
+ * reach the client as they come, annotated; likewise undone where the stream ends early, the layer below's ending in an
+ * error, which reaches the client, or the client unsubscribing, so that the cache keeps only what the layer below's
+ * stream, completed, confirms. An error in the expression itself is thrown before the transaction is forwarded. The
+ * cache's own frames are given while its speculative writes are open, in a transaction of `store`'s: a client opens no
+ * other on it meanwhile. */
+export function cached(store: any, transaction: any, below: (transaction: any) => Observable<any>): Observable<Frame> {
+  const root = next(transaction, "mutations");
+  if (root !== null) check(store, root, new Set());
+  const answers = below(transaction);
+  return new Observable<Frame>((sink) => {
+    const plain = Plain.ToPlain(store);
+    const schema = store.registered("References.OfFrame");
+    const given = new Map<string, [string, Frame]>(); // each frame given, by its bindings: what it witnessed, and it
+    const undo: Proposals.Undo[] = []; // what the cache overwrote, in order (`Proposals.OfStore.undo`)
+    store._transacting(() => {
+      store._proposals.expression = transaction; // its speculative writes
+      store._proposals.undo = undo;
+      partial(store, root, ["mutations", 0], new Frame(), new Set(), (frame) => {
+        const witness = plain(schema, References.witnessed(store, frame)) as Map<string, any>;
+        given.set(bindings(witness), [Json.dumps(witness), frame]);
+        sink.next(frame);
+        if (sink.closed) throw new Ended();
+      });
+    });
+    const seen = new Set<string>();
+    let refused = false;
+    const subscription = answers.subscribe({
+      next: (reference) => {
+        const witness = plain(schema, reference) as Map<string, any>;
+        const key = bindings(witness);
+        seen.add(key);
+        if (witness.has("errors") || refused) { // the layer below refuses the transaction: what the cache wrote of it
+          refused = true; // undone, before the frame is given; what the layer below witnesses never held
+          undone(store, undo);
+        } else {
+          store._transacting(() => {
+            store._proposals.undo = undo;
+            held(store, witness);
+          });
+        }
+        const text = Json.dumps(witness);
+        if (given.get(key)?.[0] !== text) {
+          const frame = resolved(store, witness);
+          given.set(key, [text, frame]);
+          sink.next(frame);
+        }
+      },
+      error: (error) => {
+        undone(store, undo);
+        sink.error(error);
+      },
+      complete: () => {
+        for (const [key, [, frame]] of [...given]) {
+          if (!seen.has(key)) sink.next(new Frame(frame, [], true));
+        }
+        sink.complete();
+      },
+    });
+    return () => { // the client unsubscribed
+      subscription.unsubscribe();
+      undone(store, undo);
+    };
+  });
+}
+
+/** The partial-aware interpretation of a transaction's expression over what a cache holds, one frame at a time
+ * ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)): given the residual, `term`, the subterm to evaluate, by `at`, the path in the root expression's wire
+ * form of the link to it (`run`'s, its kind not yet added), and `frame`, the symbols bound before it; the candidates
+ * of each symbol it should bind are those the cache holds, which `bind` qualifies by the spec. Gives `emit` each frame
+ * the chain from `term` ends with as soon as it does: a frame with every symbol bound, at the leaf (`term` null), is
+ * given before the next candidate is tried. A term that fails to process a frame, as one does in a cache that does not
+ * hold what a spec refers to, leaves no write of it (a savepoint), and the frame is left to the layer below. `seen`:
+ * what each reduce has given, which it gives once. */
+function partial(store: any, term: any, at: (string | number)[], frame: Frame, seen: Set<string>,
+  emit: (frame: Frame) => void): void {
+  if (term === null) {
+    emit(frame);
+    return;
+  }
+  const kind = kindOf(store, term);
+  at = [...at, kind];
+  let made: Frame[];
+  if (kind === "reduce") {
+    made = step(store, term, [frame], at, []);
+    const identity = JSON.stringify([at, frameKey(store, made[0]!)]);
+    if (seen.has(identity)) return;
+    seen.add(identity);
+  } else {
+    try {
+      made = store._joined(() => {
+        const failed: Frame[] = [];
+        const found = step(store, term, [frame], at, failed);
+        if (failed.length > 0) throw new Uncommitted();
+        return found;
+      });
+    } catch { // Uncommitted, or any other: what the cache cannot do is the layer below's
+      return;
+    }
+  }
+  for (const found of made) partial(store, next(term, "then"), [...at, "then", 0], found, seen, emit);
+}
+
+/** What tells a frame's bindings apart, across layers: its symbols' references, as plain. */
+function bindings(witness: Map<string, any>): string {
+  const binds = witness.get("binds") as Map<string, unknown>;
+  return Json.dumps(new Map(sortedStrings([...binds.keys()]).map((name) => [name, binds.get(name)])) as Plain.PlainData);
+}
+
+/** A frame of the layer below's, given as plain, as the cache gives it: each symbol bound to the object its reference
+ * designates, where the cache holds it, and its errors. */
+function resolved(store: any, witness: Map<string, any>): Frame {
+  const bound = [...witness.get("binds") as Map<string, any>].map(([name, given]) =>
+    [name, References._resolve_object(store, given)] as const);
+  return new Frame(bound.filter(([, target]) => target !== null), ((witness.get("errors") ?? []) as Map<string, any>[])
+    .map((error) => new FrameError(error.get("subterm"), error.get("kind"), error.get("message"))));
+}
+
+/** What a frame of the layer below's, given as plain, binds and witnesses, taken by the cache: each object it binds,
+ * made where the cache holds none (`taken`), and, where an object holds values other than those it witnesses, each of
+ * its properties written as witnessed, one left out cleared. */
+function held(store: any, witness: Map<string, any>): void {
+  const plain = Plain.ToPlain(store);
+  const schema = store.registered("References.OfFrame");
+  const valuesOf = store.registered("References.OfProperties").properties.get("properties").schema.element;
+  for (const given of (witness.get("binds") as Map<string, any>).values()) taken(store, given.get("path"));
+  for (const assigned of witness.get("assigns") as Map<string, any>[]) {
+    const target = References._resolve_object(store, assigned.get("object"));
+    const mine = (plain(schema, References.witnessed(store, new Map([["", target]]))) as Map<string, any>).get("assigns")[0];
+    if (Json.dumps(mine) !== Json.dumps(assigned)) {
+      const declared = reader(store, target).as_schema();
+      const values = new Map<string, unknown>([...declared.properties.keys()].map((name: string) => [name, null]));
+      for (const [name, value] of assigned.get("properties") as Map<string, unknown>) {
+        values.set(name, Plain._decode(valuesOf, value, [], store));
+      }
+      const builder = writer(store, declared, target);
+      for (const [name, value] of values) Plain._set(builder, name, value);
+      builder.update();
+    }
+  }
+}
+
+/** The object at `path`, a reference's, in the cache: the one it holds, else one made there, owned by the object at its
+ * owner's path, taken in the same way, through the entry the path's last step gives, as the store's schemas imply its
+ * schema (`References._implied`). */
+function taken(store: any, path: unknown): any {
+  const found = Plain._by_path(store, path, []);
+  if (found !== null) return found;
+  const [singleton, steps] = Plain._steps(path, []);
+  const owner = taken(store, Plain._owner_path(singleton, steps));
+  const [i, o, keys] = steps[steps.length - 1]!;
+  const schema = References._implied(store, path);
+  const relation = reader(store, owner).as_schema().adjacencies.get(i).relation;
+  const link = [...relation.entry.links.keys()].find((name: string) => name !== schema.adjacencies.get(o).me);
+  const owning = (entry: any): any => {
+    for (const [name, value] of keys) {
+      Plain._set(entry, name, Plain._decode(relation.entry.properties.get(name).schema, value, [], store));
+    }
+    return entry[link](owner);
+  };
+  const builder = writer(store, schema);
+  builder[o]((adjacency: any) => adjacency.insert(owning));
+  return builder.create();
+}
+
+/** Undoes what a cache wrote of a transaction (`Proposals.OfStore.undo`): each object's values and entry tables as they
+ * were before, in one transaction, the last overwritten first. */
+function undone(store: any, undo: Proposals.Undo[]): void {
+  store._transacting(() => {
+    for (const [kind, holder, held] of [...undo].reverse()) {
+      const into = store._proposals[kind](holder, true);
+      into.clear();
+      for (const [key, value] of held as Map<unknown, unknown>) into.set(key, value);
+    }
+  });
+  undo.length = 0;
+}
+
+export { reader as _reader };

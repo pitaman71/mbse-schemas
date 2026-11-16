@@ -17,7 +17,9 @@
  *   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
- * included; `resolve(store, reference)` gives what a reference designates, or null where the store holds none. A
+ * included; `witnessed(store, frame)`, a frame's with what it witnesses, each object it binds with its property values, as
+ * a layer of a stack gives it to the layer above ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)); `resolve(store, reference)` gives what a
+ * reference designates, or null where the store holds none. A
  * counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
@@ -168,6 +170,25 @@ export function of(store: any, x: unknown): any {
   const inner = Proxies._innerOf(x);
   if (inner instanceof Proxies._internals._Entry) return store.References.OfEntry(entryOf(store, inner));
   return store.References.OfObject(object(store, x));
+}
+
+/** The reference of a frame, as `of` gives it, with what it witnesses (`assigns`): each object it binds, in order, with
+ * the values its properties hold, those unset left out; what a layer of a stack gives the layer above, which compares
+ * them with what it holds ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/README.md#CAP-310)). */
+export function witnessed(store: any, frame: Map<string, unknown>): any {
+  const assigns = [...frame.values()].map((target) => {
+    const schema = Transactions._reader(store, target).as_schema();
+    const held = new Map([...schema.properties.keys()].map((name: string) => [name, store.member(target, name)] as const)
+      .filter(([, value]) => value !== null && value !== undefined));
+    return (x: any) => x.as_object((p: any) => p.object(object(store, target)).properties(held));
+  });
+  const framed = frameOf(store, frame);
+  return store.References.OfFrame((f: any) => framed(f).assigns(assigns));
+}
+
+/** The object a `References.OfObject`, as plain, designates in `store`; null where the store holds none. */
+export function _resolve_object(store: any, plain: Map<string, any>): unknown {
+  return resolveObject(store, plain);
 }
 
 /** What `reference` designates in `store`: an object, an entry, or a frame, a map of symbols to objects; null where the

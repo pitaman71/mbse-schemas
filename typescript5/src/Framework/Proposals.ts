@@ -10,7 +10,9 @@
  * decoder's does.
  *
  * The updates of schema objects that existed before the transaction began wait in its proposals too, and are applied
- * when it commits; a savepoint's are its transaction's once it commits.
+ * when it commits; a savepoint's are its transaction's once it commits. Given an array as their `undo`, a transaction's
+ * proposals append to it, as they commit, what they overwrite, so that it can be undone (a cache layer's speculative
+ * writes, `Transactions.cached`).
  */
 import type * as Readers from "./Readers.js";
 import type * as Schemas from "./Schemas.js";
@@ -18,6 +20,9 @@ import type * as Visitors from "./Visitors.js";
 
 type Values = Map<string, unknown>;
 type Tables = Map<unknown, Map<string, unknown>>;
+
+/** What a commit overwrote of one holder: its values, or its entry tables, as they were (`OfStore.undo`). */
+export type Undo = ["values", object, Values] | ["entries", object, Tables];
 
 /** What proposals are over: what the store holds as committed, or the proposals of the transaction a savepoint is
  * within. */
@@ -42,6 +47,9 @@ export class OfStore implements Visitors.OfStore {
   readonly missed = new Set<object>();
   /** The transaction's expression, where it has one: its record's data (Provenance). */
   expression: unknown = null;
+  /** Where given an array, what its commit overwrites, each holder's values or entry tables as they were, appended in
+   * order: what undoes it (a cache layer's speculative writes, `Transactions.cached`). */
+  undo: Undo[] | null = null;
   /** How many schema objects the store held when the transaction began: those its updates of wait for its commit. */
   readonly existing: number;
   /** The store's registries, restored where the proposals are aborted. */
@@ -154,11 +162,15 @@ export class OfStore implements Visitors.OfStore {
     }
     for (const [holder, values] of this.values_) {
       const into = this.base.values(holder, true);
+      if (this.undo !== null) this.undo.push(["values", holder, new Map(into)]);
       into.clear();
       for (const [name, value] of values) into.set(name, value);
     }
     for (const [holder, tables] of this.entries_) {
       const into = this.base.entries(holder, true);
+      if (this.undo !== null) {
+        this.undo.push(["entries", holder, new Map([...into].map(([key, table]) => [key, new Map(table)]))]);
+      }
       into.clear();
       for (const [relation, table] of tables) into.set(relation, table);
     }

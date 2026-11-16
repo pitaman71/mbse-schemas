@@ -66,12 +66,12 @@ store.transaction(() => { // each reading written, and read back, within one tra
 });
 
 // Non-finite floats have a plain form, so JSON output stays strict (no NaN / Infinity literals).
-let text = JSON.ToJSON(store)(Reading, store.transaction(() => store.Reading((r: any) => r.value(NaN))));
+let text = store.transaction(() => JSON.ToJSON(store)(Reading, store.Reading((r: any) => r.value(NaN))));
 assert(text.includes('"NaN"') && globalThis.JSON.parse(text));
 
 // --- Every scalar type at once, and the three encodings agree ---
 
-const { sample } = store.transaction(() => {
+store.transaction(() => {
   const sample = store.Reading((r: any) => (
     r
       .observed("2026-09-28T12:00:00Z")
@@ -81,18 +81,17 @@ const { sample } = store.transaction(() => {
       .raw(new Uint8Array([0x00, 0xff, 0x00, 0xff, 0x00, 0xff, 0x00, 0xff]))
       .note('日本語 🚀 \x00 "quoted" \\ back\nsecond line')
   ));
-  return { sample };
-});
-const plain = Plain.ToPlain(store)(Reading, sample);
-assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample)), plain));
-assert(equal(YAML.loads(YAML.ToYAML(store)(Reading, sample)), plain));
-assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample, { indent: 2 })), plain)); // formatting does not change content
+  const plain = Plain.ToPlain(store)(Reading, sample);
+  assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample)), plain));
+  assert(equal(YAML.loads(YAML.ToYAML(store)(Reading, sample)), plain));
+  assert(equal(JSON.loads(JSON.ToJSON(store)(Reading, sample, { indent: 2 })), plain)); // formatting does not change content
 
-for (const back of [from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))] as Instance[]) {
-  assert(back.observed.get() === sample.observed.get() && back.quality.get() === sample.quality.get() && back.valid.get() === sample.valid.get() &&
-    equal(back.raw.get(), sample.raw.get()) && back.note.get() === sample.note.get());
-  assert(validate(Reading, back).length === 0);
-}
+  for (const back of [from_json(Reading, JSON.ToJSON(store)(Reading, sample)), from_yaml(Reading, YAML.ToYAML(store)(Reading, sample))] as Instance[]) {
+    assert(back.observed.get() === sample.observed.get() && back.quality.get() === sample.quality.get() && back.valid.get() === sample.valid.get() &&
+      equal(back.raw.get(), sample.raw.get()) && back.note.get() === sample.note.get());
+    assert(validate(Reading, back).length === 0);
+  }
+});
 
 // --- Strings that YAML readers like to misread ---
 
@@ -110,9 +109,11 @@ store.transaction(() => {
 });
 
 // WMO identifiers keep their leading zeros in both encodings.
-const paris = store.transaction(() => store.Station((s: any) => s.wmo_id("07149").name("Paris-Orly")));
-assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
-assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
+store.transaction(() => {
+  const paris = store.Station((s: any) => s.wmo_id("07149").name("Paris-Orly"));
+  assert((from_json(Station, JSON.ToJSON(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
+  assert((from_yaml(Station, YAML.ToYAML(store)(Station, paris)) as Instance).wmo_id.get() === "07149");
+});
 
 // --- Hand-written YAML follows the YAML 1.2 core schema ---
 
@@ -124,22 +125,24 @@ const written = (...members: [string, string][]) => {
     + "\n      spec:\n      - '0':\n" + members.map(([name, value]) => `        - as_property:\n            name: ${name}\n`
       + `            mutations:\n            - set:\n                value: ${value}\n`).join("");
 };
-const reading = from_yaml(Reading, written(
-  ["observed", "2026-09-28T12:00:00Z   # unquoted, but stays a string"],
-  ["quality", "010                     # ten, not eight"],
-  ["value", ".inf"],
-  ["valid", "true"],
-  ["note", "1:30                       # a string, not ninety"],
-)) as Instance;
-assert(reading.observed.get() === "2026-09-28T12:00:00Z" && reading.quality.get() === 10n && reading.value.get() === Infinity &&
-  reading.valid.get() === true && reading.note.get() === "1:30");
+store.transaction(() => { // a decoder gives back objects of the transaction open: they are read within it
+  const reading = from_yaml(Reading, written(
+    ["observed", "2026-09-28T12:00:00Z   # unquoted, but stays a string"],
+    ["quality", "010                     # ten, not eight"],
+    ["value", ".inf"],
+    ["valid", "true"],
+    ["note", "1:30                       # a string, not ninety"],
+  )) as Instance;
+  assert(reading.observed.get() === "2026-09-28T12:00:00Z" && reading.quality.get() === 10n && reading.value.get() === Infinity &&
+    reading.valid.get() === true && reading.note.get() === "1:30");
 
-// 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
-raises(DecodeError, () => from_yaml(Reading, written(["valid", "yes"])));
+  // 'yes' is a string in YAML 1.2, so it is not accepted for a bool.
+  raises(DecodeError, () => from_yaml(Reading, written(["valid", "yes"])));
+});
 
 // --- Malformed text is rejected ---
 
-const good = JSON.ToJSON(store)(Reading, store.transaction(() => store.Reading((r: any) => r.value(1.5))));
+const good = store.transaction(() => JSON.ToJSON(store)(Reading, store.Reading((r: any) => r.value(1.5))));
 for (const bad of [good.replace("1.5", "NaN"), // not JSON
   '{"mutations": [], "mutations": []}', // duplicate key
   good.slice(0, 40), // truncated
@@ -157,7 +160,7 @@ for (const bad of ["mutations: []\nmutations: []", // duplicate key
 
 // --- A graph through each encoding ---
 
-const { lyon } = store.transaction(() => {
+store.transaction(() => {
   const lyon = store.Station((s: any) => (
     s
       .wmo_id("07480")
@@ -165,22 +168,24 @@ const { lyon } = store.transaction(() => {
       .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(11.5).valid(true)).sensor("temp")))
       .readings((a: any) => a.insert((x: any) => x.reading((r: any) => r.observed("2026-09-28T06:00:00Z").value(71.0).valid(true)).sensor("rh")))
   ));
-  return { lyon };
-});
-const graph = Plain.ToPlain(store).Reachable(Station, lyon);
-for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON],
-  [YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML]] as const) {
-  const elsewhere: any = new Builders.Store(); // read into another store: new objects of the same graph
-  Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
-  const restored = decoder(elsewhere).Reachable(elsewhere.Station, encoded) as Instance;
-  assert(restored !== lyon);
-  assert(String(restored.name) === "Lyon-Saint-Exupéry");
-  assert(equal(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph));
-  assert(Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored).length === 0);
-}
+  const graph = Plain.ToPlain(store).Reachable(Station, lyon);
+  for (const [encoded, decoder] of [[JSON.ToJSON(store).Reachable(Station, lyon), JSON.FromJSON],
+    [YAML.ToYAML(store).Reachable(Station, lyon), YAML.FromYAML]] as const) {
+    const elsewhere: any = new Builders.Store(); // read into another store: new objects of the same graph
+    // The same schemas, its own: a store's snapshot writes them.
+    Plain.FromPlain(elsewhere).Snapshot(Plain.ToPlain(store).Snapshot());
+    elsewhere.transaction(() => { // what a document builds is read within a transaction of its store
+      const restored = decoder(elsewhere).Reachable(elsewhere.Station, encoded) as Instance;
+      assert(restored !== lyon);
+      assert(String(restored.name) === "Lyon-Saint-Exupéry");
+      assert(equal(Plain.ToPlain(elsewhere).Reachable(elsewhere.Station, restored), graph));
+      assert(Validators.Validate(elsewhere).Reachable(elsewhere.Station, restored).length === 0);
+    });
+  }
 
-// An object's document holds it alone, in any encoding: lyon's, which links counted readings, is refused.
-raises(ValueError, () => JSON.ToJSON(store)(Station, lyon));
-raises(ValueError, () => YAML.ToYAML(store)(Station, lyon));
+  // An object's document holds it alone, in any encoding: lyon's, which links counted readings, is refused.
+  raises(ValueError, () => JSON.ToJSON(store)(Station, lyon));
+  raises(ValueError, () => YAML.ToYAML(store)(Station, lyon));
+});
 
 console.log("TextEncodings: all checks passed");

@@ -19,7 +19,7 @@ const read = async (path: string): Promise<string> => (await fetch(new URL(path,
 for (const name of ["Buffer", "process", "global", "require"]) Reflect.deleteProperty(globalThis, name);
 if (["Buffer", "process", "global", "require"].some((name) => name in globalThis)) throw new Error("Node globals remain");
 
-const corpus = build(); // each case's store, and its data, which a store holds weakly
+const corpus = build(); // each case's store, and its data, visitors of the transaction that built it
 const files = render(corpus);
 let checked = 0;
 for (const [name, text] of files) {
@@ -35,15 +35,17 @@ for (const name of CASES) {
       const fresh = new Builders.Store();
       if (name === "module") fresh.transaction(Parametrics.install); // its store extends the framework's schemas
       const load = ext === "json" ? JSON.FromJSON(fresh) : YAML.FromYAML(fresh);
-      const made = load.Snapshot(await read(`${implementation}/${name}.${ext}`));
+      const text = await read(`${implementation}/${name}.${ext}`);
+      fresh.transaction(() => { // what it reads is read within the transaction it is read in (CAP-315)
+        for (const value of load.Snapshot(text) as any[]) { // the case's data, but the corpus's root, which only holds it
+          if (value.as_schema().singleton === null) {
+            const problems = Validators.Validate(fresh).Reachable(value.as_schema(), value as never);
+            if (problems.length > 0) throw new Error(`${implementation}/${name}.${ext}: ${problems.join("; ")}`);
+          }
+        }
+      });
       if (JSON.ToJSON(fresh).Snapshot({ indent: 2 }) + "\n" !== expected) {
         throw new Error(`${implementation}/${name}.${ext} reads into a store that writes another snapshot`);
-      }
-      for (const value of made as any[]) { // the case's data, but the corpus's root, which only holds it
-        if (value.as_schema().singleton === null) {
-          const problems = Validators.Validate(fresh).Reachable(value.as_schema(), value as never);
-          if (problems.length > 0) throw new Error(`${implementation}/${name}.${ext}: ${problems.join("; ")}`);
-        }
       }
       checked++;
     }

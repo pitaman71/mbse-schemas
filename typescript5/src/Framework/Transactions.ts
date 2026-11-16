@@ -582,14 +582,67 @@ export class FrameError {
 }
 
 /** A frame: the objects its symbols bind, by symbol, a `Map`; and its `errors`, each what failed as a term processed
- * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did. */
+ * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
+ *
+ * One `store.transaction` gives back holds bindings and assignments, not visitors ([CAP-315: every read within a
+ * transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a value that
+ * outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by symbol, the
+ * values the transaction left in the properties its terms' specs name for it, as data, harvested within it. A counted
+ * object has no reference: the frame refuses it, its symbol read throwing `LookupError`, and assigns nothing of it. */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
+  readonly assigns: Map<string, Map<string, unknown>>;
 
-  constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = []) {
+  constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = [],
+    assigns: Iterable<readonly [string, Map<string, unknown>]> = []) {
     super(bound);
     this.errors = [...errors];
+    this.assigns = new Map([...assigns].map(([name, values]) => [name, new Map(values)]));
   }
+
+  override get(name: string): any {
+    const found = super.get(name);
+    if (found instanceof _Refused) throw new LookupError(`symbol ${repr(name)} of the frame: ${found.message}`);
+    return found;
+  }
+}
+
+/** What a frame given back holds for a symbol that binds a counted object, which has no reference: refused, saying
+ * why. */
+export class _Refused {
+  constructor(readonly message: string) {}
+
+  toString(): string {
+    return "<refused: a counted object>";
+  }
+}
+
+/** The frames a transaction gives back, made within it: each symbol's object by its reference, and what it assigns, as
+ * data (CAP-315). */
+function givenBack(store: any, frames: Frame[], named: Map<string, string[]>): Frame[] {
+  if (store._unowned.length > 0) store._settle_owners(); // the owners the store gives, so that each object has its path
+  return frames.map((frame) => {
+    const bound: [string, any][] = [];
+    const assigns: [string, Map<string, unknown>][] = [];
+    for (const [symbol, target] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
+      if (!Proxies._isObjectData(target)) {
+        bound.push([symbol, target]); // a schema object, as itself
+        continue;
+      }
+      const state = Proxies._stateOf(target);
+      if (Proxies._counted(target)) {
+        bound.push([symbol, new _Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make `
+          + "it a singleton's or an owner's)")]);
+        continue;
+      }
+      bound.push([symbol, References.of(store, target)]);
+      const values: Map<string, unknown> = store.values(state);
+      const held = new Map((named.get(symbol) ?? []).filter((name) => values.has(name))
+        .map((name) => [name, Proxies._copied(values.get(name))] as const));
+      if (held.size > 0) assigns.push([symbol, held]);
+    }
+    return new Frame(bound, frame.errors, assigns);
+  });
 }
 
 /** A transaction a frame of which is annotated with an error: dropped, whole (CAP-124). */
@@ -605,8 +658,8 @@ type Bound = Map<string, any>;
  * in its proposals and written when it ends. Gives the frames its chain ends with. Where a frame is annotated with an
  * error, it commits nothing and throws the first error annotated, the one that arose first, as it arose, its `frames`
  * all the frames, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
-export function _execute(store: any, transaction: any, joined = false): Frame[] {
-  const frames = _frames(store, transaction, joined);
+export function _execute(store: any, transaction: any, joined = false, given = false): Frame[] {
+  const frames = _frames(store, transaction, joined, given);
   const failed = frames.find((frame) => frame.errors.length > 0);
   if (failed !== undefined) {
     const error = failed.errors[0]!.error as any; // annotated here
@@ -623,13 +676,16 @@ export function _execute(store: any, transaction: any, joined = false): Frame[] 
  * makes would give, not throwing ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)). An error in the expression itself, found before it
  * runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its `frames`
  * all the frames, none annotated. */
-export function _frames(store: any, transaction: any, joined = false): Frame[] {
+export function _frames(store: any, transaction: any, joined = false, given = false): Frame[] {
   const root = next(transaction, "mutations");
   let made: Frame[] = [];
   const write = (): void => {
     const failed: Frame[] = [];
-    made = root === null ? [new Frame()] : run(store, root, [new Frame()], ["mutations", 0, kindOf(store, root)], failed);
+    const named = new Map<string, string[]>();
+    made = root === null ? [new Frame()]
+      : run(store, root, [new Frame()], ["mutations", 0, kindOf(store, root)], failed, named);
     made.push(...failed);
+    if (given) made = givenBack(store, made, named); // `store.transaction`'s: bindings and assignments, before it commits
     if (failed.length > 0) throw new Uncommitted();
   };
   try {
@@ -800,23 +856,32 @@ function writer(store: any, schema: any, target: unknown = null): any {
 
 /** The object an entry links, as read: a schema object's entry gives a link, read through its builder. */
 function linked(value: unknown): any {
-  return Builders._linked_data(value) ?? value;
+  return Builders._linked_data(value) ?? Proxies._durable(value); // compared by identity with what frames bind
 }
 
 /** The objects a symbol of `schema` ranges over: a meta-schema's, the named schema objects of its kind the store holds,
  * the framework's left out; data's, those the store reaches from its singletons. */
 function extent(store: any, schema: any): any[] {
-  if (!meta(store, schema)) return [...store.extent(store.name_of(schema))];
+  if (!meta(store, schema)) return [...store.extent(store.name_of(schema))].map((found) => Proxies._durable(found));
   return [...store._objects].filter((held) => !store.framework(held) && reader(store, held).as_schema() === schema);
 }
 
 /** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
  * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
  * `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
-function run(store: any, term: any, frames: Frame[], at: (string | number)[], failed: Frame[]): Frame[] {
+function run(store: any, term: any, frames: Frame[], at: (string | number)[], failed: Frame[],
+  named: Map<string, string[]>): Frame[] {
   const kind = kindOf(store, term);
   if (kind === "map" || kind === "upsert" || kind === "update") {
     const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
+    for (const [symbol, items] of membersOf(pattern)) { // the properties the specs name: what the frames given back assign
+      if (!named.has(symbol)) named.set(symbol, []);
+      const names = named.get(symbol)!;
+      for (const item of items) {
+        const body = item.get("as_property");
+        if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
+      }
+    }
     const key = kind === "upsert" ? store.member(term, "key") : null;
     const made: Frame[] = [];
     for (const frame of frames) {
@@ -851,10 +916,10 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], fa
     }
     const otherwise = next(term, "none");
     if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
-    frames = arms.flatMap(([armAt, arm]) => run(store, arm, frames.map((frame) => new Frame(frame)), armAt, failed));
+    frames = arms.flatMap(([armAt, arm]) => run(store, arm, frames.map((frame) => new Frame(frame)), armAt, failed, named));
   }
   const after = next(term, "then");
-  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], failed);
+  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], failed, named);
 }
 
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
@@ -869,7 +934,7 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
     if (frame.has(name)) continue;
     const reference = _givenReference(symbol);
     if (reference !== null) { // what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
-      const target = References._designated(store, reference);
+      const target = Proxies._durable(References._designated(store, reference));
       frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
       continue;
     }
@@ -877,14 +942,14 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
     const grown: Bound[] = [];
     for (const partial of frames) {
       if (schema.singleton !== null) {
-        grown.push(new Map([...partial, [name, store.singleton(schema.singleton)]]));
+        grown.push(new Map([...partial, [name, store._singleton_of(schema.singleton)]]));
         continue;
       }
       if (upsert && Proxies._counted_schema(schema) && !meta(store, schema)) { // found only by what made it (102)
         const index = _upsert_index(store, key, name, frame);
         let made = store._upserted.get(index)?.deref();
         if (made === undefined) {
-          made = writer(store, schema).create();
+          made = Proxies._durable(writer(store, schema).create());
           store._upserted.set(index, new WeakRef(made));
         }
         grown.push(new Map([...partial, [name, made]]));
@@ -960,7 +1025,7 @@ function created(store: any, schema: any, identifying: Members): any {
       Plain._set(builder, body.get("name"), Plain._decode(prop.schema, body.get("mutations")[0].get("set").get("value"), [], store));
     }
   }
-  return builder.create();
+  return Proxies._durable(builder.create());
 }
 
 /** Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's spec
@@ -1116,8 +1181,8 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
 
 /** The object a spec's reference names: the one a symbol binds, or the one at a path. */
 function resolve(store: any, ref: Map<string, any>, frame: Bound): any {
-  if (ref.has("symbol")) return frame.get(ref.get("symbol"));
-  const found = Plain._by_path(store, ref.get("path"), []);
+  if (ref.has("symbol")) return Proxies._durable(frame.get(ref.get("symbol")));
+  const found = Proxies._durable(Plain._by_path(store, ref.get("path"), []));
   if (found === null || found === undefined) throw new LookupError("no object of the store has the path a spec refers to");
   return found;
 }
@@ -1227,7 +1292,7 @@ function insert(store: any, target: any, schema: any, name: string, adjacency: a
     if (target.has("def")) {
       const definition = target.get("def");
       const defined = store.registered(definition.get("schema"));
-      const made = defining(store, schema, name, defined).create();
+      const made = Proxies._durable(defining(store, schema, name, defined).create());
       write(store, made, defined, definition.get("mutations"), frame);
       links.set(body.get("name"), made);
     } else {

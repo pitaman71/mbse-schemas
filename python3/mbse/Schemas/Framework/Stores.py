@@ -264,5 +264,6 @@ class Combined:
 
 
 def _roots(store: Any) -> dict[str, Readers.OfObject]:
-    """A store's singletons, by global name: a catalog's or a combined store's, or none."""
-    return getattr(store, "_singletons", {})
+    """A store's singletons, by global name, as the store gives them (a store of proxies, within a transaction alone):
+    a catalog's or a combined store's, or none."""
+    return {name: store.singleton(name) for name in getattr(store, "_singletons", {})}

@@ -66,7 +66,7 @@ const IntlAddress = store.registered("IntlAddress");
 
 // --- Building forms ---
 
-const { addr1 } = store.transaction(() => { // the data, as the schemas: written within a transaction, all or nothing
+store.transaction(() => { // the data, as the schemas: written within a transaction, all or nothing
   // "create": a callback builds a new object
   const addr1 = store.IntlAddress((a: any) => (
     a
@@ -115,35 +115,40 @@ const { addr1 } = store.transaction(() => { // the data, as the schemas: written
       .emails((a: any) => a.insert((x: any) => x.email((y: any) => y.address("alice@example.org")).label("personal")))
   ));
   void alice;
-  return { addr1 };
+
+  // --- Serialization ---
+
+  // Every read is within a transaction, and addr1 and alice are counted: nothing names them after this one ends, so
+  // their documents are taken within it.
+  // A document is one transaction (object identity 51 in [CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md#decided)): the objects it holds are the symbols of one
+  // upsert, numbered in the order it meets them, the root's "0", and its spec gives each one's properties and entries.
+  // An object's document holds it alone, so addr1's is refused: alice, whom it links, is counted (neither a singleton
+  // nor owned), and has no identity beyond the document that writes her.
+  raises(ValueError, () => Plain.ToPlain(store)(IntlAddress, addr1)); // equivalent to Plain.ToPlain(store).OfObject(IntlAddress, addr1)
+
+  // A document of addr1 and every counted object reachable from it (alice, her phone and email), so that every
+  // reference is to a symbol of the document.
+  const graph: any = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
+  assert([...graph.get("mutations")[0].get("upsert").get("exists")[0].get("symbols").keys()][0] === "0"); // the root
+
+  // Read into another store, the document builds new objects of the same graph there.
+  const backup: any = new Builders.Store();
+  // The same schemas, its own: a store's snapshot writes them.
+  Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot());
+  backup.transaction(() => { // what a document builds is read within a transaction of its store
+    const roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph) as Proxies.Instance;
+    assert(roundtrip !== addr1);
+    assert(equal(Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip), graph));
+
+    // Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the
+    // document.
+    assert(Plain.FromPlain(store).Reachable(IntlAddress, graph) !== addr1);
+
+    // The same document as JSON text, and back.
+    const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
+    const fromJson = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text) as Proxies.Instance;
+    assert(fromJson !== roundtrip && String(fromJson.street1) === String(addr1.street1)); // another copy
+    assert(equal(JSON.loads(text), graph));
+  });
 });
-export { IntlAddress, addr1 };
-
-// --- Serialization ---
-
-// A document is one transaction (object identity 51 in [CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md#decided)): the objects it holds are the symbols of one
-// upsert, numbered in the order it meets them, the root's "0", and its spec gives each one's properties and entries.
-// An object's document holds it alone, so addr1's is refused: alice, whom it links, is counted (neither a singleton nor
-// owned), and has no identity beyond the document that writes her.
-raises(ValueError, () => Plain.ToPlain(store)(IntlAddress, addr1)); // equivalent to Plain.ToPlain(store).OfObject(IntlAddress, addr1)
-
-// A document of addr1 and every counted object reachable from it (alice, her phone and email), so that every reference
-// is to a symbol of the document.
-const graph: any = Plain.ToPlain(store).Reachable(IntlAddress, addr1);
-assert([...graph.get("mutations")[0].get("upsert").get("exists")[0].get("symbols").keys()][0] === "0"); // the root
-
-// Read into another store, the document builds new objects of the same graph there.
-const backup: any = new Builders.Store();
-Plain.FromPlain(backup).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
-const roundtrip = Plain.FromPlain(backup).Reachable(backup.IntlAddress, graph) as Proxies.Instance;
-assert(roundtrip !== addr1);
-assert(equal(Plain.ToPlain(backup).Reachable(backup.IntlAddress, roundtrip), graph));
-
-// Read into the store that holds them, it builds new ones too: a counted object has no identity beyond the document.
-assert(Plain.FromPlain(store).Reachable(IntlAddress, graph) !== addr1);
-
-// The same document as JSON text, and back.
-const text = JSON.ToJSON(store).Reachable(IntlAddress, addr1, { indent: 2 });
-const fromJson = JSON.FromJSON(backup).Reachable(backup.IntlAddress, text) as Proxies.Instance;
-assert(fromJson !== roundtrip && String(fromJson.street1) === String(addr1.street1)); // another copy
-assert(equal(JSON.loads(text), graph));
+export { IntlAddress };

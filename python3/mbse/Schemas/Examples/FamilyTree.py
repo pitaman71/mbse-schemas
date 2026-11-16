@@ -141,23 +141,28 @@ with store.transaction():  # the people and their entries, written within one tr
     with raises(TypeError):
         store.Person(lambda p: p.parents(x=ada))  # an adjacency takes a Spec
 
-# --- Validation ---
+    # --- Validation ---
 
-# Cycles, a self-loop, and several relations between the same people are all valid.
-assert Validators.Validate(store).Reachable(Person, ada) == []
+    # Every read is within a transaction, and these people are counted: nothing names them after this one ends, so they
+    # are validated and sent within it.
 
-# --- Round trips, from any root ---
+    # Cycles, a self-loop, and several relations between the same people are all valid.
+    assert Validators.Validate(store).Reachable(Person, ada) == []
 
-# Read into any store, even the one that holds them, a document builds new objects of the same graph: a counted object
-# has no identity beyond the document.
-archive = Builders.Store()
-Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())  # the same schemas, its own: a store's snapshot writes them
-for root in (ada, carol, loner):
-    graph = Plain.ToPlain(store).Reachable(Person, root)
-    restored = Plain.FromPlain(archive).Reachable(archive.Person, graph)
-    assert restored is not root
-    assert str(restored.given_name) == str(root.given_name)
-    assert Plain.ToPlain(archive).Reachable(archive.Person, restored) == graph
-    assert Plain.FromPlain(store).Reachable(Person, graph) is not root
+    # --- Round trips, from any root ---
+
+    # Read into any store, even the one that holds them, a document builds new objects of the same graph: a counted
+    # object has no identity beyond the document.
+    archive = Builders.Store()
+    # The same schemas, its own: a store's snapshot writes them.
+    Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot())
+    with archive.transaction():  # what a document builds is read within a transaction of its store
+        for root in (ada, carol, loner):
+            graph = Plain.ToPlain(store).Reachable(Person, root)
+            restored = Plain.FromPlain(archive).Reachable(archive.Person, graph)
+            assert restored is not root
+            assert str(restored.given_name) == str(root.given_name)
+            assert Plain.ToPlain(archive).Reachable(archive.Person, restored) == graph
+            assert Plain.FromPlain(store).Reachable(Person, graph) is not root
 
 print('FamilyTree: all checks passed')

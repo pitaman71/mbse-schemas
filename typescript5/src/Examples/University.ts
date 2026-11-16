@@ -67,7 +67,7 @@ const same = (a: unknown[], b: unknown[]): boolean => a.length === b.length && a
 
 // --- A three-link relation ---
 
-const { fall, mia, noah, validate } = store.transaction(() => { // the data: written within one transaction
+store.transaction(() => { // the data: written within one transaction
   const fall = store.Term((t: any) => t.code("2026-FA").starts("2026-09-01").ends("2026-12-18"));
   const cs101 = store.Course((c: any) => c.code("CS101").title("Programs and Data"));
 
@@ -158,30 +158,34 @@ const { fall, mia, noah, validate } = store.transaction(() => { // the data: wri
     return [String(booker.name), booker.as_schema().name];
   }));
   assert(bookers.size === 2 && bookers.get("Grace") === "Staff" && bookers.get("Mia") === "Student");
-  return { fall, mia, noah, validate };
+  // --- Reachability and round trips across the three-link relation ---
+
+  // Every read is within a transaction, and these objects are counted: nothing names them after this one ends, so
+  // they are reached and sent within it.
+
+  const component = Reachable.of(fall);
+  assert(component[0] === fall);
+  assert(same(sortedStrings(new Set(component.map((o) => o.as_schema().name as string))), ["Course", "Room", "Staff", "Student", "Term"]));
+
+  const archive: any = new Builders.Store(); // another store: a document read into it builds new objects of the same graph
+  // The same schemas, its own: a store's snapshot writes them.
+  Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot());
+  archive.transaction(() => { // what a document builds is read within a transaction of its store
+    for (const [root, schema, its] of [[fall, Term, archive.Term], [mia, Student, archive.Student], [noah, Student, archive.Student]] as const) {
+      const graph = Plain.ToPlain(store).Reachable(schema, root);
+      const restored = Plain.FromPlain(archive).Reachable(its, graph) as Instance;
+      assert(restored !== root);
+      assert(equal(Plain.ToPlain(archive).Reachable(its, restored), graph));
+    }
+  });
+
+  // Apart from Noah's duplicate enrollments, the whole component is valid.
+  const problems = validate.Reachable(Term, fall);
+  assert(problems.length === 1 && (problems[0] as string).startsWith("unique("), String(problems));
+
+  // -0.0 keeps its sign through a round trip.
+  const scores = entries(Student, noah, "enrollments").map((e) => e.get("score"));
+  assert(scores.some((s) => s === 0 && Object.is(s, -0)));
 });
-
-// --- Reachability and round trips across the three-link relation ---
-
-const component = Reachable.of(fall);
-assert(component[0] === fall);
-assert(same(sortedStrings(new Set(component.map((o) => o.as_schema().name as string))), ["Course", "Room", "Staff", "Student", "Term"]));
-
-const archive: any = new Builders.Store(); // another store: a document read into it builds new objects of the same graph
-Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
-for (const [root, schema, its] of [[fall, Term, archive.Term], [mia, Student, archive.Student], [noah, Student, archive.Student]] as const) {
-  const graph = Plain.ToPlain(store).Reachable(schema, root);
-  const restored = Plain.FromPlain(archive).Reachable(its, graph) as Instance;
-  assert(restored !== root);
-  assert(equal(Plain.ToPlain(archive).Reachable(its, restored), graph));
-}
-
-// Apart from Noah's duplicate enrollments, the whole component is valid.
-const problems = validate.Reachable(Term, fall);
-assert(problems.length === 1 && (problems[0] as string).startsWith("unique("), String(problems));
-
-// -0.0 keeps its sign through a round trip.
-const scores = entries(Student, noah, "enrollments").map((e) => e.get("score"));
-assert(scores.some((s) => s === 0 && Object.is(s, -0)));
 
 console.log("University: all checks passed");

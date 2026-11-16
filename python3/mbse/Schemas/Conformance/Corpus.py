@@ -1,8 +1,8 @@
 """The conformance corpus: the same cases, built statement for statement in every implementation.
 
 `build()` returns `{case: (store, objects)}`: each case built in a store of its own, its schemas and its data, written as
-the store's snapshot, two transactions ([CAP-127: snapshots made of transactions](mbse:mbse-basis/docs/capabilities/CAP-127.md)); `objects` holds the case's data, which a
-store holds weakly. Each implementation writes its snapshots to `conformance/<implementation>/<case>.json` and `.yaml`, and checks
+the store's snapshot, two transactions ([CAP-127: snapshots made of transactions](mbse:mbse-basis/docs/capabilities/CAP-127.md)); `objects` holds the case's data, as
+visitors of the transaction that built it, refused once it ends (CAP-315). Each implementation writes its snapshots to `conformance/<implementation>/<case>.json` and `.yaml`, and checks
 them against every other implementation's files (see the CONF test suite). Keep this module and
 `typescript5/src/Conformance/Corpus.ts` in lockstep: same schemas, same names, same values, same order of statements.
 """

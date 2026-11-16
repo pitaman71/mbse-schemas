@@ -131,8 +131,16 @@ def _implied(store: Any, path_plain: Any) -> Any:
 
 
 def _object(store: Any, obj: Any) -> Any:
-    """A `References.OfObject`'s callback: an object's path; refused for a counted object, which nothing names."""
+    """A `References.OfObject`'s callback: an object's path, or that of a reference a frame given back holds; refused for
+    a counted object, which nothing names."""
+    from . import Transactions
+
     target = Proxies._deref(obj)
+    if isinstance(target, Transactions._Refused):
+        raise LookupError(target.message)
+    if isinstance(target, Proxies._RecordData) and target._schema is store.registered("References.OfObject"):
+        held = Proxies._read(target, "path")
+        return lambda o: o.path(held)
     if isinstance(target, Proxies._ObjectData):
         Proxies._same_store(store, target)
         if Proxies._counted(target):
@@ -148,14 +156,22 @@ def _frame(store: Any, frame: Mapping[str, Any]) -> Any:
     """A `References.OfFrame`'s callback: each symbol's object's reference, refused where one binds a counted object;
     and the errors annotated on it, where it is a frame the executor gave back (`Transactions.Frame`)."""
     binds = {}
-    for name, target in frame.items():
+    for name, target in dict.items(frame) if isinstance(frame, dict) else frame.items():
         try:
             binds[name] = _object(store, target)
         except LookupError as error:
             raise LookupError(f"symbol {name!r} of the frame: {error}") from None
     errors = [lambda x, e=error: x.as_object(lambda r: r.subterm(e.subterm).kind(e.kind).message(e.message))
               for error in getattr(frame, "errors", ())]
-    return lambda f: f.binds(binds).errors(errors) if errors else f.binds(binds)  # none: written as before them
+    assigns = [lambda x, o=binds[name], v=values: x.as_object(lambda p: p.object(o).properties(v))
+               for name, values in getattr(frame, "assigns", {}).items()]  # what it witnesses (CAP-131)
+
+    def written(f: Any) -> Any:
+        f.binds(binds)
+        if assigns:
+            f.assigns(assigns)
+        return f.errors(errors) if errors else f  # none: written as before them
+    return written
 
 
 def _entry(store: Any, entry: Any) -> Any:

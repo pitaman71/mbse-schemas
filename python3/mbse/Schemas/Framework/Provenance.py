@@ -155,7 +155,7 @@ def _held(store: Any, relation: str, directory: str, key: str, value: str) -> An
     holds none."""
     held = store.registered(relation)
     other = next(link for link in held.entry.links if link != "directory")
-    return next((getattr(entry, other) for entry in Proxies._linking(held, "directory", store.singleton(directory), store)
+    return next((getattr(entry, other) for entry in Proxies._linking(held, "directory", store._singleton_of(directory), store)
                  if entry._properties.get(key) == value), None)
 
 
@@ -168,7 +168,7 @@ def _link(store: Any, relation: str, links: dict[str, Any], properties: dict[str
 def _place(store: Any, made: Any, relation: str, directory: str, key: str, value: str) -> Any:
     """Gives an object its entry in a directory singleton, keyed by `value`."""
     other = next(link for link in store.registered(relation).entry.links if link != "directory")
-    _link(store, relation, {"directory": store.singleton(directory), other: made}, {key: value})
+    _link(store, relation, {"directory": store._singleton_of(directory), other: made}, {key: value})
     return made
 
 

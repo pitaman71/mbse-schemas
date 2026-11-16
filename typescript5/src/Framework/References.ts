@@ -104,6 +104,12 @@ type Callback = (visitor: any) => any;
 /** A `References.OfObject`'s callback: an object's path; refused for a counted object, which nothing names. */
 function object(store: any, obj: unknown): Callback {
   const target = Proxies._deref(obj);
+  if (target instanceof Transactions._Refused) throw new LookupError(target.message);
+  const inner = Proxies._innerOf(target);
+  if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {
+    const held = Proxies._read(target, "path"); // a reference a frame given back holds
+    return (o: any) => o.path(held);
+  }
   if (Proxies._isObjectData(target)) {
     Proxies._same_store(store, target);
     if (Proxies._counted(target)) {
@@ -131,7 +137,13 @@ function frameOf(store: any, frame: Map<string, unknown>): Callback {
   }
   const errors = (frame instanceof Transactions.Frame ? frame.errors : []).map((error) => (x: any) =>
     x.as_object((r: any) => r.subterm(error.subterm).kind(error.kind).message(error.message)));
-  return (f: any) => (errors.length > 0 ? f.binds(binds).errors(errors) : f.binds(binds)); // none: written as before them
+  const assigns = [...(frame instanceof Transactions.Frame ? frame.assigns : [])].map(([name, values]) => (x: any) =>
+    x.as_object((p: any) => p.object(binds.get(name)).properties(values))); // what it witnesses (CAP-131)
+  return (f: any) => {
+    f.binds(binds);
+    if (assigns.length > 0) f.assigns(assigns);
+    return errors.length > 0 ? f.errors(errors) : f; // none: written as before them
+  };
 }
 
 /** A `References.OfEntry`'s callback: its relation's path, each link's object's reference and each property's value. */

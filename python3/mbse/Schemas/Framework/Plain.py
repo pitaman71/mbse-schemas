@@ -842,6 +842,7 @@ class _Document:
 
     def run(self, schema: Schemas.OfObject.Data, root: Readers.OfObject, reachable: bool, uid: str | None) -> PlainData:
         schema = Proxies._deref(schema)  # a path names its schema
+        root = Proxies._durable(root)  # what it links is read as the store holds it
         if root.as_schema() is not schema:
             raise TypeError(f"value is a {root.as_schema().name!r}, not an instance of the given schema")
         if not schema.ref:
@@ -1532,16 +1533,16 @@ class FromPlain:
 
     def OfObject(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
         """Reads a document, executing its transaction, and gives its root (`_read_document`)."""
-        return _read_document(self._store, schema, plain)
+        return Proxies._given_out(self._store, _read_document(self._store, schema, plain))
 
     def Reachable(self, schema: Schemas.OfObject.Data, plain: PlainData) -> Any:
-        return _read_document(self._store, schema, plain)
+        return Proxies._given_out(self._store, _read_document(self._store, schema, plain))
 
     def Snapshot(self, snapshot: PlainData, ignored: list[dict[str, str]] | None = None) -> list[Any]:
         """Reads a store's snapshot, executing its transactions (`_read_snapshot`); returns its data, the objects its last
         transaction binds, in order, which the caller holds (a store holds its data objects weakly). A member whose
         meaning needs an extension the store lacks is ignored, and added to `ignored`, where given: its path and why."""
-        return _read_snapshot(self._store, snapshot, ignored)
+        return [Proxies._given_out(self._store, read) for read in _read_snapshot(self._store, snapshot, ignored)]
 
     def Transaction(self, plain: PlainData) -> Any:
         """A transaction's expression, read from the form `ToPlain(store).Transaction` writes and built through the

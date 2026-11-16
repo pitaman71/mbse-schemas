@@ -1852,13 +1852,13 @@ class Store(Proxies.OfStore):
         has them, refused as the store refuses it; gives back what it committed, as plain data, what it added among it,
         as its record; None where it changed nothing: what a store above asks of the store below it (`Stores.Below`,
         CAP-306)."""
-        from . import Plain
+        from . import Plain, Transactions
 
         transaction = Plain.FromPlain(self).Transaction(plain)
         given: list[Any] = []
         self._giving_back = given
         try:
-            self.transaction(transaction)
+            Transactions._execute(self, transaction)  # what it gives back is plain data: no frames given back
         finally:
             self._giving_back = None
         return given[0] if given else None
@@ -1866,9 +1866,9 @@ class Store(Proxies.OfStore):
     def install(self, plain: Any) -> None:
         """Runs an install given as plain data, a transaction that writes schemas, finding what the store holds
         already; refused as the store refuses it (`Stores.Below`, CAP-306)."""
-        from . import Plain
+        from . import Plain, Transactions
 
-        self.transaction(Plain.FromPlain(self).Transaction(plain))
+        Transactions._execute(self, Plain.FromPlain(self).Transaction(plain))  # its frames given back to none
 
     def _send_install(self, expression: Any) -> None:
         """Sends a transaction that writes schemas, as plain data, to the store below, within the transaction, before
@@ -2037,7 +2037,7 @@ class Store(Proxies.OfStore):
             transaction = self.Mutations.OfTransaction(lambda t: spec(_Transaction(self, t)))
         else:
             transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
-        return Transactions._execute(self, transaction)
+        return Transactions._execute(self, Proxies._durable(transaction), given=True)
 
     @contextlib.contextmanager
     def _scope(self) -> Iterator[None]:
@@ -2230,7 +2230,7 @@ class _Instances(_Unassignable):
             raise AttributeError(part)
         name = f"{self._name}.{part}" if self._name else part
         singletons = self._store._singletons
-        return singletons[name] if name in singletons else _Instances(self._store, name)
+        return self._store.singleton(name) if name in singletons else _Instances(self._store, name)
 
     def __call__(self, *args: Any) -> Any:
         raise LookupError(f"no singleton named {self._name!r}: an owned object is found through its owners' adjacencies, "

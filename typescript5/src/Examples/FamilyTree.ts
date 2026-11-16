@@ -60,7 +60,7 @@ const same = (a: string[], b: string[]): boolean => a.join("\u0000") === b.join(
 
 // --- Self-relations ---
 
-const { ada, carol, loner } = store.transaction(() => { // the people and their entries, written within one transaction
+store.transaction(() => { // the people and their entries, written within one transaction
   const ada = store.Person((p: any) => p.given_name("Ada").family_name("Lovelace").birth_date("1815-12-10"));
   const bob = store.Person((p: any) => p.given_name("Bob").parents((a: any) => a.insert((x: any) => x.parent(ada).kind("biological"))));
 
@@ -139,27 +139,31 @@ const { ada, carol, loner } = store.transaction(() => { // the people and their 
   raises(TypeError, () => store.Person((p: any) => p.parents((a: any) => a.insert((x: any) => x.parent(ada).since("1990"))))); // not a property of Parentage
   raises(ValueError, () => store.Person((p: any) => p.parents((a: any) => a.insert((x: any) => x.kind("biological"))))); // the 'parent' link is never set
   raises(TypeError, () => store.Person((p: any) => p.parents({ x: ada }))); // an adjacency takes a Spec
-  return { ada, carol, loner };
+  // --- Validation ---
+
+  // Every read is within a transaction, and these people are counted: nothing names them after this one ends, so they
+  // are validated and sent within it.
+
+  // Cycles, a self-loop, and several relations between the same people are all valid.
+  assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
+
+  // --- Round trips, from any root ---
+
+  // Read into any store, even the one that holds them, a document builds new objects of the same graph: a counted
+  // object has no identity beyond the document.
+  const archive: any = new Builders.Store();
+  // The same schemas, its own: a store's snapshot writes them.
+  Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot());
+  archive.transaction(() => { // what a document builds is read within a transaction of its store
+    for (const root of [ada, carol, loner]) {
+      const graph = Plain.ToPlain(store).Reachable(Person, root);
+      const restored = Plain.FromPlain(archive).Reachable(archive.Person, graph) as Instance;
+      assert(restored !== root);
+      assert(String(restored.given_name) === String(root.given_name));
+      assert(equal(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph));
+      assert(Plain.FromPlain(store).Reachable(Person, graph) !== root);
+    }
+  });
 });
-
-// --- Validation ---
-
-// Cycles, a self-loop, and several relations between the same people are all valid.
-assert(Validators.Validate(store).Reachable(Person, ada).length === 0);
-
-// --- Round trips, from any root ---
-
-// Read into any store, even the one that holds them, a document builds new objects of the same graph: a counted object
-// has no identity beyond the document.
-const archive: any = new Builders.Store();
-Plain.FromPlain(archive).Snapshot(Plain.ToPlain(store).Snapshot()); // the same schemas, its own: a store's snapshot writes them
-for (const root of [ada, carol, loner]) {
-  const graph = Plain.ToPlain(store).Reachable(Person, root);
-  const restored = Plain.FromPlain(archive).Reachable(archive.Person, graph) as Instance;
-  assert(restored !== root);
-  assert(String(restored.given_name) === String(root.given_name));
-  assert(equal(Plain.ToPlain(archive).Reachable(archive.Person, restored), graph));
-  assert(Plain.FromPlain(store).Reachable(Person, graph) !== root);
-}
 
 console.log("FamilyTree: all checks passed");

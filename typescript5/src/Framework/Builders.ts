@@ -2482,6 +2482,13 @@ export class Store extends Proxies.OfStore {
    * deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`). */
   override _settled(proposals: Proposals.OfStore): void {
     const sends = this._below !== null && this._applying === 0;
+    if (sends && proposals.expression !== null) {
+      const before = proposals.saved.get(this._objects as unknown as Map<unknown, unknown>) as [unknown, unknown][];
+      if (proposals.deferred.size > 0 || before.length !== this._objects.size
+          || before.some(([data]) => !this._objects.has(data))) {
+        this._send_install(proposals.expression); // it writes schemas: the store below's, first
+      }
+    }
     if (this._observers.length > 0 || sends || this._reporting) this._changes = Changes._gather(this, proposals);
     if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes), proposals.expression);
   }
@@ -2506,6 +2513,19 @@ export class Store extends Proxies.OfStore {
       this._giving_back = null;
     }
     return given.length > 0 ? given[0] : null;
+  }
+
+  /** Runs an install given as plain data, a transaction that writes schemas, finding what the store holds already;
+   * refused as the store refuses it (`Stores.Below`, CAP-306). */
+  install(plain: unknown): void {
+    this._self.transaction(PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData));
+  }
+
+  /** Sends a transaction that writes schemas, as plain data, to the store below, within the transaction, before it
+   * commits, so that the store below holds the schemas this store holds, and a refusal there refuses it. */
+  _send_install(expression: unknown): void {
+    const plain = Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression));
+    this._below.install(plain);
   }
 
   /** Gives `follower` each transaction the store commits, as plain data, in the order it commits them; gives back a

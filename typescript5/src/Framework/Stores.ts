@@ -12,8 +12,9 @@
  * `Below` is what a store asks of the store below it, which any store below implements, whatever it is kept in, being no
  * `Builders.Store` nor knowing one ([CAP-306: a public store-below interface](mbse:mbse-basis/docs/capabilities/README.md#CAP-306)): an object's document by its
  * path, `document(path)`; a transaction's changes, given as plain data, committed or refused, and what it committed of
- * them given back, `commit(plain)`; each transaction it commits given to its followers in order, `follow(follower)`;
- * and whether it records the transactions it commits, `records`. Everything given and given back is plain data, as a
+ * them given back, `commit(plain)`; an install, a transaction that writes schemas, run, `install(plain)`; each
+ * transaction it commits given to its followers in order, `follow(follower)`; and whether it records the transactions it
+ * commits, `records`. Everything given and given back is plain data, as a
  * store above writes and reads it ([CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283), [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285)). `isBelow(x)`
  * tells whether `x` implements it.
  *
@@ -56,17 +57,21 @@ export interface Below {
    * committed, as plain data, what it added among it (as its record); null where it changed nothing. */
   commit(plain: unknown): unknown;
 
+  /** Runs an install given as plain data (`Plain.ToPlain(store).Transaction`), a transaction that writes schemas, as a
+   * store runs any install, finding what it holds already; refused, throwing, as the store refuses it. */
+  install(plain: unknown): void;
+
   /** Gives `follower` each transaction it commits, as plain data, in the order it commits them, once each; gives back
    * a function that ends it. */
   follow(follower: (plain: unknown) => void): () => void;
 }
 
-/** Whether `x` implements `Below`: it has `records`, and `document`, `commit` and `follow` are functions (Python's
- * `isinstance(x, Stores.Below)`). */
+/** Whether `x` implements `Below`: it has `records`, and `document`, `commit`, `install` and `follow` are functions
+ * (Python's `isinstance(x, Stores.Below)`). */
 export function isBelow(x: unknown): x is Below {
   const o = x as any;
   return typeof o === "object" && o !== null && "records" in o && typeof o.document === "function"
-    && typeof o.commit === "function" && typeof o.follow === "function";
+    && typeof o.commit === "function" && typeof o.install === "function" && typeof o.follow === "function";
 }
 
 /** A source of random bits, given to whatever draws from it. */

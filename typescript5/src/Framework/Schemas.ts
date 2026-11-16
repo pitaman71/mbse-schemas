@@ -29,7 +29,7 @@ import type { PlainData } from "./Plain.js";
 import { isClassLike, SCALAR_NAMES, repr, sortedStrings, tokenName, Tuple, typeName } from "./Repr.js";
 import type { Scalar, ScalarToken } from "./Visitors.js";
 
-/** Problems with names that start with `$`, which the wire format keeps for its own markers (`$ref`, `$schema`,
+/** Problems with names that start with `$`, which the wire format keeps for its own markers (`$schema`,
  * `$id`). */
 function reserved(names: readonly unknown[]): string[] {
   return names.filter((name): name is string => typeof name === "string" && name.startsWith("$"))

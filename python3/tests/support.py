@@ -70,7 +70,7 @@ def schema_name(path: dict) -> str:
 def view(document: dict) -> dict:
     """A document (`Plain.ToPlain(store).Reachable`: one transaction, one upsert) as the objects it holds, each listed by
     its number (its symbol), its schema's name and its members: the properties its spec sets, then the entries it
-    inserts, each a mapping of its links, `{'$ref': {'n': number}}` or `{'$ref': path}`, and its properties."""
+    inserts, each a mapping of its links, `{'reference': {'n': number}}` or `{'reference': path}`, and its properties."""
     pattern = document["mutations"][0]["upsert"]["exists"][0]
     specs: dict = {}
     for item in pattern.get("spec", []):
@@ -85,8 +85,8 @@ def view(document: dict) -> dict:
             if kind == "as_property":
                 out[body["name"]] = given["value"]
             else:
-                ref = given["ref"]
-                out[body["name"]] = {"$ref": {"n": int(ref["symbol"])} if "symbol" in ref else ref["path"]}
+                ref = given["reference"]
+                out[body["name"]] = {"reference": {"n": int(ref["symbol"])} if "symbol" in ref else ref["path"]}
         return out
 
     objects = []
@@ -98,7 +98,7 @@ def view(document: dict) -> dict:
                 properties[body["name"]] = body["mutations"][0]["set"]["value"]
             else:
                 properties[body["name"]] = [row(entry) for entry in body["mutations"][0]["insert"]["entries"]]
-        objects.append(listed(schema_name(held["schema"][0]["$ref"]), int(symbol), properties))
+        objects.append(listed(schema_name(held["schema"][0]["path"]), int(symbol), properties))
     return {"root": {"n": 0}, "objects": objects}
 
 
@@ -120,10 +120,10 @@ def document(listed_objects: dict, uid: str | None = None) -> dict:
     def entry(row: dict) -> dict:
         mutations = []
         for name, value in row.items():
-            if isinstance(value, dict) and "$ref" in value:
-                ref = value["$ref"]
+            if isinstance(value, dict) and "reference" in value:
+                ref = value["reference"]
                 ref = {"symbol": str(ref["n"])} if "n" in ref else {"path": ref}
-                mutations.append({"as_link": {"name": name, "mutations": [{"set": {"ref": ref}}]}})
+                mutations.append({"as_link": {"name": name, "mutations": [{"set": {"reference": ref}}]}})
             else:
                 mutations.append(given(name, value))
         return {"mutations": mutations}
@@ -131,7 +131,7 @@ def document(listed_objects: dict, uid: str | None = None) -> dict:
     symbols, spec = {}, []
     for listing_ in listed_objects["objects"]:
         symbol = str(listing_["n"])
-        symbols[symbol] = {"schema": [{"$ref": schema_path(listing_["schema"])}]}
+        symbols[symbol] = {"schema": [{"$schema": "References.OfObject", "path": schema_path(listing_["schema"])}]}
         members = [{"as_adjacency": {"name": name, "mutations": [{"insert": {"entries": [entry(row) for row in value]}}]}}
                    if is_adjacency(value) else given(name, value) for name, value in listing_["properties"].items()]
         if members:
@@ -194,7 +194,7 @@ def single(name: str, properties: dict | None = None) -> dict:
 
 def ref(number: int) -> dict:
     """A reference to the counted object a document numbers `number`."""
-    return {"$ref": {"n": number}}
+    return {"reference": {"n": number}}
 
 
 def path_of(obj: Any) -> dict:
@@ -243,7 +243,7 @@ def is_adjacency(value: Any) -> bool:
     """Whether a snapshot's list is an adjacency: each of its entries links something, while a list a property holds
     never has a reference at its top level."""
     return isinstance(value, list) and bool(value) and all(
-        isinstance(e, dict) and any(isinstance(v, dict) and "$ref" in v for v in e.values()) for e in value)
+        isinstance(e, dict) and any(isinstance(v, dict) and "reference" in v for v in e.values()) for e in value)
 
 
 def same_graph(a: dict, b: dict) -> bool:
@@ -281,7 +281,7 @@ def same_graph(a: dict, b: dict) -> bool:
             visit(labels[symbol], obj)
 
         def entry(e: dict) -> str:
-            return repr(sorted((k, labels[_symbol(v["$ref"])] if isinstance(v, dict) and "$ref" in v else v)
+            return repr(sorted((k, labels[_symbol(v["reference"])] if isinstance(v, dict) and "reference" in v else v)
                                for k, v in e.items()))
 
         return labels[_symbol(graph["root"])], {

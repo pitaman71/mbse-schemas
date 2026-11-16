@@ -13,8 +13,10 @@ object nested in a verb. `OfContainer.AsItems` applies its list in modulo order.
 
 A pattern's spec (object identity 95 in [CAP-137: patterns of symbols, variables and specs](mbse:mbse-basis/docs/capabilities/CAP-137.md#decided)) is a `Mutations.OfPattern`: for each symbol, the mutations of the
 object it binds (`OfObject`: a property's, `as_property`, an adjacency's, `as_adjacency`, whose `OfAdjacency` verbs
-insert, remove and clear entries, and, a pattern's, its own spec as recorded, `spec`), a link referring to an object by
-its symbol or its path (`Ref`), or defining one where it is linked (`Def`'s `schema` and `mutations`). Value verbs are
+insert, remove and clear entries, and, a pattern's, its own spec as recorded, `spec`), a link's `reference` to an object by
+its symbol or its path (`Ref`, which refines `References.OfObject`, so that a path is written as any object reference
+is, `{"reference": {"path": ...}}`, and a symbol `{"reference": {"symbol": "0"}}`), or defining one where it is linked
+(`Def`'s `schema` and `mutations`). Value verbs are
 nested in them, following the property they name.
 
 Payloads (a property's value) are values of whatever schema the target gives, `Mutations.Payload`, a value of any
@@ -30,7 +32,7 @@ __all__ = ["install"]
 
 def install(txn: Any) -> Any:
     """The mutation schemas, defined in the store a transaction writes: `store.transaction(Mutations.install)`. A store
-    is made by it, after `Schemas.install` and `Paths.install`, read by the bootstrap (`Builders`); run
+    is made by it, after `Schemas.install`, `Paths.install` and `References.install`, read by the bootstrap (`Builders`); run
     again in a store, it finds each by its name and writes nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.Mutations/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
@@ -58,8 +60,8 @@ def install(txn: Any) -> Any:
             lambda _: _.Payload.name("Mutations.Payload"),  # untyped: interpreted by the target's schema
 
             # --- Nouns ---
-            lambda _: _.Ref.name("Mutations.OfObject.Ref").properties({  # by its path (81), or a symbol (95)
-                "path": txn.Paths.OfRoot, "symbol": S.OfStr}),
+            lambda _: _.Ref.name("Mutations.OfObject.Ref").refines([txn.References.OfObject]).properties({
+                "symbol": S.OfStr}),  # by its path, a `References.OfObject`'s (81), or by a symbol (95)
             lambda _: _.Def.name("Mutations.OfObject.Def").properties({  # no path: defined where it is linked
                 "schema": S.OfStr,
                 "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfObject]))}),
@@ -100,7 +102,7 @@ def install(txn: Any) -> Any:
                 "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.AsBranch]))}),
             lambda _: _.AsIntersection.name("Mutations.OfAny.AsIntersection").properties({
                 "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.AsPart]))}),
-            lambda _: _.LinkSet.name("Mutations.OfLink.Set").properties({"ref": _.Ref, "def": _.Def}),
+            lambda _: _.LinkSet.name("Mutations.OfLink.Set").properties({"reference": _.Ref, "def": _.Def}),
             lambda _: _.LinkClear.name("Mutations.OfLink.Clear"),
 
             # --- An object's, an entry's and an adjacency's verbs ---

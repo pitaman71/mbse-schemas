@@ -40,8 +40,8 @@ __all__ = ["PlainData", "ToPlain", "FromPlain"]
 
 PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "PlainData"]
 
-REF = "$ref"
 SCHEMA = "$schema"
+REFERENCE = "References.OfObject"
 ID = "$id"
 
 
@@ -893,7 +893,7 @@ class _Document:
         """An entry as a spec inserts it: its links set to what they refer to, then its properties."""
         links = [link for link in adjacency.relation.entry.links if link != adjacency.me]
         return {"mutations": [
-            *({"as_link": {"name": link, "mutations": [{"set": {"ref": row[link]}}]}} for link in links),
+            *({"as_link": {"name": link, "mutations": [{"set": {"reference": row[link]}}]}} for link in links),
             *({"as_property": {"name": name, "mutations": [{"set": {"value": row[name]}}]}}
               for name in adjacency.relation.entry.properties if name in row),
         ]}
@@ -1020,10 +1020,10 @@ class _StoreSnapshot:
         its definition where it is linked."""
         number = self._numbers.get(id(self._original(target)))
         if number is not None:
-            return {"ref": {"symbol": str(number)}}
+            return {"reference": {"symbol": str(number)}}
         original = target._original  # not a symbol: a schema object, as every object the snapshot reaches is one
         if self._B._named(original) or self.store.framework(original):
-            return {"ref": {"path": _schema_path(self.store._path(original))}}
+            return {"reference": {"path": _schema_path(self.store._path(original))}}
         return {"def": {"schema": self.store.name_of(target.as_schema()), "mutations": self._members(target, None)}}
 
     def _members(self, visitor: Any, wanted: Any) -> list[PlainData]:
@@ -1178,8 +1178,9 @@ class _Expression:
     (a name), its adjacency as a mapping of that property to what it links; any other as a mapping of its other links
     and its properties. What it links is nested where it has no path (a term, linked from one place; a schema object
     with no name of its own), tagged with its kind where its link is a kind union, or with its schema's name where
-    several schemas fill its link; else referred to by its path, `{"$ref": path}`. A pattern's spec is written as
-    recorded."""
+    several schemas fill its link; else referred to by its path, as a `References.OfObject` marked with its schema's
+    name, `{"$schema": "References.OfObject", "path": path}`, since a reader cannot tell a reference written bare from an
+    object nested in its place. A pattern's spec is written as recorded."""
 
     def __init__(self, store: Any) -> None:
         from . import Builders
@@ -1231,7 +1232,7 @@ class _Expression:
         if not isinstance(target, Proxies._ObjectData):  # data an expression links is its terms, each nested
             steps = self._store._path(target._original)
             if steps is not None:
-                return {REF: _schema_path(steps)}
+                return {SCHEMA: REFERENCE, "path": _schema_path(steps)}
         held = getattr(target, "_original", target)
         if any(met is held for met in self._met):
             raise ValueError("an expression links one of its terms from two places: it is written as a tree")
@@ -1361,11 +1362,11 @@ def _checked_entry(store: Any, adjacency: str, relation: Any, member: Any, where
             definition = given["def"]
             _checked_members(store, store.registered(definition["schema"]), definition["mutations"],
                              (*at, "mutations", 0, "set", "def", "mutations"), symbols, ignored)
-        elif "symbol" in given.get("ref", {}) and given["ref"]["symbol"] not in symbols:
-            raise DecodeError(f"{given['ref']['symbol']!r} is not a symbol of the pattern",
-                              path=path(*at, "mutations", 0, "set", "ref", "symbol"))
-        elif "path" in given.get("ref", {}):
-            _steps(given["ref"]["path"], (*at, "mutations", 0, "set", "ref", "path"))
+        elif "symbol" in given.get("reference", {}) and given["reference"]["symbol"] not in symbols:
+            raise DecodeError(f"{given['reference']['symbol']!r} is not a symbol of the pattern",
+                              path=path(*at, "mutations", 0, "set", "reference", "symbol"))
+        elif "path" in given.get("reference", {}):
+            _steps(given["reference"]["path"], (*at, "mutations", 0, "set", "reference", "path"))
     elif ignored is not None and kind == "as_property" and store.framework(relation):
         ignored.append({"path": path(*at), "reason": f"an entry of {adjacency!r} has no property {body['name']!r}"})
         return False
@@ -1424,10 +1425,10 @@ def _item(store: Any, relation: Any, link: str, plain: PlainData, where: tuple,
     """What an entry links, in an expression's nested form: the object a path names, or a callback defining one where it
     is linked, through its kind where the link is a kind union; where several schemas fill the link, the schema object
     its tag names, built."""
-    if isinstance(plain, dict) and len(plain) == 1 and REF in plain:
-        found = _by_path(store, plain[REF], (*where, REF))
+    if isinstance(plain, dict) and plain.get(SCHEMA) == REFERENCE and set(plain) == {SCHEMA, "path"}:
+        found = _by_path(store, plain["path"], (*where, "path"))  # a reference, marked: an object nested has no `$schema`
         if found is None:
-            raise DecodeError("no object at this path", path=path(*where, REF))
+            raise DecodeError("no object at this path", path=path(*where, "path"))
         return found
     kinds = Proxies._link_kinds(relation, link)
     if kinds is None:

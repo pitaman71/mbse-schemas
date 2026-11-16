@@ -2386,7 +2386,7 @@ export class Store extends Proxies.OfStore {
     if (plain === null) return null;
     const [pattern] = plain.get("mutations")[0].get("upsert").get("exists");
     const [[, bound]] = [...pattern.get("symbols")];
-    const schema = PlainModule._by_path(this._self, bound.get("schema")[0].get("$ref"), []) as ObjectData;
+    const schema = PlainModule._by_path(this._self, bound.get("schema")[0].get("path"), []) as ObjectData;
     const key = Proxies._identity(path);
     const made = Proxies._makeObjectData(this._self as Proxies.OfStore, schema, schema.name as string, path);
     this._identities.set(key, made);

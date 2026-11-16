@@ -318,7 +318,7 @@ class OfStore(Stores.Catalog):
             return None
         (pattern,) = plain["mutations"][0]["upsert"]["exists"]
         ((_, bound),) = pattern["symbols"].items()
-        schema = Plain._by_path(self, bound["schema"][0]["$ref"], ())
+        schema = Plain._by_path(self, bound["schema"][0]["path"], ())
         key = _identity(path)
         made = self._identities[key] = _ObjectData(self, schema, schema.name, path)
         waiting = [(entry, entry._key()) for entry in {id(e): e for e in self._waiting.pop(key, [])}.values()]

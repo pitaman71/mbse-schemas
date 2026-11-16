@@ -259,7 +259,7 @@ export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainD
   const [symbols, spec]: [Map<string, PlainMap>, PlainMap[]] = [pattern.get("symbols"), pattern.get("spec")];
   const schemas = new Map<string, any>(); // each symbol's schema: one created's, an object present's, or its path's
   for (const [name, bound] of symbols) {
-    if (bound.has("schema")) schemas.set(name, Plain._by_path(store, bound.get("schema")[0].get("$ref"), []));
+    if (bound.has("schema")) schemas.set(name, Plain._by_path(store, bound.get("schema")[0].get("path"), []));
   }
   const counted = new Set([...schemas].filter(([, schema]) => Proxies._counted_schema(schema)).map(([name]) => name));
   const paths = new Map<string, Plain.PlainData>();
@@ -368,7 +368,7 @@ function parts(entry: PlainMap): [Map<string, string>, Map<string, Plain.PlainDa
   for (const part of entry.get("mutations") as PlainMap[]) {
     const [[kind, member]] = [...part] as any;
     const [[, set]] = [...member.get("mutations")[0]] as any;
-    if (kind === "as_link") links.set(member.get("name"), set!.get("ref").get("symbol"));
+    if (kind === "as_link") links.set(member.get("name"), set!.get("reference").get("symbol"));
     else keys.set(member.get("name"), set!.get("value"));
   }
   return [links, keys];
@@ -376,7 +376,7 @@ function parts(entry: PlainMap): [Map<string, string>, Map<string, Plain.PlainDa
 
 function linkPart(link: string, symbol: string): PlainMap {
   return new Map([["as_link", new Map<string, unknown>([["name", link],
-    ["mutations", [new Map([["set", new Map([["ref", new Map([["symbol", symbol]])]])]])]]])]]);
+    ["mutations", [new Map([["set", new Map([["reference", new Map([["symbol", symbol]])]])]])]]])]]);
 }
 
 /** The path of an object a transaction created: its owner's, then the entry that owns it, which the transaction

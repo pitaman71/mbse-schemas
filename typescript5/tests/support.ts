@@ -123,7 +123,7 @@ export function schema_name(path: PlainMap): string {
 
 /** A document (`Plain.ToPlain(store).Reachable`: one transaction, one upsert) as the objects it holds, each listed by its
  * number (its symbol), its schema's name and its members: the properties its spec sets, then the entries it inserts,
- * each a mapping of its links, `{'$ref': {'n': number}}` or `{'$ref': path}`, and its properties. */
+ * each a mapping of its links, `{'reference': {'n': number}}` or `{'reference': path}`, and its properties. */
 export function view(document: any): PlainMap {
   const pattern = document.get("mutations")[0].get("upsert").get("exists")[0];
   const specs = new Map<string, any[]>();
@@ -134,9 +134,9 @@ export function view(document: any): PlainMap {
     const [kind, body] = [...member][0];
     const set = body.get("mutations")[0].get("set");
     if (kind === "as_property") return [body.get("name"), set.get("value")];
-    const ref = set.get("ref");
+    const ref = set.get("reference");
     const target = ref.has("symbol") ? new Map([["n", BigInt(ref.get("symbol"))]]) : ref.get("path");
-    return [body.get("name"), new Map([["$ref", target]])];
+    return [body.get("name"), new Map([["reference", target]])];
   }));
   const objects = [...pattern.get("symbols")].map(([symbol, held]: [string, any]) => {
     const properties = new Map<string, PlainData>();
@@ -145,7 +145,7 @@ export function view(document: any): PlainMap {
       properties.set(body.get("name"), kind === "as_property" ? body.get("mutations")[0].get("set").get("value")
         : body.get("mutations")[0].get("insert").get("entries").map(row));
     }
-    return listed(schema_name(held.get("schema")[0].get("$ref")), Number(symbol), properties);
+    return listed(schema_name(held.get("schema")[0].get("path")), Number(symbol), properties);
   });
   return new Map<string, PlainData>([["root", new Map([["n", 0n]])], ["objects", objects]]);
 }
@@ -206,10 +206,10 @@ export function schema_path(name: string): PlainMap {
 export function document(listedObjects: any, uid?: string): PlainMap {
   const given = (name: string, value: unknown) => map({ as_property: { name, mutations: [{ set: { value } }] } });
   const entry = (row: PlainMap) => map({ mutations: [...row].map(([name, value]) => {
-    if (value instanceof Map && value.has("$ref")) {
-      const target = value.get("$ref") as PlainMap;
+    if (value instanceof Map && value.has("reference")) {
+      const target = value.get("reference") as PlainMap;
       const ref = target.has("n") ? new Map([["symbol", String(target.get("n"))]]) : new Map([["path", target]]);
-      return map({ as_link: { name, mutations: [{ set: { ref } }] } });
+      return map({ as_link: { name, mutations: [{ set: { reference: ref } }] } });
     }
     return given(name, value);
   }) });
@@ -217,7 +217,7 @@ export function document(listedObjects: any, uid?: string): PlainMap {
   const spec: PlainMap[] = [];
   for (const listing_ of listedObjects.get("objects")) {
     const symbol = String(listing_.get("n"));
-    symbols.set(symbol, map({ schema: [{ $ref: schema_path(listing_.get("schema")) }] }));
+    symbols.set(symbol, map({ schema: [{ $schema: "References.OfObject", path: schema_path(listing_.get("schema")) }] }));
     const members = [...listing_.get("properties")].map(([name, value]: [string, any]) => is_adjacency(value)
       ? map({ as_adjacency: { name, mutations: [{ insert: { entries: value.map(entry) } }] } }) : given(name, value));
     if (members.length > 0) spec.push(new Map([[symbol, members]]));
@@ -240,7 +240,7 @@ export function single(name: string, properties: unknown = {}): PlainMap {
 
 /** A reference to the counted object a document numbers `number`. */
 export function ref(number: number): PlainMap {
-  return new Map([["$ref", new Map([["n", BigInt(number)]])]]);
+  return new Map([["reference", new Map([["n", BigInt(number)]])]]);
 }
 
 /** An owned object's or a singleton's path (`Paths.of`), as plain data. */
@@ -286,7 +286,7 @@ export function root_of(snapshot: any): any {
  * has a reference at its top level. */
 export function is_adjacency(value: unknown): value is PlainMap[] {
   return Array.isArray(value) && value.length > 0 &&
-    value.every((e) => e instanceof Map && [...e.values()].some((v) => v instanceof Map && v.has("$ref")));
+    value.every((e) => e instanceof Map && [...e.values()].some((v) => v instanceof Map && v.has("reference")));
 }
 
 /** Snapshot equality up to the keys objects are written under, the order they are written in, and entry order.
@@ -315,7 +315,7 @@ export function same_graph(a: PlainData, b: PlainData): boolean {
     };
     for (const [symbol, obj] of objects) visit(labels.get(symbol) as string, obj);
     const entry = (e: PlainMap): string => key([...e]
-      .map(([k, v]) => [k, v instanceof Map && v.has("$ref") ? labels.get(_symbol(v.get("$ref"))) : v] as [string, unknown])
+      .map(([k, v]) => [k, v instanceof Map && v.has("reference") ? labels.get(_symbol(v.get("reference"))) : v] as [string, unknown])
       .sort(byKey));
     const lists = holders.map(([label, mapping]) => key([
       label,

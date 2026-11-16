@@ -227,7 +227,7 @@ def _present_only(store: Any, plain: PlainData) -> tuple[PlainData | None, list[
     relation, its verb, and its links' paths and properties as plain."""
     (pattern,) = plain["mutations"][0]["upsert"]["exists"]
     symbols, spec = pattern["symbols"], pattern["spec"]
-    schemas = {name: Plain._by_path(store, bound["schema"][0]["$ref"], ()) for name, bound in symbols.items()
+    schemas = {name: Plain._by_path(store, bound["schema"][0]["path"], ()) for name, bound in symbols.items()
                if "schema" in bound}  # each symbol's schema: one created's, an object present's, or its path's
     counted = {name for name, schema in schemas.items() if Proxies._counted_schema(schema)}
     paths: dict[str, PlainData] = {}
@@ -325,14 +325,14 @@ def _parts(entry: PlainData) -> tuple[dict[str, str], dict[str, PlainData]]:
         ((kind, member),) = part.items()
         ((_, set_),) = member["mutations"][0].items()
         if kind == "as_link":
-            links[member["name"]] = set_["ref"]["symbol"]
+            links[member["name"]] = set_["reference"]["symbol"]
         else:
             keys[member["name"]] = set_["value"]
     return links, keys
 
 
 def _link_part(link: str, symbol: str) -> PlainData:
-    return {"as_link": {"name": link, "mutations": [{"set": {"ref": {"symbol": symbol}}}]}}
+    return {"as_link": {"name": link, "mutations": [{"set": {"reference": {"symbol": symbol}}}]}}
 
 
 def _created_path(name: str, schema_of: Callable[[str], Any], spec: list[PlainData],

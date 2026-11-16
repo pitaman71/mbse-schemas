@@ -121,7 +121,7 @@ store.transaction(() => {
  * YAML text. */
 const written = (...members: [string, string][]) => {
   const reading = "{singleton: ., next: {entry: {i: schemas, o: '', properties: {name: Reading}, next: {target: {}}}}}";
-  return "mutations:\n- upsert:\n    exists:\n    - symbols:\n        '0':\n          schema:\n          - $ref: " + reading
+  return "mutations:\n- upsert:\n    exists:\n    - symbols:\n        '0':\n          schema:\n          - $schema: References.OfObject\n            path: " + reading
     + "\n      spec:\n      - '0':\n" + members.map(([name, value]) => `        - as_property:\n            name: ${name}\n`
       + `            mutations:\n            - set:\n                value: ${value}\n`).join("");
 };

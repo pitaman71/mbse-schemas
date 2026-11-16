@@ -13,9 +13,9 @@
  * order. A property written is `{"as_property": {"name": ..., "mutations": [{"set": {"value": ...}}]}}`, its value as
  * `Plain` writes a property's; an adjacency's entries are `{"as_adjacency": {"name": ..., "mutations": [{"insert":
  * {"entries": [...]}}]}}`, each entry `{"mutations": [...]}` of its links (`as_link`) and properties (`as_property`), as
- * a snapshot writes an entry, leaving out the object's own link. A link refers to the object another symbol binds, `{"ref":
- * {"symbol": "ada"}}`, to an object by its path, `{"ref": {"path": ...}}` (a schema object, a singleton or an owned
- * object), or defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`. An adjacency's
+ * a snapshot writes an entry, leaving out the object's own link. A link's `reference` names the object another symbol
+ * binds, `{"reference": {"symbol": "ada"}}`, or an object by its path, `{"reference": {"path": ...}}` (a schema object, a
+ * singleton or an owned object), as `References.OfObject` writes one; or the link defines a new object where it is linked, `{"def": {"schema": ..., "mutations": [...]}}`. An adjacency's
  * entries are removed as a builder's adjacency removes them, `knows((a) => a.remove((e) => e.known(_.bob)))`, recorded
  * `{"remove": {"entries": [...]}}`, and all of them by `clear()`, recorded `{"clear": {}}`.
  *
@@ -493,7 +493,7 @@ class RecordedEntry extends Shelled {
     for (const [link, held] of this._links) {
       const target = held instanceof State
         ? m([["def", m([["schema", this._store.name_of(held.schema)], ["mutations", held.plain()]])]])
-        : m([["ref", held]]);
+        : m([["reference", held]]);
       mutations.push(m([["as_link", m([["name", link], ["mutations", [m([["set", target]])]]])]]));
     }
     const names = Plain._names(this._store);
@@ -1044,7 +1044,7 @@ function locate(store: any, pattern: any, members: Map<string, Members>, name: s
       for (const entry of verbsOf(body).filter(([verb]) => verb === "insert").flatMap(([, entries]) => entries)) {
         const parts: Map<string, any>[] = entry.get("mutations");
         const link = parts.find((part) => part.has("as_link")
-          && part.get("as_link").get("mutations")[0].get("set").get("ref")?.get("symbol") === name)?.get("as_link").get("name");
+          && part.get("as_link").get("mutations")[0].get("set").get("reference")?.get("symbol") === name)?.get("as_link").get("name");
         if (link === undefined || !owning.some((a: any) => a.relation === relation && a.me === link)) continue;
         const properties = parts.filter((part) => part.has("as_property")).map((part) => part.get("as_property"));
         return [...reader(store, frame.get(other))[body.get("name")]]
@@ -1121,8 +1121,8 @@ function symbolRefs(entry: Map<string, any>): Map<string, any>[] {
     const [kind, body] = only(item);
     if (kind === "as_link") {
       const held = body.get("mutations")[0].get("set");
-      if (held.has("ref") && held.get("ref").has("symbol")) {
-        found.push(held.get("ref"));
+      if (held.has("reference") && held.get("reference").has("symbol")) {
+        found.push(held.get("reference"));
       } else if (held.has("def")) {
         for (const member of held.get("def").get("mutations")) {
           const [memberKind, memberBody] = only(member);
@@ -1161,8 +1161,8 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
     }
     const wanted = body.get("mutations")[0].get("set");
     const state = Proxies._innerOf(held);
-    if (wanted.has("ref") && state instanceof Proxies._internals._Entry && state._links.get(name) instanceof Proxies._Unresolved) {
-      const found = resolve(store, wanted.get("ref"), frame); // one not present, compared by its path: loading nothing
+    if (wanted.has("reference") && state instanceof Proxies._internals._Entry && state._links.get(name) instanceof Proxies._Unresolved) {
+      const found = resolve(store, wanted.get("reference"), frame); // one not present, compared by its path: loading nothing
       if (JSON.stringify(Proxies._link_key(state._links.get(name))) !== JSON.stringify(Proxies._link_key(found))) return false;
       continue;
     }
@@ -1172,7 +1172,7 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
       const schema = store.registered(definition.get("schema"));
       if (reader(store, target).as_schema() !== schema
         || !holds(store, target, schema, definition.get("mutations"), frame, null)) return false;
-    } else if (target !== resolve(store, wanted.get("ref"), frame)) {
+    } else if (target !== resolve(store, wanted.get("reference"), frame)) {
       return false;
     }
   }
@@ -1296,7 +1296,7 @@ function insert(store: any, target: any, schema: any, name: string, adjacency: a
       write(store, made, defined, definition.get("mutations"), frame);
       links.set(body.get("name"), made);
     } else {
-      links.set(body.get("name"), resolve(store, target.get("ref"), frame));
+      links.set(body.get("name"), resolve(store, target.get("reference"), frame));
     }
   }
   const fill = (added: any): any => {

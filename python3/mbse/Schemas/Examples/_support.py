@@ -33,7 +33,7 @@ def members(document):
                     out[symbol][body['name']] = body['mutations'][0]['set']['value']
                     continue
                 out[symbol][body['name']] = [
-                    {part['name']: part['mutations'][0]['set'].get('value', part['mutations'][0]['set'].get('ref'))
+                    {part['name']: part['mutations'][0]['set'].get('value', part['mutations'][0]['set'].get('reference'))
                      for verb in entry['mutations'] for part in verb.values()}
                     for entry in body['mutations'][0]['insert']['entries']]
     return out
@@ -43,7 +43,7 @@ def schema_names(document):
     """The registered names of the schemas of a document's objects, by symbol: each read off its path."""
     names = {}
     for symbol, held in document['mutations'][0]['upsert']['exists'][0]['symbols'].items():
-        step, parts = held['schema'][0]['$ref']['next'], []
+        step, parts = held['schema'][0]['path']['next'], []
         while 'entry' in step:
             parts.append(step['entry']['properties']['name'])
             step = step['entry']['next']

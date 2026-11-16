@@ -45,8 +45,8 @@ import type { Scalar } from "./Visitors.js";
 export type PlainData = null | boolean | bigint | number | string | PlainData[] | PlainMap;
 export type PlainMap = Map<string, PlainData>;
 
-export const REF = "$ref";
 export const SCHEMA = "$schema";
+export const REFERENCE = "References.OfObject";
 export const ID = "$id";
 
 /** The Python class name of a schema's data (`_ObjectData`, ...), so messages match the Python implementation. */
@@ -506,7 +506,7 @@ function specEntry(row: PlainMap, adjacency: Schemas.OfAdjacency.Data): PlainMap
   const relation = adjacency.relation as Schemas.OfRelation.Data;
   const links = [...relation.entry.links.keys()].filter((link) => link !== adjacency.me);
   return m([["mutations", [
-    ...links.map((link) => m([["as_link", m([["name", link], ["mutations", [m([["set", m([["ref", row.get(link)!]])]])]]])]])),
+    ...links.map((link) => m([["as_link", m([["name", link], ["mutations", [m([["set", m([["reference", row.get(link)!]])]])]]])]])),
     ...[...relation.entry.properties.keys()].filter((name) => row.has(name)).map((name) => m([["as_property", m([["name", name],
       ["mutations", [m([["set", m([["value", row.get(name)!]])]])]]])]])),
   ]]]);
@@ -1157,10 +1157,10 @@ class StoreSnapshot {
    * definition where it is linked. */
   private refer(target: any): PlainMap {
     const number = this.numbers.get(this.original(target));
-    if (number !== undefined) return m([["ref", m([["symbol", String(number)]])]]);
+    if (number !== undefined) return m([["reference", m([["symbol", String(number)]])]]);
     const original = this.original(target); // not a symbol: a schema object, as every object the snapshot reaches is one
     if (Builders._named(original) || this.store.framework(original)) {
-      return m([["ref", m([["path", schemaPath(this.store._path(original)!)]])]]);
+      return m([["reference", m([["path", schemaPath(this.store._path(original)!)]])]]);
     }
     return m([["def", m([["schema", this.store.name_of(target.as_schema())], ["mutations", this.members(target, null)]])]]);
   }
@@ -1337,7 +1337,9 @@ function readSnapshot(store: any, transactions: unknown, ignored: Ignored[] | nu
  * its adjacency as a mapping of that property to what it links; any other as a mapping of its other links and its
  * properties. What it links is nested where it has no path (a term, linked from one place; a schema object with no name
  * of its own), tagged with its kind where its link is a kind union, or with its schema's name where several schemas
- * fill its link; else referred to by its path, `{"$ref": path}`. A pattern's spec is written as recorded. */
+ * fill its link; else referred to by its path, as a `References.OfObject` marked with its schema's name,
+ * `{"$schema": "References.OfObject", "path": path}`, since a reader cannot tell a reference written bare from an object
+ * nested in its place. A pattern's spec is written as recorded. */
 class Expression {
   private readonly names: Ref;
   /** What it nested, each once. */
@@ -1395,7 +1397,7 @@ class Expression {
     }
     if (!Proxies._is_data(target)) { // data an expression links is its terms, each nested
       const steps = this.store._path(Builders._linked(target));
-      if (steps !== null) return new Map([[REF, schemaPath(steps)]]);
+      if (steps !== null) return new Map<string, PlainData>([[SCHEMA, REFERENCE], ["path", schemaPath(steps)]]);
     }
     const held = Builders._linked(target) ?? target;
     if (this.met.has(held)) throw new ValueError("an expression links one of its terms from two places: it is written as a tree");
@@ -1523,16 +1525,16 @@ function checkedEntry(store: any, adjacency: string, relation: any, member: Map<
     checkedValues(store, relation.entry.properties.get(body.get("name")).schema, body.get("mutations"), [...at, "mutations"]);
   } else if (kind === "as_link" && relation.entry.links.has(body.get("name"))) {
     const given: Map<string, any> = body.get("mutations")[0].get("set") ?? new Map();
-    const ref: Map<string, any> = given.get("ref") ?? new Map();
+    const ref: Map<string, any> = given.get("reference") ?? new Map();
     if (given.has("def")) {
       const definition = given.get("def");
       checkedMembers(store, store.registered(definition.get("schema")), definition.get("mutations"),
         [...at, "mutations", 0, "set", "def", "mutations"], symbols, ignored);
     } else if (ref.has("symbol") && !symbols.has(ref.get("symbol"))) {
       throw new DecodeError(`${repr(ref.get("symbol"))} is not a symbol of the pattern`,
-        { path: path(...at, "mutations", 0, "set", "ref", "symbol") });
+        { path: path(...at, "mutations", 0, "set", "reference", "symbol") });
     } else if (ref.has("path")) {
-      stepsOf(ref.get("path"), [...at, "mutations", 0, "set", "ref", "path"]);
+      stepsOf(ref.get("path"), [...at, "mutations", 0, "set", "reference", "path"]);
     }
   } else if (ignored !== null && kind === "as_property" && store.framework(relation)) {
     ignored.push({ path: path(...at), reason: `an entry of ${repr(adjacency)} has no property ${repr(body.get("name"))}` });
@@ -1591,9 +1593,9 @@ function fillers(store: any, relation: Schemas.OfRelation.Data, link: string): s
  * tag names, built. */
 function itemOf(store: any, relation: Schemas.OfRelation.Data, link: string, plain: unknown, where: Where,
   ignored: Ignored[] | null = null): unknown {
-  if (plain instanceof Map && plain.size === 1 && plain.has(REF)) {
-    const found = byPath(store, plain.get(REF), [...where, REF]);
-    if (found === null) throw new DecodeError("no object at this path", { path: path(...where, REF) });
+  if (plain instanceof Map && plain.get(SCHEMA) === REFERENCE && plain.size === 2 && plain.has("path")) {
+    const found = byPath(store, plain.get("path"), [...where, "path"]); // a reference, marked: an object nested has no `$schema`
+    if (found === null) throw new DecodeError("no object at this path", { path: path(...where, "path") });
     return found;
   }
   const kinds = Proxies._linkKinds(relation, link);

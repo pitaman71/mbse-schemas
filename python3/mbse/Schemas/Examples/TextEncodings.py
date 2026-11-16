@@ -118,7 +118,7 @@ def written(*members):
     """A hand-written YAML document of one reading, counted: the symbol '0', each member a property set, its value given
     as YAML text."""
     reading = "{singleton: ., next: {entry: {i: schemas, o: '', properties: {name: Reading}, next: {target: {}}}}}"
-    return ("mutations:\n- upsert:\n    exists:\n    - symbols:\n        '0':\n          schema:\n          - $ref: " + reading
+    return ("mutations:\n- upsert:\n    exists:\n    - symbols:\n        '0':\n          schema:\n          - $schema: References.OfObject\n            path: " + reading
             + "\n      spec:\n      - '0':\n" + "".join(f"        - as_property:\n            name: {name}\n            mutations:\n"
                                                          f"            - set:\n                value: {value}\n"
                                                          for name, value in members))

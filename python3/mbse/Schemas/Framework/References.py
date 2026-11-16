@@ -6,15 +6,18 @@ Three value schemas, which every store holds, its own, as it holds `Paths`:
   singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
 - `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`, and `variables`, each
   of its variables' values; and what it witnesses: `assigns`, objects' property values (`References.OfProperties`),
-  and `entries`, relation entries (`References.OfEntry`);
+  and `entries`, relation entries (`References.OfEntry`); and its `errors`, what failed as a term processed it
+  (`References.OfError`, [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309));
+- `References.OfError`, an error annotated on a frame: its `subterm`, where in the transaction's expression it arose,
+  its `kind`, the name of its class, and its `message`;
 - `References.OfProperties`, property values an object is witnessed to hold: its `object`, a `References.OfObject`,
   and its `properties`, each its value;
 - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one.
 
-`of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back; `resolve(store,
-reference)` gives what a reference designates, or None where the store holds none. A counted object has no reference,
-nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+`of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
+included; `resolve(store, reference)` gives what a reference designates, or None where the store holds none. A
+counted object has no reference, nor a frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
 
 The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
 binds the one object a reference designates, given in place of a schema (`.symbols({"ada": reference})`);
@@ -42,7 +45,7 @@ def install(txn: Any) -> Any:
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.References/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({"OfObject": S.OfObject, "OfFrame": S.OfObject, "OfProperties": S.OfObject, "OfEntry": S.OfObject,
-                  "OfSymbol": S.OfObject})
+                  "OfError": S.OfObject, "OfSymbol": S.OfObject})
         .spec([
             lambda _: _.OfObject.name("References.OfObject").properties({
                 "path": txn.Paths.OfRoot,  # a singleton's, an owned object's or a schema object's
@@ -52,6 +55,7 @@ def install(txn: Any) -> Any:
                 "variables": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
                 "assigns": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfProperties])),  # witnessed values
                 "entries": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfEntry])),  # witnessed entries
+                "errors": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.OfError])),  # what failed (CAP-309)
             }),
             lambda _: _.OfProperties.name("References.OfProperties").properties({
                 "object": _.OfObject,
@@ -61,6 +65,11 @@ def install(txn: Any) -> Any:
                 "relation": txn.Paths.OfRoot,  # the relation's path
                 "links": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfObject])),
                 "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([S.OfAny(lambda a: a)])),
+            }),
+            lambda _: _.OfError.name("References.OfError").properties({
+                "subterm": S.OfStr,  # where in the expression: a path in its wire form, `$.mutations[0].map`
+                "kind": S.OfStr,  # the error's class's name
+                "message": S.OfStr,
             }),
             # --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
             lambda _: _.OfSymbol.name("Schemas.OfSymbol").properties({"reference": _.OfObject}),
@@ -126,14 +135,17 @@ def _object(store: Any, obj: Any) -> Any:
 
 
 def _frame(store: Any, frame: Mapping[str, Any]) -> Any:
-    """A `References.OfFrame`'s callback: each symbol's object's reference; refused where one binds a counted object."""
+    """A `References.OfFrame`'s callback: each symbol's object's reference, refused where one binds a counted object;
+    and the errors annotated on it, where it is a frame the executor gave back (`Transactions.Frame`)."""
     binds = {}
     for name, target in frame.items():
         try:
             binds[name] = _object(store, target)
         except LookupError as error:
             raise LookupError(f"symbol {name!r} of the frame: {error}") from None
-    return lambda f: f.binds(binds)
+    errors = [lambda x, e=error: x.as_object(lambda r: r.subterm(e.subterm).kind(e.kind).message(e.message))
+              for error in getattr(frame, "errors", ())]
+    return lambda f: f.binds(binds).errors(errors) if errors else f.binds(binds)  # none: written as before them
 
 
 def _entry(store: Any, entry: Any) -> Any:
@@ -176,7 +188,10 @@ def _resolve_object(store: Any, plain: Any) -> Any:
 
 
 def _resolve_frame(store: Any, plain: Any) -> Any:
-    frame = {}
+    from . import Transactions
+
+    frame = Transactions.Frame(errors=[Transactions.FrameError(e["subterm"], e["kind"], e["message"])
+                                       for e in plain.get("errors", [])])
     for name, given in plain.get("binds", {}).items():
         target = _resolve_object(store, given)
         if target is None:

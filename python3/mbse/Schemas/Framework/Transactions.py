@@ -34,13 +34,14 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from types import SimpleNamespace
 from typing import Any
 
-from . import Plain, Proxies
+from . import Errors, Plain, Proxies
 from . import Schemas as S
 
-__all__: list[str] = []
+__all__ = ["Frame", "FrameError"]
 
 
 def _recorded(store: Any, symbols: Mapping[str, Any], spec: Any) -> dict[str, list[Any]]:
@@ -498,23 +499,79 @@ def _reference(store: Any, target: Any) -> Any:
 
 # --- The executor ---
 
-Frame = dict[str, Any]
-"""A frame: the objects its symbols bind, by symbol."""
+@dataclass(frozen=True)
+class FrameError:
+    """An error annotated on a frame ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)): where in
+    the expression it arose, `subterm`, the term that was processing the frame, by its path in the transaction's
+    expression on the wire (`Plain.ToPlain(store).Transaction`), as a decoding error locates what it reads there
+    (`$.mutations[0].map.then[0].update`); its `kind`, the name of the error's class (`ValueError`); and its `message`.
+    `error` is the error itself, where it arose here, None where the annotation was read back (`References.resolve`);
+    it is not compared."""
+
+    subterm: str
+    kind: str
+    message: str
+    error: BaseException | None = field(default=None, compare=False, repr=False)
+
+
+class Frame(dict[str, Any]):
+    """A frame: the objects its symbols bind, by symbol; and its `errors`, each what failed as a term processed it
+    ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did."""
+
+    def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = ()):
+        super().__init__(bound or {})
+        self.errors: list[FrameError] = list(errors)
+
+
+class _Uncommitted(Exception):
+    """A transaction a frame of which is annotated with an error: dropped, whole (CAP-124)."""
 
 
 def _execute(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
     """Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
     stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
-    in its proposals and written when it ends, or dropped where it raises. Gives the frames its chain ends with."""
+    in its proposals and written when it ends. Gives the frames its chain ends with. Where a frame is annotated with an
+    error, it commits nothing and raises the first error annotated, the one that arose first, as it arose, its
+    `frames` all the frames, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309))."""
+    frames = _frames(store, transaction, joined)
+    failed = next((frame for frame in frames if frame.errors), None)
+    if failed is not None:
+        error = failed.errors[0].error
+        assert error is not None  # annotated here
+        error.frames = frames  # type: ignore[attr-defined]
+        raise error
+    return frames
+
+
+def _frames(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
+    """The frames a transaction's expression gives, raising nothing for an error a term meets processing a frame: that
+    frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its
+    chain ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped,
+    whole (CAP-124), else committed, a decoder's (`joined`) into the transaction open. What a layer streaming the frames
+    it makes would give, not raising ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)). An error in the expression itself, found
+    before it runs, is raised, its `frames` none; one raised at the commit, which no frame made, is raised as it is, its
+    `frames` all the frames, none annotated."""
     root = _next(transaction, "mutations")
-    if root is not None:
-        _check(store, root, set())
-    if joined:  # a decoder's: a savepoint of the one open
-        with store._joined():
-            return [{}] if root is None else _run(store, root, [{}])
-    with store._transacting() as proposals:
-        proposals.expression = transaction  # what its record gives (Provenance)
-        return [{}] if root is None else _run(store, root, [{}])
+    made: list[Frame] = []
+    try:
+        if root is not None:
+            _check(store, root, set())
+        # a decoder's: a savepoint of the one open
+        with store._joined() if joined else store._transacting() as proposals:
+            if proposals is not None:
+                proposals.expression = transaction  # what its record gives (Provenance)
+            failed: list[Frame] = []
+            made = [Frame()] if root is None else _run(store, root, [Frame()], ("mutations", 0, _kind(store, root)),
+                                                       failed)
+            made += failed
+            if failed:
+                raise _Uncommitted()
+    except _Uncommitted:
+        pass
+    except Exception as error:
+        error.frames = made  # type: ignore[attr-defined]
+        raise
+    return made
 
 
 def _next(term: Any, name: str) -> Any:
@@ -681,41 +738,49 @@ def _extent(store: Any, schema: Any) -> list[Any]:
             if not store.framework(held) and _reader(store, held).as_schema() is schema]
 
 
-def _run(store: Any, term: Any, frames: list[Frame]) -> list[Frame]:
-    """The frames a term, and those after it, make of `frames`: those its chain ends with."""
+def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], failed: list[Frame]) -> list[Frame]:
+    """The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
+    chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
+    `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309))."""
     kind = _kind(store, term)
-    if kind == "map":
-        pattern = _pattern(term, "symbols", kind)
-        frames = [found for frame in frames for found in _bind(store, pattern, frame, False)]
-    elif kind == "upsert":
-        pattern = _pattern(term, "exists", kind)
-        key = store.member(term, "key")
-        frames = [found for frame in frames for found in _bind(store, pattern, frame, True, key)]
-    elif kind == "update":
-        pattern = _pattern(term, "apply", kind)
+    if kind in ("map", "upsert", "update"):
+        pattern = _pattern(term, {"map": "symbols", "upsert": "exists", "update": "apply"}[kind], kind)
+        key = store.member(term, "key") if kind == "upsert" else None
+        made: list[Frame] = []
         for frame in frames:
-            _write_spec(store, pattern, frame)
+            try:
+                if kind == "update":
+                    _write_spec(store, pattern, frame)
+                    made.append(frame)
+                else:
+                    made.extend(Frame(found) for found in _bind(store, pattern, frame, kind == "upsert", key))
+            except Exception as error:
+                frame.errors.append(FrameError(Errors.path(*at), type(error).__name__, str(error), error))
+                failed.append(frame)
+        frames = made
     elif kind == "reduce":
         dropped = set(next(iter(term.symbols)).collector.symbols)
         unique: dict[tuple[Any, ...], Frame] = {}
         for frame in frames:
-            kept = {name: target for name, target in frame.items() if name not in dropped}
+            kept = Frame({name: target for name, target in frame.items() if name not in dropped})
             unique.setdefault(tuple((name, Proxies._key_of(_reader(store, target))) for name, target in kept.items()), kept)
         frames = list(unique.values())
     elif kind == "partition":
-        arms = [entry.branch for entry in term.branches]
+        arms = [((*at, "branches", index), entry.branch) for index, entry in enumerate(term.branches)]
         first = store.member(term, "first")
         if arms and (first or store.member(term, "last")):  # every branch matches, none requiring constraints (87)
             arms = [arms[0] if first else arms[-1]]
         otherwise = _next(term, "none")
         if not arms and otherwise is not None:
-            arms = [otherwise]
-        frames = [found for arm in arms for found in _run(store, arm, [dict(frame) for frame in frames])]
+            arms = [((*at, "none", 0, _kind(store, otherwise)), otherwise)]
+        frames = [found for arm_at, arm in arms
+                  for found in _run(store, arm, [Frame(frame) for frame in frames], arm_at, failed)]
     after = _next(term, "then")
-    return frames if after is None else _run(store, after, frames)
+    return frames if after is None else _run(store, after, frames, (*at, "then", 0, _kind(store, after)), failed)
 
 
-def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None = None) -> list[Frame]:
+def _bind(store: Any, pattern: Any, frame: dict[str, Any], upsert: bool,
+          key: str | None = None) -> list[dict[str, Any]]:
     """The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members
     its spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
     where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a
@@ -772,19 +837,19 @@ def _bind(store: Any, pattern: Any, frame: Frame, upsert: bool, key: str | None 
                    for name, items in members.items())]
 
 
-def _schema(store: Any, pattern: Any, name: str, frame: Frame) -> Any:
+def _schema(store: Any, pattern: Any, name: str, frame: dict[str, Any]) -> Any:
     """The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's."""
     schema = pattern.symbols[name].schema
     return _reader(store, frame[name]).as_schema() if schema is None else schema
 
 
-def _upsert_index(store: Any, key: str | None, name: str, frame: Frame) -> tuple[Any, ...]:
+def _upsert_index(store: Any, key: str | None, name: str, frame: dict[str, Any]) -> tuple[Any, ...]:
     """What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the
     frame that reached it, each as it is told apart in memory."""
     return key, name, tuple((bound, Proxies._key_of(_reader(store, target))) for bound, target in sorted(frame.items()))
 
 
-def _registered(store: Any, schema: Any, member: Any, frame: Frame) -> list[Any]:
+def _registered(store: Any, schema: Any, member: Any, frame: dict[str, Any]) -> list[Any]:
     """The schema object registered under the name a spec gives, where it is of the meta-schema `schema`, a module by
     its path, the root module where it gives none: none otherwise."""
     (_, body), = member.items()
@@ -811,7 +876,8 @@ def _created(store: Any, schema: Any, identifying: list[Any]) -> Any:
     return builder.create()
 
 
-def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str, schema: Any, frame: Frame) -> Any:
+def _located(store: Any, pattern: Any, members: dict[str, list[Any]], name: str, schema: Any,
+             frame: dict[str, Any]) -> Any:
     """Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's
     spec bound before it (object identity 60 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)): the objects linked by each of the owner's entries agreeing with the properties
     it gives, one where they give its keys, every one where they leave them open, none where none agrees; None where no
@@ -856,7 +922,8 @@ def _members(pattern: Any) -> dict[str, list[Any]]:
     return members
 
 
-def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: Frame, partial: Frame | None) -> bool:
+def _holds(store: Any, target: Any, schema: Any, members: list[Any], frame: dict[str, Any],
+           partial: dict[str, Any] | None) -> bool:
     """Whether what a spec gives of an object holds of `target`: its properties' values, the entries it inserts held,
     and those it removes absent, none where it clears the adjacency. Finding the object of a symbol (`partial`, the frame
     as bound so far), an entry linking a symbol not yet bound is left out."""
@@ -918,7 +985,7 @@ def _given(verb: Any) -> Any:
     return (True, verb["set"]["value"]) if "set" in verb else (False, None)
 
 
-def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: Frame) -> bool:
+def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: dict[str, Any]) -> bool:
     """Whether an entry held, read, is one a spec gives: the objects it links, and its properties' values."""
     for item in entry["mutations"]:
         (kind, body), = item.items()
@@ -945,7 +1012,7 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: Frame) -> 
     return True
 
 
-def _resolve(store: Any, ref: dict[str, Any], frame: Frame) -> Any:
+def _resolve(store: Any, ref: dict[str, Any], frame: dict[str, Any]) -> Any:
     """The object a spec's reference names: the one a symbol binds, or the one at a path."""
     if "symbol" in ref:
         return frame[ref["symbol"]]
@@ -955,13 +1022,13 @@ def _resolve(store: Any, ref: dict[str, Any], frame: Frame) -> Any:
     return found
 
 
-def _write_spec(store: Any, pattern: Any, frame: Frame) -> None:
+def _write_spec(store: Any, pattern: Any, frame: dict[str, Any]) -> None:
     """Writes a pattern's spec over a frame where it does not hold (object identity 76 in [CAP-137: patterns of symbols, variables and specs](mbse:mbse-basis/docs/capabilities/CAP-137.md#decided))."""
     for name, members in _members(pattern).items():
         _write(store, frame[name], _schema(store, pattern, name, frame), members, frame)
 
 
-def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Frame) -> None:
+def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: dict[str, Any]) -> None:
     """Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and
     the objects it defines made, and a pattern's spec, as recorded."""
     for member in members:
@@ -993,14 +1060,14 @@ def _write(store: Any, target: Any, schema: Any, members: list[Any], frame: Fram
                     _insert(store, target, schema, name, adjacency, entry, frame)
 
 
-def _removed(store: Any, relation: Any, held: list[Any], entries: list[Any], frame: Frame) -> list[int]:
+def _removed(store: Any, relation: Any, held: list[Any], entries: list[Any], frame: dict[str, Any]) -> list[int]:
     """The positions of the entries `held` that agree with one of the entries a spec removes."""
     return [index for index, candidate in enumerate(held)
             if any(_matches(store, relation, candidate, entry, frame) for entry in entries)]
 
 
 def _remove(store: Any, target: Any, schema: Any, name: str, entries: list[Any] | None, held: list[Any],
-            frame: Frame) -> None:
+            frame: dict[str, Any]) -> None:
     """Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's
     removal, or every entry where it gives None (`clear`); through the object's builder, which removes the entries it
     holds at those positions, so that removing an owning entry deletes what it owned (object identity 48 in [CAP-121: owned objects deleted in cascade](mbse:mbse-basis/docs/capabilities/CAP-121.md#decided))."""
@@ -1018,7 +1085,7 @@ def _remove(store: Any, target: Any, schema: Any, name: str, entries: list[Any] 
     builder.update()
 
 
-def _match(store: Any, relation: Any, held: list[Any], entry: Any, frame: Frame) -> Any:
+def _match(store: Any, relation: Any, held: list[Any], entry: Any, frame: dict[str, Any]) -> Any:
     """The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal
     entry a spec gives is the k-th such entry held; None where none agrees."""
     for index, candidate in enumerate(held):
@@ -1041,7 +1108,7 @@ def _defining(store: Any, schema: Any, name: str, defined: Any) -> Any:
     return _writer(store, defined)
 
 
-def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, entry: Any, frame: Frame) -> None:
+def _insert(store: Any, target: Any, schema: Any, name: str, adjacency: Any, entry: Any, frame: dict[str, Any]) -> None:
     """Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most."""
     links: dict[str, Any] = {}
     values: dict[str, Any] = {}

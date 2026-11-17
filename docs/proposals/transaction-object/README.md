@@ -13,8 +13,14 @@ The user raised two objections to the store as built (mbse-schemas 0.29.0), in t
 
 A third finding has the same root: a query's frame stream cannot be consumed within a transaction as
 `Visitors.OfPattern`, as the user expected it could ("`with Store.transaction` returns a context inside of which the
-frames may be iterated and consumed as pattern visitors, no?"). This proposes one change for the three, and asks what
-only the user can decide. No code is written until it is decided.
+frames may be iterated and consumed as pattern visitors, no?"). And the user observed, of the form such an API takes:
+
+> OBSERVATION #3: not all programming languages support contexts in the Pythonic sense. To that end an equivalent API
+> would be for `Store.transaction` to take a callback expecting a single argument bearing a stream of frames and
+> returning a (possibly empty) stream of frames.
+
+This proposes one change for the three, and asks what only the user can decide. No code is written until it is
+decided.
 
 ## Where it stands (0.29.0, main 7c367f7)
 
@@ -58,6 +64,12 @@ with store.transaction() as txn:
   is iterated. The stream an expression transaction gives back after it ends (`store.transaction(expr)`) is unchanged.
 - **What stays on the store**: what is no transaction's: its schemas as registered (`registered`), its observers and
   follows, and making a transaction.
+- **The same, for languages without contexts** (OBSERVATION #3): `store.transaction(callback)`, `callback` given a
+  single argument bearing the transaction's stream of frames, each a `Visitors.OfPattern`, and returning a stream of
+  frames, possibly empty, which the transaction gives back. It is a transaction's frame stream as
+  [CAP-138: mutation expressions over frame streams](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-138.md)
+  has it, a term consuming frames and producing them, written as native code. The context form is the same transaction
+  where the language has contexts.
 - **Nesting stays prevented** (object identity 50): a transaction is not opened within another of the same store's.
   Side by side, each is its own.
 
@@ -82,6 +94,14 @@ with store.transaction() as txn:
    expression transaction has it, so that one form serves both.*
 4. **The store's imperative API**: removed in the same release (breaking), or kept for one release, deprecated, beside
    the transaction's? *Recommended: removed: every dependent moves once.*
+
+5. **The callback that builds an expression.** `store.transaction(callback)` takes, today, a callback that builds a
+   transaction's expression (`lambda t: t.mutations([...])`), executed as data. OBSERVATION #3's callback consumes and
+   produces frames. (a) The expression is given as itself (`store.transaction(expression)`), and a callback is always
+   OBSERVATION #3's; (b) two methods, one for each.
+6. **What the callback's argument bears.** (a) The frame stream alone, a frame's members its objects' visitors, from
+   which a callback reaches what it reads and writes; (b) the transaction, its frame stream and the imperative API
+   (`singleton`, `extent`, the builders) besides.
 
 ## What it touches
 

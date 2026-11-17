@@ -1112,6 +1112,29 @@ class ValueProp extends Prop {
   }
 }
 
+/** The link an extension's adjacency reaches through, the one of its relation's two that is not `me`; refused where
+ * the relation has other than two links, or properties. */
+function extensionOther(adjacency: S.OfAdjacency.Data): string {
+  const relation = adjacency.relation as S.OfRelation.Data;
+  const links = [...relation.entry.links.keys()];
+  if (links.length !== 2 || relation.entry.properties.size > 0) {
+    throw new TypeError(`an extension's adjacency ${repr(adjacency.name as string)} is to a relation of two links and no `
+      + `properties, got ${repr(relation.name)}`);
+  }
+  return links.find((link) => link !== adjacency.me) as string;
+}
+
+/** Refuses a transaction's updates of schema objects that gave a plain schema an adjacency that `extendBuilders` would
+ * refuse once it had committed: `before` holds each plain schema's adjacencies' names before them. */
+function checkExtensions(store: Store, before: Map<unknown, Set<string>>): void {
+  for (const meta of Object.values(store._meta)) {
+    if (!(meta instanceof S.OfObject.Data)) continue;
+    for (const [name, adjacency] of meta.adjacencies) {
+      if (!(before.get(meta) as Set<string>).has(name)) extensionOther(adjacency);
+    }
+  }
+}
+
 /** An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
  * are, each held in the index of every object it links (Proxies' `addEntry`). A builder writes the objects it links to
  * its working copy; finalized, the schema object's entries are made to agree with them. */
@@ -1119,12 +1142,7 @@ function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
   const relation = adjacency.relation as S.OfRelation.Data;
   const me = adjacency.me as string;
   const name = adjacency.name as string;
-  const links = [...relation.entry.links.keys()];
-  if (links.length !== 2 || relation.entry.properties.size > 0) {
-    throw new TypeError(`an extension's adjacency ${repr(name)} is to a relation of two links and no properties, got `
-      + repr(relation.name));
-  }
-  const other = links.find((link) => link !== me) as string;
+  const other = extensionOther(adjacency);
   const member = new Members(other, {
     accepts: () => true,
     extensible: true,
@@ -2296,15 +2314,21 @@ export class Store extends Proxies.OfStore {
   }
 
   /** Applies the updates of schema objects that waited for the transaction's commit, in order; where one is refused,
-   * those applied before it are undone. */
+   * or they give a plain schema an adjacency an extension may not have (`checkExtensions`), those applied are
+   * undone. */
   override _commit_schemas(proposals: Proposals.OfStore): void {
     const applied: [any, [string, unknown][]][] = [];
+    const before = new Map<unknown, Set<string>>();
+    for (const meta of Object.values(this._meta)) {
+      if (meta instanceof S.OfObject.Data) before.set(meta, new Set(meta.adjacencies.keys()));
+    }
     try {
       for (const builder of proposals.deferred.values()) {
         const original = builder._original;
         applied.push([original, Object.keys(original).map((name) => [name, original[name]])]);
         builder.update();
       }
+      checkExtensions(this, before); // refused here, where it is undone, not once the transaction has committed
       this._endUnnamedLog(proposals.saved);
     } catch (error) {
       for (const [original, fields] of applied.reverse()) {

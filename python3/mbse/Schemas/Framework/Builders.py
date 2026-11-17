@@ -1076,16 +1076,33 @@ class _ValueProp(_Prop):
                                  lambda: builder._written.append(self))
 
 
+def _extension_other(adjacency: S.OfAdjacency.Data) -> str:
+    """The link an extension's adjacency reaches through, the one of its relation's two that is not `me`; refused where
+    the relation has other than two links, or properties."""
+    relation = adjacency.relation
+    links = list(relation.entry.links)
+    if len(links) != 2 or relation.entry.properties:
+        raise TypeError(f"an extension's adjacency {adjacency.name!r} is to a relation of two links and no properties, "
+                        f"got {relation.name!r}")
+    return next(link for link in links if link != adjacency.me)
+
+
+def _check_extensions(store: Store, before: dict[int, set[str]]) -> None:
+    """Refuses a transaction's updates of schema objects that gave a plain schema an adjacency that `_extend_builders`
+    would refuse once it had committed: `before` holds each plain schema's adjacencies' names before them, by its id."""
+    for meta in vars(store._meta).values():
+        if isinstance(meta, S.OfObject.Data):
+            for name, adjacency in meta.adjacencies.items():
+                if name not in before[id(meta)]:
+                    _extension_other(adjacency)
+
+
 def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
     """An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
     are, each held in the index of every object it links (Proxies' `_add_entry`). A builder writes the objects it links
     to its working copy; finalized, the schema object's entries are made to agree with them."""
     relation, me, name = adjacency.relation, adjacency.me, adjacency.name
-    links = list(relation.entry.links)
-    if len(links) != 2 or relation.entry.properties:
-        raise TypeError(f"an extension's adjacency {name!r} is to a relation of two links and no properties, got "
-                        f"{relation.name!r}")
-    other = next(link for link in links if link != me)
+    other = _extension_other(adjacency)
 
     def items(data: Any, store: Any = None) -> list[Any]:  # a framework schema's entries are its store's
         pending = data.__dict__.get("_pending", {})
@@ -2095,13 +2112,17 @@ class Store(Proxies.OfStore):
 
     def _commit_schemas(self, proposals: Any) -> None:
         """Applies the updates of schema objects that waited for the transaction's commit, in order; where one is
-        refused, those applied before it are undone."""
+        refused, or they give a plain schema an adjacency an extension may not have (`_check_extensions`), those applied
+        are undone."""
         applied: list[tuple[Any, dict[str, Any]]] = []
+        before = {id(meta): set(meta.adjacencies) for meta in vars(self._meta).values()
+                  if isinstance(meta, S.OfObject.Data)}
         try:
             for builder in proposals.deferred.values():
                 original = builder._original
                 applied.append((original, {f.name: getattr(original, f.name) for f in dataclasses.fields(original)}))
                 builder.update()
+            _check_extensions(self, before)  # refused here, where it is undone, not once the transaction has committed
         except BaseException:
             for original, fields in reversed(applied):
                 for name, value in fields.items():

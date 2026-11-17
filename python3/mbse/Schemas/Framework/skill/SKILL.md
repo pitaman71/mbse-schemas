@@ -127,8 +127,8 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    done. *How*: `schema.validate()` lists a schema's problems; `Validators.Validate(store)(schema, value)` checks a
    value and its entries, and `.Reachable(schema, root)` everything connected to it, each problem with a path.
    `Validators.Check` gives an outcome that may also be unknown. Each takes a parameter context as an optional last
-   argument, in which it checks parameter references ([Designing and extending schemas](references/schemas.md), item
-   12). Decoding does not validate.
+   argument, against which it checks parameter references ([Designing and extending schemas](references/schemas.md),
+   item 12). Decoding does not validate.
    [CAP-160: data validated against its schema on request](mbse:mbse-basis/docs/capabilities/CAP-160.md).
    - Python: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.2) · TypeScript: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.2)
    - Python: [T05.3: Good data](mbse:mbse-schemas/python3/tutorials/05_A_Price_List.ipynb#T05.3) · TypeScript: [T05.3: Good data](mbse:mbse-schemas/typescript5/tutorials/05_A_Price_List.ipynb#T05.3)

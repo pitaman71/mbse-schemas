@@ -6,7 +6,7 @@
  * reachable from it.
  *
  * `Check(store)(schema, value)` checks the same, and also reports what it cannot decide: an `Outcome` of `problems`
- * and `unknowns`, which `holds` true, false or unknown.
+ * and `unknowns`, which `holds` true, false or unknown; and its `partials`, which with its problems give its `result`.
  *
  * The validator reads the value through the visitor protocol (`Readers.OfObject`), through its schema. Checks:
  *
@@ -21,23 +21,18 @@
  *   Uniqueness is checked only over the entries reachable from what was validated.
  * - a value object's properties hold values of their schemas, recursively, each checked by its own schema, a
  *   refinement's value by the refinement (`Schemas.is_a`);
- * - an intersection value holds every one of the intersection's parts, each with a value of that part's schema;
- * - each parameter reference standing in the place of a value, or of an object a link links, is valid in its parameter
- *   context, `Parametrics.Context`: the context assigns its parameter a value of the schema the place expects, or, at a
- *   link, binds it to an object that may fill the link; else it is invalid. A parameter bound to a parameter reference
- *   that the context around it neither assigns nor binds is unknown at a link
- *   ([CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313));
- * - a parameter assignment's value is of the schema its parameter is for (`Parametrics.ForValue`), and a parameter
- *   binding's object of the object schema its parameter is for (`Parametrics.ForObject`).
- *
- * Each entry point takes a parameter context, empty unless the caller gives one. Where validation meets a reference
- * object that holds parameter assignments or parameter bindings (`Parametrics.extend`'s `assigned_values` and
- * `bound_objects`), it validates the object's properties and its other entries in a sub-context, which maps those
- * parameters' names to the values assigned and the objects bound, hiding the same names in the context around it. The
- * object's own assignments and bindings are checked in the context around it, so that none resolves through itself. A
- * sub-context follows validation's own descent, into an object's properties and entries and, through them, into the
- * values, value objects, union and intersection values and containers they hold; `Reachable` checks each object reached
- * in the caller's context, with that object's own sub-context.
+ * - an intersection value holds every one of the intersection's parts, each with a value of that part's schema, a part
+ *   that holds a parameter reference counting as held;
+ * - each parameter reference standing in the place of a value, or of an object that a link links, is checked against
+ *   the parameter context, a mapping from a parameter's name to the value assigned to it or the object or symbol bound
+ *   to it, which each entry point takes as its last argument, empty unless the caller gives one
+ *   ([CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
+ *   A reference is invalid, a problem, where the context maps its parameter to the wrong kind of thing (an object where
+ *   its place expects a value, or a value where it expects an object) or to something of another schema than its place
+ *   expects; partial, and valid, where the context does not map its parameter, which `Outcome.partials` lists; and
+ *   bound, and valid, where the context maps its parameter to a value or an object of that schema. `Outcome.result` is
+ *   "invalid", "partial" or "bound". Validation makes no sub-context: a dialect's statements that assign or bind
+ *   parameters are its own procedures' to interpret.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -45,8 +40,8 @@
 import * as Builders from "./Builders.js";
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
-import * as Parametrics from "./Parametrics.js";
-import { _admits, _derefFirst, _innerOf, _internals, _is_parameter, _key_of, _link_key, _parameter_in, _refines, scalarKey } from "./Proxies.js";
+import { _admits, _derefFirst, _durable, _innerOf, _internals, _is_parameter, _isObjectData, _key_of, _link_key, _parameter_in, _refines,
+  scalarKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
@@ -168,6 +163,12 @@ function numberOf(schema: object): number {
 
 // --- Checks ---
 
+/** Whether what a parameter context maps a name to is an object, a reference object, a schema object or a symbol,
+ * rather than a value. */
+function isObject(target: unknown): boolean {
+  return target instanceof Schemas.OfSymbol.Data || Builders._builder_for(target) !== null || _isObjectData(_durable(target));
+}
+
 /** Whether a value, a scalar or a visitor, is of `expected`, as a place declared to hold a value of `expected` holds it:
  * a scalar of its host type, or a value of the schema or of a refinement of it, or of one of an `OfAny`'s. */
 function isOf(value: any, expected: any): boolean {
@@ -177,30 +178,6 @@ function isOf(value: any, expected: any): boolean {
     return held.some((t) => t instanceof Schemas.OfScalar.Data && t.type === of.type);
   }
   return _admits(expected, of);
-}
-
-/** A registered schema in a message: a basic scalar's tag, or its name. */
-function shown(schema: any): string {
-  return schema instanceof Schemas.OfScalar.Data ? String(schema.tag) : repr(schema.name);
-}
-
-const ASSIGNS = "Parametrics.AssignsValue";
-const BINDS = "Parametrics.BindsObject";
-
-/** Whether an adjacency is one through which its object assigns or binds parameters, as `Parametrics.extend` gives. */
-function assigning(adjacency: Schemas.OfAdjacency.Data): boolean {
-  return adjacency.me === "object" && [ASSIGNS, BINDS].includes((adjacency.relation as Schemas.OfRelation.Data).name as string);
-}
-
-/** Problems with a parameter reference standing in the place of a value of `schema`: its context assigns its parameter
- * a value of `schema`, or it is invalid (CAP-313). */
-function reference(label: string, name: string, schema: unknown, context: Parametrics.Context): string[] {
-  if (context.assigned(name) !== null) {
-    return isOf(context.assigned(name), schema) ? []
-      : [`${label}: parameter ${repr(name)} is assigned a value of another schema than its place expects`];
-  }
-  if (context.bound(name) !== null) return [`${label}: parameter ${repr(name)} is bound to an object, where a value is expected`];
-  return [`${label}: parameter ${repr(name)} is neither assigned nor bound in its context`];
 }
 
 function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | null {
@@ -293,10 +270,46 @@ class Entry {
 class Checker {
   readonly problems: string[] = [];
   readonly unknowns: string[] = [];
+  readonly partials: string[] = [];
   private readonly schemasChecked = new Set<unknown>();
   private readonly entries = new Map<Schemas.OfRelation.Data, Map<string, Entry>>();
 
-  constructor(private readonly store: Visitors.OfStore) {}
+  constructor(private readonly store: Visitors.OfStore, private readonly context: ReadonlyMap<string, unknown>) {}
+
+  /** Problems with a parameter reference standing in the place of a value of `schema`: invalid where the context maps
+   * its parameter to an object, or to a value of another schema; partial where it maps it to nothing (CAP-313). */
+  reference(label: string, name: string, schema: unknown): string[] {
+    if (!this.context.has(name)) {
+      this.partials.push(`${label}: parameter ${repr(name)} is neither assigned nor bound in its context`);
+      return [];
+    }
+    const target = this.context.get(name);
+    if (isObject(target)) return [`${label}: parameter ${repr(name)} is bound to an object, where a value is expected`];
+    if (isOf(target, schema)) return [];
+    return [`${label}: parameter ${repr(name)} is assigned a value of another schema than its place expects`];
+  }
+
+  /** Problems with a parameter reference standing in the place of the object that `link` links: invalid where the
+   * context maps its parameter to a value, or to an object that may not fill the link; partial where it maps it to
+   * nothing (CAP-313). A symbol is of its schema, and may fill the link where each of its kinds may; one with no schema
+   * may stand for any object. */
+  private linked(label: string, relation: Schemas.OfRelation.Data, link: string, name: string): string[] {
+    if (!this.context.has(name)) {
+      this.partials.push(`${label}: parameter ${repr(name)} is neither assigned nor bound in its context`);
+      return [];
+    }
+    const target = this.context.get(name);
+    if (!isObject(target)) return [`${label}: parameter ${repr(name)} is assigned a value, where an object is expected`];
+    let kinds: any[];
+    if (target instanceof Schemas.OfSymbol.Data) {
+      const schema = target.schema;
+      kinds = schema === null ? [] : schema instanceof Schemas.OfUnion.Data ? schema.branches.map((b) => b.schema) : [schema];
+    } else {
+      kinds = [visited(target, this.store).as_schema()];
+    }
+    const found = kinds.map((kind) => filling(relation, link, kind)).filter((problem) => problem !== null);
+    return found.length > 0 ? [`${label}: parameter ${repr(name)} is bound to an object of another schema: ${found[0]}`] : [];
+  }
 
   private schema(label: string, schema: { validate(): string[] }): void {
     if (this.schemasChecked.has(schema)) return;
@@ -307,110 +320,63 @@ class Checker {
     }
   }
 
-  /** Checks an object, its properties and its entries; those of an object that assigns or binds parameters in a
-   * sub-context of `context` (CAP-313), but for its own assignments and bindings, checked in `context`. */
-  object(label: string, schema: Schemas.OfObject.Data, value: Readers.OfObject, context: Parametrics.Context): void {
+  object(label: string, schema: Schemas.OfObject.Data, value: Readers.OfObject): void {
     this.schema(repr(schema.name), schema);
-    const inner = this.subContext(schema, value, context);
-    this.problems.push(...this.properties(label, value, inner));
+    this.problems.push(...this.properties(label, value));
     for (const [name, adjacency] of schema.adjacencies) {
-      [...(value[name] as Iterable<unknown>)].forEach((entry, i) => this.problems.push(
-        ...this.entry(`${label}.${name}[${i}]`, adjacency, value, entry, assigning(adjacency) ? context : inner)));
+      [...(value[name] as Iterable<unknown>)].forEach((entry, i) =>
+        this.problems.push(...this.entry(`${label}.${name}[${i}]`, adjacency, value, entry)));
     }
   }
 
-  /** The sub-context of `context` in which an object's properties and entries are checked: each parameter the object
-   * assigns a value, or binds to an object, through `Parametrics.extend`'s adjacencies, named as its set of parameters
-   * names it, maps to that value or object. A parameter bound to a parameter reference maps to what `context` maps the
-   * reference's parameter to, or, where `context` maps it to nothing, to the reference. */
-  private subContext(schema: Schemas.OfObject.Data, value: any, context: Parametrics.Context): Parametrics.Context {
-    let inner = context;
-    for (const [name, adjacency] of schema.adjacencies) {
-      if (!assigning(adjacency)) continue;
-      const relation = adjacency.relation as Schemas.OfRelation.Data;
-      for (const entry of value[name] as Iterable<any>) {
-        const named = _parameter_in(entry.param) !== null ? null : Parametrics._named(this.store, entry.param);
-        if (named === null) continue; // a parameter reference in the parameter's place, or a parameter no set defines
-        if (relation.name === ASSIGNS) {
-          inner = inner.assign(named, propertyValue(entry.value, relation.entry.properties.get("value")!.schema));
-          continue;
-        }
-        const parameter = _parameter_in(entry.obj_ref);
-        if (parameter !== null && context.assigned(parameter.name.get()) !== null) {
-          inner = inner.assign(named, context.assigned(parameter.name.get()));
-          continue;
-        }
-        const held = parameter === null ? null : context.bound(parameter.name.get());
-        inner = inner.bind(named, held === null ? entry.obj_ref : held);
-      }
-    }
-    return inner;
-  }
-
-  /** Problems with a parameter reference standing in the place of the object that `link` links: its context binds its
-   * parameter to an object that may fill the link, or it is invalid; bound to a parameter reference that the context
-   * around the binding neither assigns nor binds, it is unknown (CAP-313). */
-  private linked(label: string, relation: Schemas.OfRelation.Data, link: string, name: string, context: Parametrics.Context): string[] {
-    const target = context.bound(name);
-    if (target !== null && _parameter_in(target) !== null) {
-      this.unknowns.push(`${label}: parameter ${repr(name)} is bound to parameter ${repr(_parameter_in(target).name.get())}, `
-        + "which its context neither assigns nor binds");
-      return [];
-    }
-    if (target !== null) {
-      const problem = filling(relation, link, visited(target, this.store).as_schema());
-      return problem === null ? [] : [`${label}: parameter ${repr(name)} is bound to an object of another schema: ${problem}`];
-    }
-    if (context.assigned(name) !== null) return [`${label}: parameter ${repr(name)} is assigned a value, where an object is expected`];
-    return [`${label}: parameter ${repr(name)} is neither assigned nor bound in its context`];
-  }
-
-  private properties(label: string, value: any, context: Parametrics.Context): string[] {
+  private properties(label: string, value: any): string[] {
     const problems: string[] = [];
     for (const prop of value.as_properties as Iterable<Readers.OfProperty>) {
       const name = prop.as_schema().name;
-      const held = prop.as_schema().schema;
-      const parameter = standingInProperty(prop, held);
-      if (parameter !== null) problems.push(...reference(`${label}.${name}`, parameter, held, context));
-      problems.push(...this.valueProblems(`${label}.${name}`, held, propertyValue(prop, held), context));
+      const parameter = standingInProperty(prop, prop.as_schema().schema);
+      if (parameter !== null) problems.push(...this.reference(`${label}.${name}`, parameter, prop.as_schema().schema));
+      problems.push(...this.valueProblems(`${label}.${name}`, prop.as_schema().schema, propertyValue(prop, prop.as_schema().schema)));
     }
     return problems;
   }
 
-  /** Problems with a value: its schema, recursively, and that an intersection value holds every part; and each
-   * parameter reference standing in the place of a value it holds, in `context`. */
-  private valueProblems(label: string, schema: unknown, item: any, context: Parametrics.Context): string[] {
+  /** Problems with a value: its schema, recursively, and that an intersection value holds every part. An application's
+   * value is its applied schema's; one that applies itself, a problem its schema reports, has none. */
+  private valueProblems(label: string, schema: unknown, item: any): string[] {
     if (schema === null || item === null || item === undefined) return [];
     if (schema instanceof Schemas.OfScalar.Data) {
       const problem = scalarProblem(schema, item);
       return problem === null ? [] : [`${label}: ${problem}`];
     }
-    if (schema instanceof Schemas.OfAny.Value) return this.anyProblems(label, schema, item, context);
+    if (schema instanceof Schemas.OfAny.Value) return this.anyProblems(label, schema, item);
     if (schema instanceof Schemas.OfContainer.Data) {
       return pairs(item).flatMap(([index, e]) => {
         const parameter = standing(e, schema.element);
-        if (parameter !== null) return reference(`${label}[${repr(index)}]`, parameter, schema.element, context);
-        return this.valueProblems(`${label}[${repr(index)}]`, schema.element, element(e, schema.element), context);
+        if (parameter !== null) return this.reference(`${label}[${repr(index)}]`, parameter, schema.element);
+        return this.valueProblems(`${label}[${repr(index)}]`, schema.element, element(e, schema.element));
       });
     }
-    if (schema instanceof Schemas.OfObject.Data) return this.properties(label, item, context);
+    if (schema instanceof Schemas.OfObject.Data) return this.properties(label, item);
     const record = schema as Schemas.OfUnion.Data | Schemas.OfIntersection.Data;
     const problems: string[] = [];
     const members = new Map([...record.properties].map(([name, m]) => [name, member(item[name], m.schema)]));
+    const standings = new Map([...record.properties].map(([name, m]) =>
+      [name, _innerOf(item[name]) instanceof _internals._Empty ? standing(item[name], m.schema) : null]));
     for (const [name, m] of record.properties) {
-      const read = item[name];
-      const parameter = _innerOf(read) instanceof _internals._Empty ? standing(read, m.schema) : null;
-      if (parameter !== null) problems.push(...reference(`${label}.${name}`, parameter, m.schema, context));
-      problems.push(...this.valueProblems(`${label}.${name}`, m.schema, members.get(name), context));
+      const parameter = standings.get(name)!;
+      if (parameter !== null) problems.push(...this.reference(`${label}.${name}`, parameter, m.schema));
+      problems.push(...this.valueProblems(`${label}.${name}`, m.schema, members.get(name)));
     }
-    const missing = [...record.properties.keys()].filter((name) => members.get(name) === null);
+    const missing = [...record.properties.keys()].filter((name) => members.get(name) === null && standings.get(name) === null);
     if (record instanceof Schemas.OfIntersection.Data && missing.length > 0) problems.push(`${label}: parts ${repr(missing)} are not set`);
     return problems;
   }
 
+  /** Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and its
+   * values have their schemas. */
   /** Problems with a value of any schema: that it is of one of its schemas, where it is restricted, or of a registered
    * schema, where it is not a scalar; and its own, under its own schema. */
-  private anyProblems(label: string, schema: Schemas.OfAny.Value, item: any, context: Parametrics.Context): string[] {
+  private anyProblems(label: string, schema: Schemas.OfAny.Value, item: any): string[] {
     const of = own(item);
     const restricted = [...schema.schemas];
     let allowed: boolean;
@@ -431,21 +397,18 @@ class Checker {
       }
     }
     if (!allowed) return [`${label}: ${shown} is not one of its schemas`];
-    return this.valueProblems(label, of, item, context);
+    return this.valueProblems(label, of, item);
   }
 
-  /** Problems with one entry: each linked object's schema declares an adjacency to the relation via its link, and its
-   * values have their schemas; each parameter reference in its place is valid in `context`; and a parameter
-   * assignment's value, or a parameter binding's object, is of the schema its parameter is for. */
-  private entry(label: string, adjacency: Schemas.OfAdjacency.Data, owner: any, entry: any, context: Parametrics.Context): string[] {
+  private entry(label: string, adjacency: Schemas.OfAdjacency.Data, owner: any, entry: any): string[] {
     const relation = adjacency.relation as Schemas.OfRelation.Data;
     this.schema(`of ${label}`, relation);
     const problems: string[] = [];
     for (const name of relation.entry.links.keys()) {
       if (name === adjacency.me) continue;
       const parameter = _parameter_in(entry[name]);
-      if (parameter !== null) { // a parameter reference in the place of an object: valid where bound (CAP-313)
-        problems.push(...this.linked(`${label}.${name}`, relation, name, parameter.name.get(), context));
+      if (parameter !== null) { // a parameter reference in the place of an object (CAP-312), checked (CAP-313)
+        problems.push(...this.linked(`${label}.${name}`, relation, name, parameter.name.get()));
         continue;
       }
       const problem = filling(relation, name, visited(entry[name], this.store).as_schema());
@@ -453,10 +416,9 @@ class Checker {
     }
     for (const [name, prop] of relation.entry.properties) {
       const parameter = standingInProperty(entry[name], prop.schema);
-      if (parameter !== null) problems.push(...reference(`${label}.${name}`, parameter, prop.schema, context));
-      problems.push(...this.valueProblems(`${label}.${name}`, prop.schema, propertyValue(entry[name], prop.schema), context));
+      if (parameter !== null) problems.push(...this.reference(`${label}.${name}`, parameter, prop.schema));
+      problems.push(...this.valueProblems(`${label}.${name}`, prop.schema, propertyValue(entry[name], prop.schema)));
     }
-    if (relation.name === ASSIGNS || relation.name === BINDS) problems.push(...this.parameterSchema(label, relation, entry, context));
     const links = new Map<string, string>([...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
       .map((name) => [name, linkedIdentity(entry[name], this.store)]));
     links.set(adjacency.me, identity(owner));
@@ -471,29 +433,6 @@ class Checker {
     const fullKey = full.key([...relation.entry.links.keys(), ...relation.entry.properties.keys()]);
     if (!seen.has(fullKey)) seen.set(fullKey, full);
     return problems;
-  }
-
-  /** Problems with a parameter assignment's value, or a parameter binding's object: it is of the schema its parameter is
-   * for (`Parametrics.ForValue`, `ForObject`); a value is assigned, and an object bound, to a parameter for one (CAP-314,
-   * checked as CAP-313 decides). A parameter reference in the parameter's place is not checked: its schema is not known
-   * here. */
-  private parameterSchema(label: string, relation: Schemas.OfRelation.Data, entry: any, context: Parametrics.Context): string[] {
-    if (_parameter_in(entry.param) !== null) return [];
-    const forValue = Parametrics._for(this.store, entry.param, "Parametrics.ForValue");
-    const forObject = Parametrics._for(this.store, entry.param, "Parametrics.ForObject");
-    if (relation.name === ASSIGNS) {
-      const value = propertyValue(entry.value, relation.entry.properties.get("value")!.schema);
-      if (forObject !== null) return [`${label}: a value is assigned to a parameter for an object`];
-      if (forValue === null || value === null || isOf(value, forValue)) return [];
-      return [`${label}.value: a value of ${shown(own(value))} is assigned to a parameter for a value of ${shown(forValue)}`];
-    }
-    if (forValue !== null) return [`${label}: an object is bound to a parameter for a value`];
-    const parameter = _parameter_in(entry.obj_ref);
-    const target = parameter === null ? entry.obj_ref : context.bound(parameter.name.get());
-    if (forObject === null || target === null || _parameter_in(target) !== null) return []; // reported as a link's
-    const bound = visited(target, this.store).as_schema();
-    if (Schemas.is_a(bound, forObject)) return [];
-    return [`${label}.obj_ref: a ${repr(bound.name)} is bound to a parameter for an object of ${repr(forObject.name)}`];
   }
 
   uniques(): void {
@@ -522,9 +461,17 @@ class Checker {
 // --- Entry points ---
 
 /** What a check found: the `problems`, each a reason the data is invalid, and the `unknowns`, each something that
- * could not be decided. */
+ * could not be decided; and the `partials`, each a parameter reference whose parameter the context neither assigns nor
+ * binds, which is valid ([CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). */
 export class Outcome {
-  constructor(readonly problems: string[], readonly unknowns: string[]) {}
+  constructor(readonly problems: string[], readonly unknowns: string[], readonly partials: string[] = []) {}
+
+  /** The result of what was checked: "invalid" with a problem, an invalid parameter reference among them; else
+   * "partial" with a parameter reference that its context leaves unassigned and unbound; else "bound", every parameter
+   * reference in it bound, or none there. */
+  get result(): "invalid" | "partial" | "bound" {
+    return this.problems.length > 0 ? "invalid" : this.partials.length > 0 ? "partial" : "bound";
+  }
 
   /** Whether the data is valid: false with a problem, else null with an unknown, else true. */
   get holds(): boolean | null {
@@ -533,39 +480,43 @@ export class Outcome {
 }
 
 export interface CheckCall {
-  (schema: unknown, value: unknown, context?: Parametrics.Context): Outcome;
-  OfScalar(schema: Schemas.OfScalar.Data, value: unknown, context?: Parametrics.Context): Outcome;
-  OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, context?: Parametrics.Context): Outcome;
-  Reachable(schema: Schemas.OfObject.Data, root: Readers.OfObject, context?: Parametrics.Context): Outcome;
+  (schema: unknown, value: unknown, context?: ReadonlyMap<string, unknown>): Outcome;
+  OfScalar(schema: Schemas.OfScalar.Data, value: unknown, context?: ReadonlyMap<string, unknown>): Outcome;
+  OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, context?: ReadonlyMap<string, unknown>): Outcome;
+  Reachable(schema: Schemas.OfObject.Data, root: Readers.OfObject, context?: ReadonlyMap<string, unknown>): Outcome;
 }
 
 /** Checks data against its schema: `Check(store)(schema, value)` gives an `Outcome`, dispatching on the schema's kind. */
 export function Check(store: Visitors.OfStore): CheckCall {
   /** Checks the objects, each by its own schema; the first, the root, must be an instance of `schema`: of it, or of a
    * refinement of it, since an instance of a refinement is an instance of what it refines (`Schemas.is_a`). */
-  const run = (schema: Schemas.OfObject.Data, values: Readers.OfObject[], context: Parametrics.Context): Outcome => {
+  const run = (schema: Schemas.OfObject.Data, values: Readers.OfObject[], context: ReadonlyMap<string, unknown>): Outcome => {
     const root = values[0] as Readers.OfObject;
     if (!Schemas.is_a(root.as_schema(), schema)) {
       return new Outcome([`the value is a ${repr(root.as_schema().name)}, not an instance of the given schema`], []);
     }
-    const check = new Checker(store);
-    values.forEach((value, i) => check.object(`${value.as_schema().name}#${i}`, value.as_schema(), value, context));
+    const check = new Checker(store, context);
+    values.forEach((value, i) => check.object(`${value.as_schema().name}#${i}`, value.as_schema(), value));
     check.uniques();
-    return new Outcome(check.problems, check.unknowns);
+    return new Outcome(check.problems, check.unknowns, check.partials);
   };
   /** Checks a scalar; a parameter reference given in its place, in `context`. */
-  const OfScalar = (schema: Schemas.OfScalar.Data, value: unknown, context = new Parametrics.Context()): Outcome => {
-    if (_is_parameter(value)) return new Outcome([...schema.validate(), ...reference("the value", (value as any).name.get(), schema, context)], []);
+  const OfScalar = (schema: Schemas.OfScalar.Data, value: unknown, context: ReadonlyMap<string, unknown> = new Map()): Outcome => {
+    if (_is_parameter(value)) {
+      const check = new Checker(store, context);
+      const problems = check.reference("the value", (value as any).name.get(), schema);
+      return new Outcome([...schema.validate(), ...problems], [], check.partials);
+    }
     const problem = scalarProblem(schema, value);
     return new Outcome([...schema.validate(), ...(problem ? [problem] : [])], []);
   };
   /** Checks one object and its entries; uniqueness only over the entries it is part of. */
-  const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject, context = new Parametrics.Context()): Outcome =>
+  const OfObject = (schema: Schemas.OfObject.Data, value: Readers.OfObject, context: ReadonlyMap<string, unknown> = new Map()): Outcome =>
     run(schema, [value], context);
-  /** Checks the root and every object reachable from it through adjacencies, each in `context`. */
-  const ReachableCheck = (schema: Schemas.OfObject.Data, root: Readers.OfObject, context = new Parametrics.Context()): Outcome =>
+  /** Checks the root and every object reachable from it through adjacencies. */
+  const ReachableCheck = (schema: Schemas.OfObject.Data, root: Readers.OfObject, context: ReadonlyMap<string, unknown> = new Map()): Outcome =>
     run(schema, Reachable.of(root), context);
-  const call = (schema: unknown, value: unknown, context?: Parametrics.Context): Outcome => {
+  const call = (schema: unknown, value: unknown, context?: ReadonlyMap<string, unknown>): Outcome => {
     if (schema instanceof Schemas.OfScalar.Data) return OfScalar(schema, value, context);
     if (schema instanceof Schemas.OfObject.Data) return OfObject(schema, value as Readers.OfObject, context);
     throw new NotImplementedError(`${schemaTypeName(schema)} cannot be validated yet`);
@@ -575,26 +526,23 @@ export function Check(store: Visitors.OfStore): CheckCall {
 }
 
 export interface ValidateCall {
-  (schema: unknown, value: unknown, context?: Parametrics.Context): string[];
-  OfScalar(schema: Schemas.OfScalar.Data, value: unknown, context?: Parametrics.Context): string[];
-  OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, context?: Parametrics.Context): string[];
-  Reachable(schema: Schemas.OfObject.Data, root: Readers.OfObject, context?: Parametrics.Context): string[];
+  (schema: unknown, value: unknown, context?: ReadonlyMap<string, unknown>): string[];
+  OfScalar(schema: Schemas.OfScalar.Data, value: unknown, context?: ReadonlyMap<string, unknown>): string[];
+  OfObject(schema: Schemas.OfObject.Data, value: Readers.OfObject, context?: ReadonlyMap<string, unknown>): string[];
+  Reachable(schema: Schemas.OfObject.Data, root: Readers.OfObject, context?: ReadonlyMap<string, unknown>): string[];
 }
 
 /** Validates data against its schema: `Validate(store)(schema, value)` gives the problems `Check` finds, so what is
- * unknown is not a problem. */
+ * unknown is not a problem, nor is a partial parameter reference. */
 export function Validate(store: Visitors.OfStore): ValidateCall {
   const check = Check(store);
-  const call = (schema: unknown, value: unknown, context?: Parametrics.Context): string[] => check(schema, value, context).problems;
+  const call = (schema: unknown, value: unknown, context?: ReadonlyMap<string, unknown>): string[] => check(schema, value, context).problems;
   return Object.assign(call, {
     /** Checks a scalar; a parameter reference given in its place, in `context`. */
-    OfScalar: (schema: Schemas.OfScalar.Data, value: unknown, context?: Parametrics.Context) =>
-      check.OfScalar(schema, value, context).problems,
+    OfScalar: (schema: Schemas.OfScalar.Data, value: unknown, context?: ReadonlyMap<string, unknown>) => check.OfScalar(schema, value, context).problems,
     /** Checks one object and its entries; uniqueness only over the entries it is part of. */
-    OfObject: (schema: Schemas.OfObject.Data, value: Readers.OfObject, context?: Parametrics.Context) =>
-      check.OfObject(schema, value, context).problems,
-    /** Checks the root and every object reachable from it through adjacencies, each in `context`. */
-    Reachable: (schema: Schemas.OfObject.Data, root: Readers.OfObject, context?: Parametrics.Context) =>
-      check.Reachable(schema, root, context).problems,
+    OfObject: (schema: Schemas.OfObject.Data, value: Readers.OfObject, context?: ReadonlyMap<string, unknown>) => check.OfObject(schema, value, context).problems,
+    /** Checks the root and every object reachable from it through adjacencies. */
+    Reachable: (schema: Schemas.OfObject.Data, root: Readers.OfObject, context?: ReadonlyMap<string, unknown>) => check.Reachable(schema, root, context).problems,
   });
 }

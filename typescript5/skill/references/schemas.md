@@ -94,9 +94,8 @@ schemas from anything a program holds; the builders make a new version beside a 
    parameters, each named, described, and for a value of a schema (`for_value`) or an object of an object schema
    (`for_object`). `Parametrics.validate(store, schema)` checks them; a schema's own `validate()` does not. A schema
    neither assigns nor binds its parameters. A parameter reference, `References.OfParameter`, built through its `name`
-   alone, designates a parameter by its name and holds nothing else. It is a value, written and read as any value is. A
-   parameter assignment or a parameter binding in its parameter context resolves it, not a store, and `References.of`
-   makes none.
+   alone, designates a parameter by its name and holds nothing else. It is a value, written and read as any value is.
+   Its parameter context resolves it, not a store, and `References.of` makes none.
    [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md),
    [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md),
    [CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311).
@@ -115,8 +114,9 @@ schemas from anything a program holds; the builders make a new version beside a 
    bound (`obj_ref`), which may be any reference object, whose schema opts into nothing. A parameter the object neither
    assigns nor binds stays unbound. A transaction that assigns or binds a parameter which the object's schema does not
    declare is refused when it commits, and `Parametrics.validate(store, object)`, within a transaction, reports such an
-   assignment or binding already held. Validation checks that an assignment's value, or a binding's object, is of its
-   parameter's schema (item 12).
+   assignment or binding already held. Whether an assignment's value, or a binding's object, is of its parameter's
+   schema is not checked: a dialect defines its own statements that assign or bind parameters, and its procedures
+   interpret them ([CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
    [CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314).
    - Python: [T11.8: Assigning parameters: each bus assigns its width](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.8) · TypeScript: [T11.8: Assigning parameters: each bus assigns its width](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.8)
    - Python: [PAR-05: `extend` gives a reference object schema the adjacencies through which its objects assign and bind; it refuses a store without Parametrics, a value object schema and a member's name taken; run again, it writes nothing](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-05) · TypeScript: [PAR-05: `extend` gives a reference object schema the adjacencies through which its objects assign and bind; it refuses a store without Parametrics, a value object schema and a member's name taken; run again, it writes nothing](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-05)
@@ -133,38 +133,33 @@ schemas from anything a program holds; the builders make a new version beside a 
    reads an unset value, so that code that never meets a parameter reference sees no change. A link that holds one
    reads as an empty object visitor, whose `as_parameter` hands it over. Where the place's schema
    could take the reference for its own value, the plain form marks it, `{"$schema": "References.OfParameter", "name":
-   "n"}`, and reads it back the same; a link set refers to it so, beside a symbol or a path. Validation reports no wrong value for it, and an intersection whose part holds one
-   reports that part unset; whether it is valid is its parameter context's (item 12). A comparison that meets one
-   halts and says incomparable. A relation that owns what it links takes none. [CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided).
+   "n"}`, and reads it back the same; a link set refers to it so, beside a symbol or a path. Validation reports no wrong value for it, and an intersection's part that holds one
+   is held; validation checks it against its parameter context (item 12). A comparison that meets one halts and says
+   incomparable. A relation that owns what it links takes none. [CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided).
    - Python: [REF-12: A parameter reference stands in the place of anything with a schema](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-12) · TypeScript: [REF-12: A parameter reference stands in the place of anything with a schema](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-12)
    - Python: [REF-13: A parameter reference in another schema's place written marked, and read back the same](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-13) · TypeScript: [REF-13: A parameter reference in another schema's place written marked, and read back the same](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-13)
    - Python: [REF-14: Validation accepts a parameter reference in any place](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-14) · TypeScript: [REF-14: Validation accepts a parameter reference in any place](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-14)
    - Python: [REF-15: A place that holds no parameter reference reads as empty through as_parameter](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-15) · TypeScript: [REF-15: A place that holds no parameter reference reads as empty through as_parameter](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-15)
    - Python: [REF-16: A parameter reference in the place of an object a link links](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-16) · TypeScript: [REF-16: A parameter reference in the place of an object a link links](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-16)
    - Python: [REF-17: A link to a parameter reference written in a link set and read back the same](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-17) · TypeScript: [REF-17: A link to a parameter reference written in a link set and read back the same](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-17)
-12. **Validating parameter references in their parameter context.** *Why*: a parameter reference is valid only where
-   something gives its parameter a value or an object of the schema its place expects; validation finds the reference
-   whose parameter nothing assigns or binds, or assigns or binds the wrong thing. *When*: whenever data holds parameter
-   references, or parameter assignments and parameter bindings; and with a context of your own when you validate one
-   object whose owners, or your application, assign or bind its parameters. *How*: a parameter context,
-   `Parametrics.Context`, maps a parameter's name to the value assigned to it or the object bound to it; `assign(name,
-   value)` and `bind(name, object)` each give a sub-context, which hides the name's outer mapping. Every entry point of
-   `Validators.Validate` and `Validators.Check` takes one as an optional last argument, empty by default. Where
-   validation meets an object that assigns or binds parameters, it checks the object's properties and other entries in
-   a sub-context that maps them, and the object's own assignments and bindings in the context around it. A reference in
-   a value's place is valid where its parameter is assigned a value of the place's schema; a reference in a link's place
-   is valid where its parameter is bound to an object that may fill the link. Validation reports a reference whose
-   parameter is neither assigned nor bound, assigned or bound the wrong kind of thing, or given something of another
-   schema; and an assignment's value, or a binding's object, that is not of its parameter's schema. A parameter bound
-   to a parameter reference that nothing resolves leaves a reference to it at a link unknown, which `Check` reports.
-   Data that holds no parameter references, assignments or bindings validates as it does without a context.
+12. **Parameter references checked against a parameter context.** *Why*: a parameter reference is valid only where
+   what gives its parameter a value or an object gives one of the schema its place expects, and validation finds the
+   reference given the wrong thing. *When*: whenever data holds parameter references; give a context where your
+   application, or a dialect's procedure that interprets its own statements that assign or bind parameters, knows what
+   each parameter is. *How*: a parameter context is a plain mapping from a parameter's name to the value assigned to it,
+   or to the object or symbol bound to it. Every entry point of `Validators.Validate` and `Validators.Check` takes one
+   as an optional last argument, empty by default; validation makes no sub-context of its own. A reference is
+   **invalid** where the context maps its parameter to the wrong kind of thing (an object where a value is expected, a
+   value where an object is) or to something of another schema, and `Validate` reports it; **partial**, and valid,
+   where the context does not map its parameter, which `Validate` does not report and `Check` lists in
+   `Outcome.partials`; and **bound**, and valid, where the context maps it to a value or an object of the place's
+   schema. `Outcome.result` is "invalid", "partial" or "bound". Data that holds no parameter reference validates as it
+   does without a context.
    [CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313).
-   - Python: [PAR-09: A parameter context maps a parameter's name to the value assigned to it or the object bound to it](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-09) · TypeScript: [PAR-09: A parameter context maps a parameter's name to the value assigned to it or the object bound to it](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-09)
-   - Python: [PAR-10: Validation checks a parameter reference in the sub-context that the object holding it makes](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-10) · TypeScript: [PAR-10: Validation checks a parameter reference in the sub-context that the object holding it makes](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-10)
-   - Python: [PAR-11: Validation takes a parameter context the caller gives, at every entry point](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-11) · TypeScript: [PAR-11: Validation takes a parameter context the caller gives, at every entry point](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-11)
-   - Python: [PAR-12: A sub-context follows validation's descent, through each object it checks, and hides an outer name](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-12) · TypeScript: [PAR-12: A sub-context follows validation's descent, through each object it checks, and hides an outer name](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-12)
-   - Python: [PAR-13: Validation checks a parameter assignment's value against its parameter's ForValue schema, and a parameter binding's object against its ForObject schema](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-13) · TypeScript: [PAR-13: Validation checks a parameter assignment's value against its parameter's ForValue schema, and a parameter binding's object against its ForObject schema](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-13)
-   - Python: [PAR-14: A parameter binding whose object is a parameter reference resolves it in the context around its object](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-14) · TypeScript: [PAR-14: A parameter binding whose object is a parameter reference resolves it in the context around its object](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-14)
+   - Python: [PAR-09: Validation takes a parameter context at every entry point; a reference it maps to the right schema is bound](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-09) · TypeScript: [PAR-09: Validation takes a parameter context at every entry point; a reference it maps to the right schema is bound](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-09)
+   - Python: [PAR-10: A reference whose parameter its context maps to nothing is partial, and valid](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-10) · TypeScript: [PAR-10: A reference whose parameter its context maps to nothing is partial, and valid](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-10)
+   - Python: [PAR-11: A reference is invalid where its context maps its parameter to the wrong kind of thing or another schema](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-11) · TypeScript: [PAR-11: A reference is invalid where its context maps its parameter to the wrong kind of thing or another schema](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-11)
+   - Python: [PAR-12: Data that holds no parameter reference validates as without a context](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-12) · TypeScript: [PAR-12: Data that holds no parameter reference validates as without a context](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-12)
 
 ## Practices
 

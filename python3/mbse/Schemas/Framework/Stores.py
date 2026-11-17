@@ -11,8 +11,9 @@ snapshots, or a store is given another below it. Selecting objects by a conditio
 `Below` is what a store asks of the store below it, which any store below implements, whatever it is kept in, being no
 `Builders.Store` nor knowing one ([CAP-306: a public store-below interface](mbse:mbse-basis/docs/capabilities/README.md#CAP-306)): an object's document by its
 path, `document(path)`; a transaction's changes, given as plain data, committed or refused, and what it committed of
-them given back, `commit(plain)`; an install, a transaction that writes schemas, run, `install(plain)`; each
-transaction it commits given to its followers in order, `follow(follower)`; and whether it records the transactions it
+them given back, `commit(plain)`, a mutation transaction each way; an install, a transaction that writes schemas, run,
+`install(plain)`; each transaction it commits given to its followers in order, as a `Changes.Journal` of that one
+transaction, `follow(follower)`; and whether it records the transactions it
 commits, `records`. Everything given and given back is plain data, as a
 store above writes and reads it ([CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283), [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285)).
 
@@ -60,8 +61,8 @@ class Below(Protocol):
         as a store runs any install, finding what it holds already; refused, raising, as the store refuses it."""
 
     def follow(self, follower: Callable[[Any], None]) -> Callable[[], None]:
-        """Gives `follower` each transaction it commits, as plain data, in the order it commits them, once each;
-        gives back a function that ends it."""
+        """Gives `follower` each transaction it commits, as a `Changes.Journal` of that one transaction, as plain data,
+        in the order it commits them, once each; gives back a function that ends it."""
 
 
 class Random(Protocol):

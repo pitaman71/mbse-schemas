@@ -1672,6 +1672,7 @@ class Store(Proxies.OfStore):
         self._below = below  # the store below it, from which it loads on demand, or None (CAP-283)
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
+        self._uid: str | None = None  # the uid of the transaction committing, which its journal's id is (`Provenance`)
         self._arrived: list[Any] = []  # the store below's transactions, reported while one of this store's was open
         self._committed_below: Any = None  # the transaction sent, as the store below gave back what it committed, as plain
         self._giving_back: list[Any] | None = None  # where `commit` is given what the transaction it runs committed
@@ -1683,7 +1684,7 @@ class Store(Proxies.OfStore):
         # when each schema object was first held, in order (`_held_at` in its data): those held when a transaction began
         # are those whose updates wait for its commit; an `id()` would not do, since one freed is given to another object
         self._held = 0
-        from . import Mutations, Paths, References
+        from . import Changes, Mutations, Paths, References
 
         made: dict[str, Any] = {}  # its own, as the framework's installs define them, read by the bootstrap
         self._meta = _bootstrap(S.install, made)  # its plain schemas of schemas and basic scalars
@@ -1692,8 +1693,9 @@ class Store(Proxies.OfStore):
                   if isinstance(meta, S.OfObject.Data)}
         self._references = _bootstrap(References.install, made)  # which extends `Schemas.OfSymbol`
         self._mutations = _bootstrap(Mutations.install, made)
+        self._changes_schemas = _bootstrap(Changes.install, made)  # the journal language's
         framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values(),
-                     *vars(self._references).values())
+                     *vars(self._references).values(), *vars(self._changes_schemas).values())
         for schema in framework:
             self._register(schema)
         reached = list(framework)
@@ -1811,8 +1813,9 @@ class Store(Proxies.OfStore):
         """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
         its plain schema (`_extend_builders`): a module's install extends a store's own schemas (install
         D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it
-        changed is gathered for the store's observers, which are given its effect once it has committed (`Changes`): where
-        the store has a store below, the effect the store below reported it committed. A load within it is no transaction
+        changed is gathered for the store's observers, which are given it as a journal once it has committed
+        (`Changes`): where the store has a store below, the journal of what the store below gave back it committed. A
+        load within it is no transaction
         of the store's, and leaves the one open as it is."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
@@ -1841,23 +1844,26 @@ class Store(Proxies.OfStore):
             _extend_builders(self, before)
             self._reporting = False
             gathered, self._changes = self._changes if committed else None, None
+            uid, self._uid = self._uid, None
             below, self._committed_below = self._committed_below if committed else None, None
             arrived, self._arrived = self._arrived, []
             if gathered is not None and (self._observers or giving_back is not None):  # once committed: one that
                 from . import Changes  # raised is observed by none
 
-                effect = Changes._effect(self, gathered) if below is None else self._expression_of(below)
+                effect = below if below is not None else Changes._plain_effect(self, Changes._effect(self, gathered))
+                journal = Changes._journal(self, uid, effect) if self._observers else None
                 for observer in list(self._observers):
-                    observer(effect)
+                    observer(journal)
                 if giving_back is not None:
-                    giving_back.append(below if below is not None else Changes._plain_effect(self, effect))
+                    giving_back.append(effect)
             for plain in arrived:  # in the order the store below committed them, its own among them
                 self._apply(plain)
 
     def _settled(self, proposals: Any) -> None:
         """A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
-        deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`)."""
-        from . import Changes
+        deleted in cascade is among them, just before it commits, with its uid; its journal is written once it has
+        (`Changes`)."""
+        from . import Changes, Provenance
 
         sends = self._below is not None and not self._applying
         if sends and proposals.expression is not None and (
@@ -1865,6 +1871,7 @@ class Store(Proxies.OfStore):
             self._send_install(proposals.expression)  # it writes schemas: the store below's, first
         if self._observers or sends or self._reporting:
             self._changes = Changes._gather(self, proposals)
+            self._uid = Provenance._uid(self, proposals)
         if sends and self._changes is not None:
             self._send(Changes._plain(self, self._changes), proposals.expression)
 
@@ -1908,51 +1915,44 @@ class Store(Proxies.OfStore):
         self._below.install(plain)
 
     def follow(self, follower: Any) -> Any:
-        """Gives `follower` each transaction the store commits, as plain data, in the order it commits them; gives back
-        a function that ends it (`Stores.Below`, CAP-306)."""
-        from . import Changes
+        """Gives `follower` each transaction the store commits, in the order it commits them, as a `Changes.Journal` of
+        that one transaction, as plain data; gives back a function that ends it (`Stores.Below`, CAP-306)."""
+        from . import Changes, Plain
 
-        return Changes.observe(self, lambda effect: follower(Changes._plain_effect(self, effect)))
+        schema = self.registered("Changes.Journal")
+        return Changes.observe(self, lambda journal: follower(Plain.ToPlain(self)(schema, journal)))
 
     def _send(self, plain: Any, expression: Any) -> None:
         """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:
         the store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
-        `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`).
+        `session` and `where` go with them, where it has an expression, and its `uid` always: the lowest store records it
+        (`Provenance`), and its followers are given its journal under it.
         What the store below gives back it committed, its record among it, is taken into the transaction, so that each
         store of a stack commits the same one, and is what the store's followers are given of it."""
         from . import Changes, Plain
 
+        given: dict[str, Any] = {}
         if expression is not None:
             with Changes._as_committed(self):
                 given = Plain.ToPlain(self).Transaction(expression)
-            plain = {**{k: v for k, v in given.items() if k != "mutations"}, **plain}
+        plain = {"uid": self._uid, **{k: v for k, v in given.items() if k not in ("uid", "mutations")}, **plain}
         committed = self._below.commit(plain)
         if committed is not None:
             self._committed_below = committed
             self._apply(committed, joined=True)
 
     def _arrive(self, plain: Any) -> None:
-        """A transaction the store below committed, given as plain data: applied to the objects present; one given while
-        a transaction of this store's is open, its own among them, once that one ends, so that each is applied in the
-        order the store below committed them, and its own, applied again, changes only what another changed since
-        (CAP-285)."""
-        if self._proposals is not None:
-            self._arrived.append(plain)
-        else:
-            self._apply(plain)
+        """What the store below committed, given as a `Changes.Journal`, as plain data, as its follow gives it: each
+        transaction applied to the objects present, under its id; one given while a transaction of this store's is
+        open, its own among them, once that one ends, so that each is applied in the order the store below committed
+        them, and its own, applied again, changes only what another changed since (CAP-285)."""
+        from . import Changes
 
-    def _expression_of(self, plain: Any) -> Any:
-        """A transaction of the store below's, as plain data, as an expression of this store's, built loading nothing:
-        what this store's followers are given of a transaction of its own the store below committed, as it committed it,
-        so that each store of a stack gives the same one."""
-        from . import Changes, Plain
-
-        self._applying += 1
-        try:
-            with Changes._as_committed(self):
-                return Plain.FromPlain(self).Transaction(plain)
-        finally:
-            self._applying -= 1
+        for effect in Changes._effects(self, plain):
+            if self._proposals is not None:
+                self._arrived.append(effect)
+            else:
+                self._apply(effect)
 
     def _apply(self, plain: Any, joined: bool = False) -> None:
         """Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of
@@ -1970,6 +1970,8 @@ class Store(Proxies.OfStore):
             with contextlib.nullcontext() if joined else Changes._as_committed(self):
                 expression = None if present is None else Plain.FromPlain(self).Transaction(present)
             with self._joined() if joined else self.transaction():
+                if not joined and "uid" in plain:  # its followers given its journal under the id it arrived with
+                    self._proposals.uid = plain["uid"]
                 if expression is not None:
                     Transactions._execute(self, expression, joined=True)
                 Changes._apply_directly(self, direct)
@@ -2322,6 +2324,11 @@ class _Transaction(_Unassignable):
 
     def __repr__(self) -> str:
         return "<transaction>"
+
+
+def _transaction_of(txn: _Transaction) -> tuple[Store, Any]:
+    """The store and the builder of what a callback building a transaction is given (`_Transaction`)."""
+    return txn._store, txn._builder
 
 
 class _TransactionMember(_Unassignable):

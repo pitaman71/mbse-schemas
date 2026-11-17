@@ -1,51 +1,140 @@
 /**
- * Changes: a transaction's effect, observed at its commit
+ * Changes: a transaction's effect, observed at its commit, written as a journal
  * ([CAP-270: a transaction's changes observed at its commit](mbse:mbse-basis/docs/capabilities/README.md#CAP-270),
  * [CAP-269: transactions resolved into their effects](mbse:mbse-basis/docs/capabilities/README.md#CAP-269),
- * [CAP-271: the journal language](mbse:mbse-basis/docs/capabilities/README.md#CAP-271)).
+ * [CAP-271: the journal language](mbse:mbse-basis/docs/capabilities/README.md#CAP-271),
+ * [the journals proposal](mbse:mbse-basis/proposals/JOURNALS.md#the-changes-schemas-proposed)).
  *
- * `observe(store, observer)` calls `observer(effect)` after each transaction of `store` that commits having changed
- * something, and returns a function that ends the observing; a transaction that throws, its writes dropped, is observed
- * by none. The effect is what the transaction changed, net of what it undid within itself, written in the journal
- * language: a transaction expression of the store's own schemas (`Mutations.OfTransaction`), schema data written and
- * read as any value is, with no schema of its own. It is one upsert:
+ * The journal language's value schemas, which every store holds, its own, as it holds `References` (`install`):
  *
- * - its symbols, each declared before it is used: each object the transaction touched that was held before it, bound
- *   to its reference (`References.OfObject`) as it was; each owned object it created, bound to its schema, after its
- *   owner's, so that the upsert finds it by its ownership entry; and each counted object, immutable, bound to its
- *   schema, found by its value, which the spec writes;
- * - its spec: the relation entries the transaction removed, then those it inserted, each written on the adjacency of
- *   one object it links, then the properties it changed, each set to its value, written by the property's schema, or
- *   cleared. An object the transaction deleted is never named: the entry that owned it is removed by its owner's key
- *   for it, written on its owner's adjacency, and what its deletion removed in cascade, every entry linking it and what
- *   it owned, is left to follow from that, as it does in every store that applies the effect.
+ * - `Changes.Journal`, a journal: its transactions, in order, a container of `Changes.Transaction` by position. A
+ *   journal is data: built, sliced, written, read and compared as any value is, with no store of its own; its
+ *   transactions are read by iterating it. Whole transactions taken from a journal, in order, are a journal too.
+ * - `Changes.Transaction`, one transaction: its `id`, unique, the uid `Provenance` records it by; its `symbols`, each by
+ *   its name (`Changes.Symbol`), the transaction's own; then its `changes`, in order, each a `Changes.Change`.
+ * - `Changes.Symbol`, an object that exists (A): an object held before, by its `reference` (`References.OfObject`), or
+ *   a new object, by its `schema`'s reference alone, an object reference from the singleton `"."`; an object held
+ *   before is given its `schema` too where its path does not imply it, as where objects of several schemas are owned
+ *   through one relation, so that a reader never guesses it.
+ * - `Changes.Change`, a change: a relation entry's (`entry`, `Changes.OfEntry`) or a property's (`property`,
+ *   `Changes.OfProperty`).
+ * - `Changes.OfEntry`, a relation entry inserted or removed (B): written on its `holder`'s adjacency named `adjacency`,
+ *   its `verb`, `insert` or `remove`, its other `links`, each by its name, and its `properties`' values. A link is set
+ *   as a spec sets one (`Mutations.OfLink.Set`): to a symbol, `{"reference": {"symbol": "o0"}}`, or, a counted object,
+ *   to its value, inline, `{"def": {"schema": ..., "mutations": [...]}}`, never bound to a symbol: an immutable object,
+ *   found by its value, or made; the holder too, where only the counted object has an adjacency to the entry by name.
+ * - `Changes.OfProperty`, a property mutated (C): its `holder`'s symbol, the property's `name`, and its `mutations`,
+ *   mbse-schemas' verbs (`Mutations.OfProperty`): `set` and `clear`, and, nested, the verbs of the value's kind.
  *
- * Applied to the store as it was before the transaction, the effect makes the same changes; applied again, it changes
- * nothing. The changes are gathered from the transaction's proposals just before it commits, after `Provenance`
- * records it and its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among
- * them; what an object is before is read from what the store holds as committed. The expression is built outside the
- * transaction's proposals, since building it writes: once the transaction has committed, for its observers, and, for
- * the store below a store, just before, with its proposals set aside, as plain data (CAP-285). A store given a store
- * below gives its observers, for a transaction of its own, the effect the store below reported it committed, what the
- * store below added to it, as its record, among it, so that each store of a stack gives the same one; changes name an
- * object not present by its path, loading nothing.
+ * A value, a property's in a change or an entry's, is a payload (`Mutations.Payload`), written by the schema of the
+ * property it is the value of, as a recorded spec writes it, marked with its schema only where that schema cannot tell
+ * it ([PRI-025: never guess the schema](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-025)): the plain form reads a
+ * transaction's symbols first, and each payload by the schema its holder's schema gives the property (`_within`), so
+ * that it is read where the store holds the schemas the journal's objects are of.
+ *
+ * `observe(store, observer)` calls `observer(journal)` after each transaction of `store` that commits having changed
+ * something, a `Changes.Journal` of that one transaction, a value that outlives it; and returns a function that ends the
+ * observing; a transaction that throws, its writes dropped, is observed by none. What it changed is net of what it
+ * undid within itself: its symbols, each object the transaction touched that was held before it, by its reference as
+ * it was, and each owned object it created, by its schema, after its owner's, so that applying finds it by its
+ * ownership entry; then its changes, the relation entries it removed, then those it inserted, each written on the
+ * adjacency of one object it links, then the properties it changed, each set to its value or cleared. An object the
+ * transaction deleted is never named: the entry that owned it is removed by its owner's key for it, written on its
+ * owner's adjacency, and what its deletion removed in cascade, every entry linking it and what it owned, is left to
+ * follow from that, as it does in every store that applies the journal. `store.follow(follower)` gives the same journal
+ * as plain data.
+ *
+ * `apply(txn, journal)` writes, within the transaction `txn` builds, each transaction of a journal, in order: applied
+ * to the store as it was before them, it makes the same changes, and applied again, it changes nothing. A
+ * transaction's changes are applied as one upsert, of its symbols, each counted object inline bound to a symbol of its
+ * own, one per value, whose spec writes its changes where they do not hold.
+ *
+ * The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records it and
+ * its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an
+ * object is before is read from what the store holds as committed. They are written outside the transaction's
+ * proposals, since writing them builds: once the transaction has committed, for its observers, and, for the store
+ * below a store, just before, with its proposals set aside, as plain data (CAP-285). What a store sends the store
+ * below, and what the store below gives back it committed, is a mutation transaction, the store-to-store protocol's
+ * language, not a journal: the transaction's effect as one upsert (`_effect`). A store given a store below gives its
+ * observers, for a transaction of its own, the journal of what the store below gave back it committed, what the store
+ * below added to it, as its record, among it, so that each store of a stack gives the same one; changes name an object
+ * not present by its path, loading nothing. What the store below reports to its followers, a journal, a store above
+ * applies to the objects present in it (`Builders.Store._arrive`).
  */
 
+import * as Builders from "./Builders.js";
 import { ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Plain from "./Plain.js";
 import type * as Proposals from "./Proposals.js";
 import * as Proxies from "./Proxies.js";
 import * as References from "./References.js";
+import { compareStrings } from "./Repr.js";
 
-/** Calls `observer` with the effect of each transaction of `store` that commits having changed something; returns a
- * function that ends it. */
-export function observe(store: any, observer: (effect: any) => void): () => void {
+/** The journal language's schemas, defined in the store a transaction writes: `store.transaction(Changes.install)`. A
+ * store is made by it, after `References.install` and `Mutations.install`, read by the bootstrap (`Builders`); run
+ * again in a store, it finds each by its name and writes nothing. */
+export function install(txn: any): any {
+  const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
+  const Mu = txn.Mutations;
+  return txn.uid("mbse.Schemas.Changes/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
+    .symbols({ Journal: S.OfContainer, Transaction: S.OfObject, Symbol: S.OfObject, Change: S.OfUnion,
+      OfEntry: S.OfObject, OfProperty: S.OfObject })
+    .spec([
+      (_: any) => _.Journal.name("Changes.Journal").index([S.OfInt]).element([_.Transaction]), // in order
+      (_: any) => _.Transaction.name("Changes.Transaction").properties({
+        id: S.OfStr, // unique: the uid Provenance records it by
+        symbols: S.OfContainer((c: any) => c.index([S.OfStr]).element([_.Symbol])), // by name: its own
+        changes: S.OfContainer((c: any) => c.index([S.OfInt]).element([_.Change])), // in order
+      }),
+      (_: any) => _.Symbol.name("Changes.Symbol").properties({ // A: an object exists
+        reference: txn.References.OfObject, // held before
+        schema: txn.References.OfObject, // alone, a new one's; else where its path does not imply it
+      }),
+      (_: any) => _.Change.name("Changes.Change").branches([
+        (t: any) => t.name("entry").schema([_.OfEntry]),
+        (t: any) => t.name("property").schema([_.OfProperty]),
+      ]),
+      (_: any) => _.OfEntry.name("Changes.OfEntry").properties({ // B: a relation entry inserted or removed
+        holder: Mu["OfLink.Set"], // a symbol, or a counted object inline
+        adjacency: S.OfStr, // the holder's, by name
+        verb: S.OfStr, // insert or remove
+        links: S.OfContainer((c: any) => c.index([S.OfStr]).element([Mu["OfLink.Set"]])),
+        properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([Mu.Payload])),
+      }),
+      (_: any) => _.OfProperty.name("Changes.OfProperty").properties({ // C: a property mutated
+        holder: S.OfStr, // a symbol
+        name: S.OfStr,
+        mutations: S.OfContainer((c: any) => c.index([S.OfInt]).element([Mu.OfProperty])),
+      }),
+    ])]))]);
+}
+
+/** Calls `observer` with a `Changes.Journal` of each transaction of `store` that commits having changed something,
+ * that one transaction; returns a function that ends it. */
+export function observe(store: any, observer: (journal: any) => void): () => void {
   store._observers.push(observer);
   return () => {
     const at = store._observers.indexOf(observer);
     if (at >= 0) store._observers.splice(at, 1);
   };
+}
+
+/** Writes each transaction of `journal`, a `Changes.Journal`, in order, within the transaction `txn` builds: each one
+ * upsert, its symbols its own, chained, so that what one makes the next finds; gives `txn`, as an install does:
+ * `store.transaction((txn) => Changes.apply(txn, journal))`. */
+export function apply(txn: any, journal: unknown): any {
+  const [store, builder] = Builders._transaction_of(txn);
+  const plain = Plain.ToPlain(store)(store.registered("Changes.Journal"), journal) as Plain.PlainData[];
+  let term: PlainMap | null = null;
+  for (const [i, transaction] of [...plain.entries()].reverse()) {
+    const [upsert] = (_effect_of(store, transaction as PlainMap, `t${i}_`) as PlainMap).get("mutations") as PlainMap[];
+    if (term !== null) upsert!.get("upsert").set("then", [term]);
+    term = upsert!;
+  }
+  Plain._built(store, builder, store.registered("Mutations.OfTransaction"),
+    term === null ? new Map() : new Map([["mutations", [term]]]), []);
+  return txn;
 }
 
 /** What a transaction changed, gathered before it commits, to be written as its effect once it has: the symbols, by
@@ -254,7 +343,8 @@ export function _plain(store: any, gathered: _Gathered): Plain.PlainData {
  * (CAP-285): each object is named by its path, an object it created by its owner's and its owning entry's keys; a
  * property of an object present is set; an entry is written from an object present it links, through its adjacency by
  * name, and one that links none is left out; an object not present, applied, is linked by its path, loading nothing. A
- * counted object is found by its value, or made. Gives that effect, null where it changes nothing present, and the
+ * counted object is found by its value, or made. Gives that effect, under the transaction's `uid` where given, null
+ * where it changes nothing present, and the
  * entries no object present it links has an adjacency to by name, to apply directly (`_apply_directly`): each its
  * relation, its verb, and its links' paths and properties as plain. */
 export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainData | null, _Direct[]] {
@@ -339,8 +429,9 @@ export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainD
   }
   const named = new Map([...symbols].filter(([name]) => used.has(name)).map(([name, bound]) =>
     [name, counted.has(name) ? bound : new Map([["reference", new Map([["path", pathOf(name)]])]])]));
-  return [new Map([["mutations", [new Map([["upsert", new Map([["exists", [new Map<string, unknown>([["symbols", named],
-    ["spec", kept]])]]])]])]]]) as Plain.PlainData, direct];
+  const uid = (plain as PlainMap).has("uid") ? [["uid", (plain as PlainMap).get("uid")] as [string, unknown]] : [];
+  return [new Map([...uid, ["mutations", [new Map([["upsert", new Map([["exists", [new Map<string, unknown>([
+    ["symbols", named], ["spec", kept]])]]])]])]]]) as Plain.PlainData, direct];
 }
 
 /** An entry to apply directly (`_present_only`): its relation, its verb, its links' paths and its properties as plain. */
@@ -453,4 +544,341 @@ export function _effect(store: any, gathered: _Gathered): any {
   const symbols = Object.fromEntries(gathered.symbols);
   return store.Mutations.OfTransaction((t: any) => t.mutations([(mu: any) => mu.upsert((u: any) => u.exists([
     (p: any) => p.symbols(symbols).spec(specs)]))]));
+}
+
+// --- The journal: an effect written in the `Changes` schemas, and read back as one ---
+
+function m(entries: [string, unknown][]): PlainMap {
+  return new Map(entries);
+}
+
+/** A transaction's effect, as plain data (`_plain_effect`), written as a `Changes.Transaction`, plain, of id `uid`:
+ * each symbol bound to a reference, or to the schema of an object it made, a `Changes.Symbol`; each counted object,
+ * bound to its schema in the effect, written by its value, inline, where an entry links it; each entry the effect
+ * writes a `Changes.OfEntry`, and each property it sets or clears a `Changes.OfProperty`, in the effect's order. */
+export function _transaction(store: any, uid: string, effect: Plain.PlainData): PlainMap {
+  const [pattern] = (effect as PlainMap).get("mutations")[0].get("upsert").get("exists");
+  const symbols: Map<string, PlainMap> = pattern.get("symbols") ?? new Map(); // none: a counted object made, linked
+  const spec: PlainMap[] = pattern.get("spec") ?? []; // by none
+  const counted = new Map<string, PlainMap>(); // by symbol: its value, inline
+  for (const [name, bound] of symbols) {
+    if (!bound.has("schema")) continue;
+    const schema: any = Plain._by_path(store, bound.get("schema")[0].get("path"), []);
+    if (Proxies._counted_schema(schema)) counted.set(name, m([["schema", store.name_of(schema)], ["mutations", []]]));
+  }
+  for (const item of spec) { // a counted object's values, which it never changes: its value
+    for (const [name, mutations] of item as Map<string, PlainMap[]>) {
+      if (counted.has(name)) counted.get(name)!.get("mutations").push(...mutations.filter((x) => x.has("as_property")));
+    }
+  }
+  const link = (target: unknown): PlainMap => {
+    if (typeof target !== "string") return m([["reference", target]]); // a parameter reference, marked (CAP-312)
+    return counted.has(target) ? m([["def", counted.get(target)]]) : m([["reference", m([["symbol", target]])]]);
+  };
+  const changes: PlainMap[] = [];
+  for (const item of spec) {
+    for (const [name, mutations] of item as Map<string, PlainMap[]>) {
+      for (const mutation of mutations) {
+        if (mutation.has("as_property")) {
+          if (!counted.has(name)) changes.push(m([["property", m([["holder", name], ...mutation.get("as_property")])]]));
+          continue;
+        }
+        const adjacency = mutation.get("as_adjacency");
+        for (const verb of adjacency.get("mutations") as PlainMap[]) {
+          const [[kind, body]] = [...verb] as [[string, PlainMap]];
+          for (const entry of body.get("entries") as PlainMap[]) {
+            const [links, keys] = parts(entry);
+            changes.push(m([["entry", m([["holder", link(name)], ["adjacency", adjacency.get("name")], ["verb", kind],
+              ["links", new Map([...links].map(([other, x]) => [other, link(x)]))], ["properties", keys]])]]));
+          }
+        }
+      }
+    }
+  }
+  return m([["id", uid], ["symbols", new Map([...symbols].filter(([name]) => !counted.has(name))
+    .map(([name, bound]) => [name, symbol(store, bound)]))], ["changes", changes]]);
+}
+
+/** An effect's symbol as a `Changes.Symbol`, plain: a new object's schema's reference; an object held before's
+ * reference, with its schema's where its path does not imply it, the store holding it. */
+function symbol(store: any, bound: PlainMap): PlainMap {
+  if (bound.has("schema")) return m([["schema", m([["path", bound.get("schema")[0].get("path")]])]]);
+  const path = bound.get("reference").get("path");
+  let implied: unknown = null;
+  try {
+    implied = References._implied(store, path);
+  } catch { // a path no one schema is implied by: a LookupError
+    implied = null;
+  }
+  const held = store._present(path);
+  if (Proxies._isObjectData(held) && schemaOf(held) !== implied) {
+    const path = Plain._schema_path(store._path(schemaOf(held)));
+    return m([["reference", bound.get("reference")], ["schema", m([["path", path]])]]);
+  }
+  return m([["reference", bound.get("reference")]]);
+}
+
+/** A transaction's effect, as plain data, as a `Changes.Journal` of that one transaction, of id `uid`: a value of
+ * `store`'s, which outlives the transaction. */
+export function _journal(store: any, uid: string, effect: Plain.PlainData): any {
+  return Plain.FromPlain(store)(store.registered("Changes.Journal"), [_transaction(store, uid, effect)] as Plain.PlainData);
+}
+
+/** Plain data written with its keys in order, at each level, so that two values alike are written alike. */
+function canonical(plain: unknown): unknown {
+  if (Array.isArray(plain)) return plain.map(canonical);
+  if (!(plain instanceof Map)) return plain;
+  return new Map([...plain].sort(([a], [b]) => compareStrings(a, b)).map(([k, v]) => [k, canonical(v)]));
+}
+
+/** A `Changes.Transaction`, as plain data, as the effect it writes: one upsert, under its id, of its symbols, each named
+ * with `prefix` before its name, and of each counted object it writes inline, one symbol for each value, bound to its
+ * schema, whose values the spec writes after its changes, so that it is found by its value, or made. */
+export function _effect_of(store: any, transaction: PlainMap, prefix = ""): Plain.PlainData {
+  const symbols = new Map<string, unknown>();
+  for (const [name, bound] of new Map(transaction.get("symbols")) as Map<string, PlainMap>) {
+    symbols.set(prefix + name, bound.has("reference") ? m([["reference", bound.get("reference")]])
+      : m([["schema", [m([[Plain.SCHEMA, Plain.REFERENCE], ...bound.get("schema")])]]]));
+  }
+  const counted = new Map<string, string>(); // each counted object's symbol, by its value
+  const values: PlainMap[] = [];
+  /** What a link set to a symbol, a counted object's value or a parameter reference names, as an effect does. */
+  const symbolOf = (link: PlainMap): unknown => {
+    const [[kind, given]] = [...link] as [[string, PlainMap]];
+    if (kind === "reference" && Plain._is_marked(given)) return given;
+    if (kind === "reference" && given.has("symbol")) return prefix + given.get("symbol");
+    if (kind !== "def") {
+      throw new ValueError("a change links an object by a symbol of its transaction, or a counted object by its value");
+    }
+    const key = Json.dumps(canonical(given) as Plain.PlainData);
+    if (!counted.has(key)) {
+      let n = counted.size;
+      while (symbols.has(`${prefix}c${n}`)) n += 1;
+      const name = `${prefix}c${n}`;
+      counted.set(key, name);
+      const path = Plain._schema_path(store._path(store.registered(given.get("schema"))));
+      symbols.set(name, m([["schema", [m([[Plain.SCHEMA, Plain.REFERENCE], ["path", path]])]]]));
+      for (const mutation of given.get("mutations") as PlainMap[]) values.push(m([[name, [renamed(mutation, prefix)]]]));
+    }
+    return counted.get(key);
+  };
+  const spec: PlainMap[] = [];
+  for (const change of (transaction.get("changes") ?? []) as PlainMap[]) {
+    const [[kind, body]] = [...change] as [[string, PlainMap]];
+    if (kind === "property") {
+      spec.push(m([[prefix + body.get("holder"), [m([["as_property", m([["name", body.get("name")],
+        ["mutations", body.get("mutations")]])]])]]]));
+      continue;
+    }
+    const verb = body.get("verb");
+    if (verb !== "insert" && verb !== "remove") {
+      throw new ValueError(`an entry's change is an insert or a remove, not '${verb}'`);
+    }
+    const entryParts: PlainMap[] = [...new Map(body.get("links")) as Map<string, PlainMap>].map(([name, link]) => {
+      const target = symbolOf(link);
+      return m([["as_link", m([["name", name], ["mutations", [m([["set", m([["reference",
+        target instanceof Map ? target : m([["symbol", target]])]])]])]]])]]);
+    });
+    for (const [name, value] of new Map(body.get("properties")) as PlainMap) {
+      entryParts.push(m([["as_property", m([["name", name], ["mutations", [m([["set", m([["value", value]])]])]]])]]));
+    }
+    spec.push(m([[symbolOf(body.get("holder")) as string, [m([["as_adjacency", m([["name", body.get("adjacency")],
+      ["mutations", [m([[verb, m([["entries", [m([["mutations", entryParts]])]]])]])]]])]])]]]));
+  }
+  const id = transaction.has("id") ? [["uid", transaction.get("id")] as [string, unknown]] : [];
+  return m([...id, ["mutations", [m([["upsert", m([["exists", [m([["symbols", symbols],
+    ["spec", [...spec, ...values]]])]]])]])]]]) as Plain.PlainData;
+}
+
+/** Plain mutations with each symbol a link is set to named with `prefix` before its name. */
+function renamed(plain: unknown, prefix: string): unknown {
+  if (Array.isArray(plain)) return plain.map((item) => renamed(item, prefix));
+  if (!(plain instanceof Map)) return plain;
+  return new Map([...plain].map(([k, v]) => [k, k === "reference" && v instanceof Map && v.has("symbol")
+    ? new Map([...v, ["symbol", prefix + v.get("symbol")]]) : renamed(v, prefix)]));
+}
+
+/** A `Changes.Journal`, as plain data, as the effect of each of its transactions, in order (`_effect_of`). */
+export function _effects(store: any, journal: Plain.PlainData): Plain.PlainData[] {
+  if (!Array.isArray(journal)) throw new ValueError("a journal, as plain data, is a list of its transactions");
+  return journal.map((transaction) => _effect_of(store, transaction as PlainMap));
+}
+
+// --- What a payload is interpreted by, as `Plain` writes and reads a journal (`Plain.AT`) ---
+
+/** What the member `member` of a value of `schema` is within, the value being within `at`, given its members written
+ * or read before it, `siblings`: a transaction's changes, within its symbols; a payload in them, within the schema of
+ * the property it is the value of. Null where nothing says, or where what it says names no schema the store holds, so
+ * that the payload is written, or refused, as any value of any schema is. */
+export function _within(store: any, schema: any, at: any, member: string, siblings: PlainMap): any {
+  const name = schema.name;
+  if (name === "Changes.Transaction") return member === "changes" ? new Symbols(store, siblings.get("symbols")) : null;
+  if (at === null) return null;
+  try {
+    return at.member(name, member, siblings);
+  } catch { // what it says names no schema the store holds: a missing member, an unknown name, a path not implied
+    return null;
+  }
+}
+
+/** What a value is within, as `Plain` writes and reads it: what its members and elements are within, and the schema a
+ * payload is interpreted by, where it is one. */
+abstract class At {
+  payload: any = null;
+
+  abstract member(schema: string, member: string, siblings: PlainMap): any;
+
+  element(_index: unknown): any {
+    return this;
+  }
+}
+
+/** A transaction's changes: within its symbols, each bound to the schema of the object it names. */
+class Symbols extends At {
+  readonly symbols: PlainMap;
+
+  constructor(readonly store: any, symbols: unknown) {
+    super();
+    this.symbols = new Map(symbols as PlainMap);
+  }
+
+  /** The schema of the object a symbol names: the one it is given, else, one held before's, as its path implies. */
+  schema(symbol: string): any {
+    const bound = this.symbols.get(symbol);
+    if (bound.has("schema")) return Plain._by_path(this.store, bound.get("schema").get("path"), []);
+    return References._implied(this.store, bound.get("reference").get("path"));
+  }
+
+  /** The schema of what a link is set to: a symbol's, or a counted object's, inline. */
+  linked(link: PlainMap): any {
+    const given = link.get("def");
+    return given !== undefined ? this.store.registered(given.get("schema"))
+      : this.schema(link.get("reference").get("symbol"));
+  }
+
+  member(schema: string, member: string, siblings: PlainMap): any {
+    if (schema === "Changes.Change") return this;
+    if (schema === "Changes.OfProperty" && member === "mutations") {
+      return new Value(this.schema(siblings.get("holder")).properties.get(siblings.get("name")).schema);
+    }
+    if (schema === "Changes.OfEntry" && (member === "holder" || member === "links")) return new Links(this);
+    if (schema === "Changes.OfEntry" && member === "properties") {
+      return new EntryProperties(this.linked(siblings.get("holder")).adjacencies.get(siblings.get("adjacency")).relation);
+    }
+    return null;
+  }
+}
+
+/** A link set, to a symbol or a counted object inline (`Mutations.OfLink.Set`): its definition, within its schema. */
+class Links extends At {
+  constructor(readonly symbols: Symbols) {
+    super();
+  }
+
+  member(schema: string, member: string, siblings: PlainMap): any {
+    if (schema === "Mutations.OfLink") return this;
+    if (schema === "Mutations.OfLink.Set" && member === "def") return this;
+    if (schema === "Mutations.OfObject.Def" && member === "mutations") {
+      return new ObjectMutations(this.symbols.store.registered(siblings.get("schema")), this.symbols);
+    }
+    return null;
+  }
+}
+
+/** An object's mutations, a counted object's inline: each property's within its schema, each adjacency's within its
+ * relation. */
+class ObjectMutations extends At {
+  constructor(readonly schema: any, readonly symbols: Symbols) {
+    super();
+  }
+
+  member(schema: string, member: string, siblings: PlainMap): any {
+    if (schema === "Mutations.OfObject") return this;
+    if (schema === "Mutations.OfObject.AsProperty" && member === "mutations") {
+      return new Value(this.schema.properties.get(siblings.get("name")).schema);
+    }
+    if (schema === "Mutations.OfObject.AsAdjacency" && member === "mutations") {
+      return new Adjacency(this.schema.adjacencies.get(siblings.get("name")).relation, this.symbols);
+    }
+    return null;
+  }
+}
+
+/** An adjacency's mutations: each entry's properties within its relation's, its links set as links are. */
+class Adjacency extends At {
+  constructor(readonly relation: any, readonly symbols: Symbols) {
+    super();
+  }
+
+  member(schema: string, member: string, siblings: PlainMap): any {
+    if (["Mutations.OfAdjacency", "Mutations.OfAdjacency.Insert", "Mutations.OfAdjacency.Remove", "Mutations.OfEntry",
+      "Mutations.OfEntry.Member"].includes(schema)) return this;
+    if (schema === "Mutations.OfEntry.AsProperty" && member === "mutations") {
+      return new Value(this.relation.entry.properties.get(siblings.get("name")).schema);
+    }
+    if (schema === "Mutations.OfEntry.AsLink" && member === "mutations") return new Links(this.symbols);
+    return null;
+  }
+}
+
+/** An entry's properties, each within its schema: a container, whose elements are within, not its members. */
+class EntryProperties {
+  readonly payload = null;
+
+  constructor(readonly relation: any) {}
+
+  element(index: unknown): any {
+    const found = this.relation.entry.properties.get(index);
+    return found === undefined ? null : new Value(found.schema);
+  }
+}
+
+/** The unions of a value's verbs: each verb within what the union is. */
+const UNIONS = new Set(["Mutations.OfProperty", "Mutations.OfAny", "Mutations.OfScalar", "Mutations.OfContainer"]);
+
+/** Each verb's member that holds a payload, or verbs, by its schema's name and its own, and what it is within: the
+ * value's schema, or its part's. */
+const VERBS = new Map<string, string>(Object.entries({
+  "Mutations.OfProperty.Set value": "self", "Mutations.OfAny.Set value": "self", "Mutations.OfScalar.Set value": "self",
+  "Mutations.OfProperty.AsAny mutations": "self", "Mutations.OfAny.AsScalar mutations": "self",
+  "Mutations.OfAny.AsContainer mutations": "self", "Mutations.OfAny.AsObject mutations": "members",
+  "Mutations.OfAny.AsUnion mutations": "members", "Mutations.OfAny.AsIntersection mutations": "members",
+  "Mutations.OfContainer.Insert slice": "self", "Mutations.OfContainer.Slice index": "index",
+  "Mutations.OfContainer.Slice items": "element", "Mutations.OfContainer.Remove index": "index",
+  "Mutations.OfContainer.Append items": "element", "Mutations.OfContainer.Prepend items": "element",
+  "Mutations.OfContainer.AsItems mutations": "element",
+}));
+
+/** A value's mutations, mbse-schemas' verbs: each payload in them interpreted by the value's schema, or, in a
+ * container's verbs, by its index's or its element's, and, in a value object's, a union's or an intersection's, by its
+ * member's. */
+class Value extends At {
+  constructor(schema: any) {
+    super();
+    this.payload = Proxies._deref(schema);
+  }
+
+  member(schema: string, member: string): any {
+    if (UNIONS.has(schema)) return this;
+    const within = VERBS.get(`${schema} ${member}`);
+    if (within === undefined) return null;
+    if (within === "self") return this;
+    if (within === "members") return new Members(this.payload);
+    return new Value(this.payload[within]);
+  }
+}
+
+/** A value object's, a union's or an intersection's members' mutations (`AsProperty`, `AsBranch`, `AsPart`). */
+class Members extends At {
+  constructor(readonly schema: any) {
+    super();
+  }
+
+  member(schema: string, member: string, siblings: PlainMap): any {
+    if (member === "mutations" && ["Mutations.OfObject.AsProperty", "Mutations.OfUnion.AsBranch",
+      "Mutations.OfIntersection.AsPart"].includes(schema)) {
+      return new Value(this.schema.properties.get(siblings.get("name")).schema);
+    }
+    return null;
+  }
 }

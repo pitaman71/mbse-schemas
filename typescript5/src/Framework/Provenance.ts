@@ -202,7 +202,7 @@ export function _record(store: any, proposals: Proposals.OfStore): void {
   const written = [...proposals.written].filter((target) => !proposals.created.has(target));
   if (created.length === 0 && written.length === 0) return;
   const expression = proposals.expression;
-  const uid = (expression === null ? null : store.member(expression, "uid")) ?? uuid4();
+  const uid = _uid(store, proposals);
   const record = held(store, "Provenance.InTransactions", "Provenance.Transactions", "uid", uid)
     ?? madeRecord(store, expression, uid);
   for (const target of created) {
@@ -218,6 +218,17 @@ export function _record(store: any, proposals: Proposals.OfStore): void {
     Proxies._discard(modifiedBy, holding, store); // the tail: the one it held, replaced
     link(store, "Provenance.ModifiedBy", [["object", target], ["transaction", record]]);
   }
+}
+
+/** The uid of the transaction whose proposals these are: its expression's, where it gives one, else one the store makes,
+ * once, so that what records it (`_record`) and what observes it (`Changes`) know it by the same one, whether or not the
+ * store has `Provenance` installed. */
+export function _uid(store: any, proposals: Proposals.OfStore): string {
+  if (proposals.uid === null) {
+    const expression = proposals.expression;
+    proposals.uid = (expression === null ? null : store.member(expression, "uid")) ?? uuid4();
+  }
+  return proposals.uid!;
 }
 
 /** A transaction's record, made, with its session, found or made, and the session's identity. */

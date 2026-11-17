@@ -42,6 +42,8 @@ export class OfStore implements Visitors.OfStore {
   readonly missed = new Set<object>();
   /** The transaction's expression, where it has one: its record's data (Provenance). */
   expression: unknown = null;
+  /** The transaction's uid, once asked for (`Provenance._uid`). */
+  uid: string | null = null;
   /** How many schema objects the store held when the transaction began: those its updates of wait for its commit. */
   readonly existing: number;
   /** The store's registries, restored where the proposals are aborted. */

@@ -2101,6 +2101,8 @@ export class Store extends Proxies.OfStore {
   _observers: ((effect: any) => void)[] = [];
   /** What the transaction committing changed, gathered for its observers. */
   _changes: Changes._Gathered | null = null;
+  /** The uid of the transaction committing, which its journal's id is (`Provenance`). */
+  _uid: string | null = null;
   /** The store below's transactions, reported while one of this store's was open. */
   _arrived: unknown[] = [];
   /** The transaction sent, as the store below gave back what it committed, as plain. */
@@ -2125,8 +2127,9 @@ export class Store extends Proxies.OfStore {
     const references = bootstrap(References.install, made); // which extends `Schemas.OfSymbol`
     extendBuilders(this, before); // the members it adds
     const mutations = bootstrap(Mutations.install, made);
+    const changes = bootstrap(Changes.install, made); // the journal language's
     const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths),
-      ...Object.values(references)] as (ObjectData | RelationData)[];
+      ...Object.values(references), ...Object.values(changes)] as (ObjectData | RelationData)[];
     for (const schema of framework) this._register(schema);
     const reached: unknown[] = [...framework];
     while (reached.length > 0) { // each with what it holds: framework schemas share their unnamed ones, never written
@@ -2479,9 +2482,9 @@ export class Store extends Proxies.OfStore {
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
    * plain schema (`extendBuilders`): a module's install extends a store's own schemas (install
    * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it changed is gathered
-   * for the store's observers, which are given its effect once it has committed (`Changes`): where the store has a
-   * store below, the effect the store below reported it committed. A load within it is no transaction of the store's,
-   * and leaves the one open as it is. */
+   * for the store's observers, which are given it as a journal once it has committed (`Changes`): where the store has a
+   * store below, the journal of what the store below gave back it committed. A load within it is no transaction of the
+   * store's, and leaves the one open as it is. */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
@@ -2517,14 +2520,18 @@ export class Store extends Proxies.OfStore {
       this._reporting = false;
       const gathered = committed ? this._changes : null;
       this._changes = null;
+      const uid = this._uid;
+      this._uid = null;
       const below = committed ? this._committed_below : null;
       this._committed_below = null;
       const arrived = this._arrived;
       this._arrived = [];
       if (gathered !== null && (this._observers.length > 0 || givingBack !== null)) { // once committed: one that
-        const effect = below === null ? Changes._effect(this, gathered) : this._expression_of(below); // threw is
-        for (const observer of [...this._observers]) observer(effect); // observed by none
-        if (givingBack !== null) givingBack.push(below !== null ? below : Changes._plain_effect(this, effect));
+        const effect = below ?? Changes._plain_effect(this, Changes._effect(this, gathered)); // threw is observed by none
+        const journal = this._observers.length > 0
+          ? Changes._journal(this._self, uid!, effect as PlainModule.PlainData) : null;
+        for (const observer of [...this._observers]) observer(journal);
+        if (givingBack !== null) givingBack.push(effect);
       }
       for (const plain of arrived) this._apply(plain); // in the order the store below committed them, its own among them
     }
@@ -2532,7 +2539,8 @@ export class Store extends Proxies.OfStore {
   }
 
   /** A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
-   * deleted in cascade is among them, just before it commits; its effect is written once it has (`Changes`). */
+   * deleted in cascade is among them, just before it commits, with its uid; its journal is written once it has
+   * (`Changes`). */
   override _settled(proposals: Proposals.OfStore): void {
     const sends = this._below !== null && this._applying === 0;
     if (sends && proposals.expression !== null) {
@@ -2542,7 +2550,10 @@ export class Store extends Proxies.OfStore {
         this._send_install(proposals.expression); // it writes schemas: the store below's, first
       }
     }
-    if (this._observers.length > 0 || sends || this._reporting) this._changes = Changes._gather(this, proposals);
+    if (this._observers.length > 0 || sends || this._reporting) {
+      this._changes = Changes._gather(this, proposals);
+      this._uid = Provenance._uid(this, proposals);
+    }
     if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes), proposals.expression);
   }
 
@@ -2581,22 +2592,24 @@ export class Store extends Proxies.OfStore {
     this._below.install(plain);
   }
 
-  /** Gives `follower` each transaction the store commits, as plain data, in the order it commits them; gives back a
-   * function that ends it (`Stores.Below`, CAP-306). */
+  /** Gives `follower` each transaction the store commits, in the order it commits them, as a `Changes.Journal` of that
+   * one transaction, as plain data; gives back a function that ends it (`Stores.Below`, CAP-306). */
   follow(follower: (plain: unknown) => void): () => void {
-    return Changes.observe(this, (effect: any) => follower(Changes._plain_effect(this._self, effect)));
+    const schema = this.registered("Changes.Journal");
+    return Changes.observe(this, (journal: any) => follower(PlainModule.ToPlain(this._self)(schema, journal)));
   }
 
   /** Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits: the
    * store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
-   * `session` and `where` go with them, where it has an expression: the lowest store records it (`Provenance`). What the
+   * `session` and `where` go with them, where it has an expression, and its `uid` always: the lowest store records it
+   * (`Provenance`), and its followers are given its journal under it. What the
    * store below gives back it committed, its record among it, is taken into the transaction, so that each store of a
    * stack commits the same one, and is what the store's followers are given of it. */
   _send(plain: unknown, expression: unknown): void {
-    if (expression !== null) {
-      const given = Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression)) as Map<string, unknown>;
-      plain = new Map([...[...given].filter(([k]) => k !== "mutations"), ...plain as Map<string, unknown>]);
-    }
+    const given = expression === null ? new Map<string, unknown>()
+      : Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression)) as Map<string, unknown>;
+    plain = new Map([["uid", this._uid], ...[...given].filter(([k]) => k !== "uid" && k !== "mutations"),
+      ...plain as Map<string, unknown>]);
     const committed = this._below.commit(plain);
     if (committed !== null) {
       this._committed_below = committed;
@@ -2604,23 +2617,14 @@ export class Store extends Proxies.OfStore {
     }
   }
 
-  /** A transaction the store below committed, given as plain data: applied to the objects present; one given while a
-   * transaction of this store's is open, its own among them, once that one ends, so that each is applied in the order
-   * the store below committed them, and its own, applied again, changes only what another changed since (CAP-285). */
+  /** What the store below committed, given as a `Changes.Journal`, as plain data, as its follow gives it: each
+   * transaction applied to the objects present, under its id; one given while a transaction of this store's is open,
+   * its own among them, once that one ends, so that each is applied in the order the store below committed them, and
+   * its own, applied again, changes only what another changed since (CAP-285). */
   _arrive(plain: unknown): void {
-    if (this._proposals !== null) this._arrived.push(plain);
-    else this._apply(plain);
-  }
-
-  /** A transaction of the store below's, as plain data, as an expression of this store's, built loading nothing: what
-   * this store's followers are given of a transaction of its own the store below committed, as it committed it, so
-   * that each store of a stack gives the same one. */
-  _expression_of(plain: unknown): unknown {
-    this._applying += 1;
-    try {
-      return Changes._as_committed(this, () => PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData));
-    } finally {
-      this._applying -= 1;
+    for (const effect of Changes._effects(this._self, plain as PlainModule.PlainData)) {
+      if (this._proposals !== null) this._arrived.push(effect);
+      else this._apply(effect);
     }
   }
 
@@ -2639,6 +2643,8 @@ export class Store extends Proxies.OfStore {
         present === null ? null : PlainModule.FromPlain(store).Transaction(present);
       const expression = joined ? build() : Changes._as_committed(store, build);
       const write = (): void => {
+        const uid = (plain as Map<string, unknown>).get("uid"); // its followers given its journal under the id it
+        if (!joined && uid !== undefined) store._proposals.uid = uid; // arrived with
         if (expression !== null) Transactions._execute(store, expression, true);
         Changes._apply_directly(store, direct);
       };
@@ -2833,7 +2839,16 @@ function makeTransaction(store: Store, builder: any): any {
         : makePath(store, part);
     },
   });
+  TRANSACTIONS.set(txn, [store, builder]);
   return txn;
+}
+
+/** Each transaction a callback building one is given, its store and its builder (`_transaction_of`). */
+const TRANSACTIONS = new WeakMap<object, [Store, any]>();
+
+/** The store and the builder of what a callback building a transaction is given (`makeTransaction`). */
+export function _transaction_of(txn: any): [Store, any] {
+  return TRANSACTIONS.get(txn)!;
 }
 
 /** A member of a transaction's builder, as `txn.uid` gives it: called, it gives back the transaction, not the builder,

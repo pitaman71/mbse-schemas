@@ -192,7 +192,7 @@ def _record(store: Any, proposals: Any) -> None:
     if not created and not written:
         return
     expression = proposals.expression
-    uid = (None if expression is None else store.member(expression, "uid")) or str(uuid.uuid4())
+    uid = _uid(store, proposals)
     record = _held(store, "Provenance.InTransactions", "Provenance.Transactions", "uid", uid)
     if record is None:
         record = _made_record(store, expression, uid)
@@ -208,6 +208,16 @@ def _record(store: Any, proposals: Any) -> None:
             continue
         Proxies._discard(id(modified_by), held, store)  # the tail: the one it held, replaced
         _link(store, "Provenance.ModifiedBy", {"object": target, "transaction": record})
+
+
+def _uid(store: Any, proposals: Any) -> str:
+    """The uid of the transaction whose proposals these are: its expression's, where it gives one, else one the store
+    makes, once, so that what records it (`_record`) and what observes it (`Changes`) know it by the same one, whether
+    or not the store has `Provenance` installed."""
+    if proposals.uid is None:
+        expression = proposals.expression
+        proposals.uid = (None if expression is None else store.member(expression, "uid")) or str(uuid.uuid4())
+    return proposals.uid
 
 
 def _made_record(store: Any, expression: Any, uid: str) -> Any:

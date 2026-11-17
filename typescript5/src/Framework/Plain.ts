@@ -37,6 +37,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as Builders from "./Builders.js";
+import * as Changes from "./Changes.js";
 import { DecodeError, NotImplementedError, path, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
@@ -54,6 +55,39 @@ export type PlainMap = Map<string, PlainData>;
 export const SCHEMA = "$schema";
 export const REFERENCE = "References.OfObject";
 export const ID = "$id";
+export const PAYLOAD = "Mutations.Payload";
+
+/** What the value being written or read is within, where a schema around it says what a payload in it is
+ * (`Changes._within`): a value of `Mutations.Payload`, a value of any schema, is then written bare by the schema it is
+ * interpreted by, the property's whose value it is, as a recorded spec writes it, and read back by that schema; null
+ * elsewhere, where a payload is written tagged with its schema, as any value of an unrestricted `OfAny` is. */
+let AT: any = null;
+
+/** Writes or reads what is within `at` (`AT`). */
+function within<T>(at: any, run: () => T): T {
+  const outer = AT;
+  AT = at;
+  try {
+    return run();
+  } finally {
+    AT = outer;
+  }
+}
+
+/** What a member of a value of `schema` is within (`AT`), given those written or read before it. */
+function memberAt(store: any, schema: any, member: string, siblings: PlainMap): any {
+  return Changes._within(store, schema, AT, member, siblings);
+}
+
+/** What an element of the container being written or read, at `index`, is within (`AT`). */
+function elementAt(index: unknown): any {
+  return AT === null ? null : AT.element(index);
+}
+
+/** The schema a payload being written or read here is interpreted by (`AT`); null where none says. */
+function payload(): any {
+  return AT === null ? null : AT.payload;
+}
 
 /** The Python class name of a schema's data (`_ObjectData`, ...), so messages match the Python implementation. */
 export function schemaTypeName(schema: unknown): string {
@@ -210,6 +244,8 @@ function wrapped(schema: Schemas.OfAny.Value, own: any, plain: PlainData, ref: R
 /** A value of any schema as plain data, and whether there is one: restricted, as the schema it holds, bare or wrapped
  * (`wrapped`); unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name. */
 function anyOfAny(read: any, schema: Schemas.OfAny.Value, ref: Ref): [boolean, PlainData] {
+  const interpreted = schema.name === PAYLOAD ? payload() : null; // a payload whose schema what it is within says
+  if (interpreted !== null) return within(null, () => anyValue(read, interpreted, ref));
   const found: any[] = [];
   read.as_scalar((s: any) => {
     if (s.get() !== null) found.push(s.get());
@@ -276,18 +312,20 @@ function plainIndex(schema: Schemas.OfContainer.Data, index: unknown, ref: Ref):
 function container(read: any, schema: Schemas.OfContainer.Data, ref: Ref): PlainData {
   const pairs: [unknown, unknown][] = [];
   read.as_entries((entries: Iterable<[unknown, unknown]>) => pairs.push(...entries));
-  const element = (visitor: unknown): PlainData => anyValue(visitor, schema.element, ref)[1];
+  const element = (index: unknown, visitor: unknown): PlainData =>
+    within(elementAt(index), () => anyValue(visitor, schema.element, ref)[1]);
   const names = tensor(schema);
   const arrangement = schema.arrangement;
   if (arrangement === "dense" && ints(schema)) {
     const dense: PlainData[] = Array.from({ length: read.length }, () => null);
-    for (const [index, visitor] of pairs) dense[Number(index)] = element(visitor);
+    for (const [index, visitor] of pairs) dense[Number(index)] = element(index, visitor);
     return dense;
   }
   if (arrangement === "dense" && names !== null && pairs.length > 0) {
     const shape = names.map((_, d) => Number(pairs.reduce((m: bigint, [index]) =>
       ((index as bigint[])[d] as bigint > m ? (index as bigint[])[d] as bigint : m), 0n)) + 1);
-    const cells = new Map(pairs.map(([index, visitor]) => [JSON.stringify((index as bigint[]).map(String)), element(visitor)]));
+    const cells = new Map(pairs.map(([index, visitor]) =>
+      [JSON.stringify((index as bigint[]).map(String)), element(index, visitor)]));
     let all: string[][] = [[]];
     for (const size of shape) all = all.flatMap((cell) => Array.from({ length: size }, (_, i) => [...cell, String(i)]));
     let flat: PlainData[] = all.map((cell) => cells.get(JSON.stringify(cell)) ?? null);
@@ -306,18 +344,20 @@ function container(read: any, schema: Schemas.OfContainer.Data, ref: Ref): Plain
       const follows = last !== null && (ints(schema) ? index === (last as bigint) + 1n
         : (index as bigint[]).slice(0, -1).every((i, d) => i === (last as bigint[])[d])
           && (index as bigint[]).at(-1) === ((last as bigint[]).at(-1) as bigint) + 1n);
-      if (follows) ((blocks.at(-1) as PlainMap).get("items") as PlainData[]).push(element(visitor));
-      else blocks.push(new Map<string, PlainData>([["at", plainIndex(schema, index, ref)], ["items", [element(visitor)]]]));
+      if (follows) ((blocks.at(-1) as PlainMap).get("items") as PlainData[]).push(element(index, visitor));
+      else {
+        blocks.push(new Map<string, PlainData>([["at", plainIndex(schema, index, ref)], ["items", [element(index, visitor)]]]));
+      }
       last = index;
     }
     return blocks;
   }
   const held = schema.index;
   if (arrangement === "dict" && held instanceof Schemas.OfScalar.Data && held.type === String) {
-    return new Map(pairs.map(([index, visitor]) => [index as string, element(visitor)]));
+    return new Map(pairs.map(([index, visitor]) => [index as string, element(index, visitor)]));
   }
   return pairs.map(([index, visitor]) =>
-    new Map<string, PlainData>([["index", plainIndex(schema, index, ref)], ["element", element(visitor)]]));
+    new Map<string, PlainData>([["index", plainIndex(schema, index, ref)], ["element", element(index, visitor)]]));
 }
 
 /** A union's branch or an intersection's part as plain data: its visitor is of its schema's kind. */
@@ -338,7 +378,7 @@ function memberValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData]
 function record(read: any, schema: RecordSchema, ref: Ref): PlainMap {
   const out: PlainMap = new Map();
   for (const [name, member] of schema.properties) {
-    const [found, plain] = memberValue(read[name], member.schema, ref);
+    const [found, plain] = within(memberAt(ref.store, schema, name, out), () => memberValue(read[name], member.schema, ref));
     if (found) out.set(name, plain);
   }
   return out;
@@ -360,9 +400,12 @@ function refined(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref
 
 /** A value object, nested in what holds it, as a mapping of its properties that are set, in the schema's order; it has
  * no adjacencies, and nothing links it. */
-function object(read: Readers.OfObject, _schema: Schemas.OfObject.Data, ref: Ref): PlainMap {
+function object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref): PlainMap {
   const out: PlainMap = new Map();
-  for (const prop of read.as_properties) out.set(prop.as_schema().name, value(prop, prop.as_schema().schema, ref)[1]);
+  for (const prop of read.as_properties) {
+    const name = prop.as_schema().name;
+    out.set(name, within(memberAt(ref.store, schema, name, out), () => value(prop, prop.as_schema().schema, ref)[1]));
+  }
   return out;
 }
 
@@ -680,13 +723,15 @@ class DecodedRecord {
   constructor(readonly schema: RecordSchema, readonly values: Map<string, unknown>) {}
 }
 
-/** A decoded value of an `OfAny`'s registered schema, `name`, unrestricted or restricted to others of its kind: built
- * standalone, through the store's builder, and assigned as a value. */
+/** A decoded value of an `OfAny`'s registered schema, `name`, unrestricted or restricted to others of its kind, or a
+ * payload's, of the schema it is interpreted by (`AT`), given as `name` itself: built standalone, through the store's
+ * builder, and assigned as a value. */
 class Assigned {
-  constructor(readonly name: string, readonly value: unknown, readonly store: Visitors.OfStore) {}
+  constructor(readonly name: any, readonly value: unknown, readonly store: Visitors.OfStore) {}
 
   make(): any {
-    const builder = this.store.builder(this.name);
+    const builder = typeof this.name === "string" ? this.store.builder(this.name) // a payload's, of the schema it is
+      : Proxies._standalone(this.name, null, this.store as any); // interpreted by, which may have no name
     if (this.value instanceof DecodedElements) fillElements(builder, this.value);
     else build(builder, this.value as DecodedRecord);
     return builder.create();
@@ -734,7 +779,8 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, store:
   for (const [key, item] of plain as PlainMap) {
     const memberSchema = record.properties.get(key)?.schema as Schemas.OfAny.Data | undefined;
     if (memberSchema === undefined) throw new DecodeError(`${owner} has no ${member} ${repr(key)}`, { path: path(...where, key) });
-    values.set(key, decode(memberSchema, item, [...where, key], store));
+    values.set(key, within(memberAt(store, record, key, plain as PlainMap),
+      () => decode(memberSchema, item, [...where, key], store)));
   }
   if (record instanceof Schemas.OfUnion.Data && values.size !== 1) {
     throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
@@ -855,8 +901,14 @@ function refinementOf(schemas: unknown[], name: string, store: Visitors.OfStore 
 
 /** A value of any schema: restricted, wrapped by its kind and schema or bare where that is unambiguous
  * (`decodeRestricted`); unrestricted, a mapping of its schema, a basic scalar's tag or a schema's registered name, to its
- * value. */
+ * value; a payload whose schema what it is within says, as a value of that schema (`AT`). */
 function decodeAny(schema: Schemas.OfAny.Value, plain: unknown, where: Where, store: Visitors.OfStore | null): unknown {
+  const interpreted = schema.name === PAYLOAD ? payload() : null;
+  if (interpreted !== null) {
+    const decoded = within(null, () => decode(interpreted, plain, where, store));
+    return decoded instanceof DecodedRecord || decoded instanceof DecodedElements
+      ? new Assigned(decoded.schema, decoded, store as Visitors.OfStore) : decoded;
+  }
   if (schema.schemas.length > 0) return decodeRestricted(schema, plain, where, store);
   if (!(plain instanceof Map) || plain.size !== 1) {
     throw new DecodeError("a value of any schema is {schema: value}, its schema a basic scalar's tag or a registered schema's name",
@@ -903,7 +955,9 @@ function decodeContainer(schema: Schemas.OfContainer.Data, plain: unknown, where
   store: Visitors.OfStore | null = null): DecodedElements {
   const items: [unknown, unknown][] = [];
   const element = (index: unknown, value: unknown, at: Where): void => {
-    if (value !== null) items.push([index, decode(schema.element as Schemas.OfAny.Data, value, at, store)]);
+    if (value !== null) {
+      items.push([index, within(elementAt(index), () => decode(schema.element as Schemas.OfAny.Data, value, at, store))]);
+    }
   };
   const names = tensor(schema);
   const arrangement = schema.arrangement;
@@ -1810,4 +1864,4 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
 }
 
 export { decode as _decode, set as _set, byPath as _by_path, stepsOf as _steps, ownerPath as _owner_path,
-  ownedBy as _owned_by, under as _under };
+  ownedBy as _owned_by, under as _under, schemaPath as _schema_path, built as _built };

@@ -29,7 +29,7 @@
 import * as Builders from "./Builders.js";
 import { NotImplementedError } from "./Errors.js";
 import { schemaTypeName } from "./Plain.js";
-import { _derefFirst, _key_of, _refines, scalarKey } from "./Proxies.js";
+import { _derefFirst, _key_of, _link_key, _parameter_in, _refines, scalarKey } from "./Proxies.js";
 import * as Reachable from "./Reachable.js";
 import type * as Readers from "./Readers.js";
 import { repr, sortedStrings, tokenName, typeName } from "./Repr.js";
@@ -115,6 +115,13 @@ let schemaCount = 0;
 /** A linked object's identity, unique among the objects of every schema: an identity is unique within its schema. */
 function identity(target: any): string {
   return `${numberOf(target.as_schema())}:${_key_of(target)}`;
+}
+
+/** What a link links, as uniqueness tells it apart: the object's identity, or the parameter a parameter reference in its
+ * place designates (CAP-312). */
+function linkedIdentity(target: any, store: any): string {
+  const parameter = _parameter_in(target);
+  return parameter === null ? identity(visited(target, store)) : JSON.stringify(_link_key(parameter));
 }
 
 /** A number for each schema, as Python's `id()` of it. */
@@ -304,7 +311,7 @@ class Checker {
     this.schema(`of ${label}`, relation);
     const problems: string[] = [];
     for (const name of relation.entry.links.keys()) {
-      if (name === adjacency.me) continue;
+      if (name === adjacency.me || _parameter_in(entry[name]) !== null) continue; // a parameter reference: accepted (CAP-312)
       const problem = filling(relation, name, visited(entry[name], this.store).as_schema());
       if (problem !== null) problems.push(`${label}.${name}: ${problem}`);
     }
@@ -312,7 +319,7 @@ class Checker {
       problems.push(...this.valueProblems(`${label}.${name}`, prop.schema, propertyValue(entry[name], prop.schema)));
     }
     const links = new Map<string, string>([...relation.entry.links.keys()].filter((name) => name !== adjacency.me)
-      .map((name) => [name, identity(visited(entry[name], this.store))]));
+      .map((name) => [name, linkedIdentity(entry[name], this.store)]));
     links.set(adjacency.me, identity(owner));
     const values = new Map<string, string>();
     for (const [name, prop] of relation.entry.properties) {

@@ -467,6 +467,10 @@ class RecordedEntry extends Shelled {
       if (!this._links.has(link)) this._defined(link); // given no link, it defines the object it links, as a builder's
       return;
     }
+    if (Proxies._is_parameter(Proxies._durable(value))) { // in the place of the object the entry links (CAP-312)
+      this._link(link, value);
+      return;
+    }
     let schema: any = null;
     const takers: [string, string][] = Proxies._links(this._store, this._relation, link, value) ? [["link", link]] : [];
     const declared = this._relation.entry.links.get(link)?.schema;
@@ -551,6 +555,9 @@ function makeChained(member: unknown, entry: RecordedEntry): any {
 /** How a spec refers to an object it does not define: the symbol that binds it, or its path. A counted object has no
  * path: a spec reaches it through a symbol. */
 function reference(store: any, target: unknown): PlainMap {
+  if (Proxies._is_parameter(Proxies._durable(target)) || Proxies._parameter_in(target) !== null) {
+    return Plain._marked(store, Proxies._parameter_in(target) ?? target); // in the object's place (CAP-312)
+  }
   const recorder = innerOf(target);
   if (recorder instanceof Recorder) {
     if (recorder._state.symbol === null) throw new ValueError("an object a spec defines is linked where it is defined");
@@ -1161,6 +1168,12 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
     }
     const wanted = body.get("mutations")[0].get("set");
     const state = Proxies._innerOf(held);
+    const mine = state instanceof Proxies._internals._Entry ? state._links.get(name) : null;
+    if (Proxies._is_parameter(mine) || Plain._is_marked(wanted.get("reference"))) { // by the parameter's name (CAP-312)
+      if (!wanted.has("reference") || mine === null || JSON.stringify(Proxies._link_key(mine))
+        !== JSON.stringify(Proxies._link_key(resolve(store, wanted.get("reference"), frame)))) return false;
+      continue;
+    }
     if (wanted.has("reference") && state instanceof Proxies._internals._Entry && state._links.get(name) instanceof Proxies._Unresolved) {
       const found = resolve(store, wanted.get("reference"), frame); // one not present, compared by its path: loading nothing
       if (JSON.stringify(Proxies._link_key(state._links.get(name))) !== JSON.stringify(Proxies._link_key(found))) return false;
@@ -1179,8 +1192,10 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
   return true;
 }
 
-/** The object a spec's reference names: the one a symbol binds, or the one at a path. */
+/** The object a spec's reference names: the one a symbol binds, or the one at a path; or the parameter reference
+ * standing in its place (CAP-312). */
 function resolve(store: any, ref: Map<string, any>, frame: Bound): any {
+  if (Plain._is_marked(ref)) return Proxies._durable(Plain._unmarked(store, ref));
   if (ref.has("symbol")) return Proxies._durable(frame.get(ref.get("symbol")));
   const found = Proxies._durable(Plain._by_path(store, ref.get("path"), []));
   if (found === null || found === undefined) throw new LookupError("no object of the store has the path a spec refers to");

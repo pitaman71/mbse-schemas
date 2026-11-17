@@ -235,7 +235,10 @@ def _entries(adjacency: Schemas.OfAdjacency.Data, a: Any, b: Any) -> Result:
 
 
 def _links(a: Any, b: Any) -> Result:
-    """Links compare by their targets' identities: a link targets a reference object, never a value object."""
+    """Links compare by their targets' identities: a link targets a reference object, never a value object. A
+    parameter reference in the place of either halts the comparison (CAP-312)."""
+    if Proxies._parameter_in(a) is not None or Proxies._parameter_in(b) is not None:
+        return None
     a_id = None if a is None or Proxies._key_of(a) is None else (id(a.as_schema()), Proxies._key_of(a))
     b_id = None if b is None or Proxies._key_of(b) is None else (id(b.as_schema()), Proxies._key_of(b))
     if not a_id or not b_id:

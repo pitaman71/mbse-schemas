@@ -179,7 +179,8 @@ def _entry(store: Any, entry: Any) -> Any:
     """A `References.OfEntry`'s callback: its relation's path, each link's object's reference and each property's
     value."""
     relation = Paths.of(entry._relation)
-    links = {link: _object(store, getattr(entry, link)) for link in entry._links}  # each read: present, or loaded
+    links = {link: Proxies._parameter_in(getattr(entry, link)) or _object(store, getattr(entry, link))  # each read:
+             for link in entry._links}  # present, or loaded; a parameter reference in its place, as it is (CAP-312)
     properties = dict(entry._properties)
     return lambda e: e.relation(relation).links(links).properties(properties)
 

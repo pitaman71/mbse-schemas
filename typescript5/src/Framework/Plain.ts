@@ -30,7 +30,8 @@
  * A parameter reference (`References.OfParameter`) held in the place of a value of a schema that does not admit one as
  * such is written marked with its schema, `{"$schema": "References.OfParameter", "name": n}`, and read back the same,
  * wherever it stands: a property, a container's element, a union's branch or an intersection's part
- * ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
+ * ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). In the place of an object a link links, a link set refers to it so, beside a symbol or
+ * a path: `{"reference": {"$schema": "References.OfParameter", "name": n}}`.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -103,6 +104,25 @@ function parameter(read: any, schema: unknown, ref: Ref): PlainData {
   });
   if (found.length === 0 || Proxies._admits(schema, found[0].as_schema())) return null;
   return new Map([[SCHEMA, Proxies.PARAMETER], ...object(found[0], found[0].as_schema(), ref)]);
+}
+
+/** A parameter reference in the place of an object a link links, as a link set refers to it: marked with its schema,
+ * `{"$schema": "References.OfParameter", "name": n}`, beside a symbol or a path ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). */
+export function _marked(store: any, reference: unknown): PlainMap {
+  const held: any = Proxies._durable(reference);
+  return new Map([[SCHEMA, Proxies.PARAMETER], ...(ToPlain(store)(held.as_schema(), held) as PlainMap)]);
+}
+
+/** Whether what a link set refers to is a parameter reference, marked. */
+export function _is_marked(plain: unknown): boolean {
+  return plain instanceof Map && plain.get(SCHEMA) === Proxies.PARAMETER;
+}
+
+/** The parameter reference a link set refers to, marked, read as a standalone value. */
+export function _unmarked(store: any, plain: PlainMap, where: Where = []): any {
+  const schema = store.registered(Proxies.PARAMETER);
+  const decoded = decode(schema, new Map([...plain].filter(([key]) => key !== SCHEMA)), where, store);
+  return new Assigned(Proxies.PARAMETER, decoded, store).make();
 }
 
 /** A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one; a parameter reference
@@ -441,6 +461,7 @@ class Document {
     if (this.keying) return new Map();
     const number = this.numbers.get(target);
     if (number !== undefined) return new Map([["symbol", String(number)]]);
+    if (Proxies._is_parameter(target)) return _marked(this.store, target); // in the place of the object it links (CAP-312)
     if (target instanceof Proxies._Unresolved) return new Map([["path", target.path as PlainData]]); // not present (CAP-284)
     if (Proxies._is_data(target)) {
       if (Proxies._counted(target)) {
@@ -1171,10 +1192,17 @@ class StoreSnapshot {
   private key(visitor: any, adjacency: any, entry: any): string {
     const relation: Schemas.OfRelation.Data = adjacency.relation;
     const where = this.where(visitor, adjacency);
-    const links = sortedStrings([...relation.entry.links.keys()]).map((link) => [link, this.id(link === adjacency.me
-      ? this.original(visitor) : this.original(this.target(entry, link, where)))]);
+    const links = sortedStrings([...relation.entry.links.keys()]).map((link) => [link, this.identity(link === adjacency.me
+      ? visitor : this.target(entry, link, where))]);
     const values = [...relation.entry.properties].map(([n, p]) => [n, _symbol(value(entry[n], p.schema, this.names)[1])]);
     return JSON.stringify([this.id(relation), links, values]);
+  }
+
+  /** What tells apart what an entry links: the object, or the parameter a parameter reference in its place designates
+   * (CAP-312). */
+  private identity(target: any): unknown {
+    const parameter = Proxies._parameter_in(target);
+    return parameter === null ? this.id(this.original(target)) : Proxies._link_key(parameter);
   }
 
   /** The entries not written yet from another end, each counted written. */
@@ -1193,6 +1221,8 @@ class StoreSnapshot {
   /** What an entry links, as a spec refers to it: a symbol, a path, or, a schema object with no name of its own, its
    * definition where it is linked. */
   private refer(target: any): PlainMap {
+    const parameter = Proxies._parameter_in(target);
+    if (parameter !== null) return m([["reference", _marked(this.store, parameter)]]); // in the object's place (CAP-312)
     const number = this.numbers.get(this.original(target));
     if (number !== undefined) return m([["reference", m([["symbol", String(number)]])]]);
     const original = this.original(target); // not a symbol: a schema object, as every object the snapshot reaches is one
@@ -1426,6 +1456,8 @@ class Expression {
 
   private linked(entry: any, relation: Schemas.OfRelation.Data, link: string): PlainData {
     let target = entry[link];
+    const parameter = Proxies._parameter_in(target);
+    if (parameter !== null) return _marked(this.store, parameter); // in the place of the object it links (CAP-312)
     if (Builders._builder_for(target) !== null) {
       target = this.reader(target);
     } else {
@@ -1570,6 +1602,8 @@ function checkedEntry(store: any, adjacency: string, relation: any, member: Map<
     } else if (ref.has("symbol") && !symbols.has(ref.get("symbol"))) {
       throw new DecodeError(`${repr(ref.get("symbol"))} is not a symbol of the pattern`,
         { path: path(...at, "mutations", 0, "set", "reference", "symbol") });
+    } else if (_is_marked(ref)) {
+      _unmarked(store, ref, [...at, "mutations", 0, "set", "reference"]);
     } else if (ref.has("path")) {
       stepsOf(ref.get("path"), [...at, "mutations", 0, "set", "reference", "path"]);
     }
@@ -1630,6 +1664,7 @@ function fillers(store: any, relation: Schemas.OfRelation.Data, link: string): s
  * tag names, built. */
 function itemOf(store: any, relation: Schemas.OfRelation.Data, link: string, plain: unknown, where: Where,
   ignored: Ignored[] | null = null): unknown {
+  if (_is_marked(plain)) return _unmarked(store, plain as PlainMap, where); // in the place of the object it links (CAP-312)
   if (plain instanceof Map && plain.get(SCHEMA) === REFERENCE && plain.size === 2 && plain.has("path")) {
     const found = byPath(store, plain.get("path"), [...where, "path"]); // a reference, marked: an object nested has no `$schema`
     if (found === null) throw new DecodeError("no object at this path", { path: path(...where, "path") });

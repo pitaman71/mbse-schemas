@@ -31,6 +31,9 @@ used after its transaction ended, below.
 A parameter reference, `References.OfParameter`, may stand in the place of a value of any schema: given as the value
 (`b.size(n)`), or built in place through `Visitors.OfAny.as_parameter`. `as_parameter` reads it back, and every other
 visitor reads the place as empty, as it reads an unset value ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
+A parameter reference may also stand in the place of an object a link links (`e.to(n)`): the entry holds it, keyed by
+its parameter's name, in the tables of the objects it links alone; reading the link gives an empty visitor that holds
+it, whose `as_parameter` hands it over. A relation that owns what it links takes none (CAP-312).
 
 Every read of a store's data is made within a transaction ([CAP-315: every read within a transaction or through a
 follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). The store holds each object durably: its identity and its committed state, an
@@ -777,8 +780,28 @@ def _sorted_keys(value: Any) -> Any:
 
 
 def _link_key(target: Any) -> Hashable:
-    """What a link contributes to its entry's key: the object linked, or the path of one not present."""
+    """What a link contributes to its entry's key: the object linked, the path of one not present, or the name of the
+    parameter a parameter reference in the object's place designates (CAP-312)."""
+    if _is_parameter(target):
+        return ("parameter", _parameter_name(target))
     return ("path", target.key) if isinstance(target, _Unresolved) else id(target)
+
+
+def _parameter_name(reference: Any) -> Any:
+    """The name a parameter reference holds."""
+    return object.__getattribute__(_durable(reference), "_values").get("name")
+
+
+def _parameter_in(visitor: Any) -> Any:
+    """The parameter reference an empty visitor holds in the place of a value or of a linked object; None for any
+    other visitor."""
+    return _get(visitor, "_parameter") if isinstance(visitor, _Empty) else None
+
+
+def _end(target: Any) -> bool:
+    """Whether a link's target is an end that holds no entry table: one not present (CAP-284), or a parameter reference
+    in the place of an object (CAP-312)."""
+    return isinstance(target, _Unresolved) or _is_parameter(target)
 
 
 def _owns_through(relation: RelationSchema, link: str, store: Any) -> bool:
@@ -837,6 +860,8 @@ class _Entry(_Lived):
             raise AttributeError(name)
         if name in self._links:
             target = self._links[name]
+            if _is_parameter(target):  # in the place of the object it links (CAP-312): an empty visitor holding it
+                return _Empty(f"link {name!r} holds a parameter reference", _wrap(target, self._life))
             if isinstance(target, _Unresolved):  # read: loaded from the store below, which links it in every entry
                 target = self._links[name] = target.store._resolved(target)  # that waits on it, this one too
             return _wrap(target, self._life)
@@ -894,10 +919,17 @@ def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> No
                 raise ValueError(f"a {owned._schema_name!r} cannot be owned by a counted {owner._schema_name!r}: "
                                  "nothing is owned by a counted object")
     key, store = entry._key(), _entry_store(entry, store)
-    present = [target for target in entry._links.values() if not isinstance(target, _Unresolved)]
+    parameters = [link for link, target in entry._links.items() if _is_parameter(target)]
+    if parameters and any(_owns_through(relation, link, store) for link in relation.entry.links):
+        raise ValueError(f"link {parameters[0]!r} of an entry of {relation.name!r} holds a parameter reference, which a "
+                         "relation that owns what it links takes in no link: a parameter reference owns nothing and is "
+                         "owned by nothing")
+    present = [target for target in entry._links.values() if not _end(target)]
     if key in _table(present[0], id(relation), store):
         return
     for target in entry._links.values():
+        if _is_parameter(target):  # in the place of an object (CAP-312): it holds no table
+            continue
         if isinstance(target, _Unresolved):  # held by the objects present, linked again once it is loaded (CAP-284)
             target.store._waiting.setdefault(target.key, []).append(entry)
         else:
@@ -946,14 +978,14 @@ def _check_unique(entry: _Entry, store: Any) -> None:
     def part(e: _Entry, name: str) -> Hashable:
         target = e._links.get(name)
         if target is not None:
-            return ("link", id(target))
+            return ("link", _link_key(target) if _is_parameter(target) else id(target))
         value = e._properties.get(name)
         return ("value", None if value is None else _scalar_key(value))
 
     relation = entry._relation
     names = set(relation.entry.links) | set(relation.entry.properties)
     others = {id(e): e for target in entry._links.values()  # those an entry inserted links: present, outside loading
-              for e in _table(target, id(relation), store).values() if e is not entry}
+              if not _is_parameter(target) for e in _table(target, id(relation), store).values() if e is not entry}
     for clause in relation.uniques:
         rest = sorted(names - clause)
         for other in others.values():
@@ -976,7 +1008,7 @@ def _discard(relation_id: int, entries: list[_Entry], store: Any = None) -> None
     for entry in entries:
         key, held = entry._key(), _entry_store(entry, store)
         for target in entry._links.values():
-            if not isinstance(target, _Unresolved):  # one not present waits on it still: held as committed, maybe
+            if not _end(target):  # one not present waits on it still: held as committed, maybe; a parameter, none
                 _table(target, relation_id, held, write=True).pop(key, None)
         for _, owned in _owned_links(entry):
             object.__getattribute__(owned, "_store")._orphaned.append(owned)
@@ -993,7 +1025,7 @@ def _orders(schema: ObjectSchema, source: Any) -> list[tuple[dict[Hashable, _Ent
     for adjacency in schema.adjacencies.values():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             for target in entry._links.values():
-                if isinstance(target, _Unresolved):  # not present: it holds no table (CAP-284)
+                if _end(target):  # not present, or a parameter reference: it holds no table (CAP-284, CAP-312)
                     continue
                 table = _table(target, id(adjacency.relation), store, write=True)  # reordered after the update
                 tables.setdefault(id(table), (table, list(table.values())))
@@ -2284,9 +2316,15 @@ def _agrees(entry: Any, spec: Any, adjacency: Schemas.OfAdjacency.Data, store: O
         wanted_links, wanted_values = _entry_parts(spec, adjacency.me)
         if set(wanted_links) != set(links) or set(wanted_values) != set(values):
             return False
-    return (all(links.get(name) is target for name, target in wanted_links.items())
+    return (all(_same_link(links.get(name), target) for name, target in wanted_links.items())
             and all(name in values and _scalar_key(values[name]) == _scalar_key(value)
                     for name, value in wanted_values.items()))
+
+
+def _same_link(held: Any, wanted: Any) -> bool:
+    """Whether a link holds what a query gives: the same object, or a parameter reference to the same parameter."""
+    return held is wanted or (_is_parameter(held) and _is_parameter(_durable(wanted))
+                              and _link_key(held) == _link_key(_durable(wanted)))
 
 
 def _view(value: Any, schema: Any) -> Any:
@@ -2660,6 +2698,9 @@ def _given(them: Any, value: Any, link: str, link_takes: bool, members: Any) -> 
     if _is_function(value):
         _visit(value, them)
         return
+    if _is_parameter(_durable(value)):  # in the place of the object the entry links (CAP-312)
+        getattr(them, link)(value)
+        return
     takers = [(link, False)] if link_takes else []
     takers += [(name, adjacency) for name, adjacency, takes in members if takes]
     if len(takers) != 1:
@@ -2797,6 +2838,8 @@ class _Them(_Unassignable):
     def _builder(self) -> Any:
         if self._object is None:
             store, target = self._entry._store, self._entry._links.get(self._other)
+            if _is_parameter(target):
+                raise TypeError(f"link {self._other!r} holds a parameter reference, which has no members to write")
             if _is_builder(target):
                 self._object = target
             else:
@@ -2863,6 +2906,8 @@ class _LinkMember(_Unassignable):
         target = self._entry._links.get(self._name)
         if _is_builder(target):
             return _Empty("not created yet")  # what an entry builds through its link is created with the entry
+        if _is_parameter(target):  # in the place of the object it links (CAP-312)
+            return _Empty(f"link {self._name!r} holds a parameter reference", target)
         return target if target is not None else _Empty(f"link {self._name!r} is not set")
 
     def as_schema(self) -> Any:
@@ -2898,6 +2943,11 @@ class _LinkMember(_Unassignable):
             return entry
         if isinstance(spec, _LinkMember):
             spec = spec._target()
+        if _parameter_in(spec) is not None:  # a link's, or an entry's, that holds one
+            spec = _durable(_parameter_in(spec))
+        if _is_parameter(spec):  # in the place of the object it links (CAP-312), held as a value object is
+            entry._links[name] = _copied(spec)
+            return entry
         if isinstance(spec, _RecordData):
             raise ReadOnlyError("a link targets a reference object, never a value object")
         holds = getattr(entry._store, "holds", None)

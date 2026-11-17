@@ -1,6 +1,6 @@
 {
   "name": "@mbse/schemas",
-  "version": "0.27.1",
+  "version": "0.27.2",
   "description": "Neutral, language-independent schemas for interfaces and MBSE models: objects, relations, unions and intersections, with JSON/YAML and validation (TypeScript implementation)",
   "keywords": [
     "schema",

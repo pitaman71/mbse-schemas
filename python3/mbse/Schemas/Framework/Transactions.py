@@ -420,6 +420,9 @@ class _Entry(Proxies._Unassignable):
             if link not in self._links:  # given no link, it defines the object it links, as a builder's
                 self._defined(link)
             return
+        if Proxies._is_parameter(Proxies._durable(value)):  # in the place of the object the entry links (CAP-312)
+            self._link(link, value)
+            return
         schema, takers = None, [("link", link)] if Proxies._links(self._store, self._relation, link, value) else []
         declared = self._relation.entry.links[link].schema
         known = isinstance(declared, S.OfObject.Data) and declared.ref or len(self._store._filling(self._relation, link)) == 1
@@ -486,6 +489,8 @@ def _reference(store: Any, target: Any) -> Any:
     no path: a spec reaches it through a symbol."""
     from . import Paths
 
+    if Proxies._is_parameter(Proxies._durable(target)) or Proxies._parameter_in(target) is not None:
+        return Plain._marked(store, Proxies._parameter_in(target) or target)  # in the object's place (CAP-312)
     if isinstance(target, _Recorder):
         if target._state.symbol is None:
             raise ValueError("an object a spec defines is linked where it is defined")
@@ -1065,6 +1070,12 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: dict[str, 
                 return False
             continue
         given = body["mutations"][0]["set"]
+        mine = held._links[name] if isinstance(held, Proxies._Entry) else None
+        if Proxies._is_parameter(mine) or Plain._is_marked(given.get("reference")):  # by the parameter's name (CAP-312)
+            if "reference" not in given or mine is None or \
+                    Proxies._link_key(mine) != Proxies._link_key(_resolve(store, given["reference"], frame)):
+                return False
+            continue
         if "reference" in given and isinstance(held, Proxies._Entry) and isinstance(held._links[name], Proxies._Unresolved):
             found = _resolve(store, given["reference"], frame)  # one not present, compared by its path: loading nothing
             if Proxies._link_key(held._links[name]) != Proxies._link_key(found):
@@ -1083,7 +1094,10 @@ def _matches(store: Any, relation: Any, held: Any, entry: Any, frame: dict[str, 
 
 
 def _resolve(store: Any, ref: dict[str, Any], frame: dict[str, Any]) -> Any:
-    """The object a spec's reference names: the one a symbol binds, or the one at a path."""
+    """The object a spec's reference names: the one a symbol binds, or the one at a path; or the parameter reference
+    standing in its place (CAP-312)."""
+    if Plain._is_marked(ref):
+        return Proxies._durable(Plain._unmarked(store, ref))
     if "symbol" in ref:
         return Proxies._durable(frame[ref["symbol"]])
     found = Proxies._durable(Plain._by_path(store, ref["path"], ()))

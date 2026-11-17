@@ -32,7 +32,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { _admits, _innerOf, _internals, _key_of } from "./Proxies.js";
+import { _admits, _innerOf, _internals, _key_of, _parameter_in } from "./Proxies.js";
 import type * as Readers from "./Readers.js";
 import { compareStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
@@ -234,8 +234,9 @@ function entries(adjacency: Schemas.OfAdjacency.Data, a: any, b: any): Result {
 }
 
 /** Links compare by their targets' identities, each unique within its schema: a link targets a reference object, never
- * a value object. */
+ * a value object. A parameter reference in the place of either halts the comparison (CAP-312). */
 function compareLinks(a: any, b: any): Result {
+  if (_parameter_in(a) !== null || _parameter_in(b) !== null) return null;
   const x = a === null || a === undefined ? null : _key_of(a);
   const y = b === null || b === undefined ? null : _key_of(b);
   if (x === null || y === null) return x === null && y === null ? 0 : null;

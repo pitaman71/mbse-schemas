@@ -17,16 +17,62 @@ The extension: `install` gives `Schemas.OfParameter` its `for_value` and `for_ob
 their objects assign and bind, `assigned_values` and `bound_objects`. A transaction that assigns or binds a parameter
 which the object's schema does not declare is refused when it commits (`_check`). `validate(store, defn)` checks a
 definition's set's `Defines` entries.
+
+A parameter context, `Context`, maps each parameter's name to the value assigned to it or the object bound to it, in
+which validation checks each parameter reference it meets ([CAP-313: parameter references valid where their parameters
+are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from types import MappingProxyType
 from typing import Any
 
 from . import Proxies, Schemas
 from .Builders import _builder_for
 
-__all__ = ["install", "extend", "validate"]
+__all__ = ["install", "extend", "validate", "Context"]
+
+
+class Context:
+    """A parameter context: it maps a parameter's name to the value assigned to it, or to what is bound to it, an object
+    or, where a frame is involved, a symbol ([CAP-313: parameter references valid where their parameters are assigned or
+    bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). `Context()` maps no name. A context is immutable:
+    `assign(name, value)` and `bind(name, target)` each give a sub-context, in which `name` maps anew and the context's
+    own mapping of `name` is hidden, while the context itself is unchanged. `assigned(name)` gives the value assigned to
+    a name, and `bound(name)` what is bound to it; a context that maps a name gives it one or the other, and a context
+    that does not map it gives None for both. Validation takes a context (`Validators.Validate(store)(schema, value,
+    context)`), and makes a sub-context of it where it meets an object that assigns or binds parameters."""
+
+    __slots__ = ("_mapped",)
+
+    def __init__(self) -> None:
+        self._mapped: Mapping[str, tuple[bool, Any]] = MappingProxyType({})
+
+    def assigned(self, name: str) -> Any:
+        """The value assigned to `name`; None where the context assigns it none."""
+        found = self._mapped.get(name, (False, None))
+        return found[1] if found[0] else None
+
+    def bound(self, name: str) -> Any:
+        """The object, or the symbol, bound to `name`; None where the context binds it to nothing."""
+        found = self._mapped.get(name, (True, None))
+        return None if found[0] else found[1]
+
+    def assign(self, name: str, value: Any) -> Context:
+        """A sub-context in which `value` is assigned to `name`, hiding what this context maps `name` to."""
+        return self._with(name, True, value)
+
+    def bind(self, name: str, target: Any) -> Context:
+        """A sub-context in which `name` is bound to `target`, an object or a symbol, hiding what this context maps
+        `name` to."""
+        return self._with(name, False, target)
+
+    def _with(self, name: str, assigned: bool, target: Any) -> Context:
+        inner = Context()
+        inner._mapped = MappingProxyType({**self._mapped, name: (assigned, target)})
+        return inner
 
 
 def install(txn: Any) -> Any:
@@ -108,7 +154,7 @@ def validate(store: Any, defn: Any) -> list[str]:
     (`Parametrics.HasParameters`, unique in both directions). None where it has no set. Of a reference object, read
     within a transaction, each of its assignments (`Parametrics.AssignsValue`) and bindings (`Parametrics.BindsObject`)
     of a parameter that its schema does not declare. Whether an assignment's value, or a binding's object, is of its
-    parameter's schema is not checked."""
+    parameter's schema is validation's to check (`Validators`)."""
     if isinstance(Proxies._durable(defn), Proxies._ObjectData):
         target = Proxies._durable(defn)
         found = [_undeclared(store, store.registered(f"Parametrics.{name}"), entry)
@@ -236,3 +282,17 @@ def _undeclared(store: Any, relation: Any, entry: Any) -> str | None:
     did = f"assigns a value to {shown}" if assigns else f"binds {shown} to an object"
     return (f"an entry of {relation.name!r} {did}, which {target._schema.name!r} does not declare: an object assigns "
             "and binds only the parameters its schema declares")
+
+
+def _named(store: Any, param: Any) -> str | None:
+    """The name a set of parameters gives a parameter, through `Parametrics.Defines`; None where no set defines it."""
+    names = [defined._properties["name"] for defined in
+             Proxies._linking(store.registered("Parametrics.Defines"), "parameter", param, store)]
+    return names[0] if names else None
+
+
+def _for(store: Any, param: Any, relation: str) -> Any:
+    """The schema a parameter is for through `relation`, `Parametrics.ForValue` or `ForObject`; None where it is not
+    for one through it."""
+    found = [entry._links["schema"] for entry in Proxies._linking(store.registered(relation), "param", param, store)]
+    return found[0] if found else None

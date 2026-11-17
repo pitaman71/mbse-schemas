@@ -18,6 +18,10 @@
  * which their objects assign and bind, `assigned_values` and `bound_objects`. A transaction that assigns or binds a
  * parameter which the object's schema does not declare is refused when it commits (`_check`). `validate(store, defn)` checks a definition's set's
  * `Defines` entries.
+ *
+ * A parameter context, `Context`, maps each parameter's name to the value assigned to it or the object bound to it, in
+ * which validation checks each parameter reference it meets ([CAP-313: parameter references valid where their
+ * parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
  */
 
 import * as Builders from "./Builders.js";
@@ -26,6 +30,47 @@ import type * as Proposals from "./Proposals.js";
 import * as Proxies from "./Proxies.js";
 import * as Schemas from "./Schemas.js";
 import { repr, sortedStrings } from "./Repr.js";
+
+/** A parameter context: it maps a parameter's name to the value assigned to it, or to what is bound to it, an object
+ * or, where a frame is involved, a symbol ([CAP-313: parameter references valid where their parameters are assigned or
+ * bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)). `new Context()` maps no name. A context is immutable:
+ * `assign(name, value)` and `bind(name, target)` each give a sub-context, in which `name` maps anew and the context's
+ * own mapping of `name` is hidden, while the context itself is unchanged. `assigned(name)` gives the value assigned to
+ * a name, and `bound(name)` what is bound to it; a context that maps a name gives it one or the other, and a context
+ * that does not map it gives null for both. Validation takes a context (`Validators.Validate(store)(schema, value,
+ * context)`), and makes a sub-context of it where it meets an object that assigns or binds parameters. */
+export class Context {
+  private mapped: ReadonlyMap<string, readonly [boolean, unknown]> = new Map();
+
+  /** The value assigned to `name`; null where the context assigns it none. */
+  assigned(name: string): any {
+    const found = this.mapped.get(name) ?? [false, null];
+    return found[0] ? found[1] : null;
+  }
+
+  /** The object, or the symbol, bound to `name`; null where the context binds it to nothing. */
+  bound(name: string): any {
+    const found = this.mapped.get(name) ?? [true, null];
+    return found[0] ? null : found[1];
+  }
+
+  /** A sub-context in which `value` is assigned to `name`, hiding what this context maps `name` to. */
+  assign(name: string, value: unknown): Context {
+    return this.with(name, true, value);
+  }
+
+  /** A sub-context in which `name` is bound to `target`, an object or a symbol, hiding what this context maps `name`
+   * to. */
+  bind(name: string, target: unknown): Context {
+    return this.with(name, false, target);
+  }
+
+  private with(name: string, assigned: boolean, target: unknown): Context {
+    const inner = new Context();
+    inner.mapped = new Map([...this.mapped, [name, [assigned, target] as const]]);
+    return inner;
+  }
+}
 
 /** Parameters of definitions, what each is for, and the assignments and bindings of the objects a definition governs,
  * defined in the store a transaction writes; the extension of the schemas the store was made holding, `Schemas.OfParameter`
@@ -103,7 +148,7 @@ export function install(txn: any): any {
  * (`Parametrics.HasParameters`, unique in both directions). None where it has no set. Of a reference object, read
  * within a transaction, each of its assignments (`Parametrics.AssignsValue`) and bindings (`Parametrics.BindsObject`)
  * of a parameter that its schema does not declare. Whether an assignment's value, or a binding's object, is of its
- * parameter's schema is not checked. */
+ * parameter's schema is validation's to check (`Validators`). */
 export function validate(store: any, defn: any): string[] {
   if (Proxies._isObjectData(defn)) {
     const target = Proxies._durable(defn);
@@ -242,4 +287,19 @@ function undeclared(store: any, relation: any, entry: unknown): string | null {
   const did = relation.name === "Parametrics.AssignsValue" ? `assigns a value to ${shown}` : `binds ${shown} to an object`;
   return `an entry of ${repr(relation.name)} ${did}, which ${repr(schema.name)} does not declare: an object assigns `
     + "and binds only the parameters its schema declares";
+}
+
+/** The name a set of parameters gives a parameter, through `Parametrics.Defines`; null where no set defines it. */
+export function _named(store: any, param: unknown): string | null {
+  const names = Proxies._linking(store.registered("Parametrics.Defines"), "parameter", param, store)
+    .map((defined: any) => Proxies._innerOf(defined)._properties.get("name"));
+  return names.length > 0 ? names[0] : null;
+}
+
+/** The schema a parameter is for through `relation`, `Parametrics.ForValue` or `ForObject`; null where it is not for
+ * one through it. */
+export function _for(store: any, param: unknown, relation: string): any {
+  const found = Proxies._linking(store.registered(relation), "param", param, store)
+    .map((entry: any) => Proxies._innerOf(entry)._links.get("schema"));
+  return found.length > 0 ? found[0] : null;
 }

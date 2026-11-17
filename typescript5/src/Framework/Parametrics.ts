@@ -1,21 +1,22 @@
 /**
- * Parametrics: the parameters of definitions, what each can be bound to, and the bindings of the objects a definition
- * governs ([CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md); [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md); [CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)).
+ * Parametrics: the parameters of definitions, what each is for, and the assignments and bindings of the objects a
+ * definition governs ([CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md); [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md); [CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)).
  *
  * Normal schemas and one extension, installed before use: `store.transaction(Parametrics.install)`. A parameter is a
  * `Schemas.OfParameter`, a name and a description; `Parametrics.OfParameters` is a set of named parameters, holding
  * each through `Parametrics.Defines`, keyed by its name. A parameter is for a value of one schema
  * (`Parametrics.ForValue`) or for a reference to an object of one object schema (`Parametrics.ForObject`), exactly one.
  * A definition, a schema of any kind, has one set of parameters (`Parametrics.HasParameters`, unique in both
- * directions). A schema declares parameters and binds none of them: a reference object that the schema governs binds
- * them. `Parametrics.BindsValue` links the object and the parameter, its value the entry property `value`;
- * `Parametrics.BindsObject` links the object, the parameter and the bound object, `obj_ref`. A parameter that an
- * object leaves unbound stays unbound.
+ * directions). A schema declares parameters and gives none of them a value or an object: a reference object that the
+ * schema governs assigns a value to a parameter for a value, through `Parametrics.AssignsValue`, which links the object
+ * and the parameter and holds the value as the entry property `value`; and it binds a parameter for an object to an
+ * object, through `Parametrics.BindsObject`, which links the object, the parameter and the object bound, `obj_ref`, any
+ * reference object. A parameter that an object neither assigns nor binds stays unbound.
  *
  * The extension: `install` gives `Schemas.OfParameter` its `for_value` and `for_object`, and every kind of schema its
  * `parameters` (to `HasParameters`). `extend(txn, schemas)` gives reference object schemas the adjacencies through
- * which their objects bind, `bound_values` and `bound_objects`. A transaction that binds a parameter which the object's
- * schema does not declare is refused when it commits (`_check`). `validate(store, defn)` checks a definition's set's
+ * which their objects assign and bind, `assigned_values` and `bound_objects`. A transaction that assigns or binds a
+ * parameter which the object's schema does not declare is refused when it commits (`_check`). `validate(store, defn)` checks a definition's set's
  * `Defines` entries.
  */
 
@@ -26,15 +27,15 @@ import * as Proxies from "./Proxies.js";
 import * as Schemas from "./Schemas.js";
 import { repr, sortedStrings } from "./Repr.js";
 
-/** Parameters of definitions, what each can be bound to, and the bindings of the objects a definition governs, defined
- * in the store a transaction writes; the extension of the schemas the store was made holding, `Schemas.OfParameter`
+/** Parameters of definitions, what each is for, and the assignments and bindings of the objects a definition governs,
+ * defined in the store a transaction writes; the extension of the schemas the store was made holding, `Schemas.OfParameter`
  * and each kind of schema. Run again in a store, it finds each by its name and writes nothing. */
 export function install(txn: any): any {
   const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
   return txn.uid("mbse.Schemas.Parametrics/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
     .symbols({
       OfParameters: S.OfObject, Defines: S.OfRelation, ForValue: S.OfRelation, ForObject: S.OfRelation,
-      HasParameters: S.OfRelation, BindsValue: S.OfRelation, BindsObject: S.OfRelation,
+      HasParameters: S.OfRelation, AssignsValue: S.OfRelation, BindsObject: S.OfRelation,
       OfParameter: S.OfObject, OfScalar: S.OfObject, OfObject: S.OfObject, OfUnion: S.OfObject,
       OfIntersection: S.OfObject, OfContainer: S.OfObject, OfAny: S.OfObject, OfRelation: S.OfObject,
       OfPattern: S.OfObject, OfExpression: S.OfObject, OfCollector: S.OfObject, OfModule: S.OfObject,
@@ -55,7 +56,7 @@ export function install(txn: any): any {
         (t: any) => t.name("param"), (t: any) => t.name("schema")]).uniques("schema"), // one schema per parameter
       (_: any) => _.HasParameters.name("Parametrics.HasParameters").links([
         (t: any) => t.name("defn"), (t: any) => t.name("params")]).uniques([["defn"], ["params"]]),
-      (_: any) => _.BindsValue.name("Parametrics.BindsValue").links([
+      (_: any) => _.AssignsValue.name("Parametrics.AssignsValue").links([
         (t: any) => t.name("object"), (t: any) => t.name("param")]).properties({
         value: S.OfAny((a: any) => a) }), // a value of any schema
       (_: any) => _.BindsObject.name("Parametrics.BindsObject").links([
@@ -67,7 +68,7 @@ export function install(txn: any): any {
         for_object: (a: any) => a.relation([_.ForObject]).me("param"),
       }).adjacencies([
         (a: any) => a.relation([_.Defines]).me("parameter"),
-        (a: any) => a.relation([_.BindsValue]).me("param"), // anonymous: what binds it
+        (a: any) => a.relation([_.AssignsValue]).me("param"), // anonymous: what assigns it a value, or binds it
         (a: any) => a.relation([_.BindsObject]).me("param"),
       ]),
       (_: any) => _.OfScalar.name("Schemas.OfScalar").adjacencies({
@@ -95,17 +96,18 @@ export function install(txn: any): any {
     ])]))]);
 }
 
-/** The problems of a definition's parameters, or of the bindings of an object that a definition governs. Of a
- * definition, a check of its set's `Parametrics.Defines` entries: a name starting with `$`, reserved; a description
+/** The problems of a definition's parameters, or of the assignments and bindings of an object that a definition
+ * governs. Of a definition, a check of its set's `Parametrics.Defines` entries: a name starting with `$`, reserved; a description
  * that is not text; a parameter for neither a value nor an object, or for both; and, of a pattern, a name used as both a
  * symbol or a variable and a parameter; and that the definition has one set, and its set one definition
  * (`Parametrics.HasParameters`, unique in both directions). None where it has no set. Of a reference object, read
- * within a transaction, each of its bindings (`Parametrics.BindsValue`, `Parametrics.BindsObject`) of a parameter that
- * its schema does not declare. Whether a binding's value or object is of its parameter's schema is not checked. */
+ * within a transaction, each of its assignments (`Parametrics.AssignsValue`) and bindings (`Parametrics.BindsObject`)
+ * of a parameter that its schema does not declare. Whether an assignment's value, or a binding's object, is of its
+ * parameter's schema is not checked. */
 export function validate(store: any, defn: any): string[] {
   if (Proxies._isObjectData(defn)) {
     const target = Proxies._durable(defn);
-    return ["BindsValue", "BindsObject"].flatMap((name) => {
+    return ["AssignsValue", "BindsObject"].flatMap((name) => {
       const relation = store.registered(`Parametrics.${name}`);
       return Proxies._linking(relation, "object", target, store).map((entry: any) => undeclared(store, relation, entry));
     }).filter((problem): problem is string => problem !== null);
@@ -146,17 +148,18 @@ export function validate(store: any, defn: any): string[] {
 }
 
 /** Gives each reference object schema of `schemas` (each a schema object, or its name as a path, `txn.hw.Bus`) the
- * adjacencies through which its objects bind the parameters it declares: `bound_values`, to `Parametrics.BindsValue`,
- * and `bound_objects`, to `Parametrics.BindsObject`, each through `object`
+ * adjacencies through which its objects assign values to the parameters it declares, `assigned_values`, to
+ * `Parametrics.AssignsValue`, and bind them to objects, `bound_objects`, to `Parametrics.BindsObject`, each through
+ * `object`
  * ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)); the transaction that does, in the store a
  * transaction writes: `store.transaction((t: any) => Parametrics.extend(t, [t.hw.Bus]))`. An app's install calls it
  * after its own and `Parametrics.install`; run again, it writes nothing. A value object is never linked, so that a
- * value object schema is refused, as are a schema of schemas, whose objects are schemas, and a schema that declares a
+ * value object schema is refused, as are the meta-schemas, whose objects are schemas, and a schema that declares a
  * member of either name. */
 export function extend(txn: any, schemas: Iterable<unknown>): any {
   const P = txn.Parametrics;
   try {
-    P.BindsValue.as_schema();
+    P.AssignsValue.as_schema();
   } catch {
     throw new LookupError("Parametrics.extend: the store has no Parametrics installed; install it first, "
       + "store.transaction(Parametrics.install)");
@@ -168,15 +171,15 @@ export function extend(txn: any, schemas: Iterable<unknown>): any {
       const shown = typeof schema?.name === "string" ? schema.name : given;
       throw new TypeError(`Parametrics.extend takes reference object schemas: ${repr(shown)} is not one`);
     }
-    if (String(schema.name).startsWith("Schemas.")) { // a schema of schemas: a schema declares, and its data binds
-      throw new TypeError(`Parametrics.extend: ${repr(schema.name)} is a schema of schemas, whose objects are schemas: a `
-        + "schema declares its parameters and binds none of them");
+    if (String(schema.name).startsWith("Schemas.")) { // a schema declares parameters, and its data assigns and binds them
+      throw new TypeError(`Parametrics.extend: ${repr(schema.name)} is one of the meta-schemas, whose objects are `
+        + "schemas: a schema declares its parameters and neither assigns nor binds them");
     }
     if (!schema.ref) {
       throw new TypeError(`Parametrics.extend takes reference object schemas: ${repr(schema.name)} is a value object `
-        + "schema, whose objects are never linked, so that none binds a parameter");
+        + "schema, whose objects are never linked, so that none assigns or binds a parameter");
     }
-    for (const [member, relation] of [["bound_values", P.BindsValue], ["bound_objects", P.BindsObject]] as const) {
+    for (const [member, relation] of [["assigned_values", P.AssignsValue], ["bound_objects", P.BindsObject]] as const) {
       if (schema.properties.has(member)
         || (schema.adjacencies.has(member) && schema.adjacencies.get(member)!.relation !== relation.as_schema())) {
         throw new TypeError(`Parametrics.extend: ${repr(schema.name)} already declares a member ${repr(member)}`);
@@ -187,20 +190,22 @@ export function extend(txn: any, schemas: Iterable<unknown>): any {
   const symbols = Object.fromEntries(names.map((_name, index) => [`s${index}`, txn.Schemas.OfObject]));
   return txn.mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p.symbols(symbols).spec(
     names.map((name, index) => (_: any) => _[`s${index}`].name(name).adjacencies({
-      bound_values: (a: any) => a.relation([P.BindsValue]).me("object"),
+      assigned_values: (a: any) => a.relation([P.AssignsValue]).me("object"),
       bound_objects: (a: any) => a.relation([P.BindsObject]).me("object"),
     })))]))]);
 }
 
-/** Refuses a transaction, just before it commits, that inserts a binding of a parameter which the bound object's schema
- * does not declare, through `Parametrics.HasParameters` and `Parametrics.Defines`, where the store has `Parametrics`
- * installed ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)). It is checked at commit, as a unique clause
- * is ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)), once the transaction's writes are all made, and
- * only of the bindings the transaction inserts. A binding whose object or parameter is a parameter reference, or an object of the store
- * below that is not present, is not checked: what it binds is not known here. */
+/** Refuses a transaction, just before it commits, that inserts an assignment or a binding of a parameter which the
+ * schema of the object that assigns or binds it does not declare, through `Parametrics.HasParameters` and
+ * `Parametrics.Defines`, where the store has `Parametrics` installed
+ * ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)). It is checked at commit, as a unique clause is
+ * ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)), once the transaction's writes are all made, and
+ * only of the entries the transaction inserts. An entry whose object or parameter is a parameter reference, or an
+ * object of the store below that is not present, is not checked: what it gives a value or an object is not known
+ * here. */
 export function _check(store: any, proposals: Proposals.OfStore): void {
-  if (!proposals.saved.get(store._schemas)!.some(([name]) => name === "Parametrics.BindsValue")) return;
-  const relations = [store.registered("Parametrics.BindsValue"), store.registered("Parametrics.BindsObject")];
+  if (!proposals.saved.get(store._schemas)!.some(([name]) => name === "Parametrics.AssignsValue")) return;
+  const relations = [store.registered("Parametrics.AssignsValue"), store.registered("Parametrics.BindsObject")];
   const seen = new Set<unknown>();
   for (const [holder, tables] of proposals.entries_ as Map<object, Map<unknown, Map<string, unknown>>>) {
     const before = proposals.base.entries(holder) as Map<unknown, Map<string, unknown>>;
@@ -217,8 +222,8 @@ export function _check(store: any, proposals: Proposals.OfStore): void {
   }
 }
 
-/** Why a binding's parameter is not one its object's schema declares; null where it is, or where the object or the
- * parameter is a parameter reference, or an object of the store below that is not present. */
+/** Why an assignment's or a binding's parameter is not one its object's schema declares; null where it is, or where
+ * the object or the parameter is a parameter reference, or an object of the store below that is not present. */
 function undeclared(store: any, relation: any, entry: unknown): string | null {
   const links = Proxies._innerOf(entry)._links;
   const target = links.get("object");
@@ -234,6 +239,7 @@ function undeclared(store: any, relation: any, entry: unknown): string | null {
   const names = Proxies._linking(defines, "parameter", param, store)
     .map((defined: any) => Proxies._innerOf(defined)._properties.get("name"));
   const shown = names.length > 0 ? `parameter ${repr(names[0])}` : "a parameter no set of parameters defines";
-  return `an entry of ${repr(relation.name)} binds ${shown}, which ${repr(schema.name)} does not declare: an object `
-    + "binds only the parameters its schema declares";
+  const did = relation.name === "Parametrics.AssignsValue" ? `assigns a value to ${shown}` : `binds ${shown} to an object`;
+  return `an entry of ${repr(relation.name)} ${did}, which ${repr(schema.name)} does not declare: an object assigns `
+    + "and binds only the parameters its schema declares";
 }

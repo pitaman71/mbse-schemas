@@ -93,8 +93,8 @@ schemas from anything a program holds; the builders make a new version beside a 
    parameters, not one per value. *How*: install `Parametrics` before use; in a spec, give a schema of any kind a set of
    parameters, each named, described, and for a value of a schema (`for_value`) or an object of an object schema
    (`for_object`). `Parametrics.validate(store, schema)` checks them; a schema's own `validate()` does not. A schema
-   binds none of its parameters. A parameter reference, `References.OfParameter`, built through its `name` alone,
-   designates a parameter by its name and holds nothing else. It is a value, written and read as any value is. A
+   neither assigns nor binds its parameters. A parameter reference, `References.OfParameter`, built through its `name`
+   alone, designates a parameter by its name and holds nothing else. It is a value, written and read as any value is. A
    binding in the scope that encloses it resolves it, not a store, and `References.of` makes none.
    [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md),
    [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md),
@@ -103,24 +103,25 @@ schemas from anything a program holds; the builders make a new version beside a 
    - Python: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-02) · TypeScript: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-02)
    - Python: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-03) · TypeScript: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-03)
    - Python: [REF-11: A parameter reference holds its parameter's name and nothing else](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-11) · TypeScript: [REF-11: A parameter reference holds its parameter's name and nothing else](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-11)
-10. **Binding parameters.** *Why*: a schema declares its parameters once, and each object that the schema governs
-   chooses its own: one bus is eight bits wide, another one bit. *When*: a reference object binds a parameter that its
-   schema declares; a value object is never linked, so that it binds none, and an expression term binds parameters in
+10. **Assigning and binding parameters.** *Why*: a schema declares its parameters once, and each object that the schema
+   governs chooses its own: one bus is eight bits wide, another one bit. *When*: a reference object assigns a value to
+   a parameter for a value, and binds a parameter for an object to an object, where its schema declares the parameter;
+   a value object is never linked, so that it does neither, and an expression term binds parameters in
    mbse-expressions. *How*: after `Parametrics.install` and the schema's own install, `Parametrics.extend(txn,
-   [schemas])` gives each reference object schema two adjacencies, `bound_values`, to `Parametrics.BindsValue`, and
-   `bound_objects`, to `Parametrics.BindsObject`; run again, it writes nothing. An entry of `bound_values` links the
-   parameter (`param`) and holds the value (`value`); an entry of `bound_objects` links the parameter and the object
-   bound (`obj_ref`), whose schema declares an adjacency to `Parametrics.BindsObject` through `obj_ref`. A parameter the
-   object leaves unbound stays unbound. A transaction that binds a parameter which the object's schema does not declare
-   is refused when it commits, and `Parametrics.validate(store, object)`, within a transaction, reports such a binding
-   already held. Whether a binding's value or object is of its parameter's schema is not checked
-   ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
+   [schemas])` gives each reference object schema two adjacencies, `assigned_values`, to `Parametrics.AssignsValue`,
+   and `bound_objects`, to `Parametrics.BindsObject`; run again, it writes nothing. An entry of `assigned_values` links
+   the parameter (`param`) and holds the value (`value`); an entry of `bound_objects` links the parameter and the object
+   bound (`obj_ref`), which may be any reference object, whose schema opts into nothing. A parameter the object neither
+   assigns nor binds stays unbound. A transaction that assigns or binds a parameter which the object's schema does not
+   declare is refused when it commits, and `Parametrics.validate(store, object)`, within a transaction, reports such an
+   assignment or binding already held. Whether an assignment's value, or a binding's object, is of its parameter's
+   schema is not checked ([CAP-313: parameter references bound and validated](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
    [CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314).
-   - Python: [T11.8: Binding parameters: each bus binds its width](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.8) · TypeScript: [T11.8: Binding parameters: each bus binds its width](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.8)
-   - Python: [PAR-05: `extend` gives a reference object schema the adjacencies through which its objects bind; it refuses a store without Parametrics, a value object schema and a member's name taken; run again, it writes nothing](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-05) · TypeScript: [PAR-05: `extend` gives a reference object schema the adjacencies through which its objects bind; it refuses a store without Parametrics, a value object schema and a member's name taken; run again, it writes nothing](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-05)
-   - Python: [PAR-06: An object binds a value and an object to the parameters its schema declares; a parameter it leaves unbound stays unbound](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-06) · TypeScript: [PAR-06: An object binds a value and an object to the parameters its schema declares; a parameter it leaves unbound stays unbound](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-06)
-   - Python: [PAR-07: A binding of a parameter its object's schema does not declare refuses its transaction when it commits; validation reports one already held, and a snapshot reads it back as written](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-07) · TypeScript: [PAR-07: A binding of a parameter its object's schema does not declare refuses its transaction when it commits; validation reports one already held, and a snapshot reads it back as written](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-07)
-   - Python: [PAR-08: A schema binds none of its parameters: no kind of schema has an adjacency to a binding, a binding links an `object`, and extending a schema of schemas is refused](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-08) · TypeScript: [PAR-08: A schema binds none of its parameters: no kind of schema has an adjacency to a binding, a binding links an `object`, and extending a schema of schemas is refused](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-08)
+   - Python: [T11.8: Assigning parameters: each bus assigns its width](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.8) · TypeScript: [T11.8: Assigning parameters: each bus assigns its width](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.8)
+   - Python: [PAR-05: `extend` gives a reference object schema the adjacencies through which its objects assign and bind; it refuses a store without Parametrics, a value object schema and a member's name taken; run again, it writes nothing](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-05) · TypeScript: [PAR-05: `extend` gives a reference object schema the adjacencies through which its objects assign and bind; it refuses a store without Parametrics, a value object schema and a member's name taken; run again, it writes nothing](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-05)
+   - Python: [PAR-06: An object assigns a value to a parameter its schema declares, and binds one to an object of any schema, which opts into nothing; a parameter it neither assigns nor binds stays unbound](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-06) · TypeScript: [PAR-06: An object assigns a value to a parameter its schema declares, and binds one to an object of any schema, which opts into nothing; a parameter it neither assigns nor binds stays unbound](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-06)
+   - Python: [PAR-07: An assignment or a binding of a parameter its object's schema does not declare refuses its transaction when it commits; validation reports one already held, and a snapshot reads it back as written](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-07) · TypeScript: [PAR-07: An assignment or a binding of a parameter its object's schema does not declare refuses its transaction when it commits; validation reports one already held, and a snapshot reads it back as written](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-07)
+   - Python: [PAR-08: A schema neither assigns nor binds its parameters: no kind of schema has an adjacency to an assignment or a binding, each links an `object`, and extending one of the meta-schemas is refused](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-08) · TypeScript: [PAR-08: A schema neither assigns nor binds its parameters: no kind of schema has an adjacency to an assignment or a binding, each links an `object`, and extending one of the meta-schemas is refused](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-08)
 11. **A parameter reference in place of a value.** *Why*: a model that leaves a value to a parameter (a size, a corner,
    an element) holds the parameter's reference where the value would be, so that the schema stays as it is. *When*:
    wherever a value of any schema is expected: a property's scalar or value object, a container's element, a union's

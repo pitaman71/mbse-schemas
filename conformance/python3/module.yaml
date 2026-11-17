@@ -967,7 +967,7 @@
                         name: name
                         mutations:
                         - set:
-                            value: BindsValue
+                            value: AssignsValue
                   - mutations:
                     - as_link:
                         name: schema
@@ -1276,7 +1276,7 @@
               name: name
               mutations:
               - set:
-                  value: Parametrics.BindsValue
+                  value: Parametrics.AssignsValue
           - as_adjacency:
               name: links
               mutations:

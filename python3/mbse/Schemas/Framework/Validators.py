@@ -135,10 +135,14 @@ def _linked_identity(target: Any, store: Any) -> Hashable:
     return _identity(_visited(target, store)) if parameter is None else Proxies._link_key(parameter)
 
 
+_BOUND = ("Parametrics.BindsObject", "obj_ref")  # the object a parameter is bound to: any reference object
+
+
 def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObject.Data) -> str | None:
     """Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it,
-    named or anonymous."""
-    if schema.fills(relation, name):
+    named or anonymous; but the object a parameter is bound to, `Parametrics.BindsObject`'s `obj_ref`, may be any
+    reference object, whose schema opts into nothing ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314))."""
+    if schema.fills(relation, name) or (relation.name, name) == _BOUND:
         return None
     return (f"a {schema.name!r} cannot fill link {name!r}; its schema declares no adjacency, named or anonymous, to this "
             f"relation via {name!r}")

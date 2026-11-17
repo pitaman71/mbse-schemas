@@ -1799,7 +1799,7 @@ class Store(Proxies.OfStore):
         of the store's, and leaves the one open as it is."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
-        from . import Provenance
+        from . import Parametrics, Provenance
 
         if self._loading:  # what the store below holds, loaded: no transaction of this store's, nor of the one open's
             try:
@@ -1815,6 +1815,8 @@ class Store(Proxies.OfStore):
         try:
             with super()._transacting() as proposals:
                 yield proposals
+                if not (self._applying or self._restoring):  # checked where committed, as unique clauses are
+                    Parametrics._check(self, proposals)  # (CAP-293); a snapshot's restored as it was written
                 if not (self._applying or (self._below is not None and self._below.records)):  # recorded once, in
                     Provenance._record(self, proposals)  # the lowest store, at its commit, within it
             committed = True

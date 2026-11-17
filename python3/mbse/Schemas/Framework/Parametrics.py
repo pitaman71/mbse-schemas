@@ -1,16 +1,22 @@
-"""Parametrics: the parameters of definitions, what each can be bound to, and their bindings ([CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md);
-[CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md)).
+"""Parametrics: the parameters of definitions, what each is for, and the assignments and bindings of the objects a
+definition governs ([CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md); [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md); [CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)).
 
 Normal schemas and one extension, installed before use: `store.transaction(Parametrics.install)`. A parameter is a
 `Schemas.OfParameter`, a name and a description; `Parametrics.OfParameters` is a set of named parameters, holding each
 through `Parametrics.Defines`, keyed by its name. A parameter is for a value of one schema (`Parametrics.ForValue`) or
 for a reference to an object of one object schema (`Parametrics.ForObject`), exactly one. A definition, a schema of any
-kind, has one set of parameters (`Parametrics.HasParameters`, unique in both directions); a binding, at the definition
-that binds it, is `Parametrics.BindsValue`, its value an entry property, or `Parametrics.BindsObject`, the object a
-third link.
+kind, has one set of parameters (`Parametrics.HasParameters`, unique in both directions). A schema declares parameters
+and gives none of them a value or an object: a reference object that the schema governs assigns a value to a parameter
+for a value, through `Parametrics.AssignsValue`, which links the object and the parameter and holds the value as the
+entry property `value`; and it binds a parameter for an object to an object, through `Parametrics.BindsObject`, which
+links the object, the parameter and the object bound, `obj_ref`, any reference object. A parameter that an object
+neither assigns nor binds stays unbound.
 
 The extension: `install` gives `Schemas.OfParameter` its `for_value` and `for_object`, and every kind of schema its
-`parameters` (to `HasParameters`). `validate(store, defn)` checks a definition's set's `Defines` entries.
+`parameters` (to `HasParameters`). `extend(txn, schemas)` gives reference object schemas the adjacencies through which
+their objects assign and bind, `assigned_values` and `bound_objects`. A transaction that assigns or binds a parameter
+which the object's schema does not declare is refused when it commits (`_check`). `validate(store, defn)` checks a
+definition's set's `Defines` entries.
 """
 
 from __future__ import annotations
@@ -20,18 +26,19 @@ from typing import Any
 from . import Proxies, Schemas
 from .Builders import _builder_for
 
-__all__ = ["install", "validate"]
+__all__ = ["install", "extend", "validate"]
 
 
 def install(txn: Any) -> Any:
-    """Parameters of definitions, what each can be bound to, and their bindings, defined in the store a transaction
-    writes; the extension of the schemas the store was made holding, `Schemas.OfParameter` and each kind of schema. Run
-    again in a store, it finds each by its name and writes nothing."""
+    """Parameters of definitions, what each is for, and the assignments and bindings of the objects a definition
+    governs, defined in the store a transaction writes; the extension of the schemas the store was made holding,
+    `Schemas.OfParameter` and each kind of schema. Run again in a store, it finds each by its name and writes
+    nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.Parametrics/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({
             "OfParameters": S.OfObject, "Defines": S.OfRelation, "ForValue": S.OfRelation, "ForObject": S.OfRelation,
-            "HasParameters": S.OfRelation, "BindsValue": S.OfRelation, "BindsObject": S.OfRelation,
+            "HasParameters": S.OfRelation, "AssignsValue": S.OfRelation, "BindsObject": S.OfRelation,
             "OfParameter": S.OfObject, "OfScalar": S.OfObject, "OfObject": S.OfObject, "OfUnion": S.OfObject,
             "OfIntersection": S.OfObject, "OfContainer": S.OfObject, "OfAny": S.OfObject, "OfRelation": S.OfObject,
             "OfPattern": S.OfObject, "OfExpression": S.OfObject, "OfCollector": S.OfObject, "OfModule": S.OfObject,
@@ -52,11 +59,11 @@ def install(txn: Any) -> Any:
                 lambda t: t.name("param"), lambda t: t.name("schema")]).uniques("schema"),  # one schema per parameter
             lambda _: _.HasParameters.name("Parametrics.HasParameters").links([
                 lambda t: t.name("defn"), lambda t: t.name("params")]).uniques([["defn"], ["params"]]),
-            lambda _: _.BindsValue.name("Parametrics.BindsValue").links([
-                lambda t: t.name("defn"), lambda t: t.name("param")]).properties({
+            lambda _: _.AssignsValue.name("Parametrics.AssignsValue").links([
+                lambda t: t.name("object"), lambda t: t.name("param")]).properties({
                 "value": S.OfAny(lambda a: a)}),  # a value of any schema
             lambda _: _.BindsObject.name("Parametrics.BindsObject").links([
-                lambda t: t.name("defn"), lambda t: t.name("param"), lambda t: t.name("obj_ref")]),
+                lambda t: t.name("object"), lambda t: t.name("param"), lambda t: t.name("obj_ref")]),
 
             # --- The extension: a parameter's ends, and each kind's set of parameters ---
             lambda _: _.OfParameter.name("Schemas.OfParameter").adjacencies({
@@ -64,6 +71,8 @@ def install(txn: Any) -> Any:
                 "for_object": lambda a: a.relation([_.ForObject]).me("param"),
             }).adjacencies([
                 lambda a: a.relation([_.Defines]).me("parameter"),
+                lambda a: a.relation([_.AssignsValue]).me("param"),  # anonymous: what assigns it a value, or binds it
+                lambda a: a.relation([_.BindsObject]).me("param"),
             ]),
             lambda _: _.OfScalar.name("Schemas.OfScalar").adjacencies({
                 "parameters": lambda a: a.relation([_.HasParameters]).me("defn")}),
@@ -91,10 +100,21 @@ def install(txn: Any) -> Any:
 
 
 def validate(store: Any, defn: Any) -> list[str]:
-    """The problems of a definition's parameters, a check of its set's `Parametrics.Defines` entries: a name starting
-    with `$`, reserved; a description that is not text; a parameter for neither a value nor an object, or for both; and,
-    of a pattern, a name used as both a symbol or a variable and a parameter; and that the definition has one set, and
-    its set one definition (`Parametrics.HasParameters`, unique in both directions). None where it has no set."""
+    """The problems of a definition's parameters, or of the assignments and bindings of an object that a definition
+    governs. Of a
+    definition, a check of its set's `Parametrics.Defines` entries: a name starting with `$`, reserved; a description
+    that is not text; a parameter for neither a value nor an object, or for both; and, of a pattern, a name used as both
+    a symbol or a variable and a parameter; and that the definition has one set, and its set one definition
+    (`Parametrics.HasParameters`, unique in both directions). None where it has no set. Of a reference object, read
+    within a transaction, each of its assignments (`Parametrics.AssignsValue`) and bindings (`Parametrics.BindsObject`)
+    of a parameter that its schema does not declare. Whether an assignment's value, or a binding's object, is of its
+    parameter's schema is not checked."""
+    if isinstance(Proxies._durable(defn), Proxies._ObjectData):
+        target = Proxies._durable(defn)
+        found = [_undeclared(store, store.registered(f"Parametrics.{name}"), entry)
+                 for name in ("AssignsValue", "BindsObject")
+                 for entry in Proxies._linking(store.registered(f"Parametrics.{name}"), "object", target, store)]
+        return [problem for problem in found if problem is not None]
     builder = _builder_for(defn)(defn, False, store)
     has_parameters = builder.as_schema().adjacencies["parameters"].relation
     sets = [held.params._target() for held in builder.parameters]
@@ -123,3 +143,96 @@ def validate(store: Any, defn: Any) -> list[str]:
             if clashes:
                 problems.append(f"names used as both {plural}: {sorted(clashes)}")
     return problems
+
+
+def extend(txn: Any, schemas: Any) -> Any:
+    """Gives each reference object schema of `schemas` (each a schema object, or its name as a path, `txn.hw.Bus`) the
+    adjacencies through which its objects assign values to the parameters it declares, `assigned_values`, to
+    `Parametrics.AssignsValue`, and bind them to objects, `bound_objects`, to `Parametrics.BindsObject`, each through
+    `object`
+    ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)); the transaction that does, in the store a
+    transaction writes: `store.transaction(lambda t: Parametrics.extend(t, [t.hw.Bus]))`. An app's install calls it
+    after its own and `Parametrics.install`; run again, it writes nothing. A value object is never linked, so that a
+    value object schema is refused, as are the schemas of schemas, whose objects are schemas, and a schema that declares a
+    member of either name."""
+    P = txn.Parametrics
+    try:
+        P.AssignsValue.as_schema()
+    except LookupError:
+        raise LookupError("Parametrics.extend: the store has no Parametrics installed; install it first, "
+                          "store.transaction(Parametrics.install)") from None
+    names = []
+    for given in schemas:
+        schema = Proxies._deref(given)
+        if not isinstance(schema, Schemas.OfObject.Data):
+            shown = schema.name if isinstance(getattr(schema, "name", None), str) else given
+            raise TypeError(f"Parametrics.extend takes reference object schemas: {shown!r} is not one")
+        if str(schema.name).startswith("Schemas."):  # a schema declares parameters, and its data assigns and binds them
+            raise TypeError(f"Parametrics.extend: {schema.name!r} is a schema of schemas, whose objects are "
+                            "schemas: a schema declares its parameters and neither assigns nor binds them")
+        if not schema.ref:
+            raise TypeError(f"Parametrics.extend takes reference object schemas: {schema.name!r} is a value object "
+                            "schema, whose objects are never linked, so that none assigns or binds a parameter")
+        for member, relation in (("assigned_values", P.AssignsValue), ("bound_objects", P.BindsObject)):
+            if member in schema.properties or (
+                    member in schema.adjacencies and schema.adjacencies[member].relation is not relation.as_schema()):
+                raise TypeError(f"Parametrics.extend: {schema.name!r} already declares a member {member!r}")
+        names.append(schema.name)
+    symbols = {f"s{index}": txn.Schemas.OfObject for index in range(len(names))}
+    return txn.mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p.symbols(symbols).spec([
+        lambda _, symbol=symbol, name=name: getattr(_, symbol).name(name).adjacencies({
+            "assigned_values": lambda a: a.relation([P.AssignsValue]).me("object"),
+            "bound_objects": lambda a: a.relation([P.BindsObject]).me("object"),
+        }) for symbol, name in zip(symbols, names)])]))])
+
+
+def _check(store: Any, proposals: Any) -> None:
+    """Refuses a transaction, just before it commits, that inserts an assignment or a binding of a parameter which the
+    schema of the object that assigns or binds it does not declare, through `Parametrics.HasParameters` and
+    `Parametrics.Defines`, where the store has `Parametrics` installed
+    ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)). It is checked at commit, as a unique clause is
+    ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)), once the transaction's writes are all made, and
+    only of the entries the transaction inserts. An entry whose object or parameter is a parameter reference, or an
+    object of the store below that is not present, is not checked: what it gives a value or an object is not known
+    here."""
+    if "Parametrics.AssignsValue" not in proposals.saved["_schemas"]:
+        return
+    relations = {id(relation): relation for relation in (
+        store.registered("Parametrics.AssignsValue"), store.registered("Parametrics.BindsObject"))}
+    seen: set[int] = set()
+    for holder, tables in proposals.entries_.values():
+        before = proposals.base.entries(holder)
+        for relation_id, table in tables.items():
+            if relation_id not in relations:
+                continue
+            old = before.get(relation_id, {})
+            for key, entry in table.items():
+                if key not in old and id(entry) not in seen:
+                    seen.add(id(entry))
+                    _check_entry(store, relations[relation_id], entry)
+
+
+def _check_entry(store: Any, relation: Any, entry: Any) -> None:
+    """Raises `ValueError` where an assignment's or a binding's parameter is not one its object's schema declares."""
+    problem = _undeclared(store, relation, entry)
+    if problem is not None:
+        raise ValueError(problem)
+
+
+def _undeclared(store: Any, relation: Any, entry: Any) -> str | None:
+    """Why an assignment's or a binding's parameter is not one its object's schema declares; None where it is, or where
+    the object or the parameter is a parameter reference, or an object of the store below that is not present."""
+    target, param = entry._links["object"], entry._links["param"]
+    if Proxies._end(target) or Proxies._end(param):
+        return None
+    has_parameters, defines = store.registered("Parametrics.HasParameters"), store.registered("Parametrics.Defines")
+    declared = [defined._links["parameter"] for held in Proxies._linking(has_parameters, "defn", target._schema, store)
+                for defined in Proxies._linking(defines, "parameters", held._links["params"], store)]
+    if any(parameter is param for parameter in declared):
+        return None
+    names = [defined._properties["name"] for defined in Proxies._linking(defines, "parameter", param, store)]
+    shown = f"parameter {names[0]!r}" if names else "a parameter no set of parameters defines"
+    assigns = relation.name == "Parametrics.AssignsValue"
+    did = f"assigns a value to {shown}" if assigns else f"binds {shown} to an object"
+    return (f"an entry of {relation.name!r} {did}, which {target._schema.name!r} does not declare: an object assigns "
+            "and binds only the parameters its schema declares")

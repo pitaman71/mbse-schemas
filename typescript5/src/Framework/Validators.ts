@@ -138,10 +138,6 @@ function scalarProblem(schema: Schemas.OfScalar.Data, value: unknown): string | 
   return null;
 }
 
-/** Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it, named
- * or anonymous. */
-/** A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only builder,
- * whose schema is its meta-schema. */
 /** A linked object, as a visitor: a schema object, which an extension's relation links, through its read-only builder in
  * `store`, whose schema is the store's plain schema of it. */
 function visited(target: any, store: unknown): any {
@@ -149,8 +145,11 @@ function visited(target: any, store: unknown): any {
   return builder === null ? target : new builder(target, false, store);
 }
 
+/** Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it, named
+ * or anonymous; but the object a parameter is bound to, `Parametrics.BindsObject`'s `obj_ref`, may be any reference
+ * object, whose schema opts into nothing ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)). */
 function filling(relation: Schemas.OfRelation.Data, name: string, schema: Schemas.OfObject.Data): string | null {
-  if (schema.fills(relation, name)) return null;
+  if (schema.fills(relation, name) || (relation.name === "Parametrics.BindsObject" && name === "obj_ref")) return null;
   return `a ${repr(schema.name)} cannot fill link ${repr(name)}; its schema declares no adjacency, named or anonymous, to this relation via ${repr(name)}`;
 }
 

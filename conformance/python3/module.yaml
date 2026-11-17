@@ -1294,7 +1294,7 @@
                         name: name
                         mutations:
                         - set:
-                            value: defn
+                            value: object
                   - mutations:
                     - as_link:
                         name: link
@@ -1362,7 +1362,7 @@
                         name: name
                         mutations:
                         - set:
-                            value: defn
+                            value: object
                   - mutations:
                     - as_link:
                         name: link

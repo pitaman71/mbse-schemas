@@ -30,6 +30,7 @@ import { AttributeError, KeyError, LookupError, ReadOnlyError, ValueError } from
 import * as Mutations from "./Mutations.js";
 import * as Paths from "./Paths.js";
 import * as Changes from "./Changes.js";
+import * as Parametrics from "./Parametrics.js";
 import * as Provenance from "./Provenance.js";
 import * as References from "./References.js";
 import * as Json from "./JSON.js";
@@ -2478,6 +2479,9 @@ export class Store extends Proxies.OfStore {
     try {
       written = super._transacting(() => {
         const result = write();
+        if (this._applying === 0 && this._restoring === 0) { // checked where committed, as unique clauses are (CAP-293);
+          Parametrics._check(this, this._proposals!); // a snapshot's restored as it was written
+        }
         if (!(this._applying > 0 || (this._below !== null && this._below.records))) { // recorded once, in the
           Provenance._record(this, this._proposals!); // lowest store, at its commit, within it
         }

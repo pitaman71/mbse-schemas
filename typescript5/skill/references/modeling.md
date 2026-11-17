@@ -85,10 +85,11 @@ element links the cases that build it, in each language.
   - Python: [T05.7: Ownership](mbse:mbse-schemas/python3/tutorials/05_A_Price_List.ipynb#T05.7) · TypeScript: [T05.7: Ownership](mbse:mbse-schemas/typescript5/tutorials/05_A_Price_List.ipynb#T05.7)
 - **Template, generic, parameterized block or type** (UML/SysML template parameters, C++ templates, SystemVerilog
   `parameter`s). `Parametrics`, installed before use: a set of named parameters on the schema, each for a value of a
-  schema or an object of an object schema. Binding them, and terms over them (a bit width, an array's size), are
-  mbse-expressions'.
+  schema or an object of an object schema. Each reference object of the schema binds them, through the adjacencies
+  `Parametrics.extend` gives the schema; terms over them (a bit width, an array's size) are mbse-expressions'.
   - Python: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.5) · TypeScript: [T11.5: Parameters: a bus as wide as each design needs](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.5)
   - Python: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-02) · TypeScript: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-02)
+  - Python: [T11.8: Binding parameters: each bus binds its width](mbse:mbse-schemas/python3/tutorials/11_A_Parts_Catalog.ipynb#T11.8) · TypeScript: [T11.8: Binding parameters: each bus binds its width](mbse:mbse-schemas/typescript5/tutorials/11_A_Parts_Catalog.ipynb#T11.8)
 - **Documentation, comment, `description`.** `.description(...)` on the element's builder: a schema, a property, an
   adjacency, a branch or a part. A description is text that no check of data reads.
   - Python: [T01.1: Describing the record](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.1) · TypeScript: [T01.1: Describing the record](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.1)

@@ -2683,7 +2683,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "defn"
+                                              "value": "object"
                                             }
                                           }
                                         ]
@@ -2851,7 +2851,7 @@
                                         "mutations": [
                                           {
                                             "set": {
-                                              "value": "defn"
+                                              "value": "object"
                                             }
                                           }
                                         ]

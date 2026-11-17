@@ -154,7 +154,7 @@ export function validate(store: any, defn: any): string[] {
  * ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)); the transaction that does, in the store a
  * transaction writes: `store.transaction((t: any) => Parametrics.extend(t, [t.hw.Bus]))`. An app's install calls it
  * after its own and `Parametrics.install`; run again, it writes nothing. A value object is never linked, so that a
- * value object schema is refused, as are the meta-schemas, whose objects are schemas, and a schema that declares a
+ * value object schema is refused, as are the schemas of schemas, whose objects are schemas, and a schema that declares a
  * member of either name. */
 export function extend(txn: any, schemas: Iterable<unknown>): any {
   const P = txn.Parametrics;
@@ -172,7 +172,7 @@ export function extend(txn: any, schemas: Iterable<unknown>): any {
       throw new TypeError(`Parametrics.extend takes reference object schemas: ${repr(shown)} is not one`);
     }
     if (String(schema.name).startsWith("Schemas.")) { // a schema declares parameters, and its data assigns and binds them
-      throw new TypeError(`Parametrics.extend: ${repr(schema.name)} is one of the meta-schemas, whose objects are `
+      throw new TypeError(`Parametrics.extend: ${repr(schema.name)} is a schema of schemas, whose objects are `
         + "schemas: a schema declares its parameters and neither assigns nor binds them");
     }
     if (!schema.ref) {

@@ -153,7 +153,7 @@ def extend(txn: Any, schemas: Any) -> Any:
     ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)); the transaction that does, in the store a
     transaction writes: `store.transaction(lambda t: Parametrics.extend(t, [t.hw.Bus]))`. An app's install calls it
     after its own and `Parametrics.install`; run again, it writes nothing. A value object is never linked, so that a
-    value object schema is refused, as are the meta-schemas, whose objects are schemas, and a schema that declares a
+    value object schema is refused, as are the schemas of schemas, whose objects are schemas, and a schema that declares a
     member of either name."""
     P = txn.Parametrics
     try:
@@ -168,7 +168,7 @@ def extend(txn: Any, schemas: Any) -> Any:
             shown = schema.name if isinstance(getattr(schema, "name", None), str) else given
             raise TypeError(f"Parametrics.extend takes reference object schemas: {shown!r} is not one")
         if str(schema.name).startswith("Schemas."):  # a schema declares parameters, and its data assigns and binds them
-            raise TypeError(f"Parametrics.extend: {schema.name!r} is one of the meta-schemas, whose objects are "
+            raise TypeError(f"Parametrics.extend: {schema.name!r} is a schema of schemas, whose objects are "
                             "schemas: a schema declares its parameters and neither assigns nor binds them")
         if not schema.ref:
             raise TypeError(f"Parametrics.extend takes reference object schemas: {schema.name!r} is a value object "

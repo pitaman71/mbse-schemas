@@ -2332,7 +2332,7 @@ export class Store extends Proxies.OfStore {
     return this._modules.get(path) ?? new ModuleBuilder(null, true, this).name(path).create();
   }
 
-  /** Whether `schema` is one the store was made holding: a plain meta-schema, a basic scalar, a mutation schema.
+  /** Whether `schema` is one the store was made holding: a plain schema of schemas, a basic scalar, a mutation schema.
    * It changes only through `extend`, which adds members to it. */
   override framework(schema: unknown): boolean {
     return this._framework.has(schema);

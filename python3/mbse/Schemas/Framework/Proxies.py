@@ -539,8 +539,8 @@ class OfStore(Stores.Catalog):
         pending, self._unowned = self._unowned, []
         for target in pending:
             owners = [a for a in (*target._schema.adjacencies.values(), *target._schema.anonymous) if a.owner]
-            if any(_linking(a.relation, a.me, target) for a in owners):
-                continue
+            if any(_linking(a.relation, a.me, target) for a in owners) or any(o is target for o in self._orphaned):
+                continue  # owned, or owned and its owning entry removed since: deleted, not given another (CAP-121)
             possible = []
             for adjacency in owners:
                 link = next(other for other in adjacency.relation.entry.links if other != adjacency.me)
@@ -2755,8 +2755,9 @@ class _AdjacencyBuilder(_Unassignable):
 
     def __call__(self, spec: Any) -> Any:
         """Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
-        replacing the entry held where the relation allows one only from this end: an entry (the entry shorthand), or,
-        where the relation has two links (the peer shorthand), the object to link, or a callable handed `_Them`,
+        replacing the entry held under its key, where the relation declares one from this end (one entry at most where
+        that key is this end alone): an entry (the entry shorthand), or, where the relation has two links (the peer
+        shorthand), the object to link, or a callable handed `_Them`,
         through which it sets the entry's properties, its link, and the linked object's members."""
         if _is_function(spec):
             _visit(spec, self)
@@ -2781,8 +2782,8 @@ class _AdjacencyBuilder(_Unassignable):
             else:
                 entry = _EntryBuilder(relation, self._schema.me, self._builder._store)
                 _LinkMember(entry, others[0])(item)
-            if _single(relation, self._schema.me):
-                self._builder._entries[self._name] = []
+            self._builder._entries[self._name] = [  # the entry held under its key replaced (CAP-155)
+                held for held in self._entries() if not _collides(relation, self._schema.me, held, entry)]
             self.insert(entry)
         return self._builder
 
@@ -2819,6 +2820,26 @@ def _single(relation: RelationSchema, me: str) -> bool:
     determine every other link and property."""
     names = {*relation.entry.links, *relation.entry.properties}
     return any(names - unique == {me} for unique in relation.uniques)
+
+
+def _collides(relation: RelationSchema, me: str, held: Any, entry: Any) -> bool:
+    """Whether two entries of `relation`, seen from its link `me`, break a `unique` clause it declares without `me`:
+    they agree on the links and properties outside it, its key from `me` with `me` (empty where `me` determines the
+    rest, `_single`), and differ on its own, so that an object holds one entry at most under each value of the key
+    ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)). Unset, a link or a property agrees with one unset, as `_check_unique`
+    has it; equal entries do not collide, the one held kept."""
+    held_links, held_values = _entry_parts(held, me)
+    links, values = _entry_parts(entry, me)
+
+    def same(name: str) -> bool:
+        if name in relation.entry.links:
+            return _same_link(held_links.get(name), links.get(name))
+        was, now = held_values.get(name), values.get(name)
+        return (None if was is None else _scalar_key(was)) == (None if now is None else _scalar_key(now))
+
+    names = [*relation.entry.links, *relation.entry.properties]
+    return any(all(same(name) for name in names if name not in unique and name != me)
+               and not all(same(name) for name in unique) for unique in relation.uniques if me not in unique)
 
 
 class _Them(_Unassignable):

@@ -88,7 +88,9 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    `get()`. One call builds: given a callback it creates, given an object and a callback it updates that object,
    given an object alone it clones it. Entries are inserted and removed through an adjacency's visitor (`insert`,
    `remove`, which removes every entry agreeing with a template, and `clear`), or given as a list of what they link
-   (the peer shorthand). An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
+   (the peer shorthand) or, for a keyed adjacency, as a mapping from key to entry; given so, an entry replaces the one
+   held under its key, as the key its relation declares from there makes one at most (`insert` adds beside it, a
+   clash reported when checked). An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
    each entry's link or property, and `at(key)` the entry by the key its relation declares. Write within
    `store.transaction`; a write outside one is refused, and one that raises writes nothing. Read within one too: an
    object, and every visitor read from it (a member, an adjacency, an entry, a value it holds), lives only within the
@@ -110,6 +112,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [PRX-19: An adjacency is a tuple of its entries](mbse:mbse-schemas/python3/tests/03_Proxies.ipynb#PRX-19) · TypeScript: [PRX-19: An adjacency is a tuple of its entries](mbse:mbse-schemas/typescript5/tests/03_Proxies.ipynb#PRX-19)
    - Python: [BLD-13: Proxies: a container property's value given whole](mbse:mbse-schemas/python3/tests/25_Builders.ipynb#BLD-13) · TypeScript: [BLD-13: Proxies: a container property's value given whole](mbse:mbse-schemas/typescript5/tests/25_Builders.ipynb#BLD-13)
    - Python: [TXN-11: A transaction's imperative scope](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-11) · TypeScript: [TXN-11: A transaction's imperative scope](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-11)
+   - Python: [TXN-21: A keyed adjacency holds one entry per key](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-21) · TypeScript: [TXN-21: A keyed adjacency holds one entry per key](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-21)
 6. **Scalars are exact, and there are five.** *Why*: coercion is where data silently changes meaning between
    languages. *When*: every property of a value. *How*: a store's basic scalars, `store.Schemas.OfBool`, `OfInt`,
    `OfFloat`, `OfStr` and `OfBytes`, are its only scalar schemas; `1`, `1.0` and true are different values, and none

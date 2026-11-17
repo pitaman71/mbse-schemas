@@ -532,7 +532,10 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     for (const target of pending) {
       const state = innerOf(target) as _ObjectData;
       const owners = [...state._schema.adjacencies.values(), ...state._schema.anonymous].filter((a) => a.owner);
-      if (owners.some((a) => linking(a.relation as RelationSchema, a.me, target).length > 0)) continue;
+      if (owners.some((a) => linking(a.relation as RelationSchema, a.me, target).length > 0)
+        || this._orphaned.some((orphan) => innerOf(orphan) === state)) {
+        continue; // owned, or owned and its owning entry removed since: deleted, not given another (CAP-121)
+      }
       const possible: [AdjacencySchema, string, unknown][] = [];
       for (const adjacency of owners) {
         const relation = adjacency.relation as RelationSchema;
@@ -3195,8 +3198,9 @@ class _AdjacencyBuilder extends Shelled {
   }
 
   /** Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
-   * replacing the entry held where the relation allows one only from this end: an entry (the entry shorthand), or,
-   * where the relation has two links (the peer shorthand), the object to link, or a function handed `_Them`, through
+   * replacing the entry held under its key, where the relation declares one from this end (one entry at most where
+   * that key is this end alone): an entry (the entry shorthand), or, where the relation has two links (the peer
+   * shorthand), the object to link, or a function handed `_Them`, through
    * which it sets the entry's properties, its link, and the linked object's members. */
   _call(spec: unknown): unknown {
     if (isFunction(spec)) {
@@ -3226,7 +3230,8 @@ class _AdjacencyBuilder extends Shelled {
         entry = makeEntryBuilder(relation, this._schema.me, innerOf(this._builder)._store);
         (entry as any)[others[0] as string](item);
       }
-      if (single(relation, this._schema.me)) innerOf(this._builder)._entries.set(this._name, []);
+      innerOf(this._builder)._entries.set(this._name, this._entries() // the entry held under its key replaced (CAP-155)
+        .filter((held: unknown) => !collides(relation, this._schema.me, held, entry)));
       this.insert(entry);
     }
     return this._builder;
@@ -3275,6 +3280,24 @@ function single(relation: RelationSchema, me: string): boolean {
     const rest = names.filter((name) => !unique.has(name));
     return rest.length === 1 && rest[0] === me;
   });
+}
+
+/** Whether two entries of `relation`, seen from its link `me`, break a `unique` clause it declares without `me`: they
+ * agree on the links and properties outside it, its key from `me` with `me` (empty where `me` determines the rest,
+ * `single`), and differ on its own, so that an object holds one entry at most under each value of the key
+ * ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)). Unset, a link or a property agrees with one unset, as `checkUnique` has it;
+ * equal entries do not collide, the one held kept. */
+function collides(relation: RelationSchema, me: string, held: unknown, entry: unknown): boolean {
+  const [heldLinks, heldValues] = entryParts(held, me);
+  const [links, values] = entryParts(entry, me);
+  const key = (value: unknown): unknown => value === undefined || value === null ? null : scalarKey(value);
+  const same = (name: string): boolean => relation.entry.links.has(name)
+    ? sameLink(heldLinks.get(name), links.get(name))
+    : key(heldValues.get(name)) === key(values.get(name));
+  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
+  return relation.uniques.some((unique) => !unique.has(me)
+    && names.every((name) => unique.has(name) || name === me || same(name))
+    && ![...unique].every(same));
 }
 
 /** `OfThem.Visitor`, for one item of the peer shorthand: an entry of a relation of two links, and the object it links

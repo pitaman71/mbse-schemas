@@ -54,10 +54,13 @@ reading one executes it, in the store given.
    `store.transaction(...)`. A journal is a list of them, replayed in order; each finds what it names, or makes it. Name
    each object a write finds by its identity, a singleton or an owner and key, never by a property a later write may
    change, or replaying the journal again duplicates it ([Querying with transactions](queries.md#limits-and-traps)).
+   What a transaction changed, resolved, rather than the expression that changed it, is a `Changes.Journal`, written
+   and read as any value is ([the skill](../SKILL.md), practice 16).
    [CAP-129: journals replayed by execution](mbse:mbse-basis/docs/capabilities/CAP-129.md).
    - Python: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/python3/tutorials/12_Keeping_History.ipynb#T12.3) · TypeScript: [T12.3: A journal, replayed in another store](mbse:mbse-schemas/typescript5/tutorials/12_Keeping_History.ipynb#T12.3)
    - Python: [PRV-06: Replaying the same expression writes nothing twice](mbse:mbse-schemas/python3/tests/34_Provenance.ipynb#PRV-06) · TypeScript: [PRV-06: Replaying the same expression writes nothing twice](mbse:mbse-schemas/typescript5/tests/34_Provenance.ipynb#PRV-06)
    - Python: [TXN-13: A transaction on the wire](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-13) · TypeScript: [TXN-13: A transaction on the wire](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-13)
+   - Python: [CHG-07: Each journal, written and read as plain data and applied in order to a store as the first was (`Changes.apply`), makes it the same, applied twice the same again; once the observing ends, none is given](mbse:mbse-schemas/python3/tests/35_Changes.ipynb#CHG-07) · TypeScript: [CHG-07: Each journal, written and read as plain data and applied in order to a store as the first was (`Changes.apply`), makes it the same, applied twice the same again; once the observing ends, none is given](mbse:mbse-schemas/typescript5/tests/35_Changes.ipynb#CHG-07)
 6. **A snapshot: a whole store.** *Why*: a restart, or another program, must get the store back as it was, its
    schemas and its data. *How*: `Plain.ToPlain(store).Snapshot()` (and its JSON and YAML forms) writes two
    transactions: the store's schemas, each in its module, then the data its singletons reach. `FromPlain(store)

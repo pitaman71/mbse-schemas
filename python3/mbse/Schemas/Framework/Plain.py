@@ -32,6 +32,7 @@ path: `{"reference": {"$schema": "References.OfParameter", "name": n}}`.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import json
 import math
@@ -49,6 +50,41 @@ PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "Pla
 SCHEMA = "$schema"
 REFERENCE = "References.OfObject"
 ID = "$id"
+PAYLOAD = "Mutations.Payload"
+
+_AT: Any = None
+"""What the value being written or read is within, where a schema around it says what a payload in it is
+(`Changes._within`): a value of `Mutations.Payload`, a value of any schema, is then written bare by the schema it is
+interpreted by, the property's whose value it is, as a recorded spec writes it, and read back by that schema; None
+elsewhere, where a payload is written tagged with its schema, as any value of an unrestricted `OfAny` is."""
+
+
+@contextlib.contextmanager
+def _within(at: Any) -> Iterator[None]:
+    """Writes or reads what is within `at` (`_AT`)."""
+    global _AT
+    outer, _AT = _AT, at
+    try:
+        yield
+    finally:
+        _AT = outer
+
+
+def _member_at(store: Any, schema: Any, member: Any, siblings: dict[str, PlainData]) -> Any:
+    """What a member of a value of `schema` is within (`_AT`), given those written or read before it."""
+    from . import Changes
+
+    return Changes._within(store, schema, _AT, member, siblings)
+
+
+def _element_at(index: Any) -> Any:
+    """What an element of the container being written or read, at `index`, is within (`_AT`)."""
+    return None if _AT is None else _AT.element(index)
+
+
+def _payload() -> Any:
+    """The schema a payload being written or read here is interpreted by (`_AT`); None where none says."""
+    return None if _AT is None else _AT.payload
 
 
 # --- Writing: plain data read through the visitor protocol ---
@@ -160,7 +196,12 @@ def _wrapped(schema: Schemas.OfAny.Value, own: Any, plain: PlainData, ref: Ref) 
 
 def _any_value(read: Readers.OfAny, schema: Schemas.OfAny.Value, ref: Ref) -> tuple[bool, PlainData]:
     """A value of any schema as plain data, and whether there is one: restricted, as the schema it holds, bare or
-    wrapped (`_wrapped`); unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name."""
+    wrapped (`_wrapped`); unrestricted, tagged with its schema, a basic scalar's tag or its schema's registered name; a
+    payload whose schema what it is within says, bare, as a value of that schema (`_AT`)."""
+    interpreted = _payload() if schema.name == PAYLOAD else None
+    if interpreted is not None:
+        with _within(None):
+            return _any(read, interpreted, ref)
     found: list[Any] = []
     read.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
     for select in ("as_object", "as_union", "as_intersection", "as_container"):
@@ -216,18 +257,19 @@ def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref:
     pairs: list[tuple[Any, Any]] = []
     read.as_entries(lambda it: pairs.extend(it))
 
-    def element(visitor: Any) -> PlainData:
-        return _any(visitor, schema.element, ref)[1]
+    def element(index: Any, visitor: Any) -> PlainData:
+        with _within(_element_at(index)):
+            return _any(visitor, schema.element, ref)[1]
 
     names, arrangement = _tensor(schema), schema.arrangement
     if arrangement == "dense" and _ints(schema):
         dense: list[PlainData] = [None] * len(read)
         for index, visitor in pairs:
-            dense[index] = element(visitor)
+            dense[index] = element(index, visitor)
         return dense
     if arrangement == "dense" and names is not None and pairs:
         shape = [max(index[d] for index, _ in pairs) + 1 for d in range(len(names))]
-        cells: dict[Any, PlainData] = {index: element(visitor) for index, visitor in pairs}
+        cells: dict[Any, PlainData] = {index: element(index, visitor) for index, visitor in pairs}
         flat = [cells.get(cell) for cell in itertools.product(*[range(n) for n in shape])]
         if getattr(ref, "flat", False):
             return {"shape": shape, "items": flat}
@@ -241,15 +283,15 @@ def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref:
             follows = last is not None and (index == last + 1 if _ints(schema) else
                                             index[:-1] == last[:-1] and index[-1] == last[-1] + 1)
             if follows:
-                blocks[-1]["items"].append(element(visitor))
+                blocks[-1]["items"].append(element(index, visitor))
             else:
-                blocks.append({"at": _plain_index(schema, index, ref), "items": [element(visitor)]})
+                blocks.append({"at": _plain_index(schema, index, ref), "items": [element(index, visitor)]})
             last = index
         return blocks
     held = schema.index
     if arrangement == "dict" and isinstance(held, Schemas.OfScalar.Data) and held.type is str:
-        return {index: element(visitor) for index, visitor in pairs}
-    return [{"index": _plain_index(schema, index, ref), "element": element(visitor)} for index, visitor in pairs]
+        return {index: element(index, visitor) for index, visitor in pairs}
+    return [{"index": _plain_index(schema, index, ref), "element": element(index, visitor)} for index, visitor in pairs]
 
 
 def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
@@ -273,7 +315,8 @@ def _record(read: Any, schema: Any, ref: Ref) -> dict[str, PlainData]:
     """A union value or an intersection value, nested as a mapping of its branch or its parts."""
     out: dict[str, PlainData] = {}
     for name, member in schema.properties.items():
-        present, plain = _member(getattr(read, name), member.schema, ref)
+        with _within(_member_at(getattr(ref, "store", None), schema, name, out)):
+            present, plain = _member(getattr(read, name), member.schema, ref)
         if present:
             out[name] = plain
     return out
@@ -295,7 +338,12 @@ def _refined(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) ->
 def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> dict[str, PlainData]:
     """A value object, nested in what holds it, as a mapping of its properties that are set, in the schema's order; it
     has no adjacencies, and nothing links it."""
-    return {prop.as_schema().name: _value(prop, prop.as_schema().schema, ref)[1] for prop in read.as_properties}
+    out: dict[str, PlainData] = {}
+    for prop in read.as_properties:
+        name = prop.as_schema().name
+        with _within(_member_at(getattr(ref, "store", None), schema, name, out)):
+            out[name] = _value(prop, prop.as_schema().schema, ref)[1]
+    return out
 
 
 def _linked_as_held(read: Proxies._Entry, link: str) -> Any:
@@ -453,15 +501,17 @@ class _Record(NamedTuple):
 
 
 class _Assigned(NamedTuple):
-    """A decoded value of an `OfAny`'s registered schema, `name`, unrestricted or restricted to others of its kind: built
-    standalone, through the store's builder, and assigned as a value."""
+    """A decoded value of an `OfAny`'s registered schema, `name`, unrestricted or restricted to others of its kind, or a
+    payload's, of the schema it is interpreted by (`_AT`), given as `name` itself: built standalone, through the store's
+    builder, and assigned as a value."""
 
-    name: str
+    name: Any
     value: Any
     store: Any
 
     def make(self) -> Any:
-        builder = self.store.builder(self.name)
+        builder = self.store.builder(self.name) if isinstance(self.name, str) else Proxies._standalone(
+            self.name, None, self.store)  # a payload's, of the schema it is interpreted by, which may have no name
         if isinstance(self.value, _Elements):
             _fill_elements(builder, self.value)
         else:
@@ -514,7 +564,8 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: A
     for key, item in plain.items():
         if key not in schema.properties:
             raise DecodeError(f"{owner} has no {member} {key!r}", path=path(*where, key))
-        values[key] = _decode(schema.properties[key].schema, item, (*where, key), store)
+        with _within(_member_at(store, schema, key, plain)):
+            values[key] = _decode(schema.properties[key].schema, item, (*where, key), store)
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
     return _Record(schema, values)
@@ -610,7 +661,12 @@ def _refinement_of(schemas: list[Any], name: str, store: Any) -> Any:
 def _decode_any(schema: Schemas.OfAny.Value, plain: PlainData, where: tuple, store: Any) -> Any:
     """A value of any schema: restricted, wrapped by its kind and schema or bare where that is unambiguous
     (`_decode_restricted`); unrestricted, a mapping of its schema, a basic scalar's tag or a schema's registered name,
-    to its value."""
+    to its value; a payload whose schema what it is within says, as a value of that schema (`_AT`)."""
+    interpreted = _payload() if schema.name == PAYLOAD else None
+    if interpreted is not None:
+        with _within(None):
+            decoded = _decode(interpreted, plain, where, store)
+        return _Assigned(decoded.schema, decoded, store) if isinstance(decoded, (_Record, _Elements)) else decoded
     if schema.schemas:
         return _decode_restricted(schema, plain, where, store)
     if not isinstance(plain, dict) or len(plain) != 1:
@@ -654,7 +710,8 @@ def _decode_container(schema: Schemas.OfContainer.Data, plain: PlainData, where:
 
     def element(index: Any, value: PlainData, at: tuple) -> None:
         if value is not None:
-            items.append((index, _decode(schema.element, value, at, store)))
+            with _within(_element_at(index)):
+                items.append((index, _decode(schema.element, value, at, store)))
 
     def entries(value: PlainData) -> None:
         if not isinstance(value, list):

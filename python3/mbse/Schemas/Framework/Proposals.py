@@ -34,6 +34,7 @@ class OfStore:
         self.created: dict[int, Any] = {}
         self.written: dict[int, Any] = {}
         self.expression: Any = None  # the transaction's expression, where it has one: its record's data (Provenance)
+        self.uid: str | None = None  # the transaction's uid, once asked for (`Provenance._uid`)
         outer = base if isinstance(base, OfStore) else None
         # the schema objects held when the transaction began, numbered below it: those its updates of wait for its commit
         self.existing: int = outer.existing if outer is not None else store._existing()

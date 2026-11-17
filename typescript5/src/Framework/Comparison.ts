@@ -24,11 +24,15 @@
  * - `OfAdjacency`: seen from one object (whose own link is implied), the entries of a relation with a `unique` clause
  *   form a set, and two adjacencies are equal when both hold equal entries; an open relation's are a list, and two are
  *   equal when their entries are, in order. Otherwise incomparable.
+ *
+ * A comparison halts on a parameter reference standing in the place of a value, on either side, and gives `null`: it
+ * does not decide what the parameter's value would give ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). A
+ * value of `References.OfParameter` held where that schema is declared is a value like any other, and compares as one.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { _key_of } from "./Proxies.js";
+import { _admits, _innerOf, _internals, _key_of } from "./Proxies.js";
 import type * as Readers from "./Readers.js";
 import { compareStrings, tokenName, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
@@ -67,6 +71,19 @@ function compareScalars(a: Scalar, b: Scalar): Result {
 }
 
 // --- Reading values through their visitors ---
+
+/** What a read gives where a parameter reference stands in the place of the value: the comparison halts (CAP-312). */
+const HALTED = Symbol("halted");
+
+/** Whether a `Visitors.OfAny` holds a parameter reference in the place of a value of `schema`. */
+function parameter(read: any, schema: unknown): boolean {
+  const found: any[] = [];
+  read.as_parameter((p: any) => {
+    if (p.as_schema() !== null) found.push(p);
+    return p;
+  });
+  return found.length > 0 && !_admits(schema, found[0].as_schema());
+}
 
 /** The scalar a property's visitor holds, or null. */
 function readScalar(read: any): any {
@@ -115,20 +132,28 @@ function readHeld(read: any, schema: unknown): any {
   return found.length > 0 && found[0].as_schema() !== null ? found[0] : null; // a visitor of nothing has no schema
 }
 
-/** A property's value, read through its visitor: a scalar, a visitor, or null. */
+/** A property's value, read through its visitor: a scalar, a visitor, or null; `HALTED` for a parameter reference in
+ * its place. */
 function readProperty(read: any, schema: unknown): any {
+  const standing: boolean[] = [];
+  read.as_value((a: any) => standing.push(parameter(a, schema)));
+  if (standing[0]) return HALTED;
   const held = schema;
   return held instanceof Schemas.OfScalar.Data || held === null ? readScalar(read) : readHeld(read, held);
 }
 
-/** A union's branch's or an intersection's part's value, read through its visitor of its schema's kind. */
+/** A union's branch's or an intersection's part's value, read through its visitor of its schema's kind; `HALTED` where
+ * a parameter reference stands in its place, whose visitor is an empty one holding it. */
 function readMember(read: any, schema: unknown): any {
+  if (_innerOf(read) instanceof _internals._Empty && parameter(read, schema)) return HALTED;
   if (schema instanceof Schemas.OfScalar.Data) return read.get();
   return read.as_schema() !== null ? read : null;
 }
 
-/** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one. */
+/** A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one.
+ * `HALTED` for a parameter reference in its place. */
 function readElement(read: any, schema: unknown): any {
+  if (parameter(read, schema)) return HALTED;
   const held = schema;
   const found: unknown[] = [];
   if (held instanceof Schemas.OfScalar.Data || held === null) read.as_scalar((s: any) => found.push(s.get()));
@@ -148,6 +173,7 @@ function sameType(a: unknown, b: unknown): boolean {
 
 /** Compares two values of `schema`, each a scalar, a visitor, or null for absent. */
 function compareValues(schema: unknown, a: any, b: any): Result {
+  if (a === HALTED || b === HALTED) return null; // a parameter reference on either side (CAP-312)
   if (a === null || a === undefined || b === null || b === undefined) {
     return (a === null || a === undefined) && (b === null || b === undefined) ? 0 : null;
   }

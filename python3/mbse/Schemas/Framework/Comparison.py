@@ -23,6 +23,10 @@ greater than `b`, and `None` when they are incomparable.
 - `OfAdjacency`: seen from one object (whose own link is implied), the entries of a relation with a `unique` clause
   form a set, and two adjacencies are equal when both hold equal entries; an open relation's are a list, and two are
   equal when their entries are, in order. Otherwise incomparable.
+
+A comparison halts on a parameter reference standing in the place of a value, on either side, and gives None: it does
+not decide what the parameter's value would give ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). A
+value of `References.OfParameter` held where that schema is declared is a value like any other, and compares as one.
 """
 
 from __future__ import annotations
@@ -66,6 +70,17 @@ def _scalars(a: Scalar, b: Scalar) -> Result:
 # --- Reading values through their visitors ---
 
 
+_HALTED = object()
+"""What a read gives where a parameter reference stands in the place of the value: the comparison halts (CAP-312)."""
+
+
+def _parameter(read: Any, schema: Any) -> bool:
+    """Whether a `Visitors.OfAny` holds a parameter reference in the place of a value of `schema`."""
+    found: list[Any] = []
+    read.as_parameter(lambda p: found.extend([p] if p.as_schema() is not None else []) or p)
+    return bool(found) and not Proxies._admits(schema, found[0].as_schema())
+
+
 def _read_scalar(read: Any) -> Any:
     """The scalar a property's visitor holds, or None."""
     found: list[Any] = []
@@ -103,20 +118,31 @@ def _read_held(read: Any, schema: Any) -> Any:
 
 
 def _read_property(read: Any, schema: Any) -> Any:
-    """A property's value, read through its visitor: a scalar, a visitor, or None."""
+    """A property's value, read through its visitor: a scalar, a visitor, or None; `_HALTED` for a parameter
+    reference in its place."""
+    standing: list[bool] = []
+    read.as_value(lambda a: standing.append(_parameter(a, schema)) or a)
+    if standing[0]:
+        return _HALTED
     held = schema
     return _read_scalar(read) if isinstance(held, Schemas.OfScalar.Data) or held is None else _read_held(read, held)
 
 
 def _read_member(read: Any, schema: Any) -> Any:
-    """A union's branch's or an intersection's part's value, read through its visitor of its schema's kind."""
+    """A union's branch's or an intersection's part's value, read through its visitor of its schema's kind; `_HALTED`
+    where a parameter reference stands in its place, whose visitor is an empty one holding it."""
+    if isinstance(read, Proxies._Empty) and _parameter(read, schema):
+        return _HALTED
     if isinstance(schema, Schemas.OfScalar.Data):
         return read.get()
     return read if read.as_schema() is not None else None
 
 
 def _read_element(read: Any, schema: Any) -> Any:
-    """A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one."""
+    """A container's element, read through its `Visitors.OfAny`: a scalar or a visitor; an element present holds one.
+    `_HALTED` for a parameter reference in its place."""
+    if _parameter(read, schema):
+        return _HALTED
     held = schema
     found: list[Any] = []
     if isinstance(held, Schemas.OfScalar.Data) or held is None:
@@ -137,7 +163,10 @@ def _same_type(a: Any, b: Any) -> bool:
 
 
 def _compare(schema: Any, a: Any, b: Any) -> Result:
-    """Compares two values of `schema`, each a scalar, a visitor, or None for absent."""
+    """Compares two values of `schema`, each a scalar, a visitor, or None for absent; None where either is a parameter
+    reference (`_HALTED`)."""
+    if a is _HALTED or b is _HALTED:
+        return None
     if a is None or b is None:
         return 0 if a is None and b is None else None
     held = schema

@@ -54,7 +54,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `10_Examples.ipynb` | EX | 1 | every example exits cleanly in its own process |
 | `11_Conformance.ipynb` | CONF | 4 | as in Python, from this side |
 | `12_Text.ipynb` | TXT | 4 | `Repr` produces Python's text: `repr`, float `repr`, type names (plus one row for a prototype-less object), code-point order |
-| `13_Comparison.ipynb` | CMP | 13 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
+| `13_Comparison.ipynb` | CMP | 14 | as in Python; incomparable is `null`, and strings compare by code point, not by UTF-16 code unit |
 | `14_Embedded.ipynb` | EMB | 13 | as in Python; the runtime's own probes (`then`, symbols) are not members, and `in` on a value object says what its schema declares, and on a property whose value has one kind its members |
 | `15_Skill.ipynb` | SKL | 3 | as in Python, SKL-02 retired |
 | `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
@@ -76,7 +76,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `36_Below.ipynb` | BLW | 21 | as in Python; a store given a store below is `new B.Store(below)`, a path given it is a `Map` (read by `JSON.loads`), the objects loaded are a `Set`, counted by `size`, and the store given none has `_below` `null`; BLW-08, BLW-10, BLW-11 and BLW-12 read an entry's link as it holds it through `Proxies._innerOf`, and name its class with `Repr.typeName`; a transaction refused (BLW-09, BLW-15) is checked with `raises` around `store.transaction(() => ...)`; BLW-18 checks a store below with `Stores.isBelow(x)` where Python has `isinstance(x, Stores.Below)` |
 | `37_Lifetimes.ipynb` | LIF | 6 | as in Python; the imperative transaction is `store.transaction(() => { ... })`, a frame's `assigns` a `Map` of `Map`s, a transaction's visitor a second shell over the durable object's state (docs/EQUIVALENCE.md) |
 
-Total: 324 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 325 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

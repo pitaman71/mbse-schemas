@@ -226,6 +226,15 @@ class _Value(_Unassignable):
 
     as_object = as_union = as_intersection = _other
 
+    def as_parameter(self, cb: Any) -> _Value:
+        """A schema object's value is a scalar or a container, never a parameter reference: an empty visitor, and a
+        write refused."""
+        reason = f"{self._label} holds no parameter reference"
+        if not _is_function(cb):
+            raise TypeError(reason)
+        _visit(cb, _Empty(reason))
+        return self
+
     def clear(self) -> None:
         self._write(None)
 

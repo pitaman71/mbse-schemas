@@ -26,6 +26,11 @@
  * Union and intersection values are written the same way, with the union's branches or the intersection's parts as
  * the properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
  * `{"stamp": {...}, "audit": {...}}` each of its parts.
+ *
+ * A parameter reference (`References.OfParameter`) held in the place of a value of a schema that does not admit one as
+ * such is written marked with its schema, `{"$schema": "References.OfParameter", "name": n}`, and read back the same,
+ * wherever it stands: a property, a container's element, a union's branch or an intersection's part
+ * ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -87,8 +92,24 @@ function value(read: Readers.OfProperty, schema: unknown, ref: Ref): [boolean, P
   return found[0] as [boolean, PlainData];
 }
 
-/** A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one. */
+/** A parameter reference held in the place of a value of `schema`, which does not admit one as such, as plain data:
+ * marked with its schema, `{"$schema": "References.OfParameter", "name": n}`, since a reader could take it for a value
+ * of `schema` ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided), [PRI-025: never guess the schema](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-025)); null where none stands in. */
+function parameter(read: any, schema: unknown, ref: Ref): PlainData {
+  const found: any[] = [];
+  read.as_parameter((p: any) => {
+    if (present(p)) found.push(p);
+    return p;
+  });
+  if (found.length === 0 || Proxies._admits(schema, found[0].as_schema())) return null;
+  return new Map([[SCHEMA, Proxies.PARAMETER], ...object(found[0], found[0].as_schema(), ref)]);
+}
+
+/** A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one; a parameter reference
+ * in its place, marked (`parameter`). */
 function anyValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
+  const marked = parameter(read, schema, ref);
+  if (marked !== null) return [true, marked];
   const held = schema;
   const found: PlainData[] = [];
   if (held instanceof Schemas.OfScalar.Data) {
@@ -281,6 +302,8 @@ function container(read: any, schema: Schemas.OfContainer.Data, ref: Ref): Plain
 
 /** A union's branch or an intersection's part as plain data: its visitor is of its schema's kind. */
 function memberValue(read: any, schema: unknown, ref: Ref): [boolean, PlainData] {
+  const marked = Proxies._innerOf(read) instanceof Proxies._internals._Empty ? parameter(read, schema, ref) : null;
+  if (marked !== null) return [true, marked];
   const held = schema;
   if (held instanceof Schemas.OfScalar.Data) {
     const got = read.get();
@@ -384,6 +407,11 @@ class Held {
 
   as_container(cb: (visitor: any) => unknown): this {
     return this.hand(cb, Schemas.OfContainer.Data);
+  }
+
+  as_parameter(cb: (visitor: any) => unknown): this {
+    cb(Proxies._is_parameter(this.value) ? this.value : NOTHING);
+    return this;
   }
 }
 
@@ -657,8 +685,16 @@ function build(visitor: any, record: DecodedRecord): any {
 
 type Where = (string | number)[];
 /** The value `plain` holds under `schema`, located at the path `where`: a scalar, a `DecodedRecord` or
- * `DecodedElements`. */
+ * `DecodedElements`; a parameter reference, marked, in the place of a value of a schema that does not admit one as
+ * such, `Assigned`. */
 function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, store: Visitors.OfStore | null = null): unknown {
+  if (store !== null && plain instanceof Map && plain.get(SCHEMA) === Proxies.PARAMETER) {
+    const own = store.registered(Proxies.PARAMETER);
+    if (!Proxies._admits(schema, own)) {
+      return new Assigned(Proxies.PARAMETER, decode(own as Schemas.OfAny.Data,
+        new Map([...plain].filter(([key]) => key !== SCHEMA)), where, store), store);
+    }
+  }
   const held = schema as Schemas.OfAny.Data;
   if (held instanceof Schemas.OfAny.Value) return decodeAny(held, plain, where, store);
   if (held instanceof Schemas.OfScalar.Data) {
@@ -1020,7 +1056,8 @@ function put(element: any, value: unknown): void {
   if (value instanceof Assigned) {
     const made = value.make();
     const schema = made.as_schema();
-    element[schema instanceof Schemas.OfContainer.Data ? "as_container" : selectOf(schema.constructor)](made);
+    if (Proxies._is_parameter(made)) element.as_parameter(made); // in the element's place (CAP-312)
+    else element[schema instanceof Schemas.OfContainer.Data ? "as_container" : selectOf(schema.constructor)](made);
   } else if (value instanceof DecodedElements) element.as_container((held: any) => fillElements(held, value));
   else if (value instanceof DecodedRecord) element[selectOf(value.schema.constructor)]((held: any) => build(held, value));
   else element.as_scalar(value);

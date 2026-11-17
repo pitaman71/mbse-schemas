@@ -103,6 +103,21 @@ schemas from anything a program holds; the builders make a new version beside a 
    - Python: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-02) · TypeScript: [PAR-02: Every kind of schema declares a set of parameters](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-02)
    - Python: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-03) · TypeScript: [PAR-03: Validation checks a set's entries](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-03)
    - Python: [REF-11: A parameter reference holds its parameter's name and nothing else](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-11) · TypeScript: [REF-11: A parameter reference holds its parameter's name and nothing else](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-11)
+10. **A parameter reference in place of a value.** *Why*: a model that leaves a value to a parameter (a size, a corner,
+   an element) holds the parameter's reference where the value would be, so that the schema stays as it is. *When*:
+   wherever a value of any schema is expected: a property's scalar or value object, a container's element, a union's
+   branch, an intersection's part, an entry's property. *How*: give the reference as the value (`b.size(n)`,
+   `[1, n, 3]`, a branch or a part called with `n`), or build it in place through `Visitors.OfAny.as_parameter`, with
+   a callback that writes its `name`. `as_parameter` reads it back; every other visitor reads the place as empty, as it
+   reads an unset value, so that code that never meets a parameter reference sees no change. Where the place's schema
+   could take the reference for its own value, the plain form marks it, `{"$schema": "References.OfParameter", "name":
+   "n"}`, and reads it back the same. Validation reports no wrong value for it, and an intersection whose part holds one
+   reports that part unset. Whether its parameter is bound, and to the right kind of thing, is not checked yet. A link
+   does not take one yet. [CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided).
+   - Python: [REF-12: A parameter reference stands in the place of anything with a schema](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-12) · TypeScript: [REF-12: A parameter reference stands in the place of anything with a schema](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-12)
+   - Python: [REF-13: A parameter reference in another schema's place written marked, and read back the same](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-13) · TypeScript: [REF-13: A parameter reference in another schema's place written marked, and read back the same](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-13)
+   - Python: [REF-14: Validation accepts a parameter reference in any place](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-14) · TypeScript: [REF-14: Validation accepts a parameter reference in any place](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-14)
+   - Python: [REF-15: A place that holds no parameter reference reads as empty through as_parameter](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-15) · TypeScript: [REF-15: A place that holds no parameter reference reads as empty through as_parameter](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-15)
 
 ## Practices
 

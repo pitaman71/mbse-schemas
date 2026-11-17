@@ -188,13 +188,15 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    against the visitor protocol and the schemas as data works for any. *When*: documentation, audit logs, dumps,
    generators, comparisons. *How*: walk a schema's members (`properties`, `adjacencies`, `links`, `uniques`); read any
    object with `as_schema()`, `as_properties` and `as_adjacencies(...)`; list what is connected to an object with
-   `Reachable.of`; compare values under their schema with `Comparison`, which says equal, ordered or incomparable.
+   `Reachable.of`; compare values under their schema with `Comparison`, which says equal, ordered or incomparable. A
+   comparison that meets a parameter reference in the place of a value halts and says incomparable.
    [CAP-107: one visitor protocol reads and writes data](mbse:mbse-basis/docs/capabilities/CAP-107.md),
    [CAP-111: equality and ordering defined by the schema](mbse:mbse-basis/docs/capabilities/CAP-111.md).
    - Python: [T08.1: Tool 1: a data dictionary, generated from schemas](mbse:mbse-schemas/python3/tutorials/08_Tools_For_Every_Schema.ipynb#T08.1) · TypeScript: [T08.1: Tool 1: a data dictionary, generated from schemas](mbse:mbse-schemas/typescript5/tutorials/08_Tools_For_Every_Schema.ipynb#T08.1)
    - Python: [T08.2: Tool 2: reading any object, through the visitor protocol](mbse:mbse-schemas/python3/tutorials/08_Tools_For_Every_Schema.ipynb#T08.2) · TypeScript: [T08.2: Tool 2: reading any object, through the visitor protocol](mbse:mbse-schemas/typescript5/tutorials/08_Tools_For_Every_Schema.ipynb#T08.2)
    - Python: [T04.5: Everything connected: Reachable.of](mbse:mbse-schemas/python3/tutorials/04_A_Family_Tree.ipynb#T04.5) · TypeScript: [T04.5: Everything connected: Reachable.of](mbse:mbse-schemas/typescript5/tutorials/04_A_Family_Tree.ipynb#T04.5)
    - Python: [CMP-05: Objects are equal when their declared properties are, and are otherwise incomparable](mbse:mbse-schemas/python3/tests/13_Comparison.ipynb#CMP-05) · TypeScript: [CMP-05: Objects are equal when their declared properties are, and are otherwise incomparable](mbse:mbse-schemas/typescript5/tests/13_Comparison.ipynb#CMP-05)
+   - Python: [CMP-14: A comparison halts on a parameter reference](mbse:mbse-schemas/python3/tests/13_Comparison.ipynb#CMP-14) · TypeScript: [CMP-14: A comparison halts on a parameter reference](mbse:mbse-schemas/typescript5/tests/13_Comparison.ipynb#CMP-14)
 14. **Pass randomness in.** *Why*: data drawn from a source the program holds is the same in both languages, today
    and later, from the same seed; a store holds none. *When*: anything draws pseudorandom values. *How*: make a
    source, `Stores.PCG32(seed)`, split it by a key for each use (`split(key)`), and give it to what draws.

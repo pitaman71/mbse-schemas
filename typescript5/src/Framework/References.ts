@@ -18,7 +18,8 @@
  *   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one;
  * - `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
  *   proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
- *   resolves it, not a store.
+ *   resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
+ *   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
  * included. A reference is resolved within a transaction, as every read of a store's data is: a pattern's symbol given

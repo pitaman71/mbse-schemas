@@ -22,6 +22,11 @@ A value object (a property whose schema is an `OfObject`) is written nested, as 
 and intersection values are written the same way, with the union's branches or the intersection's parts as the
 properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branch, and an intersection value
 `{"stamp": {...}, "audit": {...}}` each of its parts.
+
+A parameter reference (`References.OfParameter`) held in the place of a value of a schema that does not admit one as
+such is written marked with its schema, `{"$schema": "References.OfParameter", "name": n}`, and read back the same,
+wherever it stands: a property, a container's element, a union's branch or an intersection's part
+([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
 """
 
 from __future__ import annotations
@@ -63,8 +68,23 @@ def _value(read: Readers.OfProperty, schema: Schemas.OfAny.Data, ref: Ref) -> tu
     return found[0]
 
 
+def _parameter(read: Any, schema: Schemas.OfAny.Data, ref: Ref) -> PlainData:
+    """A parameter reference held in the place of a value of `schema`, which does not admit one as such, as plain data:
+    marked with its schema, `{"$schema": "References.OfParameter", "name": n}`, since a reader could take it for a value
+    of `schema` ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided), [PRI-025: never guess the schema](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-025)); None where none stands in."""
+    found: list[Any] = []
+    read.as_parameter(lambda p: found.extend([p] if _present(p) else []) or p)
+    if not found or Proxies._admits(schema, found[0].as_schema()):
+        return None
+    return {SCHEMA: Proxies.PARAMETER, **_object(found[0], found[0].as_schema(), ref)}
+
+
 def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
-    """A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one."""
+    """A value of any kind as plain data, read through its `Visitors.OfAny`, and whether it has one; a parameter
+    reference in its place, marked (`_parameter`)."""
+    marked = _parameter(read, schema, ref)
+    if marked is not None:
+        return True, marked
     held = schema
     found: list[PlainData] = []
     if isinstance(held, Schemas.OfScalar.Data):
@@ -213,7 +233,11 @@ def _container(read: Readers.OfContainer, schema: Schemas.OfContainer.Data, ref:
 
 
 def _member(read: Any, schema: Any, ref: Ref) -> tuple[bool, PlainData]:
-    """A union's branch or an intersection's part as plain data: its visitor is of its schema's kind."""
+    """A union's branch or an intersection's part as plain data: its visitor is of its schema's kind, or, where a
+    parameter reference stands in its place, an empty visitor holding it (`_parameter`)."""
+    marked = _parameter(read, schema, ref) if isinstance(read, Proxies._Empty) else None
+    if marked is not None:
+        return True, marked
     held = schema
     if isinstance(held, Schemas.OfScalar.Data):
         value = read.get()
@@ -320,6 +344,10 @@ class _Held:
 
     def as_container(self, cb: Any) -> _Held:
         return self._hand(cb, Schemas.OfContainer.Data)
+
+    def as_parameter(self, cb: Any) -> _Held:
+        cb(self._value if Proxies._is_parameter(self._value) else _Nothing())
+        return self
 
 
 # --- What the writers and readers share: values, paths, decoding ---
@@ -441,7 +469,13 @@ Rows = dict[str, list[dict[str, Any]]]
 
 def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: Any = None) -> Any:
     """The value `plain` holds under `schema`, located at the path `where`: a scalar, a `_Record`, `_Elements`, or an
-    `_Assigned` value of a schema `store` registers."""
+    `_Assigned` value of a schema `store` registers; a parameter reference, marked, in the place of a value of a schema
+    that does not admit one as such (`_decode_parameter`)."""
+    if store is not None and isinstance(plain, dict) and plain.get(SCHEMA) == Proxies.PARAMETER:
+        own = store.registered(Proxies.PARAMETER)
+        if not Proxies._admits(schema, own):
+            return _Assigned(Proxies.PARAMETER, _decode(own, {k: v for k, v in plain.items() if k != SCHEMA}, where,
+                                                        store), store)
     if isinstance(schema, Schemas.OfAny.Value):
         return _decode_any(schema, plain, where, store)
     if isinstance(schema, Schemas.OfScalar.Data):
@@ -766,7 +800,10 @@ def _put(element: Any, value: Any) -> None:
     or a container."""
     if isinstance(value, _Assigned):
         made = value.make()
-        getattr(element, _SELECT.get(type(made.as_schema()), "as_container"))(made)
+        if Proxies._is_parameter(made):  # in the element's place (CAP-312)
+            element.as_parameter(made)
+        else:
+            getattr(element, _SELECT.get(type(made.as_schema()), "as_container"))(made)
     elif isinstance(value, _Elements):
         element.as_container(lambda held: _fill_elements(held, value))
     elif isinstance(value, _Record):

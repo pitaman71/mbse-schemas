@@ -59,7 +59,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `15_Skill.ipynb` | SKL | 3 | as in Python, SKL-02 retired |
 | `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
-| `22_Parametrics.ipynb` | PAR | 8 | as in Python |
+| `22_Parametrics.ipynb` | PAR | 12 | as in Python; a parameter context is a `ReadonlyMap<string, unknown>` |
 | `23_Containers.ipynb` | CNT | 7 | as in Python; an index of several ints is an array, `[1n, 2n]`, not a tuple; a container's size is `length`, not `len()`; the writer's option is `ToPlain(store, { flat: true })` |
 | `24_Any.ipynb` | ANY | 8 | as in Python; `OfAny.Value` is constructed with an array of schemas, `new S.OfAny.Value([Int], { description })` |
 | `25_Builders.ipynb` | BLD | 13 | as in Python; builders, their members and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; a name starting with `_` reads as `undefined` on a visitor, and throws `AttributeError` on the store and its paths, whose protocol probes read as `undefined`; a path's `as_schema()` gives the schema it names; a map is given as a `Map` or a record; a schema object in a message is `<ScalarData object>`; a few assertions cover TypeScript's branches (a clause of one name beside a clause of several, removing by a template of container properties, a meta-schema missing, a link given a link, a term of a dialect, a refinement's own index, an argument for an undeclared parameter, an unnamed relation of three links, a visitor's default `repr`) |
@@ -76,7 +76,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `36_Below.ipynb` | BLW | 21 | as in Python; a store given a store below is `new B.Store(below)`, a path given it is a `Map` (read by `JSON.loads`), the objects loaded are a `Set`, counted by `size`, and the store given none has `_below` `null`; BLW-08, BLW-10, BLW-11 and BLW-12 read an entry's link as it holds it through `Proxies._innerOf`, and name its class with `Repr.typeName`; a transaction refused (BLW-09, BLW-15) is checked with `raises` around `store.transaction(() => ...)`; BLW-18 checks a store below with `Stores.isBelow(x)` where Python has `isinstance(x, Stores.Below)` |
 | `37_Lifetimes.ipynb` | LIF | 6 | as in Python; the imperative transaction is `store.transaction(() => { ... })`, a frame's `assigns` a `Map` of `Map`s, a transaction's visitor a second shell over the durable object's state (docs/EQUIVALENCE.md) |
 
-Total: 331 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 335 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

@@ -26,7 +26,8 @@ properties: a union value `{"phone": {"number": "+44"}}` holds exactly one branc
 A parameter reference (`References.OfParameter`) held in the place of a value of a schema that does not admit one as
 such is written marked with its schema, `{"$schema": "References.OfParameter", "name": n}`, and read back the same,
 wherever it stands: a property, a container's element, a union's branch or an intersection's part
-([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
+([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). In the place of an object a link links, a link set refers to it so, beside a symbol or a
+path: `{"reference": {"$schema": "References.OfParameter", "name": n}}`.
 """
 
 from __future__ import annotations
@@ -77,6 +78,25 @@ def _parameter(read: Any, schema: Schemas.OfAny.Data, ref: Ref) -> PlainData:
     if not found or Proxies._admits(schema, found[0].as_schema()):
         return None
     return {SCHEMA: Proxies.PARAMETER, **_object(found[0], found[0].as_schema(), ref)}
+
+
+def _marked(store: Any, reference: Any) -> dict[str, PlainData]:
+    """A parameter reference in the place of an object a link links, as a link set refers to it: marked with its
+    schema, `{"$schema": "References.OfParameter", "name": n}`, beside a symbol or a path ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided))."""
+    reference = Proxies._durable(reference)
+    return {SCHEMA: Proxies.PARAMETER, **ToPlain(store)(reference.as_schema(), reference)}
+
+
+def _is_marked(plain: Any) -> bool:
+    """Whether what a link set refers to is a parameter reference, marked."""
+    return isinstance(plain, dict) and plain.get(SCHEMA) == Proxies.PARAMETER
+
+
+def _unmarked(store: Any, plain: dict[str, PlainData], where: tuple = ()) -> Any:
+    """The parameter reference a link set refers to, marked, read as a standalone value."""
+    schema = store.registered(Proxies.PARAMETER)
+    decoded = _decode(schema, {k: v for k, v in plain.items() if k != SCHEMA}, where, store)
+    return _Assigned(Proxies.PARAMETER, decoded, store).make()
 
 
 def _any(read: Readers.OfAny, schema: Schemas.OfAny.Data, ref: Ref) -> tuple[bool, PlainData]:
@@ -851,6 +871,8 @@ class _Document:
         number = self._numbers.get(id(target))
         if number is not None:
             return {"symbol": str(number)}
+        if Proxies._is_parameter(target):  # in the place of the object it links (CAP-312)
+            return _marked(self.store, target)
         if isinstance(target, Proxies._Unresolved):  # one of the store below's not present: by its path (CAP-284)
             return {"path": target.path}
         if isinstance(target, Proxies._ObjectData):
@@ -1036,10 +1058,16 @@ class _StoreSnapshot:
         """What tells an entry apart, whichever end it is read from: its relation, what it links, its properties."""
         relation = adjacency.relation
         where = self._where(visitor, adjacency)
-        links = tuple(sorted((link, id(self._original(visitor) if link == adjacency.me
-                                       else self._original(self._target(entry, link, where)))) for link in relation.entry.links))
+        links = tuple(sorted((link, self._identity(visitor if link == adjacency.me else self._target(entry, link, where)))
+                             for link in relation.entry.links))
         values = tuple((n, repr(_value(getattr(entry, n), p.schema, self._names)[1])) for n, p in relation.entry.properties.items())
         return id(relation), links, values
+
+    def _identity(self, target: Any) -> Hashable:
+        """What tells apart what an entry links: the object, or the parameter a parameter reference in its place
+        designates (CAP-312)."""
+        parameter = Proxies._parameter_in(target)
+        return id(self._original(target)) if parameter is None else Proxies._link_key(parameter)
 
     def _fresh(self, visitor: Any, adjacency: Any, entries: list[Any]) -> list[Any]:
         """The entries not written yet from another end, each counted written."""
@@ -1056,6 +1084,9 @@ class _StoreSnapshot:
     def _refer(self, target: Any) -> PlainData:
         """What an entry links, as a spec refers to it: a symbol, a path, or, a schema object with no name of its own,
         its definition where it is linked."""
+        parameter = Proxies._parameter_in(target)
+        if parameter is not None:  # in the place of the object it links (CAP-312)
+            return {"reference": _marked(self.store, parameter)}
         number = self._numbers.get(id(self._original(target)))
         if number is not None:
             return {"reference": {"symbol": str(number)}}
@@ -1263,6 +1294,9 @@ class _Expression:
 
     def _linked(self, entry: Any, relation: Any, link: str) -> PlainData:
         target = getattr(entry, link)
+        parameter = Proxies._parameter_in(target)
+        if parameter is not None:  # in the place of the object it links (CAP-312)
+            return _marked(self._store, parameter)
         if self._B._builder_for(target) is not None:
             target = self._reader(target)
         elif isinstance(target, self._B._Link):
@@ -1403,6 +1437,8 @@ def _checked_entry(store: Any, adjacency: str, relation: Any, member: Any, where
         elif "symbol" in given.get("reference", {}) and given["reference"]["symbol"] not in symbols:
             raise DecodeError(f"{given['reference']['symbol']!r} is not a symbol of the pattern",
                               path=path(*at, "mutations", 0, "set", "reference", "symbol"))
+        elif _is_marked(given.get("reference")):
+            _unmarked(store, given["reference"], (*at, "mutations", 0, "set", "reference"))
         elif "path" in given.get("reference", {}):
             _steps(given["reference"]["path"], (*at, "mutations", 0, "set", "reference", "path"))
     elif ignored is not None and kind == "as_property" and store.framework(relation):
@@ -1463,6 +1499,8 @@ def _item(store: Any, relation: Any, link: str, plain: PlainData, where: tuple,
     """What an entry links, in an expression's nested form: the object a path names, or a callback defining one where it
     is linked, through its kind where the link is a kind union; where several schemas fill the link, the schema object
     its tag names, built."""
+    if _is_marked(plain):  # a parameter reference in the place of the object it links (CAP-312)
+        return _unmarked(store, plain, where)
     if isinstance(plain, dict) and plain.get(SCHEMA) == REFERENCE and set(plain) == {SCHEMA, "path"}:
         found = _by_path(store, plain["path"], (*where, "path"))  # a reference, marked: an object nested has no `$schema`
         if found is None:

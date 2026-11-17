@@ -128,6 +128,13 @@ def _visited(target: Any, store: Any) -> Any:
     return target if builder is None else builder(target, False, store)
 
 
+def _linked_identity(target: Any, store: Any) -> Hashable:
+    """What a link links, as uniqueness tells it apart: the object's identity, or the parameter a parameter reference
+    in its place designates (CAP-312)."""
+    parameter = Proxies._parameter_in(target)
+    return _identity(_visited(target, store)) if parameter is None else Proxies._link_key(parameter)
+
+
 def _filling(relation: Schemas.OfRelation.Data, name: str, schema: Schemas.OfObject.Data) -> str | None:
     """Whether an object of `schema` may fill link `name` of `relation`: its schema must declare an adjacency via it,
     named or anonymous."""
@@ -280,14 +287,15 @@ class _Check:
         self._schema(f"of {label}", relation)
         problems = []
         for name in relation.entry.links:
-            if name != adjacency.me:
-                problem = _filling(relation, name, _visited(getattr(entry, name), self._store).as_schema())
-                if problem:
+            if name != adjacency.me and Proxies._parameter_in(getattr(entry, name)) is None:  # a parameter reference
+                problem = _filling(relation, name, _visited(getattr(entry, name), self._store).as_schema())  # is accepted
+                if problem:  # in the place of an object structurally (CAP-312)
                     problems.append(f"{label}.{name}: {problem}")
         for name, prop in relation.entry.properties.items():
             problems += self._value_problems(f"{label}.{name}", prop.schema,
                                              _property_value(getattr(entry, name), prop.schema))
-        links = {name: _identity(_visited(getattr(entry, name), self._store)) for name in relation.entry.links if name != adjacency.me}
+        links = {name: _linked_identity(getattr(entry, name), self._store)
+                 for name in relation.entry.links if name != adjacency.me}
         links[adjacency.me] = _identity(owner)
         values = {name: _key(prop.schema, _property_value(getattr(entry, name), prop.schema))
                   for name, prop in relation.entry.properties.items()

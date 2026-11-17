@@ -150,7 +150,8 @@ function frameOf(store: any, frame: Map<string, unknown>): Callback {
 /** A `References.OfEntry`'s callback: its relation's path, each link's object's reference and each property's value. */
 function entryOf(store: any, entry: any): Callback {
   const relation = Paths.of(entry._relation);
-  const links = new Map([...entry._links.keys()].map((link: string) => [link, object(store, entry._proxy[link])])); // each read
+  const links = new Map([...entry._links.keys()].map((link: string) => [link, // each read: present, or loaded; a
+    Proxies._parameter_in(entry._proxy[link]) ?? object(store, entry._proxy[link])])); // parameter reference, as it is
   const properties = new Map(entry._properties);
   return (e: any) => e.relation(relation).links(links).properties(properties);
 }

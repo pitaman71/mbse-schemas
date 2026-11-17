@@ -100,6 +100,8 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
     paths = Proxies._gone_paths(proposals, store)  # owned, not present: deleted, with what they own
 
     def gone(x: Any) -> bool:
+        if Proxies._is_parameter(x):  # a parameter reference in an object's place (CAP-312): never deleted
+            return False
         path = x.path if isinstance(x, Proxies._Unresolved) else object.__getattribute__(x, "_reference")
         return path is not None and any(Proxies._under(path, p) for p in paths)
 
@@ -161,7 +163,8 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
                           ("insert", inserted.values())):
         for entry in entries:
             link, adjacency = _writer(entry, made)
-            others = {other: symbol(x) for other, x in entry._links.items() if other != link}
+            others = {other: x if Proxies._is_parameter(x) else symbol(x)  # a parameter reference, as itself (CAP-312)
+                      for other, x in entry._links.items() if other != link}
             gathered.entries.append((symbol(entry._links[link]), adjacency, verb, others, dict(entry._properties)))
     gathered.assigned += [(symbol(holder), name, after, _schema(holder).properties[name].schema)
                           for holder, name, after in changed if not Proxies._counted(holder)]
@@ -266,17 +269,18 @@ def _present_only(store: Any, plain: PlainData) -> tuple[PlainData | None, list[
         ((verb, body),) = adjacency["mutations"][0].items()
         ((entry,),) = [body["entries"]]
         links, keys = _parts(entry)
-        if not any(symbol in present for symbol in links.values()):
+        if not any(isinstance(symbol, str) and symbol in present for symbol in links.values()):
             continue
         held = schema_of(subject).adjacencies[adjacency["name"]]
-        writers = [(link, name) for link, symbol in links.items() if symbol in present
+        writers = [(link, name) for link, symbol in links.items() if isinstance(symbol, str) and symbol in present
                    for name, a in schemas[symbol].adjacencies.items() if a.relation is held.relation and a.me == link]
         if not writers:  # written to the objects present it links directly, each other linked by its path
-            if any(symbol in counted for symbol in links.values()):
+            if any(isinstance(symbol, str) and symbol in counted for symbol in links.values()):
                 raise ValueError(f"a counted object an entry of {held.relation.name!r} links, which a transaction of the "
                                  "store below's changes, has no adjacency to it by name, nor has any other object "
                                  "present it links, so that it cannot be found to apply it: name one")
-            direct.append((held.relation, verb, {**{link: path_of(symbol) for link, symbol in links.items()},
+            direct.append((held.relation, verb, {**{link: path_of(symbol) if isinstance(symbol, str) else symbol
+                                                    for link, symbol in links.items()},
                                                   held.me: path_of(subject)}, keys))
             continue
         writer, name = writers[0]
@@ -292,7 +296,8 @@ def _present_only(store: Any, plain: PlainData) -> tuple[PlainData | None, list[
         used.add(subject)
         if "as_adjacency" in mutation:
             ((_, body),) = mutation["as_adjacency"]["mutations"][0].items()
-            used.update(symbol for entry in body["entries"] for symbol in _parts(entry)[0].values())
+            used.update(symbol for entry in body["entries"] for symbol in _parts(entry)[0].values()
+                        if isinstance(symbol, str))
     return {"mutations": [{"upsert": {"exists": [{"symbols": {
         name: bound if name in counted else {"reference": {"path": path_of(name)}}
         for name, bound in symbols.items() if name in used}, "spec": kept}]}}]}, direct
@@ -305,6 +310,9 @@ def _apply_directly(store: Any, direct: list[Any]) -> None:
     for relation, verb, paths, keys in direct:
         links = {}
         for link, path in paths.items():
+            if Plain._is_marked(path):  # a parameter reference in the object's place (CAP-312)
+                links[link] = Proxies._durable(Plain._unmarked(store, path))
+                continue
             found = store._present(path)
             links[link] = found if found is not None else Proxies._Unresolved(store, path)
         properties = {name: Plain.FromPlain(store)(relation.entry.properties[name].schema, value)
@@ -319,13 +327,15 @@ def _apply_directly(store: Any, direct: list[Any]) -> None:
 
 
 def _parts(entry: PlainData) -> tuple[dict[str, str], dict[str, PlainData]]:
-    """An entry's links, each to the symbol it is set to, and its properties, each as plain, as an effect writes it."""
+    """An entry's links, each to the symbol it is set to, or to a parameter reference, marked, and its properties, each
+    as plain, as an effect writes it."""
     links, keys = {}, {}
     for part in entry["mutations"]:
         ((kind, member),) = part.items()
         ((_, set_),) = member["mutations"][0].items()
         if kind == "as_link":
-            links[member["name"]] = set_["reference"]["symbol"]
+            reference = set_["reference"]
+            links[member["name"]] = reference if Plain._is_marked(reference) else reference["symbol"]
         else:
             keys[member["name"]] = set_["value"]
     return links, keys
@@ -374,7 +384,7 @@ def _effect(store: Any, gathered: _Gathered) -> Any:
     for symbol, adjacency, verb, others, properties in gathered.entries:
         def fill(entry: Any, _: Any, others: dict[str, str] = others, properties: dict[str, Any] = properties) -> Any:
             for link, other in others.items():
-                entry = getattr(entry, link)(getattr(_, other))
+                entry = getattr(entry, link)(getattr(_, other) if isinstance(other, str) else other)
             for name, value in properties.items():
                 entry = getattr(entry, name)(value)
             return entry

@@ -29,8 +29,9 @@ def of(root: Readers.OfObject) -> list[Readers.OfObject]:
         return read
 
     def found(target: Any) -> None:
-        if getattr(target, "as_adjacencies", None) is None:
-            return  # a schema object, which an extension's relation links: not data, so not followed
+        if getattr(target, "as_adjacencies", None) is None or target.as_schema() is None:
+            return  # a schema object, which an extension's relation links, or a parameter reference in an object's place,
+            # read as an empty visitor (CAP-312): not data, so not followed
         if id(target) not in seen:
             seen[id(target)] = target
             queue.append(target)

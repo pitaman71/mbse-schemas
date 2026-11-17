@@ -53,7 +53,7 @@ export function observe(store: any, observer: (effect: any) => void): () => void
  * adjacency, the verb, its other links' symbols and its properties; each property changed, by symbol, as plain. */
 export interface _Gathered {
   symbols: Map<string, any>;
-  entries: [string, string, string, Map<string, string>, Map<string, unknown>][];
+  entries: [string, string, string, Map<string, unknown>, Map<string, unknown>][];
   assigned: [string, string, unknown, any][];
 }
 
@@ -109,6 +109,7 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
   const made = new Set([...proposals.created].filter((x) => Proxies._isObjectData(x)).map((x) => Proxies._innerOf(x)));
   const paths = Proxies._gone_paths(proposals, store); // owned, not present: deleted, with what they own
   const gone = (x: unknown): boolean => {
+    if (Proxies._is_parameter(x)) return false; // a parameter reference in an object's place (CAP-312): never deleted
     const path = x instanceof Proxies._Unresolved ? x.path : (Proxies._innerOf(x) as any)._reference;
     return path !== null && paths.some((p) => Plain._under(path, p));
   };
@@ -183,8 +184,10 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     for (const entry of entries) {
       const state = Proxies._innerOf(entry) as any;
       const [link, adjacency] = writer(state, made);
-      const others = new Map<string, string>();
-      for (const [other, x] of state._links as Map<string, unknown>) if (other !== link) others.set(other, symbol(x));
+      const others = new Map<string, unknown>(); // a parameter reference, as itself (CAP-312)
+      for (const [other, x] of state._links as Map<string, unknown>) {
+        if (other !== link) others.set(other, Proxies._is_parameter(x) ? x : symbol(x));
+      }
       gathered.entries.push([symbol(state._links.get(link)), adjacency, verb, others, new Map(state._properties)]);
     }
   }
@@ -298,18 +301,19 @@ export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainD
     const [[verb, body]] = [...adjacency.get("mutations")[0]] as any;
     const [entry] = body.get("entries") as PlainMap[];
     const [links, keys] = parts(entry!);
-    if (![...links.values()].some((symbol) => present.has(symbol))) continue;
+    if (![...links.values()].some((symbol) => typeof symbol === "string" && present.has(symbol))) continue;
     const held = schemaOfSymbol(subject).adjacencies.get(adjacency.get("name"));
-    const writers = [...links].filter(([, symbol]) => present.has(symbol)).flatMap(([link, symbol]) =>
-      [...schemas.get(symbol).adjacencies as Map<string, any>]
+    const writers = [...links].filter(([, symbol]) => typeof symbol === "string" && present.has(symbol)).flatMap(([link, symbol]) =>
+      [...schemas.get(symbol as string).adjacencies as Map<string, any>]
         .filter(([, a]) => a.relation === held.relation && a.me === link).map(([name]) => [link, name] as const));
     if (writers.length === 0) { // written to the objects present it links directly, each other linked by its path
-      if ([...links.values()].some((symbol) => counted.has(symbol))) {
+      if ([...links.values()].some((symbol) => typeof symbol === "string" && counted.has(symbol))) {
         throw new ValueError(`a counted object an entry of '${held.relation.name}' links, which a transaction of the `
           + "store below's changes, has no adjacency to it by name, nor has any other object present it links, so that "
           + "it cannot be found to apply it: name one");
       }
-      const paths = new Map<string, Plain.PlainData>([...links].map(([link, symbol]) => [link, pathOf(symbol)]));
+      const paths = new Map<string, Plain.PlainData>([...links].map(([link, symbol]) =>
+        [link, typeof symbol === "string" ? pathOf(symbol) : symbol]));
       paths.set(held.me, pathOf(subject));
       direct.push([held.relation, verb, paths, keys]);
       continue;
@@ -319,7 +323,7 @@ export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainD
       .filter((part) => !(part.has("as_link") && part.get("as_link").get("name") === writer))];
     const written = new Map([[verb!, new Map([["entries", [new Map([["mutations", entryParts]])]]])]]);
     const rewritten = new Map<string, unknown>([["name", name], ["mutations", [written]]]);
-    kept.push(new Map([[links.get(writer)!, [new Map([["as_adjacency", rewritten]])]]]));
+    kept.push(new Map([[links.get(writer) as string, [new Map([["as_adjacency", rewritten]])]]]));
   }
   if (kept.length === 0) return [null, direct];
   const used = new Set<string>(); // the symbols what is kept names
@@ -328,7 +332,9 @@ export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainD
     used.add(subject);
     if (mutation!.has("as_adjacency")) {
       const [[, body]] = [...mutation!.get("as_adjacency").get("mutations")[0]] as any;
-      for (const entry of body.get("entries") as PlainMap[]) for (const symbol of parts(entry)[0].values()) used.add(symbol);
+      for (const entry of body.get("entries") as PlainMap[]) {
+        for (const symbol of parts(entry)[0].values()) if (typeof symbol === "string") used.add(symbol);
+      }
     }
   }
   const named = new Map([...symbols].filter(([name]) => used.has(name)).map(([name, bound]) =>
@@ -347,6 +353,10 @@ export function _apply_directly(store: any, direct: _Direct[]): void {
   for (const [relation, verb, paths, keys] of direct) {
     const links = new Map<string, unknown>();
     for (const [link, path] of paths) {
+      if (Plain._is_marked(path)) { // a parameter reference in the object's place (CAP-312)
+        links.set(link, Proxies._durable(Plain._unmarked(store, path as PlainMap)));
+        continue;
+      }
       const found = store._present(path);
       links.set(link, found ?? new Proxies._Unresolved(store, path));
     }
@@ -362,14 +372,17 @@ export function _apply_directly(store: any, direct: _Direct[]): void {
   }
 }
 
-/** An entry's links, each to the symbol it is set to, and its properties, each as plain, as an effect writes it. */
-function parts(entry: PlainMap): [Map<string, string>, Map<string, Plain.PlainData>] {
-  const [links, keys] = [new Map<string, string>(), new Map<string, Plain.PlainData>()];
+/** An entry's links, each to the symbol it is set to, or to a parameter reference, marked, and its properties, each as
+ * plain, as an effect writes it. */
+function parts(entry: PlainMap): [Map<string, Plain.PlainData>, Map<string, Plain.PlainData>] {
+  const [links, keys] = [new Map<string, Plain.PlainData>(), new Map<string, Plain.PlainData>()];
   for (const part of entry.get("mutations") as PlainMap[]) {
     const [[kind, member]] = [...part] as any;
     const [[, set]] = [...member.get("mutations")[0]] as any;
-    if (kind === "as_link") links.set(member.get("name"), set!.get("reference").get("symbol"));
-    else keys.set(member.get("name"), set!.get("value"));
+    if (kind === "as_link") {
+      const reference = set!.get("reference");
+      links.set(member.get("name"), Plain._is_marked(reference) ? reference : reference.get("symbol"));
+    } else keys.set(member.get("name"), set!.get("value"));
   }
   return [links, keys];
 }
@@ -427,7 +440,7 @@ export function _effect(store: any, gathered: _Gathered): any {
   for (const [symbol, adjacency, verb, others, properties] of gathered.entries) {
     const fill = (entry: any, _: any): any => {
       let e = entry;
-      for (const [link, other] of others) e = e[link](_[other]);
+      for (const [link, other] of others) e = e[link](typeof other === "string" ? _[other] : other);
       for (const [name, v] of properties) e = e[name](v);
       return e;
     };

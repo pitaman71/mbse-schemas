@@ -39,6 +39,10 @@
  * A parameter reference, `References.OfParameter`, may stand in the place of a value of any schema: given as the value
  * (`b.size(n)`), or built in place through `Visitors.OfAny.as_parameter`. `as_parameter` reads it back, and every other
  * visitor reads the place as empty, as it reads an unset value ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
+ *
+ * A parameter reference may also stand in the place of an object a link links (`e.to(n)`): the entry holds it, keyed by
+ * its parameter's name, in the tables of the objects it links alone; reading the link gives an empty visitor that holds
+ * it, whose `as_parameter` hands it over. A relation that owns what it links takes none (CAP-312).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -804,9 +808,29 @@ function sortedKeys(value: PlainData): PlainData {
   return value;
 }
 
-/** What a link contributes to its entry's key: the object linked, or the path of one not present. */
+/** What a link contributes to its entry's key: the object linked, the path of one not present, or the name of the
+ * parameter a parameter reference in the object's place designates (CAP-312). */
 function linkKey(target: unknown): unknown {
+  if (_is_parameter(target)) return ["parameter", parameterName(target)];
   return target instanceof _Unresolved ? ["path", target.key] : identityOf(target);
+}
+
+/** The name a parameter reference holds. */
+function parameterName(reference: unknown): unknown {
+  return innerOf(_durable(reference))._values.get("name");
+}
+
+/** The parameter reference an empty visitor holds in the place of a value or of a linked object; null for any other
+ * visitor. */
+export function _parameter_in(visitor: unknown): any {
+  const inner = innerOf(visitor);
+  return inner instanceof _Empty ? inner._parameter : null;
+}
+
+/** Whether a link's target is an end that holds no entry table: one not present (CAP-284), or a parameter reference in
+ * the place of an object (CAP-312). */
+function isEnd(target: unknown): boolean {
+  return target instanceof _Unresolved || _is_parameter(target);
 }
 
 /** Whether `relation` owns what it links through `link`, whatever that is: a schema the store holds marks its adjacency
@@ -863,6 +887,9 @@ class _Entry extends Shelled {
   override _member(name: string): unknown {
     if (this._links.has(name)) {
       let target = this._links.get(name);
+      if (_is_parameter(target)) { // in the place of the object it links (CAP-312): an empty visitor holding it
+        return makeEmpty(`link ${repr(name)} holds a parameter reference`, target);
+      }
       if (target instanceof _Unresolved) { // read: loaded from the store below, which links it in every entry
         target = target.store._resolved(target); // that waits on it, this one too
         this._links.set(name, target);
@@ -1002,9 +1029,16 @@ function addEntry(relation: RelationSchema, entry: any, store: unknown = null): 
   }
   const key = state._key();
   const held = entryStore(state, store);
-  const present = [...state._links.values()].filter((target) => !(target instanceof _Unresolved));
+  const parameters = [...state._links].filter(([, target]) => _is_parameter(target)).map(([link]) => link);
+  if (parameters.length > 0 && [...relation.entry.links.keys()].some((link) => _owns_through(relation, link, held))) {
+    throw new ValueError(`link ${repr(parameters[0])} of an entry of ${repr(relation.name)} holds a parameter reference, `
+      + "which a relation that owns what it links takes in no link: a parameter reference owns nothing and is owned by "
+      + "nothing");
+  }
+  const present = [...state._links.values()].filter((target) => !isEnd(target));
   if (table(present[0], relation, held).has(key)) return;
   for (const target of state._links.values()) {
+    if (_is_parameter(target)) continue; // in the place of an object (CAP-312): it holds no table
     if (target instanceof _Unresolved) { // held by the objects present, linked again once it is loaded (CAP-284)
       const waiting = target.store._waiting as Map<string, unknown[]>;
       if (!waiting.has(target.key)) waiting.set(target.key, []);
@@ -1052,7 +1086,9 @@ function missed(store: any, relation: RelationSchema): boolean {
 function checkUnique(entry: _Entry, store: unknown): void {
   const part = (e: _Entry, name: string): [string, unknown] => {
     const target = e._links.get(name);
-    if (target !== undefined && target !== null) return ["link", innerOf(target)];
+    if (target !== undefined && target !== null) {
+      return ["link", _is_parameter(target) ? JSON.stringify(linkKey(target)) : innerOf(target)];
+    }
     const value = e._properties.get(name);
     return ["value", value === undefined || value === null ? null : scalarKey(value)];
   };
@@ -1062,6 +1098,7 @@ function checkUnique(entry: _Entry, store: unknown): void {
   const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
   const others = new Set<_Entry>();
   for (const target of entry._links.values()) {
+    if (_is_parameter(target)) continue;
     for (const e of table(target, relation, store).values()) if (innerOf(e) !== entry) others.add(innerOf(e) as _Entry);
   }
   for (const clause of relation.uniques) {
@@ -1089,7 +1126,7 @@ function discard(relation: RelationSchema, entries: readonly unknown[], store: u
     const key = state._key();
     const held = entryStore(state, store);
     for (const target of state._links.values()) {
-      if (!(target instanceof _Unresolved)) { // one not present waits on it still: held as committed, maybe
+      if (!isEnd(target)) { // one not present waits on it still: held as committed, maybe; a parameter, none
         table(target, relation, held, true).delete(key);
       }
     }
@@ -1111,7 +1148,7 @@ function orders(schema: ObjectSchema, source: unknown): Orders {
     const relation = adjacency.relation as RelationSchema;
     for (const entry of linking(relation, adjacency.me, source)) {
       for (const target of (innerOf(entry) as _Entry)._links.values()) {
-        if (target instanceof _Unresolved) continue; // not present: it holds no table (CAP-284)
+        if (isEnd(target)) continue; // not present, or a parameter reference: it holds no table (CAP-284, CAP-312)
         const held = table(target, relation, store, true); // reordered after the update
         if (!tables.has(held)) tables.set(held, [...held.values()]);
       }
@@ -2665,8 +2702,14 @@ function agrees(entry: unknown, spec: unknown, adjacency: AdjacencySchema, store
     [wantedLinks, wantedValues] = entryParts(spec, adjacency.me);
     if (!sameKeys(wantedLinks, links) || !sameKeys(wantedValues, values)) return false;
   }
-  return [...wantedLinks].every(([name, target]) => links.get(name) === target)
+  return [...wantedLinks].every(([name, target]) => sameLink(links.get(name), target))
     && [...wantedValues].every(([name, value]) => values.has(name) && scalarKey(values.get(name)) === scalarKey(value));
+}
+
+/** Whether a link holds what a query gives: the same object, or a parameter reference to the same parameter. */
+function sameLink(held: unknown, wanted: unknown): boolean {
+  return held === wanted || (_is_parameter(held) && _is_parameter(_durable(wanted))
+    && JSON.stringify(linkKey(held)) === JSON.stringify(linkKey(_durable(wanted))));
 }
 
 /** A value as `project` and `at` read it: a flat union's value as its branch's value. */
@@ -3082,6 +3125,10 @@ export function _given(them: any, value: unknown, link: string, linkTakes: boole
     visit(value, them);
     return;
   }
+  if (_is_parameter(_durable(value))) { // in the place of the object the entry links (CAP-312)
+    them[link](value);
+    return;
+  }
   const takers: [string, boolean][] = linkTakes ? [[link, false]] : [];
   for (const [name, adjacency, takes] of members) if (takes) takers.push([name, adjacency]);
   if (takers.length !== 1) {
@@ -3254,6 +3301,9 @@ class _Them extends Shelled {
       const entry: _EntryBuilder = innerOf(this._entry);
       const store = entry._store as OfStore;
       const target = entry._links.get(this._other);
+      if (_is_parameter(target)) {
+        throw new TypeError(`link ${repr(this._other)} holds a parameter reference, which has no members to write`);
+      }
       if (isBuilder(target)) {
         this._object = target;
       } else {
@@ -3335,6 +3385,7 @@ class _LinkMember extends Shelled {
   _target(): any {
     const target = this._entry._links.get(this._name);
     if (isBuilder(target)) return makeEmpty("not created yet"); // what an entry builds through its link is created with it
+    if (_is_parameter(target)) return makeEmpty(`link ${repr(this._name)} holds a parameter reference`, target); // CAP-312
     return target ?? makeEmpty(`link ${repr(this._name)} is not set`);
   }
 
@@ -3377,6 +3428,11 @@ class _LinkMember extends Shelled {
       return entry._proxy;
     }
     if (innerOf(spec) instanceof _LinkMember) spec = innerOf(spec)._target();
+    if (_parameter_in(spec) !== null) spec = _durable(_parameter_in(spec)); // a link's, or an entry's, that holds one
+    if (_is_parameter(spec)) { // in the place of the object it links (CAP-312), held as a value object is
+      entry._links.set(name, copyHeld(spec));
+      return entry._proxy;
+    }
     if (isRecordData(spec)) throw new ReadOnlyError("a link targets a reference object, never a value object");
     const holds = (entry._store as { holds?: (data: unknown) => boolean } | null)?.holds;
     if (!isObjectData(spec) && !(holds !== undefined && holds.call(entry._store, spec))) {

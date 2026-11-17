@@ -1785,7 +1785,7 @@ class Store(Proxies.OfStore):
         return found if found is not None else ModuleBuilder(None, True, self).name(path).create()
 
     def framework(self, schema: Any) -> bool:
-        """Whether `schema` is one the store was made holding: a plain schema of schemas, a basic scalar, a mutation
+        """Whether `schema` is one the store was made holding: a plain meta-schema, a basic scalar, a mutation
         schema. It changes only through `extend`, which adds members to it."""
         return id(schema) in self._framework
 

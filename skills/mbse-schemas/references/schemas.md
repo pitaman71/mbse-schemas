@@ -1,6 +1,6 @@
 # Designing and extending schemas
 
-Schemas are data. Every schema is an object in its store, of a plain schema of schemas (`store.Schemas.OfObject`, ...),
+Schemas are data. Every schema is an object in its store, of a plain meta-schema (`store.Schemas.OfObject`, ...),
 the store's own, and every named one is in a module, its name's prefix
 ([CAP-109: schemas as linked objects in modules](mbse:mbse-basis/docs/capabilities/CAP-109.md)). A module defines its
 schemas in a module-scope `install(txn)`: one upsert, each schema a symbol of its kind, found by its name, else made,

@@ -28,6 +28,10 @@ Reads never raise: a visitor of an absent value, of a value of another kind, or 
 empty. The one raise is a write that the visitor's mode, or the value, forbids: `Errors.ReadOnlyError`; and a visitor
 used after its transaction ended, below.
 
+A parameter reference, `References.OfParameter`, may stand in the place of a value of any schema: given as the value
+(`b.size(n)`), or built in place through `Visitors.OfAny.as_parameter`. `as_parameter` reads it back, and every other
+visitor reads the place as empty, as it reads an unset value ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
+
 Every read of a store's data is made within a transaction ([CAP-315: every read within a transaction or through a
 follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). The store holds each object durably: its identity and its committed state, an
 `_ObjectData`, as each relation entry, value object and container's value is held, which the store's own code reads
@@ -1138,10 +1142,12 @@ class _Dunders(_Unassignable):
 
 class _Empty(_Dunders):
     """A visitor of nothing: an absent value, a value of another kind than asked for, or a member the schema lacks. It
-    reads as empty in every protocol, and refuses every write, saying why."""
+    reads as empty in every protocol, and refuses every write, saying why. Of a union's branch or an intersection's part
+    that holds a parameter reference, it holds that reference, which `as_parameter` hands over (CAP-312)."""
 
-    def __init__(self, reason: str):
+    def __init__(self, reason: str, parameter: Any = None):
         object.__setattr__(self, "_reason", reason)
+        object.__setattr__(self, "_parameter", parameter)
 
     _writable = False
 
@@ -1174,6 +1180,15 @@ class _Empty(_Dunders):
         return self
 
     as_value = as_scalar = as_object = as_union = as_intersection = as_adjacencies = _hand
+
+    def as_parameter(self, cb: Any) -> _Empty:
+        """The parameter reference it holds, if any, read-only; else an empty visitor."""
+        if self._parameter is None:
+            return self._hand(cb)
+        if not _is_function(cb):
+            raise ReadOnlyError(self._reason)
+        _visit(cb, self._parameter)
+        return self
 
     def as_iterable(self, cb: Any) -> _Empty:
         _visit(cb, iter(()))
@@ -1239,7 +1254,10 @@ class _Scalar(_Dunders):
 
     def set(self, value: Scalar) -> None:
         _write(self._writable, f"{self._label_text} is read-only; write through a builder")
-        _restricted_scalar(self._restriction, value, self._label_text)
+        if _is_parameter(_durable(value)):  # in place of the scalar (CAP-312): a value object, held as one is
+            value = _given_value(_durable(value))
+        else:
+            _restricted_scalar(self._restriction, value, self._label_text)
         if self._on_write is not None:
             self._on_write()
         self._values[self._name] = value
@@ -1271,7 +1289,9 @@ def _restricted_scalar(restriction: Any, value: Any, label: str) -> None:
 
 class _Any(_Unassignable):
     """`Visitors.OfAny` over one key of a values dict, holding a value of `schema`. Read-only, it hands over the value's
-    own visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold."""
+    own visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold. A parameter
+    reference may stand in the value's place ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)): `as_parameter` hands it over, and
+    every other kind reads the place as empty, as it reads a value of another kind."""
 
     def __init__(self, values: dict[str, Any], name: str, schema: Any, store: OfStore | None, writable: bool,
                  label: str, on_write: Callable[[], None] | None = None, life: _Life | None = None):
@@ -1283,7 +1303,8 @@ class _Any(_Unassignable):
         self._unbuilt = ""  # why a Spec has nothing to build: where the value is of any schema and its schema unknown
         held = values.get(name)
         if self._any is not None:  # a value of any schema: of the schema the value held has
-            self._type = held._schema if isinstance(held, (_RecordData, _RecordBuilder, _Containing)) else None
+            self._type = held._schema if isinstance(held, (_RecordData, _RecordBuilder, _Containing)) and not \
+                _standing_in(held, schema) else None
         elif isinstance(held, (_RecordData, _RecordBuilder)) and _refines(held._schema, schema):
             self._type = held._schema  # a refinement's value, held where its refined schema is declared
 
@@ -1311,7 +1332,7 @@ class _Any(_Unassignable):
             self._type = value._schema
         elif isinstance(self._type, kind):  # a Spec writes the value held, of the schema it has
             return
-        elif self._writable and self._values.get(self._name) is None:  # a Spec, where nothing is held
+        elif self._writable and self._value_held() is None:  # a Spec, where nothing is held, or a parameter reference
             self._type = self._only(kind)
             if not self._any.schemas:
                 self._unbuilt = (f"{self._label} holds a value of any schema: give a value, which carries its schema, "
@@ -1320,12 +1341,55 @@ class _Any(_Unassignable):
     def as_schema(self) -> Any:
         return self._schema
 
+    def _value_held(self) -> Any:
+        """The value held, as a value of its schema: None where a parameter reference stands in its place."""
+        value = self._values.get(self._name)
+        return None if _standing_in(value, self._schema) else value
+
     def _touch(self) -> None:
         if self._on_write is not None:
             self._on_write()
 
-    def as_scalar(self, cb: Any) -> _Any:
+    def as_parameter(self, cb: Any) -> _Any:
+        """The parameter reference held in the value's place, read-only, or an empty visitor where none is held.
+        Writable, given a parameter reference, it writes it in the value's place; given a callback, it writes one built
+        through the callback, from the one held, if any (CAP-312)."""
         value = self._values.get(self._name)
+        held = value if _is_parameter(value) else None
+        if not self._writable:
+            if held is None:
+                return self._hand(cb, _Empty(f"{self._label} holds no parameter reference"))
+            if not _is_function(cb):
+                raise ReadOnlyError(f"{self._label} is read-only; write through a builder")
+            _visit(cb, _wrap(held, self._life))
+            return self
+        if not _is_function(cb):
+            self._parameter(cb)
+            return self
+        if isinstance(held, _RecordBuilder):
+            builder = held
+        else:
+            def attach(made: _RecordBuilder) -> None:
+                self._touch()
+                self._values[self._name] = made
+
+            builder = _RecordBuilder(self._store.registered(PARAMETER), held, self._store, attach)
+        builder._touch()
+        _visit(cb, builder)
+        return self
+
+    def _parameter(self, value: Any) -> None:
+        """Writes a parameter reference given as a value in the value's place (CAP-312), copied when it is placed."""
+        if isinstance(value, _Property):
+            value = value._values.get(value._name)
+        value = _durable(value)
+        if not _is_parameter(value):
+            raise TypeError(f"{self._label} takes a parameter reference or a Spec, got {type(value).__name__}")
+        self._touch()
+        self._values[self._name] = _given_value(value)
+
+    def as_scalar(self, cb: Any) -> _Any:
+        value = self._value_held()
         if self._any is not None and self._type is None:  # a scalar of any schema, or of the one its restriction allows
             self._type = self._only(Schemas.OfScalar.Data) or self._any
         if isinstance(self._type, Schemas.OfUnion.Data) and self._type.flat:
@@ -1367,7 +1431,7 @@ class _Any(_Unassignable):
         self._of_any(Schemas.OfContainer.Data, cb)
         if not isinstance(self._type, Schemas.OfContainer.Data):
             return self._hand(cb, _Empty(self._unbuilt or f"{self._label} does not hold a container"))
-        value = self._values.get(self._name)
+        value = self._value_held()
         if not self._writable:
             if isinstance(value, _ContainerData):
                 if _is_function(cb):
@@ -1432,7 +1496,7 @@ class _Any(_Unassignable):
         self._of_any(kind, cb)
         if not isinstance(self._type, kind):
             return self._hand(cb, _Empty(self._unbuilt or f"{self._label} does not hold {_a(noun)}"))
-        value = self._values.get(self._name)
+        value = self._value_held()
         if not self._writable:
             if isinstance(value, _RecordData):
                 if _is_function(cb):
@@ -1449,7 +1513,7 @@ class _Any(_Unassignable):
     def _builder(self) -> _RecordBuilder:
         """The builder of the value object held, attached to the values when first written; one already attached, so
         that a builder reads back its pending writes."""
-        value = self._values.get(self._name)
+        value = self._value_held()
         if isinstance(value, _RecordBuilder):
             return value
 
@@ -1487,7 +1551,7 @@ class _Any(_Unassignable):
             raise AttributeError(name)
         if self._writable:  # the builder is attached when a member is written, not when it is read
             return getattr(self._builder(), name)
-        value = self._values.get(self._name)
+        value = self._value_held()
         return getattr(_wrap(value, self._life), name) if isinstance(value, _RecordData) else _Empty(
             f"{self._label} is not set")
 
@@ -1498,6 +1562,9 @@ class _Any(_Unassignable):
         if isinstance(value, _Property):
             value = value._values.get(value._name)
         value = _durable(value)
+        if _standing_in(value, self._schema):  # a parameter reference, in the value's place (CAP-312)
+            self._parameter(value)
+            return
         if self._any is not None and isinstance(value, (_RecordData, _RecordBuilder, _Containing)):
             self._of_any(type(value._schema), value)
         held = self._type
@@ -1689,8 +1756,12 @@ class _Containing(_Unassignable):
 
     def __call__(self, spec: Any) -> Any:
         """As a union's branch or an intersection's part: writes through a Spec, or takes the elements of a container
-        given, and returns the value it is a member of."""
+        given, or holds a parameter reference given in the container's place (CAP-312), and returns the value it is a
+        member of."""
         _write(self._writable, f"{self._label} is read-only; write through a builder")
+        if _is_parameter(_durable(spec)):
+            self._attach(_given_value(_durable(spec)))
+            return self._parent
         self._touch()
         if _is_function(spec):
             _visit(spec, self)
@@ -1928,9 +1999,12 @@ def _properties_of(owner: Any, values: dict[str, Any], schema: Any, store: OfSto
 def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore | None, parent: Any, writable: bool,
                   label: str, on_write: Callable[[], None] | None = None) -> Any:
     """The visitor of a union's branch or an intersection's part: of its own schema's kind, the value itself for a value
-    object held, or an empty one."""
+    object held, or an empty one. Read-only, where a parameter reference stands in its value's place, an empty one that
+    holds it (`_Empty.as_parameter`, CAP-312)."""
     held = schema
     value = values.get(name)
+    if not writable and _standing_in(value, held):
+        return _Empty(f"{label} holds a parameter reference", _wrap(value, _get(parent, "_life")))
     if isinstance(held, Schemas.OfScalar.Data):
         return _Scalar(values, name, held, writable, label, parent, on_write)
     if not writable:
@@ -1949,8 +2023,8 @@ def _kind_visitor(values: dict[str, Any], name: str, schema: Any, store: OfStore
         on_write()  # type: ignore[misc]  # a writable member is a union's or an intersection's, which says what writing does
         values[name] = builder
 
-    if isinstance(value, _RecordData):  # of its own schema: a refinement's, where the branch or part declares what it refines
-        return _RecordBuilder(value._schema, value, store, attach, parent, held)
+    if isinstance(value, _RecordData) and not _standing_in(value, held):  # of its own schema: a refinement's, where the
+        return _RecordBuilder(value._schema, value, store, attach, parent, held)  # branch or part declares what it refines
     return _RecordBuilder(held, None, store, attach, parent)
 
 
@@ -2245,6 +2319,30 @@ def _refines(schema: Any, declared: Any) -> bool:
     return schema is declared or (isinstance(declared, ObjectSchema) and Schemas.is_a(schema, declared))
 
 
+PARAMETER = "References.OfParameter"
+"""The registered name of a parameter reference's schema ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md))."""
+
+
+def _is_parameter(value: Any) -> bool:
+    """Whether `value` is a parameter reference, a `References.OfParameter`, built or being built."""
+    return isinstance(value, (_RecordData, _RecordBuilder)) and getattr(value._schema, "name", None) == PARAMETER
+
+
+def _admits(declared: Any, schema: Any) -> bool:
+    """Whether a place declared to hold a value of `declared` holds a value of `schema` as such: `schema` is `declared`
+    or refines it, or `declared` is a value of any schema that allows it."""
+    if isinstance(declared, Schemas.OfAny.Value):
+        return not declared.schemas or any(_refines(schema, t) for t in declared.schemas)
+    return _refines(schema, declared)
+
+
+def _standing_in(value: Any, declared: Any) -> bool:
+    """Whether `value` is a parameter reference standing in the place of a value of `declared`, which does not admit
+    one as such: a parameter reference may stand in for anything that has a schema, and the visitors of every other
+    kind read the place as empty ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided))."""
+    return _is_parameter(value) and not _admits(declared, value._schema)
+
+
 def _branch(name: str, schema: Schemas.OfUnion.Data, value: Any) -> Schemas.OfUnion.Branch:
     """The branch of a flat union whose schema a value has; else the one branch whose schema the value's refines, never
     guessed among several."""
@@ -2468,8 +2566,10 @@ class _RecordBuilder(_Unassignable):
             _visit(spec, self)
         else:
             spec = _durable(spec)
-            if not isinstance(spec, _RecordData) or not _refines(spec._schema, self._declared):
+            if not isinstance(spec, _RecordData) or not (_refines(spec._schema, self._declared) or _is_parameter(spec)):
                 raise TypeError(f"{_a(_noun(self._schema))} or a Spec is expected, got {type(spec).__name__}")
+            if _is_parameter(spec):  # in the value's place (CAP-312): it replaces the value held, never edits it
+                self._source = None
             self._schema = spec._schema
             self._values = dict(spec._values)
             self._copy_of = spec

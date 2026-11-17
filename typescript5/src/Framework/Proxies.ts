@@ -35,6 +35,10 @@
  *
  * Reads never throw: a visitor of an absent value, of a value of another kind, or of a member the schema lacks reads
  * as empty. The one throw is a write that the visitor's mode, or the value, forbids: `Errors.ReadOnlyError`.
+ *
+ * A parameter reference, `References.OfParameter`, may stand in the place of a value of any schema: given as the value
+ * (`b.size(n)`), or built in place through `Visitors.OfAny.as_parameter`. `as_parameter` reads it back, and every other
+ * visitor reads the place as empty, as it reads an unset value ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -1254,7 +1258,9 @@ abstract class Dunders extends Shelled {
 class _Empty extends Dunders {
   readonly [TYPE_NAME] = "_Empty";
 
-  constructor(readonly _reason: string) {
+  /** Of a union's branch or an intersection's part that holds a parameter reference, that reference, which
+   * `as_parameter` hands over (CAP-312); else null. */
+  constructor(readonly _reason: string, readonly _parameter: unknown = null) {
     super();
   }
 
@@ -1312,6 +1318,14 @@ class _Empty extends Dunders {
     return this._hand(cb);
   }
 
+  /** The parameter reference it holds, if any, read-only; else an empty visitor. */
+  as_parameter(cb: unknown): any {
+    if (this._parameter === null) return this._hand(cb);
+    if (!isFunction(cb)) throw new ReadOnlyError(this._reason);
+    visit(cb, this._parameter);
+    return this._proxy;
+  }
+
   as_iterable(cb: unknown): any {
     visit(cb, [][Symbol.iterator]());
     return this._proxy;
@@ -1361,8 +1375,8 @@ class _Empty extends Dunders {
   }
 }
 
-function makeEmpty(reason: string): any {
-  const state = new _Empty(reason);
+function makeEmpty(reason: string, parameter: unknown = null): any {
+  const state = new _Empty(reason, parameter);
   return shell(state, () => state._refuse());
 }
 
@@ -1396,9 +1410,11 @@ class _Scalar extends Dunders {
 
   set(value: Visitors.Scalar): void {
     write(this._writable, `${this._labelText} is read-only; write through a builder`);
-    restrictedScalar(this._restriction, value, this._labelText);
+    let held: unknown = value;
+    if (_is_parameter(_durable(value))) held = givenValue(_durable(value)); // in place of the scalar (CAP-312): a value object, held as one is
+    else restrictedScalar(this._restriction, value, this._labelText);
     if (this._onWrite !== null) this._onWrite();
-    this._values.set(this._name, value);
+    this._values.set(this._name, held);
   }
 
   clear(): void {
@@ -1434,7 +1450,9 @@ function restrictedScalar(restriction: Schemas.OfAny.Value | null, value: unknow
 }
 
 /** `Visitors.OfAny` over one key of a values map, holding a value of `schema`. Read-only, it hands over the value's own
- * visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold. */
+ * visitor, or an empty one; writable, it selects the kind, refusing one the schema does not hold. A parameter reference
+ * may stand in the value's place ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)): `as_parameter` hands it over, and every
+ * other kind reads the place as empty, as it reads a value of another kind. */
 class _Any {
   _type: unknown;
   readonly _any: Schemas.OfAny.Value | null;
@@ -1447,7 +1465,8 @@ class _Any {
     this._any = this._type instanceof Schemas.OfAny.Value ? this._type : null;
     const held = _values.get(_name);
     if (this._any !== null) { // a value of any schema: of the schema the value held has
-      this._type = isRecordData(held) || isRecordBuilder(held) || isContaining(held) ? innerOf(held)._schema : null;
+      this._type = (isRecordData(held) || isRecordBuilder(held) || isContaining(held)) && !standingIn(held, _schema)
+        ? innerOf(held)._schema : null;
     } else if ((isRecordData(held) || isRecordBuilder(held)) && _refines(innerOf(held)._schema, _schema)) {
       this._type = innerOf(held)._schema; // a refinement's value, held where its refined schema is declared
     }
@@ -1478,7 +1497,7 @@ class _Any {
   _kindMember(name: string | symbol): unknown {
     if (!this._hasKindMember(name)) return undefined;
     if (this._writable) return this._builder()[name]; // the builder is attached when a member is written, not read
-    const value = this._values.get(this._name);
+    const value = this._valueHeld();
     return isRecordData(value) ? (value as any)[name] : makeEmpty(`${this._label} is not set`);
   }
 
@@ -1508,7 +1527,7 @@ class _Any {
       this._type = schema;
     } else if (this._type instanceof kind) { // a Spec writes the value held, of the schema it has
       return;
-    } else if (this._writable && (this._values.get(this._name) ?? null) === null) { // a Spec, where nothing is held
+    } else if (this._writable && (this._valueHeld() ?? null) === null) { // a Spec, where nothing is held, or a parameter reference
       this._type = this._only(kind);
       if (this._any.schemas.length === 0) {
         this._unbuilt = `${this._label} holds a value of any schema: give a value, which carries its schema, not a Spec`;
@@ -1520,12 +1539,56 @@ class _Any {
     return this._schema;
   }
 
+  /** The value held, as a value of its schema: undefined where a parameter reference stands in its place. */
+  _valueHeld(): unknown {
+    const value = this._values.get(this._name);
+    return standingIn(value, this._schema) ? undefined : value;
+  }
+
   _touch(): void {
     if (this._onWrite !== null) this._onWrite();
   }
 
-  as_scalar(cb: unknown): this {
+  /** The parameter reference held in the value's place, read-only, or an empty visitor where none is held. Writable,
+   * given a parameter reference, it writes it in the value's place; given a callback, it writes one built through the
+   * callback, from the one held, if any (CAP-312). */
+  as_parameter(cb: unknown): this {
     const value = this._values.get(this._name);
+    const held = _is_parameter(value) ? value : null;
+    if (!this._writable) {
+      if (held === null) return this._hand(cb, makeEmpty(`${this._label} holds no parameter reference`));
+      if (!isFunction(cb)) throw new ReadOnlyError(`${this._label} is read-only; write through a builder`);
+      visit(cb, held);
+      return this;
+    }
+    if (!isFunction(cb)) {
+      this._parameter(cb);
+      return this;
+    }
+    const attach = (made: unknown): void => {
+      this._touch();
+      this._values.set(this._name, made);
+    };
+    const builder = isRecordBuilder(held) ? held
+      : makeRecordBuilder((this._store as OfStore).registered(PARAMETER) as RecordSchema, held, this._store, attach);
+    innerOf(builder)._touch();
+    visit(cb, builder);
+    return this;
+  }
+
+  /** Writes a parameter reference given as a value in the value's place (CAP-312), copied when it is placed. */
+  _parameter(value: unknown): void {
+    if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
+    value = _durable(value);
+    if (!_is_parameter(value)) {
+      throw new TypeError(`${this._label} takes a parameter reference or a Spec, got ${typeName(value)}`);
+    }
+    this._touch();
+    this._values.set(this._name, givenValue(value));
+  }
+
+  as_scalar(cb: unknown): this {
+    const value = this._valueHeld();
     if (this._any !== null && this._type === null) { // a scalar of any schema, or of the one its restriction allows
       this._type = this._only(Schemas.OfScalar.Data) ?? this._any;
     }
@@ -1577,7 +1640,7 @@ class _Any {
     if (!(this._type instanceof Schemas.OfContainer.Data)) {
       return this._hand(cb, makeEmpty(this._unbuilt || `${this._label} does not hold a container`));
     }
-    const value = this._values.get(this._name);
+    const value = this._valueHeld();
     if (!this._writable) {
       if (isContainerData(value)) {
         if (isFunction(cb)) {
@@ -1647,7 +1710,7 @@ class _Any {
       : "intersection value";
     this._ofAny(kind, cb);
     if (!(this._type instanceof kind)) return this._hand(cb, makeEmpty(this._unbuilt || `${this._label} does not hold ${withArticle(what)}`));
-    const value = this._values.get(this._name);
+    const value = this._valueHeld();
     if (!this._writable) {
       if (isRecordData(value)) {
         if (isFunction(cb)) {
@@ -1666,7 +1729,7 @@ class _Any {
   /** The builder of the value object held, attached to the values when first written; one already attached, so that a
    * builder reads back its pending writes. */
   _builder(): any {
-    const value = this._values.get(this._name);
+    const value = this._valueHeld();
     if (isRecordBuilder(value)) return value;
     const attach = (builder: unknown): void => {
       this._touch();
@@ -1702,6 +1765,10 @@ class _Any {
     write(this._writable, `${this._label} is read-only; write through a builder`);
     if (isProperty(value)) value = innerOf(value)._values.get(innerOf(value)._name);
     value = _durable(value);
+    if (standingIn(value, this._schema)) { // a parameter reference, in the value's place (CAP-312)
+      this._parameter(value);
+      return;
+    }
     if (this._any !== null && (isRecordData(value) || isRecordBuilder(value) || isContaining(value))) {
       this._ofAny(innerOf(value)._schema.constructor, value);
     }
@@ -1913,9 +1980,13 @@ abstract class _Containing extends Shelled {
   }
 
   /** As a union's branch or an intersection's part: writes through a Spec, or takes the elements of a container given,
-   * and returns the value it is a member of. */
+   * or holds a parameter reference given in the container's place (CAP-312), and returns the value it is a member of. */
   _call(spec: unknown): unknown {
     write(this._writable, `${this._label} is read-only; write through a builder`);
+    if (_is_parameter(_durable(spec))) {
+      (this as unknown as _ContainerBuilder)._attach(givenValue(_durable(spec)));
+      return this._parent;
+    }
     this._touch();
     if (isFunction(spec)) {
       visit(spec, this._proxy);
@@ -2254,6 +2325,7 @@ function kindVisitor(values: Values, name: string, schema: unknown, store: OfSto
   writable: boolean, label: string, onWrite: (() => void) | null = null): any {
   const held = schema;
   const value = values.get(name);
+  if (!writable && standingIn(value, held)) return makeEmpty(`${label} holds a parameter reference`, value);
   if (held instanceof Schemas.OfScalar.Data) return makeScalar(values, name, held, writable, label, parent, onWrite);
   if (!writable) return isRecordData(value) || isContainerData(value) ? value : makeEmpty(`${label} is not set`);
   if (isRecordBuilder(value) || isContainerBuilder(value)) return value;
@@ -2268,7 +2340,7 @@ function kindVisitor(values: Values, name: string, schema: unknown, store: OfSto
     (onWrite as () => void)(); // a writable member is a union's or an intersection's, which says what writing does
     values.set(name, builder);
   };
-  if (isRecordData(value)) { // of its own schema: a refinement's, where the branch or part declares what it refines
+  if (isRecordData(value) && !standingIn(value, held)) { // of its own schema: a refinement's, where the branch or part declares what it refines
     return makeRecordBuilder(innerOf(value)._schema, value, store, attach, parent, held as RecordSchema);
   }
   return makeRecordBuilder(held as RecordSchema, null, store, attach, parent);
@@ -2627,6 +2699,30 @@ export function _refines(schema: unknown, declared: unknown): boolean {
   return schema === declared || (declared instanceof Schemas.OfObject.Data && Schemas.is_a(schema, declared));
 }
 
+/** The registered name of a parameter reference's schema ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md)). */
+export const PARAMETER = "References.OfParameter";
+
+/** Whether `value` is a parameter reference, a `References.OfParameter`, built or being built. */
+export function _is_parameter(value: unknown): boolean {
+  return (isRecordData(value) || isRecordBuilder(value)) && innerOf(value)._schema.name === PARAMETER;
+}
+
+/** Whether a place declared to hold a value of `declared` holds a value of `schema` as such: `schema` is `declared` or
+ * refines it, or `declared` is a value of any schema that allows it. */
+export function _admits(declared: unknown, schema: unknown): boolean {
+  if (declared instanceof Schemas.OfAny.Value) {
+    return declared.schemas.length === 0 || declared.schemas.some((t) => _refines(schema, t));
+  }
+  return _refines(schema, declared);
+}
+
+/** Whether `value` is a parameter reference standing in the place of a value of `declared`, which does not admit one as
+ * such: a parameter reference may stand in for anything that has a schema, and the visitors of every other kind read
+ * the place as empty ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). */
+function standingIn(value: unknown, declared: unknown): boolean {
+  return _is_parameter(value) && !_admits(declared, innerOf(value)._schema);
+}
+
 /** The branch of a flat union whose schema a value has; else the one branch whose schema the value's refines, never
  * guessed among several. */
 function branchOf(name: string, schema: Schemas.OfUnion.Data, value: unknown): Schemas.OfUnion.Branch {
@@ -2810,7 +2906,7 @@ class _RecordBuilder extends Shelled {
   /** What a value given must be, or refine. */
   readonly _declared: RecordSchema;
 
-  constructor(public _schema: RecordSchema, readonly _source: unknown = null, readonly _store: OfStore | null = null,
+  constructor(public _schema: RecordSchema, public _source: unknown = null, readonly _store: OfStore | null = null,
     public _attach: ((builder: unknown) => void) | null = null, readonly _parent: unknown = null, declared: RecordSchema | null = null) {
     super();
     this._values = new Map(_source === null ? [] : innerOf(_source)._values);
@@ -2877,9 +2973,10 @@ class _RecordBuilder extends Shelled {
       visit(spec, this._proxy);
     } else {
       spec = _durable(spec);
-      if (!isRecordData(spec) || !_refines(innerOf(spec)._schema, this._declared)) {
+      if (!isRecordData(spec) || !(_refines(innerOf(spec)._schema, this._declared) || _is_parameter(spec))) {
         throw new TypeError(`${withArticle(noun(this._schema))} or a Spec is expected, got ${typeName(spec)}`);
       }
+      if (_is_parameter(spec)) this._source = null; // in the value's place (CAP-312): it replaces the value held, never edits it
       this._schema = innerOf(spec)._schema;
       this._values = new Map(innerOf(spec)._values);
       this._copyOf = spec;

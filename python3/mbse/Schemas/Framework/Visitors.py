@@ -89,7 +89,9 @@ class OfScalar(_Dunders, Protocol, Generic[T]):
 
 class OfAny(Protocol):
     """A value of any kind. Each `as_<kind>` hands over that kind's visitor: reading a value of another kind, an empty
-    one; writing, it selects the kind."""
+    one; writing, it selects the kind. A parameter reference, `References.OfParameter`, may stand in the place of a
+    value of any schema, and is read as a kind of its own, through `as_parameter`; the other kinds read such a place as
+    empty, as they read a value of another kind ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided))."""
 
     def as_schema(self) -> Schemas.OfAny.Data: ...
 
@@ -102,6 +104,11 @@ class OfAny(Protocol):
     def as_intersection(self, cb: Callback[OfIntersection]) -> Self: ...
 
     def as_container(self, cb: Callback[OfContainer]) -> Self: ...
+
+    def as_parameter(self, cb: Callback[OfObject]) -> Self:
+        """The parameter reference held in the value's place, a `Visitors.OfObject` of `References.OfParameter`;
+        writing, given one or a callback that builds one, it holds it in the value's place."""
+        ...
 
     def clear(self) -> None: ...
 

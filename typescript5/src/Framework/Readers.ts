@@ -25,6 +25,7 @@ export interface OfAny {
   as_union(cb: Read<OfUnion>): this;
   as_intersection(cb: Read<OfIntersection>): this;
   as_container(cb: Read<OfContainer>): this;
+  as_parameter(cb: Read<OfObject>): this;
 }
 
 export interface OfContainer {

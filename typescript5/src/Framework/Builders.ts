@@ -266,6 +266,15 @@ class Value extends Shelled {
     return this._proxy;
   }
 
+  /** A schema object's value is a scalar or a container, never a parameter reference: an empty visitor, and a write
+   * refused. */
+  as_parameter(cb: unknown): any {
+    const reason = `${this._label} holds no parameter reference`;
+    if (!isFunction(cb)) throw new TypeError(reason);
+    visit(cb, makeEmpty(reason));
+    return this._proxy;
+  }
+
   clear(): void {
     this._write(null);
   }

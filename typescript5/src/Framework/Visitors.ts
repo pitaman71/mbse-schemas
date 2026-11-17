@@ -82,7 +82,9 @@ export interface OfScalar<T extends Scalar = Scalar> extends Primitive {
 }
 
 /** A value of any kind. Each `as_<kind>` hands over that kind's visitor: reading a value of another kind, an empty one;
- * writing, it selects the kind. */
+ * writing, it selects the kind. A parameter reference, `References.OfParameter`, may stand in the place of a value of
+ * any schema, and is read as a kind of its own, through `as_parameter`; the other kinds read such a place as empty, as
+ * they read a value of another kind ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). */
 export interface OfAny {
   as_schema(): Schemas.OfAny.Data;
   as_scalar(cb: Callback<OfScalar>): this;
@@ -90,6 +92,9 @@ export interface OfAny {
   as_union(cb: Callback<OfUnion>): this;
   as_intersection(cb: Callback<OfIntersection>): this;
   as_container(cb: Callback<OfContainer>): this;
+  /** The parameter reference held in the value's place, a `Visitors.OfObject` of `References.OfParameter`; writing,
+   * given one or a callback that builds one, it holds it in the value's place. */
+  as_parameter(cb: Callback<OfObject>): this;
   clear(): void;
 }
 
@@ -199,7 +204,7 @@ export interface OfPattern {
 /** The methods each protocol declares, for runtime conformance checks (TypeScript interfaces vanish at runtime). */
 export const PROTOCOL_METHODS = {
   OfScalar: ["as_schema", "get", "set", "clear"],
-  OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "as_container", "clear"],
+  OfAny: ["as_schema", "as_scalar", "as_object", "as_union", "as_intersection", "as_container", "as_parameter", "clear"],
   OfProperty: ["as_schema", "as_value", "as_scalar", "as_object", "get"],
   OfObject: ["as_schema", "as_properties", "as_adjacencies"],
   OfAdjacency: ["as_schema", "as_iterable", "insert", "remove", "clear"],

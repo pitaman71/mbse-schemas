@@ -67,9 +67,16 @@ with store.transaction() as txn:
    the second commit? (a) It is refused, where an object it wrote was written by a transaction committed since it
    began (optimistic, first committer wins); (b) the later commit wins, its writes over the earlier's; (c) a
    transaction sees the others' writes as they commit (no isolation). *Recommended: (a), as a commit is all or
-   nothing (CAP-124) and a refused transaction leaves no trace.*
-2. **What a transaction reads.** (a) The store as it was when the transaction began, with its own writes (a
-   snapshot); (b) the store as it is, with its own writes. *Recommended: (a), which (1)(a) makes consistent.*
+   nothing (CAP-124) and a refused transaction leaves no trace.* Raised in review: an imperative scope is refused on a
+   conflict, while an expression transaction, being data, may instead be interpreted again over what committed
+   (mbse-dynamodb's `attempts` does so); in a stack, the lowest store decides, a commit above is provisional until it
+   does, and what arrives from below counts as a commit; the rule covers schema writes as well as data; and follows and
+   journals give commits in commit order.
+2. **What a transaction reads, and how strictly.** (a) The store as it was when the transaction began, with its own
+   writes (a snapshot), which needs versioned durable data; (b) the store as it is, with its own writes. Under (a),
+   which check at commit: (a1) snapshot isolation, its write set against those committed since it began, which allows
+   write skew (two transactions each reading what the other writes, both committed); (a2) serializable, its read set
+   too. *Recommended: (a) with (a1), the cheaper, where write skew is acceptable; (a2) where it is not.*
 3. **A query within a transaction**: `txn.query(pattern)` for a map over one pattern, or the whole expression
    vocabulary within it (`txn.mutations([...])`, giving its frame stream)? *Recommended: the vocabulary, as an
    expression transaction has it, so that one form serves both.*

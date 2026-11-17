@@ -73,6 +73,26 @@ with store.transaction() as txn:
 - **Nesting stays prevented** (object identity 50): a transaction is not opened within another of the same store's.
   Side by side, each is its own.
 
+## Decided
+
+The user's answers (2026-11-17) to the questions below, in their words:
+
+- **Two transactions that commit writes to the same object** (question 1): "this hints at transaction serialization
+  above the persistence layer which is not yet defined." No serialization above the persistence layer is defined;
+  none is proposed here.
+- **What a transaction reads, and how strictly** (question 2): "the entirety of a transaction - reads and writes - are
+  all conducted within a single transaction of the persistence layer." What a transaction reads, and which
+  transactions conflict, is the persistence layer's transaction's to decide.
+- **A query within a transaction** (question 3): "I don't recognize `txn.query` - sounds like some kind of imperative
+  code workaround. May be unwanted." `txn.query` is not proposed.
+- **The store's imperative API** (question 4): "deprecate now, remove later."
+- **The callback that builds an expression** (question 5): "this is the only form of `Store.transaction`. The
+  alternate 'frame transducer' callback form should actually be a mutation kind of its own. One that is in most cases
+  non-delegatable across `mbse-rest`. This non-delegation should also be cleanly defined."
+
+Open: question 6, what the frame transducer's callback is given; how the frame transducer is written as a mutation
+kind; and the clean definition of what is not delegated across mbse-rest, and when.
+
 ## Questions for the user
 
 1. **Two transactions that commit writes to the same object.** With several outstanding on a store, what happens at

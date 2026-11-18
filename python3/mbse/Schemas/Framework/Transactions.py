@@ -579,6 +579,10 @@ def _given_back(store: Any, frames: list[Frame], named: dict[str, list[str]]) ->
                 bound[symbol] = _Refused(f"a counted {target._schema_name!r} has no reference: nothing names it (make "
                                          "it a singleton's or an owner's)")
                 continue
+            if Proxies._deleted(target):
+                bound[symbol] = _Refused(f"a {target._schema_name!r} the transaction deleted has no reference: nothing "
+                                         "designates it")
+                continue
             bound[symbol] = References.of(store, target)
             values = store.values(target)
             held = {name: Proxies._copied(values[name]) for name in named.get(symbol, ()) if name in values}

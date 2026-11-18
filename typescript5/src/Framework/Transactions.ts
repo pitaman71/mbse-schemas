@@ -644,6 +644,11 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>): F
           + "it a singleton's or an owner's)")]);
         continue;
       }
+      if (Proxies._deleted(target)) {
+        bound.push([symbol, new _Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: `
+          + "nothing designates it")]);
+        continue;
+      }
       bound.push([symbol, References.of(store, target)]);
       const values: Map<string, unknown> = store.values(state);
       const held = new Map((named.get(symbol) ?? []).filter((name) => values.has(name))

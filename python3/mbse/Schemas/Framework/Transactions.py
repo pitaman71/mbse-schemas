@@ -573,15 +573,21 @@ class Frame(dict[str, Any]):
 
     One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
     unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); None where it
-    is complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one."""
+    is complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one.
+
+    And its `journal`: the changes made in interpreting its input frame, as a `Changes.Journal` of one transaction,
+    whose symbols are its own, its id the transaction's uid and the frame's position in the stream (`uid#n`), carried
+    by the first frame the input frame gives, so that applying each frame's journal by `Changes.apply` applies each
+    change once, the counted objects of each frame apart; None where it carries none
+    ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below))."""
 
     def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = (),
                  assigns: Mapping[str, Mapping[str, Any]] | None = None, remainder: Remainder | None = None,
-                 scope: str | None = None):
+                 scope: str | None = None, journal: Any = None):
         super().__init__(bound or {})
         self.errors: list[FrameError] = list(errors)
         self.assigns: dict[str, dict[str, Any]] = {name: dict(values) for name, values in (assigns or {}).items()}
-        self.remainder, self.scope = remainder, scope
+        self.remainder, self.scope, self.journal = remainder, scope, journal
 
     def __getitem__(self, name: str) -> Any:
         found = super().__getitem__(name)
@@ -755,7 +761,11 @@ class Transaction:
         if Builders._is_function(remainder):  # built as an expression is, outside the transaction (94)
             with Changes._as_committed(store):
                 transaction = store._expressed(remainder)
-        return _exec(store, self, frame, _remainder(store, Proxies._durable(transaction)), allow_write)
+        remainder = _remainder(store, Proxies._durable(transaction))
+        proposals = _outermost(store._proposals) if store._proposals is not None else None
+        if proposals is not None and proposals.expression is None and proposals.uid is None:
+            proposals.expression = remainder.transaction  # a scope's: its record's, and its uid (Provenance)
+        return _exec(store, self, frame, remainder, allow_write)
 
     def _open(self) -> None:
         """Refuses a transaction that has ended."""
@@ -774,6 +784,8 @@ def _exec(store: Any, txn: Transaction, given: Any, remainder: Remainder, write:
     it halted read-only, its `remainder`. An error a term meets processing a frame is annotated on it (CAP-309). An
     error of no one frame is raised, its `frames` every frame the transaction gave, and those made of the input frame
     it arose processing."""
+    from . import Changes
+
     inputs = [given] if isinstance(given, Mapping) else given  # a frame, or a stream of them, consumed as it arrives
     made: list[Frame] = []
     try:
@@ -781,9 +793,14 @@ def _exec(store: Any, txn: Transaction, given: Any, remainder: Remainder, write:
         for index, frame in enumerate(inputs):
             txn._open()
             scope = str(index) if getattr(frame, "scope", None) is None else frame.scope
-            made = _one(store, remainder, frame, write, named, scope)
+            changed: list[Any] = []
+            with store._proposing(lambda proposals: changed.append(Changes._gather(store, proposals))):
+                made = _one(store, remainder, frame, write, named, scope)  # a savepoint: what it changed, gathered
             given_back = _given_back(store, made, named, scope)
             made = []
+            if given_back and changed[0] is not None:  # carried by its first frame
+                given_back[0].journal = Changes._frame_journal(store, changed[0], f"{_transaction_uid(store)}#"
+                                                                                  f"{len(txn._given)}")
             for item in given_back:
                 txn._given.append(item)
                 yield item
@@ -1198,12 +1215,18 @@ def _transaction_uid(store: Any) -> str:
     """The uid of the transaction open, as `Provenance` records it and its journal gives it: an upsert that gives no key
     is keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no
     other transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided))."""
-    from . import Proposals, Provenance
+    from . import Provenance
 
-    proposals = store._proposals
+    return Provenance._uid(store, _outermost(store._proposals))
+
+
+def _outermost(proposals: Any) -> Any:
+    """The proposals of the transaction open, those of a savepoint within it given: the outermost."""
+    from . import Proposals
+
     while isinstance(proposals.base, Proposals.OfStore):  # a savepoint's: the transaction's are the outermost
         proposals = proposals.base
-    return Provenance._uid(store, proposals)
+    return proposals
 
 
 def _upsert_index(store: Any, key: str | None, name: str, frame: dict[str, Any]) -> tuple[Any, ...]:

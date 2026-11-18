@@ -644,21 +644,29 @@ export class Remainder {
  *
  * One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
  * unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); null where it is
- * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one. */
+ * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one.
+ *
+ * And its `journal`: the changes made in interpreting its input frame, as a `Changes.Journal` of one transaction, whose
+ * symbols are its own, its id the transaction's uid and the frame's position in the stream (`uid#n`), carried by the
+ * first frame the input frame gives, so that applying each frame's journal by `Changes.apply` applies each change once,
+ * the counted objects of each frame apart; null where it carries none
+ * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
   readonly assigns: Map<string, Map<string, unknown>>;
   remainder: Remainder | null;
   scope: string | null;
+  journal: any;
 
   constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = [],
     assigns: Iterable<readonly [string, Map<string, unknown>]> = [], remainder: Remainder | null = null,
-    scope: string | null = null) {
+    scope: string | null = null, journal: any = null) {
     super(bound);
     this.errors = [...errors];
     this.assigns = new Map([...assigns].map(([name, values]) => [name, new Map(values)]));
     this.remainder = remainder;
     this.scope = scope;
+    this.journal = journal;
   }
 
   override get(name: string): any {
@@ -894,7 +902,12 @@ export class Transaction {
   exec(frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
     const transaction = Proxies._isFunction(remainder) // built as an expression is, outside the transaction (94)
       ? Changes._as_committed(this._store, () => this._store._expressed(remainder)) : Proxies._durable(remainder);
-    return _exec(this._store, this, frame, _remainder(this._store, transaction), allow_write);
+    const given = _remainder(this._store, transaction);
+    const proposals = this._store._proposals === null ? null : outermost(this._store._proposals);
+    if (proposals !== null && proposals.expression === null && proposals.uid === null) {
+      proposals.expression = given.transaction; // a scope's: its record's, and its uid (Provenance)
+    }
+    return _exec(this._store, this, frame, given, allow_write);
   }
 
   /** Refuses a transaction that has ended. */
@@ -929,9 +942,14 @@ export function _exec(store: any, txn: Transaction, given: unknown, remainder: R
         txn._open();
         const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
         index += 1;
-        made = one(store, remainder, frame, write, named, scope);
+        let changed: Changes._Gathered | null = null;
+        made = store._proposing(() => one(store, remainder, frame, write, named, scope), // a savepoint: what it
+          (proposals: Proposals.OfStore) => { changed = Changes._gather(store, proposals); }); // changed, gathered
         const back = givenBack(store, made, named, scope);
         made = [];
+        if (back.length > 0 && changed !== null) { // carried by its first frame
+          back[0]!.journal = Changes._frame_journal(store, changed, `${transactionUid(store)}#${txn._given.length}`);
+        }
         for (const item of back) {
           txn._given.push(item);
           emit(item);
@@ -1367,9 +1385,13 @@ function schemaIn(store: any, pattern: any, name: string, frame: Bound): any {
  * keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no other
  * transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
 function transactionUid(store: any): string {
-  let proposals = store._proposals as Proposals.OfStore;
+  return Provenance._uid(store, outermost(store._proposals));
+}
+
+/** The proposals of the transaction open, those of a savepoint within it given: the outermost. */
+function outermost(proposals: Proposals.OfStore): Proposals.OfStore {
   while (proposals.base instanceof Proposals.OfStore) proposals = proposals.base; // a savepoint's: the outermost
-  return Provenance._uid(store, proposals);
+  return proposals;
 }
 
 function _upsert_index(store: any, key: unknown, name: string, frame: Bound): string {

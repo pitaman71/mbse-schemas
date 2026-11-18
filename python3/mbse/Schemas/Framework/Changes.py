@@ -155,6 +155,17 @@ class _Gathered:
 
 
 @contextlib.contextmanager
+def _before(store: Any, proposals: Any) -> Iterator[None]:
+    """Reads what the store held before `proposals`: their base, the transaction open's where they are a savepoint's,
+    else what it holds as committed."""
+    held, store._proposals = store._proposals, proposals.base if hasattr(proposals.base, "entries_") else None
+    try:
+        yield
+    finally:
+        store._proposals = held
+
+
+@contextlib.contextmanager
 def _as_committed(store: Any) -> Iterator[None]:
     """Reads what the store holds as committed, while a transaction is open: its state before the transaction."""
     proposals, store._proposals = store._proposals, None
@@ -171,7 +182,16 @@ def _schema(x: Any) -> Any:
 def _value(store: Any, holder: Any, name: str) -> Any:
     """A property's value, plain, as its schema writes it; None where the object holds none."""
     value = store.member(holder, name)
+    if value is not None and Proxies._is_parameter(Proxies._durable(value)):  # a parameter in its place (CAP-312)
+        return Plain._marked(store, value)
     return None if value is None else Plain.ToPlain(store)(_schema(holder).properties[name].schema, value)
+
+
+def _data(entry: Any) -> bool:
+    """Whether an entry links data alone, objects or parameter references in their place: one that links a schema
+    object, an extension's, is no data (CAP-315), and is left out of what a transaction changed."""
+    return all(isinstance(x, (Proxies._ObjectData, Proxies._Unresolved)) or Proxies._is_parameter(x)
+               for x in entry._links.values())
 
 
 def _gather(store: Any, proposals: Any) -> _Gathered | None:
@@ -180,11 +200,13 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
     removed: dict[Any, Any] = {}
     inserted: dict[Any, Any] = {}
     for holder, tables in proposals.entries_.values():  # an object's tables, copied whole when first written
+        if not isinstance(holder, Proxies._ObjectData):  # a schema object's: no data (CAP-315)
+            continue
         before = base.entries(holder)
         for relation, table in tables.items():
             old = before.get(relation, {})
-            inserted.update({(relation, key): entry for key, entry in table.items() if key not in old})
-            removed.update({(relation, key): entry for key, entry in old.items() if key not in table})
+            inserted.update({(relation, key): entry for key, entry in table.items() if key not in old and _data(entry)})
+            removed.update({(relation, key): entry for key, entry in old.items() if key not in table and _data(entry)})
     made = {id(x): x for x in proposals.created.values() if isinstance(x, Proxies._ObjectData)}
     paths = Proxies._gone_paths(proposals, store)  # owned, not present: deleted, with what they own
 
@@ -204,7 +226,7 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
             continue  # a value object's, read with the object that holds it; or a deleted object's, which goes
         names = list(dict.fromkeys([*base.values(holder), *values]))
         after = {name: _value(store, holder, name) for name in names}
-        with _as_committed(store):
+        with _before(store, proposals):
             before = {name: None if id(holder) in made else _value(store, holder, name) for name in names}
         changed += [(holder, name, after[name]) for name in names if before[name] != after[name]]
     if not (removed or inserted or changed):
@@ -220,7 +242,7 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
             return found
         counted = not isinstance(x, Proxies._Unresolved) and Proxies._counted(x)
         if isinstance(x, Proxies._Unresolved):  # not present: by its path, loading nothing
-            with _as_committed(store):
+            with _before(store, proposals):
                 bound = Plain.FromPlain(store)(store.registered("References.OfObject"), {"path": x.path})
         elif counted or id(x) in made:
             for entry in [] if counted else Proxies._owner_entries(x):
@@ -229,7 +251,7 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
                         symbol(owner)
             bound = _schema(x)
         else:
-            with _as_committed(store):
+            with _before(store, proposals):
                 bound = References.of(store, x)
         name = named[Proxies._link_key(x)] = f"o{len(named)}"
         gathered.symbols[name] = bound
@@ -269,7 +291,8 @@ def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
 
     choices = [(not isinstance(x, Proxies._Unresolved) and (Proxies._counted(x) or id(x) in made),
                 isinstance(x, Proxies._Unresolved), link, name)
-               for link, x in entry._links.items() for name, adjacency in schema(x).adjacencies.items()
+               for link, x in entry._links.items() if not Proxies._is_parameter(x)
+               for name, adjacency in schema(x).adjacencies.items()
                if adjacency.relation is entry._relation and adjacency.me == link]
     if not choices:
         raise ValueError(f"no object an entry of {entry._relation.name!r} links has an adjacency to it by name, so "
@@ -295,6 +318,14 @@ def _owning(entry: Any, lost: list[str], store: Any) -> tuple[str, str] | None:
         raise ValueError(f"no owner of an entry of {entry._relation.name!r} has an adjacency to it by name, so that "
                          "its effect cannot remove what the entry owned: name one")
     return names[0], me
+
+
+def _frame_journal(store: Any, gathered: _Gathered, uid: str) -> Any:
+    """What a frame's interpretation changed, gathered from its savepoint, as a `Changes.Journal` of one transaction of
+    id `uid`, a value that outlives the transaction (`Transactions.Frame.journal`)."""
+    with _as_committed(store):  # built outside the transaction's proposals, as an effect is
+        effect = _plain_effect(store, _effect(store, gathered))
+    return _journal(store, uid, effect)
 
 
 def _plain_effect(store: Any, effect: Any) -> PlainData:
@@ -482,7 +513,8 @@ def _effect(store: Any, gathered: _Gathered) -> Any:
         specs.append(lambda _, s=symbol, a=adjacency, v=verb, f=fill: getattr(getattr(_, s), a)(
             lambda adv: getattr(adv, v)(lambda e: f(e, _))))
     for symbol, name, plain, schema in gathered.assigned:
-        value = None if plain is None else Plain.FromPlain(store)(schema, plain)
+        value = None if plain is None else Plain._unmarked(store, plain) if Plain._is_marked(plain) else \
+            Plain.FromPlain(store)(schema, plain)
         specs.append(lambda _, s=symbol, n=name, v=value: getattr(getattr(_, s), n)(v))
     return store.Mutations.OfTransaction(lambda t: t.mutations([lambda mu: mu.upsert(lambda u: u.exists([
         lambda p: p.symbols(gathered.symbols).spec(specs)]))]))

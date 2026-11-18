@@ -513,9 +513,10 @@ class OfStore(Stores.Catalog):
             self._life = outer
 
     @contextlib.contextmanager
-    def _proposing(self) -> Iterator[Any]:
+    def _proposing(self, settled: Any = None) -> Iterator[Any]:
         """Proposals over what the store holds, or over the transaction open's (a savepoint): committed when the block
-        ends, dropped where it raises."""
+        ends, dropped where it raises; `settled`, where given, is called with them once their ownership is settled, just
+        before they commit (a savepoint's changes, gathered: `Transactions`' frames' journals)."""
         from . import Proposals
 
         below = self._proposals
@@ -523,6 +524,8 @@ class OfStore(Stores.Catalog):
         try:
             with self._writing():  # ownership is settled within the outermost
                 yield proposals
+            if settled is not None:
+                settled(proposals)
             if below is None and not self._loading:  # loading what the store below holds checks nothing
                 if self._below is not None:
                     self._unlink_gone(proposals)

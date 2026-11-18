@@ -477,13 +477,15 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   }
 
   /** Proposals over what the store holds, or over the transaction open's (a savepoint): committed when `write` returns,
-   * dropped where it throws. */
-  _proposing<T>(write: () => T): T {
+   * dropped where it throws; `settled`, where given, is called with them once their ownership is settled, just before
+   * they commit (a savepoint's changes, gathered: `Transactions`' frames' journals). */
+  _proposing<T>(write: () => T, settled: ((proposals: Proposals.OfStore) => void) | null = null): T {
     const below = this._proposals;
     const proposals = this._proposals = new Proposals.OfStore(below ?? this._committed, this);
     let written: T;
     try {
       written = this._writing(write); // ownership is settled within the outermost
+      if (settled !== null) settled(proposals);
       if (below === null && this._loading === 0) { // loading what the store below holds checks nothing
         if (this._below !== null) this._unlink_gone(proposals);
         if (this._applying === 0) checkUniques(proposals); // nor does applying what it committed: it was checked there (CAP-285)

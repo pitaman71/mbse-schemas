@@ -146,6 +146,25 @@ export interface _Gathered {
   assigned: [string, string, unknown, any][];
 }
 
+/** Reads what the store held before `proposals`: their base, the transaction open's where they are a savepoint's, else
+ * what it holds as committed. */
+export function _before<T>(store: any, proposals: Proposals.OfStore, read: () => T): T {
+  const held = store._proposals;
+  store._proposals = "entries_" in (proposals.base as object) ? proposals.base : null;
+  try {
+    return read();
+  } finally {
+    store._proposals = held;
+  }
+}
+
+/** Whether an entry links data alone, objects or parameter references in their place: one that links a schema object,
+ * an extension's, is no data (CAP-315), and is left out of what a transaction changed. */
+function data(entry: unknown): boolean {
+  return [...((Proxies._innerOf(entry) as any)._links as Map<string, unknown>).values()].every((x) =>
+    Proxies._isObjectData(x) || x instanceof Proxies._Unresolved || Proxies._is_parameter(x));
+}
+
 /** Reads what the store holds as committed, while a transaction is open: its state before the transaction. */
 export function _as_committed<T>(store: any, read: () => T): T {
   const proposals = store._proposals;
@@ -170,6 +189,7 @@ function held(x: unknown): unknown {
 function value(store: any, holder: unknown, name: string): unknown {
   const held = store.member(holder, name);
   if (held === null || held === undefined) return null;
+  if (Proxies._is_parameter(Proxies._durable(held))) return Plain._marked(store, held); // in its place (CAP-312)
   return Plain.ToPlain(store)(schemaOf(holder).properties.get(name).schema, held);
 }
 
@@ -188,11 +208,12 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     return ids.get(x) as number;
   };
   for (const [holder, tables] of proposals.entries_) { // an object's tables, copied whole when first written
+    if (!(holder instanceof Proxies._internals._ObjectData)) continue; // a schema object's: no data (CAP-315)
     const before = base.entries(holder) as Map<unknown, Map<unknown, unknown>>;
     for (const [relation, table] of tables as Map<unknown, Map<unknown, unknown>>) {
       const old = before.get(relation) ?? new Map();
-      for (const [k, entry] of table) if (!old.has(k)) inserted.set(`${id(relation)}:${String(k)}`, entry);
-      for (const [k, entry] of old) if (!table.has(k)) removed.set(`${id(relation)}:${String(k)}`, entry);
+      for (const [k, entry] of table) if (!old.has(k) && data(entry)) inserted.set(`${id(relation)}:${String(k)}`, entry);
+      for (const [k, entry] of old) if (!table.has(k) && data(entry)) removed.set(`${id(relation)}:${String(k)}`, entry);
     }
   }
   const made = new Set([...proposals.created].filter((x) => Proxies._isObjectData(x)).map((x) => Proxies._innerOf(x)));
@@ -216,7 +237,7 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     const holder = (data as any)._proxy; // proposals hold an object's data: read it through its proxy
     const names = [...new Set([...(base.values(data) as Map<string, unknown>).keys(), ...(values as Map<string, unknown>).keys()])];
     const after = new Map(names.map((name) => [name, value(store, holder, name)]));
-    const before = _as_committed(store, () => new Map(names.map((name) =>
+    const before = _before(store, proposals, () => new Map(names.map((name) =>
       [name, made.has(data) ? null : value(store, holder, name)])));
     for (const name of names) if (!same(before.get(name), after.get(name))) changed.push([holder, name, after.get(name)]);
   }
@@ -231,7 +252,7 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     const counted = !(x instanceof Proxies._Unresolved) && Proxies._counted(x);
     let bound: any;
     if (x instanceof Proxies._Unresolved) { // not present: by its path, loading nothing
-      bound = _as_committed(store, () => Plain.FromPlain(store)(store.registered("References.OfObject"),
+      bound = _before(store, proposals, () => Plain.FromPlain(store)(store.registered("References.OfObject"),
         new Map([["path", x.path as Plain.PlainData]])));
     } else if (counted || made.has(Proxies._innerOf(x))) {
       for (const entry of counted ? [] : Proxies._owner_entries(x)) {
@@ -241,7 +262,7 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
       }
       bound = schemaOf(x);
     } else {
-      bound = _as_committed(store, () => References.of(store, x));
+      bound = _before(store, proposals, () => References.of(store, x));
     }
     const name = `o${named.size}`;
     named.set(JSON.stringify(Proxies._link_key(x)), name);
@@ -293,6 +314,7 @@ function writer(state: any, made: Set<unknown>): [string, string] {
   const schema = (x: unknown): any => (x instanceof Proxies._Unresolved ? References._implied(x.store, x.path) : schemaOf(x));
   const choices: [number, string, string][] = []; // ranked: present and held before, not present, counted or made
   for (const [link, x] of state._links as Map<string, unknown>) {
+    if (Proxies._is_parameter(x)) continue;
     for (const [name, adjacency] of schema(x).adjacencies as Map<string, any>) {
       if (adjacency.relation === state._relation && adjacency.me === link) {
         const unresolved = x instanceof Proxies._Unresolved;
@@ -327,6 +349,13 @@ function owning(state: any, lost: string[], store: any): [string, string] | null
 }
 
 type PlainMap = Map<string, any>;
+
+/** What a frame's interpretation changed, gathered from its savepoint, as a `Changes.Journal` of one transaction of id
+ * `uid`, a value that outlives the transaction (`Transactions.Frame.journal`). */
+export function _frame_journal(store: any, gathered: _Gathered, uid: string): any {
+  const effect = _as_committed(store, () => _plain_effect(store, _effect(store, gathered))); // built as an effect is
+  return _journal(store, uid, effect);
+}
 
 /** An effect of `store`'s as plain data, as it is sent from one store to another. */
 export function _plain_effect(store: any, effect: unknown): Plain.PlainData {
@@ -538,7 +567,8 @@ export function _effect(store: any, gathered: _Gathered): any {
     specs.push((_: any) => _[symbol][adjacency]((adv: any) => adv[verb]((e: any) => fill(e, _))));
   }
   for (const [symbol, name, plain, schema] of gathered.assigned) {
-    const v = plain === null ? null : Plain.FromPlain(store)(schema, plain as Plain.PlainData);
+    const v = plain === null ? null : Plain._is_marked(plain) ? Plain._unmarked(store, plain as any)
+      : Plain.FromPlain(store)(schema, plain as Plain.PlainData);
     specs.push((_: any) => _[symbol][name](v));
   }
   const symbols = Object.fromEntries(gathered.symbols);

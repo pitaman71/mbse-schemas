@@ -52,14 +52,16 @@
  * The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records it and
  * its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an
  * object is before is read from what the store holds as committed. They are written outside the transaction's
- * proposals, since writing them builds: once the transaction has committed, for its observers, and, for the store
- * below a store, just before, with its proposals set aside, as plain data (CAP-285). What a store sends the store
- * below, and what the store below gives back it committed, is a mutation transaction, the store-to-store protocol's
- * language, not a journal: the transaction's effect as one upsert (`_effect`). A store given a store below gives its
- * observers, for a transaction of its own, the journal of what the store below gave back it committed, what the store
- * below added to it, as its record, among it, so that each store of a stack gives the same one; changes name an object
- * not present by its path, loading nothing. What the store below reports to its followers, a journal, a store above
- * applies to the objects present in it (`Builders.Store._arrive`).
+ * proposals, since writing them builds, once the transaction has committed, for its observers. A savepoint's changes are
+ * gathered alike, relative to the transaction it is within: what interpreting an input frame changed, which the frame
+ * given carries as a journal (`Transactions.Frame.journal`). An expression's terms, and the entries linking schema
+ * objects, are no data, and are left out.
+ *
+ * A cache layer, a store given a layer below, applies to what it holds the journals the frames the layer below gives
+ * back carry, and those the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
+ * objects present in it alone (`_present_only`), making those made under one present, and leaving out an entry that
+ * links one not present. What it writes itself, by builders, it sends below as the effect of the savepoint that wrote
+ * it, a mutation transaction (`_effect`), executed in the layer below's transaction.
  */
 
 import * as Builders from "./Builders.js";
@@ -159,10 +161,11 @@ export function _before<T>(store: any, proposals: Proposals.OfStore, read: () =>
 }
 
 /** Whether an entry links data alone, objects or parameter references in their place: one that links a schema object,
- * an extension's, is no data (CAP-315), and is left out of what a transaction changed. */
-function data(entry: unknown): boolean {
+ * an extension's, is no data (CAP-315), nor one that links an expression's term, of a schema the store was made holding
+ * (`Mutations`), and either is left out of what a transaction changed. */
+function data(store: any, entry: unknown): boolean {
   return [...((Proxies._innerOf(entry) as any)._links as Map<string, unknown>).values()].every((x) =>
-    Proxies._isObjectData(x) || x instanceof Proxies._Unresolved || Proxies._is_parameter(x));
+    (Proxies._isObjectData(x) && !store.framework(schemaOf(x))) || Proxies._is_parameter(x));
 }
 
 /** Reads what the store holds as committed, while a transaction is open: its state before the transaction. */
@@ -180,9 +183,9 @@ function schemaOf(x: unknown): any {
   return (Proxies._innerOf(x) as any)._schema;
 }
 
-/** What an object the effect names is held by: a proxy's state; a link to one not present, itself. */
+/** What an object the effect names is held by: a proxy's state. */
 function held(x: unknown): unknown {
-  return Proxies._innerOf(x) ?? x;
+  return Proxies._innerOf(x);
 }
 
 /** A property's value, plain, as its schema writes it; null where the object holds none. */
@@ -212,28 +215,22 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
     const before = base.entries(holder) as Map<unknown, Map<unknown, unknown>>;
     for (const [relation, table] of tables as Map<unknown, Map<unknown, unknown>>) {
       const old = before.get(relation) ?? new Map();
-      for (const [k, entry] of table) if (!old.has(k) && data(entry)) inserted.set(`${id(relation)}:${String(k)}`, entry);
-      for (const [k, entry] of old) if (!table.has(k) && data(entry)) removed.set(`${id(relation)}:${String(k)}`, entry);
+      for (const [k, entry] of table) if (!old.has(k) && data(store, entry)) inserted.set(`${id(relation)}:${String(k)}`, entry);
+      for (const [k, entry] of old) if (!table.has(k) && data(store, entry)) removed.set(`${id(relation)}:${String(k)}`, entry);
     }
   }
   const made = new Set([...proposals.created].filter((x) => Proxies._isObjectData(x)).map((x) => Proxies._innerOf(x)));
-  const paths = Proxies._gone_paths(proposals, store); // owned, not present: deleted, with what they own
-  const gone = (x: unknown): boolean => {
-    if (Proxies._is_parameter(x)) return false; // a parameter reference in an object's place (CAP-312): never deleted
-    const path = x instanceof Proxies._Unresolved ? x.path : (Proxies._innerOf(x) as any)._reference;
-    return path !== null && paths.some((p) => Plain._under(path, p));
-  };
-  const deleted = new Set<unknown>(); // each object's state; one not present, its link
+  const deleted = new Set<unknown>(); // each object's state
   for (const entry of removed.values()) {
     for (const x of (Proxies._innerOf(entry) as any)._links.values() as Iterable<unknown>) {
-      if (gone(x) || (Proxies._isObjectData(x) && !made.has(Proxies._innerOf(x))
+      if ((Proxies._isObjectData(x) && !made.has(Proxies._innerOf(x))
           && Proxies._owner_adjacencies(schemaOf(x)).length > 0 && Proxies._owner_entries(x).length === 0)) deleted.add(held(x));
     }
   }
   const changed: [unknown, string, unknown][] = [];
   for (const [data, values] of proposals.values_) {
     // a value object's, read with the object holding it; or a deleted object's, which goes
-    if (!(data instanceof Proxies._internals._ObjectData) || deleted.has(data)) continue;
+    if (!(data instanceof Proxies._internals._ObjectData) || deleted.has(data) || store.framework((data as any)._schema)) continue;
     const holder = (data as any)._proxy; // proposals hold an object's data: read it through its proxy
     const names = [...new Set([...(base.values(data) as Map<string, unknown>).keys(), ...(values as Map<string, unknown>).keys()])];
     const after = new Map(names.map((name) => [name, value(store, holder, name)]));
@@ -243,18 +240,15 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
   }
   if (removed.size === 0 && inserted.size === 0 && changed.length === 0) return null;
   const gathered: _Gathered = { symbols: new Map(), entries: [], assigned: [] };
-  const named = new Map<string, string>(); // by the object, or the path of one not present
+  const named = new Map<string, string>(); // by the object
   /** The symbol of an object the effect names, declared where first needed: a created owned object's after its
    * owner's. */
   const symbol = (x: unknown): string => {
     const found = named.get(JSON.stringify(Proxies._link_key(x)));
     if (found !== undefined) return found;
-    const counted = !(x instanceof Proxies._Unresolved) && Proxies._counted(x);
+    const counted = Proxies._counted(x);
     let bound: any;
-    if (x instanceof Proxies._Unresolved) { // not present: by its path, loading nothing
-      bound = _before(store, proposals, () => Plain.FromPlain(store)(store.registered("References.OfObject"),
-        new Map([["path", x.path as Plain.PlainData]])));
-    } else if (counted || made.has(Proxies._innerOf(x))) {
+    if (counted || made.has(Proxies._innerOf(x))) {
       for (const entry of counted ? [] : Proxies._owner_entries(x)) {
         for (const owner of (Proxies._innerOf(entry) as any)._links.values()) {
           if (Proxies._innerOf(owner) !== Proxies._innerOf(x)) symbol(owner);
@@ -308,17 +302,14 @@ export function _gather(store: any, proposals: Proposals.OfStore): _Gathered | n
 }
 
 /** The link, and its object's adjacency by name, that writes an entry: preferably an object held before, not counted,
- * so that what the entry links is found through it; one present before one not present, of the schema its path
- * implies (CAP-285). */
+ * so that what the entry links is found through it. */
 function writer(state: any, made: Set<unknown>): [string, string] {
-  const schema = (x: unknown): any => (x instanceof Proxies._Unresolved ? References._implied(x.store, x.path) : schemaOf(x));
-  const choices: [number, string, string][] = []; // ranked: present and held before, not present, counted or made
+  const choices: [number, string, string][] = []; // ranked: held before, counted or made
   for (const [link, x] of state._links as Map<string, unknown>) {
     if (Proxies._is_parameter(x)) continue;
-    for (const [name, adjacency] of schema(x).adjacencies as Map<string, any>) {
+    for (const [name, adjacency] of schemaOf(x).adjacencies as Map<string, any>) {
       if (adjacency.relation === state._relation && adjacency.me === link) {
-        const unresolved = x instanceof Proxies._Unresolved;
-        choices.push([!unresolved && (Proxies._counted(x) || made.has(Proxies._innerOf(x))) ? 2 : unresolved ? 1 : 0, link, name]);
+        choices.push([Proxies._counted(x) || made.has(Proxies._innerOf(x)) ? 1 : 0, link, name]);
       }
     }
   }
@@ -335,8 +326,7 @@ function writer(state: any, made: Set<unknown>): [string, string] {
 function owning(state: any, lost: string[], store: any): [string, string] | null {
   if (lost.length !== 1) return null;
   const x = state._links.get(lost[0]);
-  const owns = x instanceof Proxies._Unresolved ? Proxies._owns_through(state._relation, lost[0]!, store)
-    : Proxies._owner_adjacencies(schemaOf(x)).some((a: any) => a.relation === state._relation && a.me === lost[0]);
+  const owns = Proxies._owner_adjacencies(schemaOf(x)).some((a: any) => a.relation === state._relation && a.me === lost[0]);
   if (!owns) return null;
   const [me] = [...(state._links as Map<string, unknown>).keys()].filter((link) => link !== lost[0]) as [string];
   const names = [...(schemaOf(state._links.get(me)).adjacencies as Map<string, any>)]
@@ -363,88 +353,75 @@ export function _plain_effect(store: any, effect: unknown): Plain.PlainData {
 }
 
 /** The effect of the transaction open, as plain data, built just before it commits, its proposals set aside, as it is
- * once it has: what a store sends the store below (CAP-285). */
+ * once it has: what a cache layer sends the layer below of its own write (CAP-285). */
 export function _plain(store: any, gathered: _Gathered): Plain.PlainData {
   return _as_committed(store, () => _plain_effect(store, _effect(store, gathered)));
 }
 
-/** A transaction of the store below's, its effect as plain data, made to change only the objects present in `store`
- * (CAP-285): each object is named by its path, an object it created by its owner's and its owning entry's keys; a
- * property of an object present is set; an entry is written from an object present it links, through its adjacency by
- * name, and one that links none is left out; an object not present, applied, is linked by its path, loading nothing. A
- * counted object is found by its value, or made. Gives that effect, under the transaction's `uid` where given, null
- * where it changes nothing present, and the
- * entries no object present it links has an adjacency to by name, to apply directly (`_apply_directly`): each its
- * relation, its verb, and its links' paths and properties as plain. */
-export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainData | null, _Direct[]] {
+/** A transaction of the layer below's, its effect as plain data, made to change only the objects present in `store`
+ * ([CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285), its second decision): each object is named by its path, an object it created by its owner's
+ * and its owning entry's keys, and is present where the store holds it, or where it was created owned by one present,
+ * which applying it creates; a counted object is found by its value, or made. A property of an object present is set;
+ * an entry is written where every object it links is present, and left out otherwise, nothing being made that is not
+ * present. Gives that effect, under the transaction's `uid` where given, null where it changes nothing present; and the
+ * objects present an entry left out links, whose entries the store no longer holds all of (`_complete`). */
+export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainData | null, unknown[]] {
   const [pattern] = (plain as PlainMap).get("mutations")[0].get("upsert").get("exists");
   const [symbols, spec]: [Map<string, PlainMap>, PlainMap[]] = [pattern.get("symbols"), pattern.get("spec")];
-  const schemas = new Map<string, any>(); // each symbol's schema: one created's, an object present's, or its path's
+  const schemas = new Map<string, any>(); // each symbol's schema: one created's, or an object present's
   for (const [name, bound] of symbols) {
     if (bound.has("schema")) schemas.set(name, Plain._by_path(store, bound.get("schema")[0].get("path"), []));
   }
   const counted = new Set([...schemas].filter(([, schema]) => Proxies._counted_schema(schema)).map(([name]) => name));
-  const paths = new Map<string, Plain.PlainData>();
-
-  /** The path of the object a symbol names: as its reference has it, or, where the transaction created it, as its
-   * owner's, then its owning entry's keys. */
-  const pathOf = (name: string): Plain.PlainData => {
-    const bound = symbols.get(name)!;
-    if (bound.has("reference")) return bound.get("reference").get("path");
-    if (!paths.has(name)) paths.set(name, createdPath(name, schemaOfSymbol, spec, pathOf));
-    return paths.get(name)!;
-  };
-  const schemaOfSymbol = (name: string): any => {
-    if (!schemas.has(name)) schemas.set(name, References._implied(store, pathOf(name)));
-    return schemas.get(name);
-  };
-
   const present = new Set(counted);
-  for (const name of symbols.keys()) {
-    const x = counted.has(name) ? null : store._present(pathOf(name));
+  const held = new Map<string, unknown>();
+  for (const [name, bound] of symbols) {
+    const x = bound.has("reference") ? store._present(bound.get("reference").get("path")) : null;
     if (Proxies._isObjectData(x)) {
       present.add(name);
+      held.set(name, Proxies._innerOf(x));
       schemas.set(name, schemaOf(x));
     }
   }
+  /** Whether an entry the transaction inserts owns the object it created a symbol names, written on the adjacency of an
+   * object present. */
+  const owned = (name: string): boolean => spec.some((item) => {
+    const [[subject, [mutation]]] = [...item] as any;
+    const adjacency: PlainMap | undefined = mutation!.get("as_adjacency");
+    if (!present.has(subject) || adjacency === undefined) return false;
+    const relation = schemas.get(subject).adjacencies.get(adjacency.get("name")).relation;
+    const inserted = [...adjacency.get("mutations")[0] as PlainMap].filter(([verb]) => verb === "insert")
+      .flatMap(([, body]) => body.get("entries") as PlainMap[]);
+    return inserted.some((entry) => Proxies._owner_adjacencies(schemas.get(name))
+      .some((a: any) => a.relation === relation && parts(entry)[0].get(a.me) === name));
+  });
+  const created = [...symbols].filter(([name, bound]) => bound.has("schema") && !counted.has(name)).map(([name]) => name);
+  let grown = true;
+  while (grown) { // an object created owned by one present: present once applied
+    grown = false;
+    for (const name of created) {
+      if (!present.has(name) && owned(name)) {
+        present.add(name);
+        grown = true;
+      }
+    }
+  }
   const kept: PlainMap[] = [];
-  const direct: _Direct[] = [];
+  const lost: unknown[] = [];
   for (const item of spec) {
     const [[subject, [mutation]]] = [...item] as any;
-    if (present.has(subject)) {
-      kept.push(item);
-      continue;
-    }
     const adjacency = mutation!.get("as_adjacency");
-    if (adjacency === undefined) continue; // a property of an object not present
-    const [[verb, body]] = [...adjacency.get("mutations")[0]] as any;
-    const [entry] = body.get("entries") as PlainMap[];
-    const [links, keys] = parts(entry!);
-    if (![...links.values()].some((symbol) => typeof symbol === "string" && present.has(symbol))) continue;
-    const held = schemaOfSymbol(subject).adjacencies.get(adjacency.get("name"));
-    const writers = [...links].filter(([, symbol]) => typeof symbol === "string" && present.has(symbol)).flatMap(([link, symbol]) =>
-      [...schemas.get(symbol as string).adjacencies as Map<string, any>]
-        .filter(([, a]) => a.relation === held.relation && a.me === link).map(([name]) => [link, name] as const));
-    if (writers.length === 0) { // written to the objects present it links directly, each other linked by its path
-      if ([...links.values()].some((symbol) => typeof symbol === "string" && counted.has(symbol))) {
-        throw new ValueError(`a counted object an entry of '${held.relation.name}' links, which a transaction of the `
-          + "store below's changes, has no adjacency to it by name, nor has any other object present it links, so that "
-          + "it cannot be found to apply it: name one");
-      }
-      const paths = new Map<string, Plain.PlainData>([...links].map(([link, symbol]) =>
-        [link, typeof symbol === "string" ? pathOf(symbol) : symbol]));
-      paths.set(held.me, pathOf(subject));
-      direct.push([held.relation, verb, paths, keys]);
+    if (adjacency === undefined) { // a property: of an object present, set
+      if (present.has(subject)) kept.push(item);
       continue;
     }
-    const [writer, name] = writers[0]!;
-    const entryParts = [linkPart(held.me, subject), ...(entry!.get("mutations") as PlainMap[])
-      .filter((part) => !(part.has("as_link") && part.get("as_link").get("name") === writer))];
-    const written = new Map([[verb!, new Map([["entries", [new Map([["mutations", entryParts]])]]])]]);
-    const rewritten = new Map<string, unknown>([["name", name], ["mutations", [written]]]);
-    kept.push(new Map([[links.get(writer) as string, [new Map([["as_adjacency", rewritten]])]]]));
-  }
-  if (kept.length === 0) return [null, direct];
+    const [[, body]] = [...adjacency.get("mutations")[0]] as any;
+    const linked = [subject, ...(body.get("entries") as PlainMap[]).flatMap((entry) => [...parts(entry)[0].values()])
+      .filter((symbol) => typeof symbol === "string")] as string[];
+    if (linked.every((symbol) => present.has(symbol))) kept.push(item);
+    else lost.push(...linked.filter((symbol) => held.has(symbol)).map((symbol) => held.get(symbol))); // it links one
+  } // not present: left out, and each present it links holds its entries no more all
+  if (kept.length === 0) return [null, lost];
   const used = new Set<string>(); // the symbols what is kept names
   for (const item of kept) {
     const [[subject, [mutation]]] = [...item] as any;
@@ -456,40 +433,12 @@ export function _present_only(store: any, plain: Plain.PlainData): [Plain.PlainD
       }
     }
   }
-  const named = new Map([...symbols].filter(([name]) => used.has(name)).map(([name, bound]) =>
-    [name, counted.has(name) ? bound : new Map([["reference", new Map([["path", pathOf(name)]])]])]));
+  const upsert = (plain as PlainMap).get("mutations")[0].get("upsert") as PlainMap;
+  const named = new Map([...symbols].filter(([name]) => used.has(name)));
   const uid = (plain as PlainMap).has("uid") ? [["uid", (plain as PlainMap).get("uid")] as [string, unknown]] : [];
-  return [new Map([...uid, ["mutations", [new Map([["upsert", new Map([["exists", [new Map<string, unknown>([
-    ["symbols", named], ["spec", kept]])]]])]])]]]) as Plain.PlainData, direct];
-}
-
-/** An entry to apply directly (`_present_only`): its relation, its verb, its links' paths and its properties as plain. */
-export type _Direct = [any, string, Map<string, Plain.PlainData>, Map<string, Plain.PlainData>];
-
-/** Writes, within the transaction open on `store`, each entry `_present_only` gave to apply directly, in the tables of
- * the objects present it links, each other linked by its path: inserted, unless one equal to it is held; removed, each
- * held equal to it. */
-export function _apply_directly(store: any, direct: _Direct[]): void {
-  for (const [relation, verb, paths, keys] of direct) {
-    const links = new Map<string, unknown>();
-    for (const [link, path] of paths) {
-      if (Plain._is_marked(path)) { // a parameter reference in the object's place (CAP-312)
-        links.set(link, Proxies._durable(Plain._unmarked(store, path as PlainMap)));
-        continue;
-      }
-      const found = store._present(path);
-      links.set(link, found ?? new Proxies._Unresolved(store, path));
-    }
-    const properties = new Map([...keys].map(([name, value]) =>
-      [name, Plain.FromPlain(store)(relation.entry.properties.get(name).schema, value)] as [string, unknown]));
-    const entry = Proxies._make_entry(relation, links, properties as any);
-    const state = Proxies._innerOf(entry) as any;
-    const present = [...links.values()].filter((x) => Proxies._isObjectData(x));
-    const held = [...Proxies._table(present[0], relation, store).values()]
-      .filter((e: any) => (Proxies._innerOf(e) as any)._value() === state._value());
-    if (verb === "insert" && held.length === 0) Proxies._add_entry(relation, entry, store);
-    else if (verb === "remove") Proxies._discard(relation, held, store);
-  }
+  const key = upsert.has("key") ? [["key", upsert.get("key")] as [string, unknown]] : [];
+  return [new Map([...uid, ["mutations", [new Map([["upsert", new Map([...key, ["exists", [new Map<string, unknown>([
+    ["symbols", named], ["spec", kept]])]]])]])]]]) as Plain.PlainData, lost];
 }
 
 /** An entry's links, each to the symbol it is set to, or to a parameter reference, marked, and its properties, each as
@@ -507,52 +456,6 @@ function parts(entry: PlainMap): [Map<string, Plain.PlainData>, Map<string, Plai
   return [links, keys];
 }
 
-function linkPart(link: string, symbol: string): PlainMap {
-  return new Map([["as_link", new Map<string, unknown>([["name", link],
-    ["mutations", [new Map([["set", new Map([["reference", new Map([["symbol", symbol]])]])]])]]])]]);
-}
-
-/** The path of an object a transaction created: its owner's, then the entry that owns it, which the transaction
- * inserted, through the owner's adjacency by name, by its keys. */
-function createdPath(name: string, schemaOfSymbol: (name: string) => any, spec: PlainMap[],
-  pathOf: (name: string) => Plain.PlainData): Plain.PlainData {
-  const [owner, i, owned, keys] = owningInserted(name, schemaOfSymbol, spec)[0]!;
-  const [singleton, steps] = Plain._steps(pathOf(owner), []);
-  let nested: PlainMap = new Map([["target", new Map()]]);
-  for (const [i_, o, keys_] of [...steps, [i, owned.name, keys] as const].reverse()) {
-    nested = new Map([["entry", new Map<string, unknown>([["i", i_], ["o", o], ["properties", keys_], ["next", nested]])]]);
-  }
-  return new Map<string, unknown>([["singleton", singleton], ["next", nested]]) as Plain.PlainData;
-}
-
-/** The entries an effect inserts that own the object a symbol names: each as its owner's symbol, the owner's adjacency
- * by name to it, the owned object's adjacency marked owner(), and the entry's keys. */
-function owningInserted(name: string, schemaOfSymbol: (name: string) => any,
-  spec: PlainMap[]): [string, string, any, Map<string, Plain.PlainData>][] {
-  const found: [string, string, any, Map<string, Plain.PlainData>][] = [];
-  for (const item of spec) {
-    const [[subject, [mutation]]] = [...item] as any;
-    const adjacency: PlainMap | undefined = mutation!.get("as_adjacency");
-    if (adjacency === undefined) continue;
-    const inserted = [...adjacency.get("mutations")[0] as PlainMap].filter(([verb]) => verb === "insert")
-      .flatMap(([, body]) => body.get("entries") as PlainMap[]);
-    for (const entry of inserted) {
-      const held = schemaOfSymbol(subject).adjacencies.get(adjacency.get("name"));
-      const [links, keys] = parts(entry);
-      links.set(held.me, subject);
-      for (const a of Proxies._owner_adjacencies(schemaOfSymbol(name))) {
-        if (a.relation === held.relation && links.get(a.me) === name) {
-          const [[ownerLink, owner]] = [...links].filter(([link]) => link !== a.me) as any;
-          const [i] = [...[...schemaOfSymbol(owner!).adjacencies as Map<string, any>]
-            .filter(([, b]) => b.relation === a.relation && b.me === ownerLink).map(([n]) => n), ""];
-          found.push([owner!, i!, a, new Map(Proxies._key_names(a.relation as any, ownerLink!, a.me)
-            .map((k) => [k, keys.get(k)!] as [string, Plain.PlainData]))]);
-        }
-      }
-    }
-  }
-  return found;
-}
 
 /** The effect, built outside the transaction's proposals: `Mutations.OfTransaction`, one upsert. */
 export function _effect(store: any, gathered: _Gathered): any {

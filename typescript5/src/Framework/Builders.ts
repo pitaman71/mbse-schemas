@@ -2103,20 +2103,18 @@ export class Store extends Proxies.OfStore {
   _changes: Changes._Gathered | null = null;
   /** The uid of the transaction committing, which its journal's id is (`Provenance`). */
   _uid: string | null = null;
-  /** The store below's transactions, reported while one of this store's was open. */
-  _arrived: unknown[] = [];
-  /** The transaction sent, as the store below gave back what it committed, as plain. */
-  _committed_below: unknown = null;
-  /** Where `commit` is given what the transaction it runs committed. */
-  _giving_back: unknown[] | null = null;
-  /** Whether the transaction open gathers its changes to give them back (`commit`). */
-  _reporting = false;
-  /** The store, as it is reached: its `Proxy`, whose members are its schemas by name, which loading reads through. */
+  /** The layer below's transaction, open while one of this store's is (`Transactions._Lower`). */
+  _lower: Transactions._Lower | null = null;
+  /** The objects it holds all of (`_knows`). */
+  readonly _complete = new WeakSet<object>();
+  /** How deep in running an install, which a cache layer runs itself, after the layer below. */
+  _installing = 0;
+  /** The store, as it is reached: its `Proxy`, whose members are its schemas by name. */
   _self!: Store;
 
   constructor(below: any = null) {
     super();
-    this._below = below; // the store below it, from which it loads on demand, or null (CAP-283)
+    this._below = below; // the layer below, where it is a cache layer, or null (CAP-283)
     const made = new Map<string, unknown>(); // its own, as the framework's installs define them, read by the bootstrap
     this._meta = bootstrap(S.install, made) as Plain; // its plain schemas of schemas and basic scalars
     const paths = bootstrap(Paths.install, made);
@@ -2154,7 +2152,7 @@ export class Store extends Proxies.OfStore {
     for (const schema of this._objects) HELD_BY.set(schema as object, proxy); // the store, as it is reached
     this._self = proxy;
     this._root = this._expression(() => new ModuleBuilder(null, true, proxy).create()); // made with the store
-    if (below !== null) { // what others write to the store below, applied to what it holds (CAP-285)
+    if (below !== null) { // what others write to the layer below, applied to what it holds (CAP-285)
       below.follow((plain: unknown) => proxy._arrive(plain));
     }
     return proxy;
@@ -2258,11 +2256,18 @@ export class Store extends Proxies.OfStore {
     try {
       this._scope((open) => {
         this._proposals!.expression = transaction; // what its record gives (Provenance)
+        const install = this._lower !== null && Transactions._writesSchemas(this, transaction) ? 1 : 0;
+        if (install) this._lower!.run(this._lower!.copy(transaction)); // an install: the layer below's first, then
+        this._installing += install; // this store's, as one with no layer below
         let failure: { error: unknown } | null = null;
-        open.exec(new Transactions.Frame(), transaction, true).subscribe({
-          next: (item) => { if (item instanceof Transactions.Frame) frames.push(item); },
-          error: (error) => { failure = { error }; },
-        });
+        try {
+          open.exec(new Transactions.Frame(), transaction, true).subscribe({
+            next: (item) => { if (item instanceof Transactions.Frame) frames.push(item); },
+            error: (error) => { failure = { error }; },
+          });
+        } finally {
+          this._installing -= install;
+        }
         if (failure !== null) throw (failure as { error: unknown }).error;
       });
     } catch (error) {
@@ -2405,175 +2410,64 @@ export class Store extends Proxies.OfStore {
     return this._framework.has(schema);
   }
 
-  /** The object at `path` the store holds, made in it or loaded from the store below, without loading anything: a
-   * singleton, one loaded by its path, or one through its owner's entries, keys compared first; else null, or
-   * undefined. One loaded and since deleted is none: deleted as committed, its path is forgotten, free to name another. */
+  /** The object at `path` the store holds, made in it or given it by the layer below's changes: a singleton, or one
+   * through its owner's entries; else null, or undefined. A store reads only what it holds: nothing is loaded (CAP-284
+   * is replaced, [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). */
   _present(path: unknown): unknown {
     const [singleton, steps] = PlainModule._steps(path, []);
     if (steps.length === 0) return this._singletons.get(singleton); // undefined where it holds none
-    const key = Proxies._identity(path);
-    const loaded = this._identities.get(key);
-    if (loaded !== undefined) {
-      if (this._loading > 0 || !Proxies._deleted(loaded)) return loaded; // loading, its owner's entry may be yet to come; it deletes nothing
-      const proposals = this._proposals;
-      this._proposals = null;
-      let committed: boolean;
-      try {
-        committed = Proxies._deleted(loaded);
-      } finally {
-        this._proposals = proposals;
-      }
-      if (!committed) return null; // deleted within the transaction open: none, its path kept so that it is not fetched
-      this._identities.delete(key);
-    }
     const owner = this._present(PlainModule._owner_path(singleton, steps));
-    if (owner == null) return null;
-    this._loading += 1; // what the store holds of the owner, as it is
-    try {
-      return PlainModule._owned_by(owner, steps[steps.length - 1]!);
-    } finally {
-      this._loading -= 1;
-    }
-  }
-
-  /** The object at `path`: one the store holds; else, while loading, or applying a transaction of the store below's, the
-   * store below's, held by its path until it is read (`Proxies._Unresolved`); else the store below's, loaded; null where
-   * neither holds one (CAP-284, CAP-285). */
-  _found(path: unknown): unknown {
-    const found = this._present(path);
-    if (found != null) return found;
-    if (this._loading > 0 || this._applying > 0) return new Proxies._Unresolved(this._self, path);
-    if (this._identities.has(Proxies._identity(path))) return null; // deleted within the transaction open: the store below's is not it
-    return this._fetched(path);
-  }
-
-  /** The object a link holds by its path: present, or loaded, which links it in every entry waiting on it; refused
-   * where the store below holds none. */
-  override _resolved(link: Proxies._Unresolved): unknown {
-    const found = this._present(link.path) ?? this._fetched(link.path);
-    if (found === null) throw new LookupError("the store below holds no object at this path");
-    return found;
-  }
-
-  /** The store below's object at `path`, loaded: made from the document the store below gives of it, each entry that
-   * waits on its path linking it, then its document applied as committed; then each transaction open on the store, or
-   * savepoint, holding those entries as it holds them; null where the store below holds none. */
-  _fetched(path: unknown): unknown {
-    const plain: any = this._below.document(path);
-    if (plain === null) return null;
-    const [pattern] = plain.get("mutations")[0].get("upsert").get("exists");
-    const [[, bound]] = [...pattern.get("symbols")];
-    const schema = PlainModule._by_path(this._self, bound.get("schema")[0].get("path"), []) as ObjectData;
-    const key = Proxies._identity(path);
-    const made = Proxies._makeObjectData(this._self as Proxies.OfStore, schema, schema.name as string, path);
-    this._identities.set(key, made);
-    const waiting = [...new Set(this._waiting.get(key) ?? [])].map((entry) => [entry, innerOf(entry)._key()] as [unknown, string]);
-    this._waiting.delete(key);
-    for (const [entry] of waiting) {
-      const links: Map<string, unknown> = innerOf(entry)._links;
-      for (const [name, target] of links) {
-        if (target instanceof Proxies._Unresolved && target.key === key) links.set(name, made);
-      }
-    }
-    const levels: Proposals.OfStore[] = [];
-    for (let at = this._proposals; at instanceof Proposals.OfStore; at = at.base as Proposals.OfStore) {
-      levels.push(at); // a transaction's, or a savepoint's, innermost first
-    }
-    const views = new Map<object, any>([[innerOf(made), innerOf(made)._adjacent]]);
-    this._relink(waiting, made, null, views);
-    this._load(innerOf(made), plain);
-    for (const level of levels.reverse()) this._relink(waiting, made, level, views);
-    return made;
-  }
-
-  /** Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it, or
-   * `plain`: its property values and its entries, written as the store's committed data, outside any transaction open,
-   * and observed by none (CAP-284). */
-  override _load(holder: object, plain: any = null): void {
-    if (this._loading > 0 || !(holder instanceof Proxies._internals._ObjectData) || this._loaded.has(holder)) return;
-    const path = holder._reference;
-    if (path === null) return;
-    this._loaded.add(holder);
-    const document = plain ?? this._below.document(path);
-    const [pattern] = document.get("mutations")[0].get("upsert").get("exists");
-    const [[symbol]] = [...pattern.get("symbols")];
-    pattern.get("symbols").set(symbol, new Map([["reference", new Map([["path", path]])]]));
-    const store: any = this._self;
-    const proposals = this._proposals;
-    this._proposals = null;
-    this._loading += 1;
-    try {
-      Transactions._execute(store, PlainModule.FromPlain(store).Transaction(document)); // its frames given back to none
-    } finally {
-      this._loading -= 1;
-      this._proposals = proposals;
-    }
-  }
-
-  /** The document of the object at `path`, a one-transaction document of its properties and entries, each object they
-   * link by its path ([CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md)), as plain data; null where the store holds none: what a store
-   * above it loads (CAP-283). */
-  document(path: unknown): unknown {
-    const target = PlainModule._by_path(this, path, []);
-    if (target === null) return null;
-    return Json.loads(Json.dumps(PlainModule.ToPlain(this)(innerOf(target)._schema, target) as PlainModule.PlainData));
+    return owner == null ? null : PlainModule._owned_by(owner, steps[steps.length - 1]!);
   }
 
   /** A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to its
    * plain schema (`extendBuilders`): a module's install extends a store's own schemas (install
-   * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it changed is gathered
-   * for the store's observers, which are given it as a journal once it has committed (`Changes`): where the store has a
-   * store below, the journal of what the store below gave back it committed. A load within it is no transaction of the
-   * store's, and leaves the one open as it is. */
+   * D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`) and the
+   * store has no layer below, the lowest recording it; and what it changed is gathered for the store's observers, which
+   * are given it as a journal once it has committed (`Changes`).
+   *
+   * A cache layer's transaction, a store given a layer below, runs within one transaction of the layer below
+   * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below), `Transactions._Lower`), which commits first, as the cache layer's body ends and before its
+   * proposals commit, what it reports of it taken into this one; a refusal there refuses this one, and where this one
+   * throws, the layer below's is dropped. Applying what the layer below reports is a transaction of its own, opening
+   * none below. */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
     for (const meta of Object.values(this._meta)) {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
-    if (this._loading > 0) { // what the store below holds, loaded: no transaction of this store's, nor of the one open's
-      try {
-        return super._transacting(write);
-      } finally {
-        extendBuilders(this, before);
+    this._changes = null;
+    const lower = this._below !== null && this._applying === 0 ? new Transactions._Lower(this._self) : null;
+    const checked = (): T => {
+      const result = write();
+      if (this._applying === 0 && this._restoring === 0) { // checked where committed, as unique clauses are (CAP-293);
+        Parametrics._check(this, this._proposals!); // a snapshot's restored as it was written
       }
-    }
-    this._changes = this._committed_below = null;
-    const givingBack = this._giving_back; // `commit`'s, for this transaction alone
-    this._giving_back = null;
-    this._reporting = givingBack !== null;
+      if (!(this._applying > 0 || this._below !== null)) { // recorded once, in the lowest layer, at its commit,
+        Provenance._record(this, this._proposals!); // within it
+      }
+      return result;
+    };
     let committed = false;
     let written!: T;
     try {
       written = super._transacting(() => {
-        const result = write();
-        if (this._applying === 0 && this._restoring === 0) { // checked where committed, as unique clauses are (CAP-293);
-          Parametrics._check(this, this._proposals!); // a snapshot's restored as it was written
-        }
-        if (!(this._applying > 0 || (this._below !== null && this._below.records))) { // recorded once, in the
-          Provenance._record(this, this._proposals!); // lowest store, at its commit, within it
-        }
-        return result;
+        this._lower = lower;
+        return lower === null ? checked() : lower.within(checked);
       });
       committed = true;
     } finally {
+      this._lower = null;
       extendBuilders(this, before);
-      this._reporting = false;
       const gathered = committed ? this._changes : null;
       this._changes = null;
       const uid = this._uid;
       this._uid = null;
-      const below = committed ? this._committed_below : null;
-      this._committed_below = null;
-      const arrived = this._arrived;
-      this._arrived = [];
-      if (gathered !== null && (this._observers.length > 0 || givingBack !== null)) { // once committed: one that
-        const effect = below ?? Changes._plain_effect(this, Changes._effect(this, gathered)); // threw is observed by none
-        const journal = this._observers.length > 0
-          ? Changes._journal(this._self, uid!, effect as PlainModule.PlainData) : null;
+      if (gathered !== null && this._observers.length > 0) { // once committed: one that threw is observed by none
+        const effect = Changes._plain_effect(this, Changes._effect(this, gathered));
+        const journal = Changes._journal(this._self, uid!, effect as PlainModule.PlainData);
         for (const observer of [...this._observers]) observer(journal);
-        if (givingBack !== null) givingBack.push(effect);
       }
-      for (const plain of arrived) this._apply(plain); // in the order the store below committed them, its own among them
     }
     return written;
   }
@@ -2582,111 +2476,50 @@ export class Store extends Proxies.OfStore {
    * deleted in cascade is among them, just before it commits, with its uid; its journal is written once it has
    * (`Changes`). */
   override _settled(proposals: Proposals.OfStore): void {
-    const sends = this._below !== null && this._applying === 0;
-    if (sends && proposals.expression !== null) {
-      const before = proposals.saved.get(this._objects as unknown as Map<unknown, unknown>) as [unknown, unknown][];
-      if (proposals.deferred.size > 0 || before.length !== this._objects.size
-          || before.some(([data]) => !this._objects.has(data))) {
-        this._send_install(proposals.expression); // it writes schemas: the store below's, first
-      }
-    }
-    if (this._observers.length > 0 || sends || this._reporting) {
+    if (this._observers.length > 0) {
       this._changes = Changes._gather(this, proposals);
       this._uid = Provenance._uid(this, proposals);
     }
-    if (sends && this._changes !== null) this._send(Changes._plain(this, this._changes), proposals.expression);
-  }
-
-  /** Whether the store records each transaction it commits (`Provenance`), itself or through the store below it, so
-   * that a store above it records none: a store records one where the store below it does not, the lowest store that
-   * does (`Stores.Below`). */
-  get records(): boolean {
-    return true;
-  }
-
-  /** Commits a transaction given as plain data, its changes, with its `uid`, `when`, `session` and `where` where it has
-   * them, refused as the store refuses it; gives back what it committed, as plain data, what it added among it, as its
-   * record; null where it changed nothing: what a store above asks of the store below it (`Stores.Below`, CAP-306). */
-  commit(plain: unknown): unknown {
-    const transaction = PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData);
-    const given: unknown[] = [];
-    this._giving_back = given;
-    try {
-      Transactions._execute(this._self, transaction); // what it gives back is plain data: no frames given back
-    } finally {
-      this._giving_back = null;
-    }
-    return given.length > 0 ? given[0] : null;
-  }
-
-  /** Runs an install given as plain data, a transaction that writes schemas, finding what the store holds already;
-   * refused as the store refuses it (`Stores.Below`, CAP-306). */
-  install(plain: unknown): void {
-    Transactions._execute(this._self, PlainModule.FromPlain(this._self).Transaction(plain as PlainModule.PlainData));
-  }
-
-  /** Sends a transaction that writes schemas, as plain data, to the store below, within the transaction, before it
-   * commits, so that the store below holds the schemas this store holds, and a refusal there refuses it. */
-  _send_install(expression: unknown): void {
-    const plain = Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression));
-    this._below.install(plain);
   }
 
   /** Gives `follower` each transaction the store commits, in the order it commits them, as a `Changes.Journal` of that
-   * one transaction, as plain data; gives back a function that ends it (`Stores.Below`, CAP-306). */
+   * one transaction, as plain data; gives back a function that ends it: what a cache layer over the store applies to
+   * what it holds ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)). */
   follow(follower: (plain: unknown) => void): () => void {
     const schema = this.registered("Changes.Journal");
     return Changes.observe(this, (journal: any) => follower(PlainModule.ToPlain(this._self)(schema, journal)));
   }
 
-  /** Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits: the
-   * store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
-   * `session` and `where` go with them, where it has an expression, and its `uid` always: the lowest store records it
-   * (`Provenance`), and its followers are given its journal under it. What the
-   * store below gives back it committed, its record among it, is taken into the transaction, so that each store of a
-   * stack commits the same one, and is what the store's followers are given of it. */
-  _send(plain: unknown, expression: unknown): void {
-    const given = expression === null ? new Map<string, unknown>()
-      : Changes._as_committed(this, () => PlainModule.ToPlain(this).Transaction(expression)) as Map<string, unknown>;
-    plain = new Map([["uid", this._uid], ...[...given].filter(([k]) => k !== "uid" && k !== "mutations"),
-      ...plain as Map<string, unknown>]);
-    const committed = this._below.commit(plain);
-    if (committed !== null) {
-      this._committed_below = committed;
-      this._apply(committed, true);
-    }
-  }
-
-  /** What the store below committed, given as a `Changes.Journal`, as plain data, as its follow gives it: each
-   * transaction applied to the objects present, under its id; one given while a transaction of this store's is open,
-   * its own among them, once that one ends, so that each is applied in the order the store below committed them, and
-   * its own, applied again, changes only what another changed since (CAP-285). */
+  /** What the layer below committed, given as a `Changes.Journal`, as plain data, as its follow gives it: each
+   * transaction applied to the objects present, under its id (CAP-285). What the layer below reports of this store's own
+   * transaction, as it commits, is taken into it; another, applied as a transaction of its own, in the order the layer
+   * below committed them: in a process, the layer below commits none other while a cache layer's transaction holds one of
+   * its own open. */
   _arrive(plain: unknown): void {
     for (const effect of Changes._effects(this._self, plain as PlainModule.PlainData)) {
-      if (this._proposals !== null) this._arrived.push(effect);
-      else this._apply(effect);
+      this._apply(effect, this._lower !== null && this._lower.closing);
     }
   }
 
-  /** Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of this
-   * store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed (CAP-285);
-   * `joined`, within the transaction open, a savepoint of it. */
+  /** Applies a transaction of the layer below's, its effect as plain data, to the objects present alone, as a
+   * transaction of this store's that checks nothing and sends nothing below, its followers told what it changed
+   * (CAP-285); `joined`, within the transaction open, a savepoint of it. What it creates the store holds all of; an object
+   * present an entry left out links, not all of (`_knows`). */
   _apply(plain: unknown, joined = false): void {
     const store: any = this._self;
-    const [present, direct] = Changes._present_only(store, plain as PlainModule.PlainData);
-    if (present === null && direct.length === 0) return;
-    this._applying += 1; // building it loads nothing either
+    const [present, lost] = Changes._present_only(store, plain as PlainModule.PlainData);
+    for (const target of lost) this._complete.delete(target as object);
+    if (present === null) return;
+    this._applying += 1;
     try {
       // built outside a transaction open, as any expression is; but one taken into the transaction open, within
       // it, where what the transaction made is present, by which the schema of each object it names is known
-      const build = (): unknown =>
-        present === null ? null : PlainModule.FromPlain(store).Transaction(present);
+      const build = (): unknown => PlainModule.FromPlain(store).Transaction(present);
       const expression = joined ? build() : Changes._as_committed(store, build);
       const write = (): void => {
         const uid = (plain as Map<string, unknown>).get("uid"); // its followers given its journal under the id it
         if (!joined && uid !== undefined) store._proposals.uid = uid; // arrived with
-        if (expression !== null) Transactions._execute(store, expression, true);
-        Changes._apply_directly(store, direct);
+        store._proposing(() => Transactions._execute(store, expression), (proposals: Proposals.OfStore) => this._made(proposals));
       };
       if (joined) store._joined(write);
       else store.transaction(write);
@@ -2695,19 +2528,43 @@ export class Store extends Proxies.OfStore {
     }
   }
 
-  /** Deletes in cascade, among what is present, what each object not present that the transaction deleted reaches:
-   * every entry that links it, or an object it owns, and so each object present it owns. */
-  override _unlink_gone(proposals: Proposals.OfStore): void {
-    const gone = Proxies._gone_paths(proposals, this);
-    if (gone.length === 0) return;
-    for (const [key, entries] of [...this._waiting]) {
-      const linked = entries.flatMap((entry) => [...innerOf(entry)._links.values()])
-        .filter((x) => x instanceof Proxies._Unresolved && x.key === key) as Proxies._Unresolved[];
-      if (linked.length > 0 && gone.some((g) => PlainModule._under(linked[0]!.path, g))) {
-        for (const entry of [...entries]) Proxies._discard(innerOf(entry)._relation, [entry], this);
+  /** What a write made, which a cache layer holds all of, as it holds every change made to it since (`_knows`). */
+  _made(proposals: Proposals.OfStore): void {
+    for (const target of proposals.created) this._complete.add(innerOf(target) as object);
+  }
+
+  /** Whether the store holds all of an object, so that its interpreter may read it: one with no layer below holds all
+   * it holds; a cache layer, the objects made in it, by the layer below's changes or its own writes, while it holds
+   * every entry linking them, being given every change made to them since, and none other
+   * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). */
+  _knows(target: unknown): boolean {
+    return this._below === null || this._complete.has(innerOf(target) as object);
+  }
+
+  /** A builder's write (`Proxies.OfStore._writing`). A cache layer's, made in its transaction directly, by no
+   * interpretation of an expression, is written through as it is made: within a savepoint, whose changes are sent to the
+   * layer below's transaction, as a mutation transaction executed there, writing (`_forward`). */
+  override _writing<T>(write: () => T): T {
+    const proposals = this._proposals;
+    if (this._lower === null || this._building !== 1 || this._applying > 0 || this._installing > 0 || proposals === null
+        || proposals.base instanceof Proposals.OfStore) return super._writing(write);
+    return this._proposing(write, (savepoint: Proposals.OfStore) => this._forward(savepoint));
+  }
+
+  /** Sends what a cache layer's own write changed, a savepoint's, to the layer below's transaction, writing, as its
+   * effect, under the transaction's uid: a refusal there throws here. */
+  _forward(proposals: Proposals.OfStore): void {
+    this._made(proposals);
+    for (const target of proposals.created) {
+      const state = innerOf(target) as any;
+      if (state instanceof Proxies._internals._ObjectData && Proxies._owner_adjacencies(state._schema).length > 0
+          && Proxies._owner_entries(target).length === 0) {
+        throw new ValueError(`a cache layer writes a ${repr(state._schemaName)} through as it is made, with its owner: give `
+          + "it one in the same write");
       }
     }
-    this._delete_orphans();
+    const gathered = Changes._gather(this._self, proposals);
+    if (gathered !== null) this._lower!.write(Changes._plain(this._self, gathered) as Map<string, unknown>);
   }
 
   /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under

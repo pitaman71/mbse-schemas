@@ -1154,8 +1154,8 @@ def _below(store: Any, run: _Run, partial: Frame) -> list[Frame]:
     if store._lower is not None and not store._installing:  # a cache layer's: the layer below's transaction executes it
         (given,) = _given_back(store, [partial], run.named, scope)
         for item in _from_below(store, given, partial.remainder, run.named, scope):
-            (run.failed if item.errors else joined).append(item if item.errors else _taken(store, item, item.remainder
-                                                                                           or partial.remainder, True))
+            (run.failed if item.errors else joined).append(item if item.errors else _taken(store, item,
+                                                                                           partial.remainder, True))
         return joined
     stream = _loopback(store, run, partial)
     item = next(stream)
@@ -1180,7 +1180,7 @@ def _named(store: Any, transaction: Any) -> dict[str, list[str]]:
     assign, wherever in it a frame is executed, so that the frames a layer below gives back of the rest of an
     expression assign what the whole expression names."""
     named: dict[str, list[str]] = {}
-    terms = [] if transaction is None or isinstance(transaction, Mapping) else [_next(transaction, "mutations")]
+    terms = [_next(transaction, "mutations")]
     while terms:
         term = terms.pop(0)
         if term is None:

@@ -2101,7 +2101,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
             if all(name in entry._properties
                    and _scalar_key(_view(entry._properties[name], properties[name].schema)) == _scalar_key(value)
                    for name, value in keys.items()):
-                return getattr(entry, others[0])  # one not present: loaded
+                return getattr(entry, others[0])
         raise LookupError(f"no entry of {self._schema.name!r} has the keys {dict(keys)!r}")
 
     def project(self, name: str) -> tuple[Any, ...]:

@@ -131,19 +131,15 @@ export function _exactlyOne(name: string, symbol: any, error: new (message: stri
 
 /** The schema of the object a symbol binds, by which its spec items are written (its mutation builder's, Object
  * identity, Decided, 58 and 76): its own, or, given a reference, that of the object the reference designates where the
- * store holds it, else, or where it is not present, the schema its path implies, through the store's schemas alone,
- * loading nothing where the store has a store below (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path
+ * store holds it, else, or where it is not present, the schema its path implies, through the store's schemas alone
+ * (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)); refused where the path
  * cannot be followed. */
 export function _recordedSchema(store: any, name: string, symbol: any): any {
   const reference = _exactlyOne(name, symbol, TypeError);
   if (reference === null) return symbol.schema;
   const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path") as Map<string, unknown>;
-  const target = store._below !== null && path.get("singleton") !== "." // building it loads nothing (CAP-304)
-    ? store._present(path)
-    : References._designated(store, reference);
-  if (target != null && !(target instanceof Proxies._Unresolved)) { // one not present: by its path (CAP-285)
-    return reader(store, target).as_schema();
-  }
+  const target = References._designated(store, reference);
+  if (target != null) return reader(store, target).as_schema();
   try {
     return References._implied(store, path);
   } catch (error) {
@@ -689,8 +685,8 @@ export class _Refused {
 }
 
 /** An item of `txn.exec`'s stream: a frame, or the completion marker of the input frame or branch whose id is its
- * `end`, `{"end": scope}`, plain data. */
-export type Item = Frame | Map<string, string | null>;
+ * `end`, `{"end": scope}`, a `Map`, carrying the journal of an input frame that gave no frame, `journal`. */
+export type Item = Frame | Map<string, any>;
 
 /** Who is given a stream's items: its subscription by `start`, before any item, then each item by `next`, then
  * `complete`, or `error` where it ends with one. */
@@ -752,7 +748,7 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>, sc
   if (store._unowned.length > 0) store._settle_owners(); // the owners the store gives, so that each object has its path
   return frames.map((frame) => {
     const bound: [string, any][] = [];
-    const assigns: [string, Map<string, unknown>][] = [];
+    const assigns = new Map([...frame.assigns].map(([name, values]) => [name, new Map(values)])); // a layer below's
     for (const [symbol, target] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
       if (!Proxies._isObjectData(target)) {
         bound.push([symbol, target]); // a schema object, as itself
@@ -773,7 +769,7 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>, sc
       const values: Map<string, unknown> = store.values(state);
       const held = new Map((named.get(symbol) ?? []).filter((name) => values.has(name))
         .map((name) => [name, Proxies._copied(values.get(name))] as const));
-      if (held.size > 0) assigns.push([symbol, held]);
+      if (held.size > 0) assigns.set(symbol, new Map([...assigns.get(symbol) ?? [], ...held]));
     }
     return new Frame(bound, frame.errors, assigns, frame.remainder, scope);
   });
@@ -803,21 +799,21 @@ export function _raised(frames: Frame[]): Frame[] {
 }
 
 /** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
- * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
- * in its proposals and written when it ends. Gives the frames its chain ends with, as bound, the library's own (a
- * decoder's, `commit`'s, `install`'s). Where a frame is annotated with an error, it commits nothing and throws the first
- * error annotated (`_raised`). */
-export function _execute(store: any, transaction: any, joined = false): Frame[] {
-  return _raised(_frames(store, transaction, joined));
+ * stream starts as one frame, empty, which its root term transforms and passes on through `then`, within a savepoint of
+ * the transaction open. Gives the frames its chain ends with, as bound, the library's own (a decoder's, a cache layer's
+ * applying what the layer below changed). Where a frame is annotated with an error, it writes nothing and throws the
+ * first error annotated (`_raised`). */
+export function _execute(store: any, transaction: any): Frame[] {
+  return _raised(_frames(store, transaction));
 }
 
 /** The frames a transaction's expression gives, throwing nothing for an error a term meets processing a frame: that
  * frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its chain
  * ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped, whole
- * (CAP-124), else committed, a decoder's (`joined`) into the transaction open. An error in the expression itself, found
+ * (CAP-124), else committed into the transaction open. An error in the expression itself, found
  * before it runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its
  * `frames` all the frames, none annotated. What `txn.exec` gives, as a stream, is `_exec`'s. */
-export function _frames(store: any, transaction: any, joined = false): Frame[] {
+export function _frames(store: any, transaction: any): Frame[] {
   const root = next(transaction, "mutations");
   let made: Frame[] = [];
   const write = (): void => {
@@ -828,14 +824,7 @@ export function _frames(store: any, transaction: any, joined = false): Frame[] {
   };
   try {
     if (root !== null) check(store, root, new Set());
-    if (joined) {
-      store._joined(write); // a decoder's: a savepoint of the one open
-    } else {
-      store._transacting(() => {
-        store._proposals.expression = transaction; // what its record gives (Provenance)
-        write();
-      });
-    }
+    store._joined(write); // a savepoint of the one open
   } catch (error) {
     if (error instanceof Uncommitted) return made;
     (error as any).frames = made;
@@ -935,7 +924,7 @@ export function _exec(store: any, txn: Transaction, given: unknown, remainder: R
       if (observer.closed) throw new Unsubscribed();
     };
     try {
-      const named = new Map<string, string[]>();
+      const named = namedIn(store, remainder.transaction);
       let index = 0;
       // a frame, or a stream of them, consumed as it arrives
       for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
@@ -943,18 +932,23 @@ export function _exec(store: any, txn: Transaction, given: unknown, remainder: R
         const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
         index += 1;
         let changed: Changes._Gathered | null = null;
-        made = store._proposing(() => one(store, remainder, frame, write, named, scope), // a savepoint: what it
-          (proposals: Proposals.OfStore) => { changed = Changes._gather(store, proposals); }); // changed, gathered
-        const back = givenBack(store, made, named, scope);
+        const back = store._proposing(() => { // a savepoint: what it changed, gathered
+          if (write && store._lower !== null && store._installing === 0) return cached(store, remainder, frame, named, scope);
+          made = one(store, remainder, frame, write, named, scope);
+          return givenBack(store, made, named, scope);
+        }, (proposals: Proposals.OfStore) => { changed = Changes._gather(store, proposals); }) as Frame[];
         made = [];
-        if (back.length > 0 && changed !== null) { // carried by its first frame
-          back[0]!.journal = Changes._frame_journal(store, changed, `${transactionUid(store)}#${txn._given.length}`);
+        const marker: Map<string, any> = new Map([["end", scope]]);
+        if (changed !== null) { // carried by its first frame, else by its completion marker
+          const journal = Changes._frame_journal(store, changed, `${transactionUid(store)}#${txn._given.length}`);
+          if (back.length > 0) back[0]!.journal = journal;
+          else marker.set("journal", journal);
         }
         for (const item of back) {
           txn._given.push(item);
           emit(item);
         }
-        emit(new Map([["end", scope]]));
+        emit(marker);
       }
     } catch (error) {
       if (error instanceof Unsubscribed) return;
@@ -992,11 +986,12 @@ class Run {
 
 /** The frames one input frame gives, within the transaction open: those the remainder's chain ends with, then those
  * that halted read-only, then those annotated with an error. A frame given annotated is given back as it is, executed no
- * further; one whose reference designates nothing is annotated so. An error in the expression, as the frame's symbols
- * leave it, is thrown. */
+ * further; one whose reference designates nothing is annotated so, but where a cache layer interprets read-only, where
+ * it holds the reference, unresolved, and halts. An error in the expression, as the frame's symbols leave it, is
+ * thrown. */
 function one(store: any, remainder: Remainder, given: Map<string, any>, write: boolean, named: Map<string, string[]>,
   scope: string): Frame[] {
-  const frame = taken(store, given, remainder);
+  const frame = taken(store, given, remainder, !write && store._below !== null);
   if (frame.errors.length > 0 || remainder.at.length === 0) return [frame];
   const term = termAt(remainder.transaction, remainder.at);
   check(store, term, new Set(frame.keys()));
@@ -1006,13 +1001,21 @@ function one(store: any, remainder: Remainder, given: Map<string, any>, write: b
 }
 
 /** An input frame, as the executor binds: each symbol's object by what its reference designates, a schema object or a
- * store's object as itself; annotated where one designates nothing, or is refused (CAP-309). */
-function taken(store: any, given: Map<string, any>, remainder: Remainder): Frame {
-  const frame = new Frame(null, given instanceof Frame ? given.errors : []);
+ * store's object as itself; annotated where one designates nothing, or is refused (CAP-309); `keep`, a reference that
+ * designates nothing the store holds kept as it is, unresolved (`unresolved`). */
+function taken(store: any, given: Map<string, any>, remainder: Remainder, keep = false): Frame {
+  const frame = new Frame(null, given instanceof Frame ? given.errors : [], given instanceof Frame ? given.assigns : []);
   for (const [name, value] of Map.prototype.entries.call(given) as IterableIterator<[string, any]>) {
     try {
       frame.set(name, bound(store, name, value));
     } catch (error) {
+      if (error instanceof Absent) {
+        if (keep) {
+          frame.set(name, Proxies._durable(value));
+          continue;
+        }
+        error = new LookupError(`symbol ${repr(name)} of the frame: no object of the store has its reference's path`);
+      }
       frame.errors.push(new FrameError(remainder.subterm, (error as Error).name, (error as Error).message, error));
     }
   }
@@ -1029,10 +1032,23 @@ function bound(store: any, name: string, value: unknown): any {
   const inner = Proxies._innerOf(target);
   if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {
     const found = References._designated(store, target);
-    if (found === null) throw new LookupError(`symbol ${repr(name)} of the frame: no object of the store has its reference's path`);
+    if (found === null) throw new Absent();
     return Proxies._durable(found);
   }
   return Proxies._durable(value);
+}
+
+/** A frame's reference that designates nothing the store holds. */
+class Absent extends Error {}
+
+/** Whether a frame holds a reference that designates nothing the store holds, which a cache layer's interpretation
+ * read-only kept (`taken`): it halts at the next term, for the layer below to resolve. */
+function unresolved(store: any, frame: Map<string, any>): boolean {
+  const reference = store.registered("References.OfObject");
+  return [...Map.prototype.values.call(frame) as IterableIterator<unknown>].some((value) => {
+    const inner = Proxies._innerOf(value);
+    return inner instanceof Proxies._internals._RecordData && inner._schema === reference;
+  });
 }
 
 /** The term a term's adjacency of one entry links (91): a transaction's root, a term's next; null where it holds none. */
@@ -1225,6 +1241,10 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], st
           made.push(...termOf(store, kind, pattern, frame, key, null));
           continue;
         }
+        if (store._below !== null && (kind !== "map" || unresolved(store, frame))) {
+          state.halt(frame, at); // a cache layer's: what writes, or what it cannot resolve, the layer below
+          continue;
+        }
         const halted: Bound[] = [];
         try { // a savepoint: what a halted term began, dropped
           made.push(...store._joined(() => store._readingOnly(() => termOf(store, kind, pattern, frame, key, halted))));
@@ -1243,6 +1263,12 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], st
   } else if (kind === "reduce") {
     const dropped: string[] = [...term.symbols][0].collector.symbols;
     const unique = new Map<string, Frame>();
+    if (!state.write && store._below !== null) {
+      for (const frame of frames.filter((each) => unresolved(store, each))) {
+        state.halt(frame, at); // a cache layer's: it cannot tell what it does not hold apart
+      }
+      frames = frames.filter((frame) => frame.remainder === null);
+    }
     for (const frame of frames) {
       const kept = new Frame([...frame].filter(([name]) => !dropped.includes(name)));
       const identity = JSON.stringify([...kept].map(([name, target]) => [name, Proxies._key_of(reader(store, target))]));
@@ -1285,9 +1311,18 @@ function termOf(store: any, kind: string, pattern: any, frame: Frame, key: unkno
  * having no layer below ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). Those annotated with an error go on to `state.failed`,
  * as they came. */
 function below(store: any, state: Run, partial: Frame): Frame[] {
-  partial.scope = `${state.scope}/${state.sent.count}`;
+  const scope = `${state.scope}/${state.sent.count}`;
+  partial.scope = scope;
   state.sent.count += 1;
   const joined: Frame[] = [];
+  if (store._lower !== null && store._installing === 0) { // a cache layer's: the layer below's transaction executes it
+    const [given] = givenBack(store, [partial], state.named, scope);
+    for (const item of fromBelow(store, given!, partial.remainder!, state.named, scope)) {
+      if (item.errors.length > 0) state.failed.push(item);
+      else joined.push(taken(store, item, partial.remainder!, true));
+    }
+    return joined;
+  }
   const stream = loopback(store, state, partial);
   let item = stream.next().value as Item;
   while (item instanceof Frame) { // until the completion marker, `{"end": scope}`
@@ -1308,6 +1343,262 @@ function* loopback(store: any, state: Run, frame: Frame): Generator<Item> {
   yield new Map([["end", frame.scope]]);
 }
 
+/** The properties a transaction's specs name, by symbol, in order, through every term: what the frames it gives assign,
+ * wherever in it a frame is executed, so that the frames a layer below gives back of the rest of an expression assign
+ * what the whole expression names. */
+function namedIn(store: any, transaction: any): Map<string, string[]> {
+  const named = new Map<string, string[]>();
+  const terms: any[] = [next(transaction, "mutations")];
+  while (terms.length > 0) {
+    const term = terms.shift();
+    if (term === null) continue;
+    const kind = kindOf(store, term);
+    if (kind === "map" || kind === "upsert" || kind === "update") {
+      for (const entry of term[kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply"]) {
+        for (const [symbol, items] of membersOf(entry.pattern)) {
+          if (!named.has(symbol)) named.set(symbol, []);
+          const names = named.get(symbol)!;
+          for (const item of items) {
+            const body = item.get("as_property");
+            if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
+          }
+        }
+      }
+    } else if (kind === "partition") {
+      terms.push(...[...term.branches].map((entry: any) => entry.branch), next(term, "none"));
+    }
+    terms.push(next(term, "then"));
+  }
+  return named;
+}
+
+// --- A cache layer: a store given a layer below (stage 2 of the stacked stores proposal) ---
+
+/** Whether an expression writes schemas: an upsert or an update of it binds a symbol of a meta-schema. A cache layer
+ * runs such a transaction, an install, itself, after the layer below has, as a store with no layer below does. */
+export function _writesSchemas(store: any, transaction: any): boolean {
+  const terms: any[] = [next(transaction, "mutations")];
+  while (terms.length > 0) {
+    const term = terms.pop();
+    if (term === null) continue;
+    const kind = kindOf(store, term);
+    if (kind === "upsert" || kind === "update") {
+      for (const entry of term[kind === "upsert" ? "exists" : "apply"]) {
+        if ([...entry.pattern.symbols.values()].some((symbol: any) => symbol.schema !== null && meta(store, symbol.schema))) {
+          return true;
+        }
+      }
+    } else if (kind === "partition") {
+      terms.push(...[...term.branches].map((entry: any) => entry.branch), next(term, "none"));
+    }
+    terms.push(next(term, "then"));
+  }
+  return false;
+}
+
+/** The frames a cache layer gives of one input frame, writing ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): it interprets it read-only
+ * over what it holds, as far as it can know (`bind`, `_knows`); each frame that halts, with its remainder, and each it
+ * completes, with nothing left to execute, goes to the layer below's transaction, which executes it, writing; and each
+ * that comes back is given (`fromBelow`). A frame annotated with an error here is given as it is. */
+function cached(store: any, remainder: Remainder, given: Map<string, any>, named: Map<string, string[]>,
+  scope: string): Frame[] {
+  const made = one(store, remainder, given, false, named, scope);
+  const frames: Frame[] = [];
+  for (const local of givenBack(store, made, named, scope)) {
+    if (local.errors.length > 0) {
+      frames.push(local);
+      continue;
+    }
+    const rest = local.remainder ?? new Remainder(remainder.transaction, []); // complete: down too, for the layer below
+    local.remainder = null;
+    frames.push(...fromBelow(store, local, rest, named, scope));
+  }
+  return frames;
+}
+
+/** What the layer below's transaction gives back of a frame a cache layer sends it with the rest of the expression to
+ * execute, writing: each frame annotated with an error, as it is; each complete, its journal applied to what the cache
+ * layer holds; each partial, executed again by the cache layer, writing, its writes sent below as it makes them
+ * (`Builders.Store._forward`); a completion marker's journal applied. Its frames carry no journal: the cache layer gives
+ * one of what it changed, in its own terms. */
+function fromBelow(store: any, local: Frame, rest: Remainder, named: Map<string, string[]>, scope: string): Frame[] {
+  const frames: Frame[] = [];
+  for (const item of store._lower.forward(local, rest) as Item[]) {
+    if (!(item instanceof Frame)) {
+      if (item.has("journal")) applyJournal(store, item.get("journal"));
+      continue;
+    }
+    const journal = item.journal;
+    item.journal = null;
+    if (item.errors.length > 0) {
+      frames.push(item);
+      continue;
+    }
+    if (journal !== null) applyJournal(store, journal);
+    if (item.remainder === null) {
+      frames.push(item);
+      continue;
+    }
+    const made = store._proposing(() => one(store, item.remainder!, item, true, named, scope), // partial: executed
+      (proposals: Proposals.OfStore) => store._forward(proposals)); // again here, writing, its writes sent below
+    frames.push(...givenBack(store, made, named, scope));
+  }
+  return frames;
+}
+
+/** Applies a journal a layer below gave back, a value of the cache layer's, to what the cache layer holds, as it applies
+ * what the layer below's follow gives it (`Builders.Store._apply`). */
+function applyJournal(store: any, journal: unknown): void {
+  const plain = Plain.ToPlain(store)(store.registered("Changes.Journal"), journal) as Plain.PlainData;
+  for (const effect of Changes._effects(store, plain)) store._apply(effect, true);
+}
+
+/** The items of a stream, as it gives them, synchronously; its error thrown. */
+function collected(stream: Observable<Item>): Item[] {
+  const given: Item[] = [];
+  let failure: { error: unknown } | null = null;
+  stream.subscribe({ next: (item) => given.push(item), error: (error) => { failure = { error }; } });
+  if (failure !== null) throw (failure as { error: unknown }).error;
+  return given;
+}
+
+/** The layer below's transaction, which a cache layer's transaction holds for its whole duration
+ * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): the cache layer's runs within it (`within`), and it commits first, as that ends,
+ * before the cache layer's proposals commit, what it reports of it, as it commits (`closing`), taken into the cache
+ * layer's; and where the cache layer's throws, it is dropped. What passes between them is `exec`, its frames,
+ * remainders and journals each made a value of the store it goes to, through their plain forms: an object by its
+ * reference, a schema object by its path, an expression by its wire form, whose positions are the same in both. */
+export class _Lower {
+  readonly below: any;
+  closing = false;
+  txn: any = null;
+  /** By an expression of the cache layer's: its copy below. */
+  readonly copies = new Map<unknown, unknown>();
+  /** By a copy: the cache layer's expression. */
+  readonly originals = new Map<unknown, unknown>();
+
+  constructor(readonly store: any) {
+    this.below = store._below;
+  }
+
+  /** Runs `body`, the cache layer's transaction, within the layer below's, which commits as it ends; throws where it is
+   * refused. */
+  within<T>(body: () => T): T {
+    try {
+      return this.below.transaction((txn: any = null) => {
+        this.txn = txn;
+        const result = body();
+        this.closing = true; // what the layer below reports from here, it reports of this transaction
+        return result;
+      });
+    } finally {
+      this.closing = false;
+    }
+  }
+
+  /** The layer below's copy of an expression of the cache layer's, under the cache layer's transaction's uid, so that the
+   * layer below's transaction takes it as its own, and records it so (`Provenance`). */
+  copy(transaction: unknown): unknown {
+    let copied = this.copies.get(transaction);
+    if (copied === undefined) {
+      const plain = Plain.ToPlain(this.store).Transaction(transaction) as Map<string, unknown>; // as the transaction sees it
+      plain.set("uid", transactionUid(this.store));
+      copied = Changes._as_committed(this.below, () => Plain.FromPlain(this.below).Transaction(plain));
+      this.copies.set(transaction, copied);
+      this.originals.set(copied, transaction);
+    }
+    return copied;
+  }
+
+  /** The items the layer below's transaction's `exec` gives of `frame`, a frame of the cache layer's given back, and
+   * `rest`, writing, each a value of the cache layer's. */
+  forward(frame: Frame, rest: Remainder): Item[] {
+    return collected(this.txn.exec(this.down(frame), new Remainder(this.copy(rest.transaction), rest.at), true))
+      .map((item) => {
+        if (item instanceof Frame) return this.up(item);
+        return item.has("journal") ? new Map([...item, ["journal", this.journal(item.get("journal"))]]) : item;
+      });
+  }
+
+  /** Executes a cache layer's own write, its effect as plain data, in the layer below's transaction, under the cache
+   * layer's transaction's uid; throws the first error a frame of it is annotated with. */
+  write(plain: Map<string, unknown>): void {
+    const given = new Map([...plain, ["uid", transactionUid(this.store)]]) as Plain.PlainData;
+    this.run(Changes._as_committed(this.below, () => Plain.FromPlain(this.below).Transaction(given)));
+  }
+
+  /** Executes a transaction of the layer below's in its transaction, writing: an install, the layer below's before the
+   * cache layer's, or a cache layer's own write; throws the first error a frame of it is annotated with, as the layer
+   * below's interpreter annotated it. */
+  run(transaction: unknown): void {
+    _raised(collected(this.txn.exec(new Frame(), transaction, true)).filter((item) => item instanceof Frame) as Frame[]);
+  }
+
+  /** A frame of the cache layer's as the layer below's: each object by its reference, a schema object by its path. What
+   * it binds is what the cache layer's interpretation bound, or was given: an object it holds, by its reference, or a
+   * schema object the layer below holds, every install having run there first. */
+  down(frame: Frame): Frame {
+    const bound = [...Map.prototype.entries.call(frame) as IterableIterator<[string, any]>]
+      .map(([name, value]) => [name, carried(this.store, this.below, value)] as [string, any]);
+    return new Frame(bound, frame.errors, [], null, frame.scope);
+  }
+
+  /** A frame the layer below gave back, as the cache layer's: its bindings, what it assigns, its remainder in the cache
+   * layer's expression, and its journal. */
+  up(frame: Frame): Frame {
+    const bound: [string, any][] = [];
+    for (const [name, value] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
+      try {
+        bound.push([name, carried(this.below, this.store, value)]);
+      } catch (error) {
+        bound.push([name, new _Refused((error as Error).message)]);
+      }
+    }
+    const holders = new Map(bound);
+    const assigns = [...frame.assigns].map(([name, values]) => [name, new Map([...values].map(([key, value]) =>
+      [key, carriedValue(this.below, this.store, value, holders.get(name), key)]))] as [string, Map<string, unknown>]);
+    const remainder = frame.remainder === null ? null
+      : new Remainder(this.originals.get(frame.remainder.transaction), frame.remainder.at);
+    return new Frame(bound, frame.errors, assigns, remainder, frame.scope,
+      frame.journal === null ? null : this.journal(frame.journal));
+  }
+
+  /** A journal the layer below gave, as the cache layer's. */
+  journal(journal: unknown): unknown {
+    return Plain.FromPlain(this.store)(this.store.registered("Changes.Journal"),
+      Plain.ToPlain(this.below)(this.below.registered("Changes.Journal"), journal) as Plain.PlainData);
+  }
+}
+
+/** What a frame binds, of `source`'s, as `target`'s: an object's reference by its path, a schema object by its path;
+ * refused, `LookupError`, where it cannot be: a counted object, or a schema object `target` does not hold. */
+function carried(source: any, target: any, value: any): any {
+  if (value instanceof _Refused) throw new LookupError(value.message);
+  const held = Proxies._deref(value);
+  const inner = Proxies._innerOf(held);
+  if (inner instanceof Proxies._internals._RecordData && inner._schema === source.registered("References.OfObject")) {
+    return Plain.FromPlain(target)(target.registered("References.OfObject"),
+      Plain.ToPlain(source)(inner._schema, held) as Plain.PlainData);
+  }
+  const path = Paths.of(held) as any;
+  const found = target.held(Plain.ToPlain(source)(path.as_schema(), path));
+  if (found === null) throw new LookupError("a schema object the layer it goes to does not hold");
+  return found;
+}
+
+/** A value a frame assigns to the property `name` of `holder`, the object a symbol binds, by its reference, a value of
+ * `target`'s: a value object of `source`'s by its plain form, read by the schema `target` gives the property, that of the
+ * object's schema its path implies; any other as it is. */
+function carriedValue(source: any, target: any, value: any, holder: any, name: string): unknown {
+  const inner = Proxies._innerOf(value);
+  if (inner instanceof Proxies._internals._RecordData || inner instanceof Proxies._internals._ContainerData) {
+    const path = (Plain.ToPlain(target)(holder.as_schema(), holder) as Map<string, unknown>).get("path");
+    const schema = References._implied(target, path).properties.get(name).schema;
+    return Plain.FromPlain(target)(schema, Plain.ToPlain(source)(inner._schema, value) as Plain.PlainData);
+  }
+  return value;
+}
+
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
  * spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
  * where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a symbol,
@@ -1318,6 +1609,7 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
   halted: Bound[] | null = null): Bound[] {
   const members = membersOf(pattern);
   let frames: Bound[] = [new Map(frame)];
+  const cache = halted !== null && store._below !== null; // a cache layer's, read-only: what it can know alone
   for (const [name, symbol] of pattern.symbols) {
     if (frame.has(name)) continue;
     const reference = _givenReference(symbol);
@@ -1328,6 +1620,10 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
       continue;
     }
     const schema = symbol.schema;
+    if (cache && schema.singleton === null) { // it cannot know it holds every object of a schema: below
+      halted!.push(...frames);
+      return [];
+    }
     const grown: Bound[] = [];
     for (const partial of frames) {
       if (schema.singleton !== null) {
@@ -1369,8 +1665,16 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
     for (const bound of frames) writeSpec(store, pattern, bound);
     return frames;
   }
-  return frames.filter((bound) => [...members].every(([name, items]) =>
-    holds(store, bound.get(name), schemaIn(store, pattern, name, bound), items, bound, null)));
+  const kept: Bound[] = [];
+  for (const bound of frames) {
+    if (cache && ![...members.keys()].every((name) => store._knows(bound.get(name)))) {
+      halted!.push(bound); // what its spec reads, it does not hold all of: below
+    } else if ([...members].every(([name, items]) =>
+      holds(store, bound.get(name), schemaIn(store, pattern, name, bound), items, bound, null))) {
+      kept.push(bound);
+    }
+  }
+  return kept;
 }
 
 /** The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's. */
@@ -1568,11 +1872,6 @@ function matches(store: any, relation: any, held: any, entry: Map<string, any>, 
     if (Proxies._is_parameter(mine) || Plain._is_marked(wanted.get("reference"))) { // by the parameter's name (CAP-312)
       if (!wanted.has("reference") || mine === null || JSON.stringify(Proxies._link_key(mine))
         !== JSON.stringify(Proxies._link_key(resolve(store, wanted.get("reference"), frame)))) return false;
-      continue;
-    }
-    if (wanted.has("reference") && state instanceof Proxies._internals._Entry && state._links.get(name) instanceof Proxies._Unresolved) {
-      const found = resolve(store, wanted.get("reference"), frame); // one not present, compared by its path: loading nothing
-      if (JSON.stringify(Proxies._link_key(state._links.get(name))) !== JSON.stringify(Proxies._link_key(found))) return false;
       continue;
     }
     const target = linked(held[name]);

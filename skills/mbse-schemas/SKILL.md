@@ -92,7 +92,9 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    the links and properties outside it, and a relation's keys hold at once: a transaction that leaves two entries
    agreeing on the key of any clause and differing on the clause is refused when it commits, however its entries were
    written (an `insert`, a mapping, a spec, a decoder), and no entry held is removed to make room. To move an object
-   to another key, remove its entry first, in that transaction or an earlier one. An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
+   to another key, remove its entry first, in that transaction or an earlier one. (The shorthand on an adjacency whose
+   own end alone is the key of a unique clause, so that it holds one entry at most, sets that entry, replacing the one
+   held, as it always has.) An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
    each entry's link or property, and `at(key)` the entry by the key its relation declares. Write within
    `store.transaction`; a write outside one is refused, and one that raises writes nothing. Read within one too: an
    object, and every visitor read from it (a member, an adjacency, an entry, a value it holds), lives only within the

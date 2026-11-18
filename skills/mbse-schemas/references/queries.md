@@ -117,6 +117,31 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   ([CAP-133: no durable references to counted objects](mbse:mbse-basis/docs/capabilities/CAP-133.md)).
   - Python: [REF-03: A counted object has no reference, nor a frame that binds one](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-03) · TypeScript: [REF-03: A counted object has no reference, nor a frame that binds one](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-03)
 
+## A store's stream of frames: `store.exec`
+
+- `store.exec(frame, remainder, allow_write)` executes what is left of a transaction's expression over input frames,
+  within one transaction of the store, and gives a stream of frames: a generator in Python, an observable in
+  TypeScript (`subscribe`, as RxJS takes one). `frame` binds the symbols bound so far, by their references, or is a
+  stream of such frames, each executed as it arrives; `remainder` is a whole transaction, as `store.transaction` takes
+  it, or the `remainder` a halted frame carries. Each frame given carries `scope`, the id of the input frame it
+  descends from, and each input frame's frames end with its completion marker, `{"end": scope}`.
+  `store.transaction(spec)` is `exec` over one empty frame, writing, collected
+  ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)).
+  - Python: [EXE-01: `store.exec` writing, over one empty input frame, is `store.transaction`](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-01) · TypeScript: [EXE-01: `store.exec` writing, over one empty input frame, is `store.transaction`](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-01)
+  - Python: [EXE-07: An input stream consumed as it arrives](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-07) · TypeScript: [EXE-07: An input stream consumed as it arrives](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-07)
+- With `allow_write` false, it reads what the store holds and writes nothing: a frame halts where a term would write,
+  or where nothing the store holds binds a symbol, and is given as bound so far with its `remainder`, a position in the
+  expression; `store.exec(halted, halted.remainder, allow_write)`, with `allow_write` true, completes it, as a full run
+  would. A partition keeps its join: a frame that halts within a branch has the rest of that branch executed, writing,
+  and joined. This is how a layer of a stack of stores will read its cache and send the rest below
+  ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)).
+  - Python: [EXE-02: Read-only: a frame halts where a term would write, or nothing held binds a symbol](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-02) · TypeScript: [EXE-02: Read-only: a frame halts where a term would write, or nothing held binds a symbol](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-02)
+  - Python: [EXE-04: Split-join through the loopback](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-04) · TypeScript: [EXE-04: Split-join through the loopback](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-04)
+- **An error is annotated on its frame, in the stream**, not raised, and the transaction then commits nothing; only an
+  error no one frame made, in the expression or at the commit, ends the stream with it. Consume the stream to its end:
+  the transaction is open while it is, and one left before its end commits nothing.
+  - Python: [EXE-06: Errors annotated in the stream](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-06) · TypeScript: [EXE-06: Errors annotated in the stream](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-06)
+
 ## Limits and traps
 
 - **Entries change only through an object's named adjacency.** There is no relation-level verb; an anonymous adjacency

@@ -104,6 +104,7 @@ export class OfStore implements Visitors.OfStore {
     if (held !== undefined) return held;
     const below = this.base.values(holder);
     if (!write) return below;
+    this.store._written(); // halted, where the store interprets read-only
     const copied = new Map(below);
     this.values_.set(holder, copied);
     return copied;
@@ -116,6 +117,7 @@ export class OfStore implements Visitors.OfStore {
     if (held !== undefined) return held;
     const below = this.base.entries(holder);
     if (!write) return below;
+    this.store._written(); // halted, where the store interprets read-only
     const copied: Tables = new Map([...below].map(([relation, table]) => [relation, new Map(table)]));
     this.entries_.set(holder, copied);
     return copied;

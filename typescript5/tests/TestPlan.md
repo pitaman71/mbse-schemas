@@ -75,8 +75,9 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `35_Changes.ipynb` | CHG | 14 | as in Python; a journal's plain form is read by `JSON.loads`, as a `Map`, its ints `bigint`s |
 | `36_Below.ipynb` | BLW | 22 | as in Python; a store given a store below is `new B.Store(below)`, a path given it is a `Map` (read by `JSON.loads`), the objects loaded are a `Set`, counted by `size`, and the store given none has `_below` `null`; BLW-08, BLW-10, BLW-11 and BLW-12 read an entry's link as it holds it through `Proxies._innerOf`, and name its class with `Repr.typeName`; a transaction refused (BLW-09, BLW-15) is checked with `raises` around `store.transaction(() => ...)`; BLW-18 checks a store below with `Stores.isBelow(x)` where Python has `isinstance(x, Stores.Below)` |
 | `37_Lifetimes.ipynb` | LIF | 6 | as in Python; the imperative transaction is `store.transaction(() => { ... })`, a frame's `assigns` a `Map` of `Map`s, a transaction's visitor a second shell over the durable object's state (docs/EQUIVALENCE.md) |
+| `38_Exec.ipynb` | EXE | 7 | as in Python; the stream is an observable of the framework's own (`Transactions.Observable`: `subscribe` with an observer, or `next`, `error` and `complete`, giving back a `Subscription`, given first to the observer's `start`; `"@@observable"`, for RxJS and the ECMAScript Observable proposal), produced synchronously as it is subscribed to; unsubscribed from within `next`, it is given nothing more and commits nothing; an error of no one frame is its `error`, given to none where the observer has none; the completion marker a `Map`, `{"end": scope}`; an input stream an iterable, a generator's |
 
-Total: 340 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 347 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

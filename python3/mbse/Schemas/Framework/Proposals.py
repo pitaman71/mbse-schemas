@@ -81,6 +81,7 @@ class OfStore:
         below = self.base.values(holder)
         if not write:
             return below
+        self.store._written()  # halted, where the store interprets read-only
         copied = self.values_[id(holder)] = (holder, dict(below))
         return copied[1]
 
@@ -93,6 +94,7 @@ class OfStore:
         below = self.base.entries(holder)
         if not write:
             return below
+        self.store._written()  # halted, where the store interprets read-only
         copied = self.entries_[id(holder)] = (holder, {key: dict(table) for key, table in below.items()})
         return copied[1]
 

@@ -2242,15 +2242,52 @@ export class Store extends Proxies.OfStore {
   /** Executes a transaction (object identity 85 to 97 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a `Mutations.OfTransaction`, or a callback
    * building one, its root term given through `mutations`. Every write it makes is held apart until it ends, and dropped
    * where it throws. Gives the frames its chain of terms ends with, each the objects its symbols bind, by symbol
-   * (`Transactions.Frame`). Where a term fails to process a frame, the frame is annotated with the error (its `errors`)
-   * and the others go on; then nothing is written, and the error that arose first is thrown, its `frames` every frame,
-   * those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Given a function of no arguments, a transaction's imperative scope (98), `store.transaction(() => { ... })`, within which
-   * builders write as they do anywhere, all or nothing; it gives what the function returns. */
+   * (`Transactions.Frame`): `exec`'s stream over one input frame, empty, writing, collected. Where a term fails to process
+   * a frame, the frame is annotated with the error (its `errors`) and the others go on; then nothing is written, and the
+   * error that arose first is thrown, its `frames` every frame, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Given a function
+   * of no arguments, a transaction's imperative scope (98), `store.transaction(() => { ... })`, within which builders write
+   * as they do anywhere, all or nothing; it gives what the function returns. */
   transaction(spec: unknown): any {
     if (Proxies._isFunction(spec) && spec.length === 0) return this._transacting(spec as () => unknown); // its scope (98)
+    const frames: Transactions.Frame[] = [];
+    let failure: { error: unknown } | null = null;
+    this.exec(new Transactions.Frame(), this._expressed(spec), true).subscribe({
+      next: (item) => { if (item instanceof Transactions.Frame) frames.push(item); },
+      error: (error) => { failure = { error }; },
+    });
+    if (failure !== null) throw (failure as { error: unknown }).error;
+    return Transactions._raised(frames);
+  }
+
+  /** Executes the suffix of a transaction's expression over input frames, within one transaction of the store, giving a
+   * stream of frames, an observable, produced as each subscriber subscribes ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308), [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)).
+   *
+   * `frame` is the current execution frame, the symbols bound so far, each by its reference, a schema object as itself
+   * (`Transactions.Frame`, or any `Map`); or a stream of them, an iterable each item of which is taken as it arrives.
+   * `remainder` is what is yet to be executed: a `Transactions.Remainder`, as a frame that halted carries it, or a whole
+   * transaction, as `transaction` takes it. Where `allow_write` is true, the expression is interpreted fully, writing;
+   * where false, read-only, over what the store holds: where it holds nothing to bind a symbol, or a term would write,
+   * the frame halts, and is given as bound so far, carrying its `remainder`, which `exec(halted, halted.remainder, true)`
+   * completes. A partition keeps its join: a frame that halts within one of its branches, the rest of that branch alone
+   * is executed below it, by the loopback, this store having no layer below, with writes, and what each branch ends with
+   * is joined.
+   *
+   * Each input frame gives the frames made of it, given back as references and assignments (CAP-315), each carrying its
+   * `scope`, the input frame's id (its own `scope`, else its position in the stream, `"0"`, `"1"`, ...), then the
+   * completion marker `{"end": scope}`, a `Map`; the stream ends where the observable completes. An error a term meets is
+   * annotated on the frame it processed (CAP-309), and the transaction then commits nothing; an error of no one frame is
+   * the observable's error. Unsubscribed from before it completes, it commits nothing. */
+  exec(frame: unknown, remainder: unknown, allow_write: boolean): Transactions.Observable<Transactions.Item> {
+    const transaction = remainder instanceof Transactions.Remainder ? remainder : this._expressed(remainder);
+    return Transactions._exec(this, frame, Transactions._remainder(this, transaction), allow_write);
+  }
+
+  /** A transaction's expression: one given, or the one a callback builds, given the store's schemas by name besides
+   * (78). */
+  _expressed(spec: unknown): any {
     const transaction = Proxies._isFunction(spec) // a callback building one, given the store's schemas by name besides (78)
       ? this.Mutations.OfTransaction((t: any) => (spec as (txn: unknown) => unknown)(makeTransaction(this, t))) : spec;
-    return Transactions._execute(this, Proxies._durable(transaction), false, true);
+    return Proxies._durable(transaction);
   }
 
   /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
@@ -2258,6 +2295,7 @@ export class Store extends Proxies.OfStore {
   _defers(builder: Builder): boolean {
     const proposals = this._proposals;
     if (proposals === null || !this._existed(builder._original, proposals)) return false;
+    this._written(); // halted, where the store interprets read-only
     this._link(builder._original, builder._working);
     proposals.deferred.set(builder._original, builder); // its last: each began from what the one before made
     return true;

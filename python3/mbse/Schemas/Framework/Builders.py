@@ -1669,14 +1669,13 @@ class Store(Proxies.OfStore):
 
     def __init__(self, below: Any = None) -> None:
         super().__init__()
-        self._below = below  # the store below it, from which it loads on demand, or None (CAP-283)
+        self._below = below  # the layer below, where it is a cache layer, or None (CAP-283)
+        self._lower: Any = None  # the layer below's transaction, open while one of this store's is (`Transactions._Lower`)
+        self._complete: weakref.WeakSet[Any] = weakref.WeakSet()  # the objects it holds all of (`_knows`)
+        self._installing = 0  # how deep in running an install, which a cache layer runs itself, after the layer below
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
         self._uid: str | None = None  # the uid of the transaction committing, which its journal's id is (`Provenance`)
-        self._arrived: list[Any] = []  # the store below's transactions, reported while one of this store's was open
-        self._committed_below: Any = None  # the transaction sent, as the store below gave back what it committed, as plain
-        self._giving_back: list[Any] | None = None  # where `commit` is given what the transaction it runs committed
-        self._reporting = False  # whether the transaction open gathers its changes to give them back (`commit`)
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
@@ -1716,7 +1715,7 @@ class Store(Proxies.OfStore):
         self._placed: dict[int, tuple[_ModuleData, str]] = {}  # each schema's module, and its name there
         with self._expression():  # made with the store
             self._root = ModuleBuilder(None, True, self).create()
-        if below is not None:  # what others write to the store below, applied to what it holds (CAP-285)
+        if below is not None:  # what others write to the layer below, applied to what it holds (CAP-285)
             below.follow(self._arrive)
 
     def held(self, path: Any) -> Any:
@@ -1812,171 +1811,147 @@ class Store(Proxies.OfStore):
     def _transacting(self) -> Iterator[Any]:
         """A transaction (`Proxies.OfStore._transacting`), after which each schema builder has the members it added to
         its plain schema (`_extend_builders`): a module's install extends a store's own schemas (install
-        D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`), and what it
-        changed is gathered for the store's observers, which are given it as a journal once it has committed
-        (`Changes`): where the store has a store below, the journal of what the store below gave back it committed. A
-        load within it is no transaction
-        of the store's, and leaves the one open as it is."""
+        D5 in [CAP-116: framework schemas extended, checked](mbse:mbse-basis/docs/capabilities/CAP-116.md#decided)). At its commit, within it, `Provenance` records it, where installed (`Provenance._record`) and
+        the store has no layer below, the lowest recording it; and what it changed is gathered for the store's
+        observers, which are given it as a journal once it has committed (`Changes`).
+
+        A cache layer's transaction, a store given a layer below, opens one transaction of the layer below for its whole
+        duration ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): the layer below's commits first, at this one's commit, within it, and what it reports
+        of it is taken into this one; a refusal there refuses this one, and where this one raises, the layer below's is
+        dropped. Applying what the layer below reports is a transaction of its own, opening none below."""
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
-        from . import Parametrics, Provenance
+        from . import Parametrics, Provenance, Transactions
 
-        if self._loading:  # what the store below holds, loaded: no transaction of this store's, nor of the one open's
-            try:
-                with super()._transacting() as proposals:
-                    yield proposals
-            finally:
-                _extend_builders(self, before)
-            return
-        self._changes = self._committed_below = None
-        giving_back, self._giving_back = self._giving_back, None  # `commit`'s, for this transaction alone
-        self._reporting = giving_back is not None
+        self._changes = None
+        lower = self._lower = Transactions._Lower(self) if self._below is not None and not self._applying else None
         committed = False
         try:
             with super()._transacting() as proposals:
                 yield proposals
                 if not (self._applying or self._restoring):  # checked where committed, as unique clauses are
                     Parametrics._check(self, proposals)  # (CAP-293); a snapshot's restored as it was written
-                if not (self._applying or (self._below is not None and self._below.records)):  # recorded once, in
-                    Provenance._record(self, proposals)  # the lowest store, at its commit, within it
+                if not (self._applying or self._below is not None):  # recorded once, in the lowest layer, at its
+                    Provenance._record(self, proposals)  # commit, within it
             committed = True
+        except BaseException as error:
+            if lower is not None:
+                lower.close(error)  # dropped with this one
+            raise
         finally:
+            self._lower = None
             _extend_builders(self, before)
-            self._reporting = False
             gathered, self._changes = self._changes if committed else None, None
             uid, self._uid = self._uid, None
-            below, self._committed_below = self._committed_below if committed else None, None
-            arrived, self._arrived = self._arrived, []
-            if gathered is not None and (self._observers or giving_back is not None):  # once committed: one that
-                from . import Changes  # raised is observed by none
+            if gathered is not None and self._observers:  # once committed: one that raised is observed by none
+                from . import Changes
 
-                effect = below if below is not None else Changes._plain_effect(self, Changes._effect(self, gathered))
-                journal = Changes._journal(self, uid, effect) if self._observers else None
+                journal = Changes._journal(self, uid, Changes._plain_effect(self, Changes._effect(self, gathered)))
                 for observer in list(self._observers):
                     observer(journal)
-                if giving_back is not None:
-                    giving_back.append(effect)
-            for plain in arrived:  # in the order the store below committed them, its own among them
-                self._apply(plain)
 
     def _settled(self, proposals: Any) -> None:
         """A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
         deleted in cascade is among them, just before it commits, with its uid; its journal is written once it has
-        (`Changes`)."""
+        (`Changes`). A cache layer's: the layer below's transaction commits first, what it reports of it taken into
+        this one."""
         from . import Changes, Provenance
 
-        sends = self._below is not None and not self._applying
-        if sends and proposals.expression is not None and (
-                proposals.deferred or set(self._objects) != set(proposals.saved["_objects"])):
-            self._send_install(proposals.expression)  # it writes schemas: the store below's, first
-        if self._observers or sends or self._reporting:
+        if self._lower is not None:
+            self._lower.close()
+        if self._observers:
             self._changes = Changes._gather(self, proposals)
             self._uid = Provenance._uid(self, proposals)
-        if sends and self._changes is not None:
-            self._send(Changes._plain(self, self._changes), proposals.expression)
-
-    @property
-    def records(self) -> bool:
-        """Whether the store records each transaction it commits (`Provenance`), itself or through the store below it,
-        so that a store above it records none: a store records one where the store below it does not, the lowest store
-        that does (`Stores.Below`)."""
-        return True
-
-    def commit(self, plain: Any) -> Any:
-        """Commits a transaction given as plain data, its changes, with its `uid`, `when`, `session` and `where` where it
-        has them, refused as the store refuses it; gives back what it committed, as plain data, what it added among it,
-        as its record; None where it changed nothing: what a store above asks of the store below it (`Stores.Below`,
-        CAP-306)."""
-        from . import Plain, Transactions
-
-        transaction = Plain.FromPlain(self).Transaction(plain)
-        given: list[Any] = []
-        self._giving_back = given
-        try:
-            Transactions._execute(self, transaction)  # what it gives back is plain data: no frames given back
-        finally:
-            self._giving_back = None
-        return given[0] if given else None
-
-    def install(self, plain: Any) -> None:
-        """Runs an install given as plain data, a transaction that writes schemas, finding what the store holds
-        already; refused as the store refuses it (`Stores.Below`, CAP-306)."""
-        from . import Plain, Transactions
-
-        Transactions._execute(self, Plain.FromPlain(self).Transaction(plain))  # its frames given back to none
-
-    def _send_install(self, expression: Any) -> None:
-        """Sends a transaction that writes schemas, as plain data, to the store below, within the transaction, before
-        it commits, so that the store below holds the schemas this store holds, and a refusal there refuses it."""
-        from . import Changes, Plain
-
-        with Changes._as_committed(self):
-            plain = Plain.ToPlain(self).Transaction(expression)
-        self._below.install(plain)
 
     def follow(self, follower: Any) -> Any:
         """Gives `follower` each transaction the store commits, in the order it commits them, as a `Changes.Journal` of
-        that one transaction, as plain data; gives back a function that ends it (`Stores.Below`, CAP-306)."""
+        that one transaction, as plain data; gives back a function that ends it: what a cache layer over the store
+        applies to what it holds ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md))."""
         from . import Changes, Plain
 
         schema = self.registered("Changes.Journal")
         return Changes.observe(self, lambda journal: follower(Plain.ToPlain(self)(schema, journal)))
 
-    def _send(self, plain: Any, expression: Any) -> None:
-        """Sends a transaction's changes, as plain data, to the store below, within the transaction, before it commits:
-        the store below commits them first, and a refusal there refuses the transaction (CAP-285). Its `uid`, `when`,
-        `session` and `where` go with them, where it has an expression, and its `uid` always: the lowest store records it
-        (`Provenance`), and its followers are given its journal under it.
-        What the store below gives back it committed, its record among it, is taken into the transaction, so that each
-        store of a stack commits the same one, and is what the store's followers are given of it."""
-        from . import Changes, Plain
-
-        given: dict[str, Any] = {}
-        if expression is not None:
-            with Changes._as_committed(self):
-                given = Plain.ToPlain(self).Transaction(expression)
-        plain = {"uid": self._uid, **{k: v for k, v in given.items() if k not in ("uid", "mutations")}, **plain}
-        committed = self._below.commit(plain)
-        if committed is not None:
-            self._committed_below = committed
-            self._apply(committed, joined=True)
-
     def _arrive(self, plain: Any) -> None:
-        """What the store below committed, given as a `Changes.Journal`, as plain data, as its follow gives it: each
-        transaction applied to the objects present, under its id; one given while a transaction of this store's is
-        open, its own among them, once that one ends, so that each is applied in the order the store below committed
-        them, and its own, applied again, changes only what another changed since (CAP-285)."""
+        """What the layer below committed, given as a `Changes.Journal`, as plain data, as its follow gives it: each
+        transaction applied to the objects present, under its id (CAP-285). What the layer below reports of this store's
+        own transaction, as it commits, is taken into it; another, applied as a transaction of its own, in the order the
+        layer below committed them: in a process, the layer below commits none other while a cache layer's transaction
+        holds one of its own open."""
         from . import Changes
 
         for effect in Changes._effects(self, plain):
-            if self._proposals is not None:
-                self._arrived.append(effect)
-            else:
-                self._apply(effect)
+            self._apply(effect, joined=self._lower is not None and self._lower.closing)
 
     def _apply(self, plain: Any, joined: bool = False) -> None:
-        """Applies a transaction of the store below's, as plain data, to the objects present alone, as a transaction of
-        this store's that loads nothing, checks nothing and sends nothing below, its followers told what it changed
-        (CAP-285); `joined`, within the transaction open, a savepoint of it."""
+        """Applies a transaction of the layer below's, its effect as plain data, to the objects present alone, as a
+        transaction of this store's that checks nothing and sends nothing below, its followers told what it changed
+        (CAP-285); `joined`, within the transaction open, a savepoint of it. What it creates the store holds all of;
+        an object present an entry left out links, not all of (`_knows`)."""
         from . import Changes, Plain, Transactions
 
-        present, direct = Changes._present_only(self, plain)
-        if present is None and not direct:
+        present, lost = Changes._present_only(self, plain)
+        for target in lost:
+            self._complete.discard(target)
+        if present is None:
             return
-        self._applying += 1  # building it loads nothing either
+        self._applying += 1
         try:
             # built outside a transaction open, as any expression is; but one taken into the transaction open, within
             # it, where what the transaction made is present, by which the schema of each object it names is known
             with contextlib.nullcontext() if joined else Changes._as_committed(self):
-                expression = None if present is None else Plain.FromPlain(self).Transaction(present)
+                expression = Plain.FromPlain(self).Transaction(present)
             with self._joined() if joined else self.transaction():
                 if not joined and "uid" in plain:  # its followers given its journal under the id it arrived with
                     self._proposals.uid = plain["uid"]
-                if expression is not None:
-                    Transactions._execute(self, expression, joined=True)
-                Changes._apply_directly(self, direct)
+                with self._proposing(self._made):
+                    Transactions._execute(self, expression)
         finally:
             self._applying -= 1
+
+    def _made(self, proposals: Any) -> None:
+        """What a write made, which a cache layer holds all of, as it holds every change made to it since
+        (`_knows`)."""
+        for target in proposals.created.values():
+            self._complete.add(target)
+
+    def _knows(self, target: Any) -> bool:
+        """Whether the store holds all of an object, so that its interpreter may read it: one with no layer below holds
+        all it holds; a cache layer, the objects made in it, by the layer below's changes or its own writes, while it
+        holds every entry linking them, being given every change made to them since, and none other
+        ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below))."""
+        return self._below is None or Proxies._durable(target) in self._complete
+
+    @contextlib.contextmanager
+    def _writing(self) -> Iterator[None]:
+        """A builder's write (`Proxies.OfStore._writing`). A cache layer's, made in its transaction directly, by no
+        interpretation of an expression, is written through as it is made: within a savepoint, whose changes are sent to
+        the layer below's transaction, as a mutation transaction executed there, writing (`_forward`)."""
+        from . import Proposals
+
+        proposals = self._proposals
+        if (self._lower is None or self._building != 1 or self._applying or self._installing or proposals is None
+                or isinstance(proposals.base, Proposals.OfStore)):
+            with super()._writing():
+                yield
+            return
+        with self._proposing(self._forward):
+            yield
+
+    def _forward(self, proposals: Any) -> None:
+        """Sends what a cache layer's own write changed, a savepoint's, to the layer below's transaction, writing, as
+        its effect, under the transaction's uid: a refusal there raises here."""
+        from . import Changes
+
+        self._made(proposals)
+        for target in proposals.created.values():
+            if (isinstance(target, Proxies._ObjectData) and Proxies._owner_adjacencies(target._schema)
+                    and not Proxies._owner_entries(target)):
+                raise ValueError(f"a cache layer writes a {target._schema_name!r} through as it is made, with its owner: "
+                                 "give it one in the same write")
+        gathered = Changes._gather(self, proposals)
+        if gathered is not None:
+            self._lower.write(Changes._plain(self, gathered))
 
     def _permit(self, builder: _Builder[Any]) -> None:
         """Refuses a builder's update of a schema the store was made holding that does more than add members to it,
@@ -2073,8 +2048,15 @@ class Store(Proxies.OfStore):
         try:
             with self._scope() as txn:
                 self._proposals.expression = transaction  # what its record gives (Provenance)
-                frames += [item for item in txn.exec(Transactions.Frame(), transaction, True)
-                           if isinstance(item, Transactions.Frame)]
+                install = self._lower is not None and Transactions._writes_schemas(self, transaction)
+                if install:  # an install: the layer below's first, then this store's, as one with no layer below
+                    self._lower.run(self._lower.copy(transaction))
+                self._installing += install
+                try:
+                    frames += [item for item in txn.exec(Transactions.Frame(), transaction, True)
+                               if isinstance(item, Transactions.Frame)]
+                finally:
+                    self._installing -= install
         except Exception as error:
             if not hasattr(error, "frames"):  # one at the commit, which no frame made: every frame given
                 error.frames = frames  # type: ignore[attr-defined]

@@ -347,8 +347,7 @@ def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> 
 
 
 def _linked_as_held(read: Proxies._Entry, link: str) -> Any:
-    """What an entry links through `link`, as it holds it: one of the store below's not present by its path, unread, so
-    that writing an entry loads nothing (CAP-284)."""
+    """What an entry links through `link`, as it holds it."""
     return read._links[link]
 
 
@@ -792,14 +791,12 @@ def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
 def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
     """The object a path names in `store`, or None: a schema object from the root module (`Builders.Store.held`), a
     singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
-    adjacency is `o`. In a store with a store below, one it holds, else the store below's, loaded (CAP-284)."""
+    adjacency is `o`: one the store holds, a cache layer's among them, which loads nothing."""
     singleton, steps = _steps(path_plain, where)
     if singleton == ".":
         return store._at(_schema_steps(path_plain, where))
     if not steps:
         return store._singletons.get(singleton)
-    if store._below is not None:
-        return store._found(path_plain)
     owner = _by_path(store, _owner_path(singleton, steps), where)
     return None if owner is None else _owned_by(owner, steps[-1])
 
@@ -930,8 +927,6 @@ class _Document:
             return {"symbol": str(number)}
         if Proxies._is_parameter(target):  # in the place of the object it links (CAP-312)
             return _marked(self.store, target)
-        if isinstance(target, Proxies._Unresolved):  # one of the store below's not present: by its path (CAP-284)
-            return {"path": target.path}
         if isinstance(target, Proxies._ObjectData):
             if Proxies._counted(target):
                 raise ValueError(f"a document refers to a counted {self.store.name_of(target.as_schema())!r} it does "
@@ -1037,7 +1032,7 @@ def _read_document(store: Any, schema: Schemas.OfObject.Data, plain: PlainData) 
         plain = {**plain, "mutations": [{"upsert": {**plain["mutations"][0]["upsert"], "key": f"\0{next(_READS)}"}}]}
     transaction = FromPlain(store).Transaction(plain)
     with store._joined():  # what it writes, kept only where its root is what is asked for
-        frames = Transactions._execute(store, transaction, joined=True)
+        frames = Transactions._execute(store, transaction)
         if len(frames) != 1 or "0" not in frames[0]:
             raise DecodeError("a document binds its root, the symbol '0', in one frame", path="$")
         root = frames[0]["0"]
@@ -1290,7 +1285,7 @@ def _read_snapshot(store: Any, transactions: PlainData, ignored: list[dict[str, 
             schema = store.registered("Mutations.OfTransaction")
             transaction = store.Mutations.OfTransaction(lambda t, p=plain, at=(i,): _built(store, t, schema, p, at,
                                                                                             ignored))
-            frames = Transactions._execute(store, transaction, joined=True)
+            frames = Transactions._execute(store, transaction)
             bound = [target for target in frames[0].values() if isinstance(target, Proxies._ObjectData)]
     finally:
         store._restoring -= 1

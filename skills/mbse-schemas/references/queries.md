@@ -136,11 +136,17 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   or where nothing the store holds binds a symbol, and is given as bound so far with its `remainder`, a position in the
   expression; `txn.exec(halted, halted.remainder, allow_write)`, with `allow_write` true, in the same transaction,
   completes it, as a full run would. A partition keeps its join: a frame that halts within a branch has the rest of that
-  branch executed, writing, within the transaction, and joined. This is how a layer of a stack of stores will read its
-  cache and send the rest below
+  branch executed, writing, within the transaction, and joined. This is how a cache layer, a store given a layer below,
+  reads what it holds and sends the rest below, with `allow_write` true there
   ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)).
   - Python: [EXE-02: Read-only: a frame halts where a term would write, or nothing held binds a symbol](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-02) · TypeScript: [EXE-02: Read-only: a frame halts where a term would write, or nothing held binds a symbol](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-02)
   - Python: [EXE-04: Split-join through the loopback](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-04) · TypeScript: [EXE-04: Split-join through the loopback](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-04)
+- **A frame carries what its input frame changed**, as a `Changes.Journal` of one transaction (`frame.journal`), its id
+  the transaction's uid and the frame's position (`uid#n`): the first frame an input frame gives carries it, and where
+  it gives none, its completion marker, `{"end": scope, "journal": ...}`. Applying each by `Changes.apply` makes the
+  same changes elsewhere, each once; a cache layer applies those the layer below gives back to what it holds.
+  - Python: [EXE-08: A frame's journal](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-08) · TypeScript: [EXE-08: A frame's journal](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-08)
+  - Python: [BLW-09: The completeness rule](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-09) · TypeScript: [BLW-09: The completeness rule](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-09)
 - **An error is annotated on its frame, in the stream**, not raised by `exec`; the scope then commits nothing, and
   raises the first error annotated, as `store.transaction` does. An error no one frame made, in the expression, ends
   the stream with it.

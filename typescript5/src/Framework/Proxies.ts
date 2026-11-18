@@ -1052,23 +1052,95 @@ function addEntry(relation: RelationSchema, entry: any, store: unknown = null): 
   }
 }
 
-/** The entries of `relation` that link `target` via `link`, in the order they were added. */
-/** Refuses a transaction, just before it commits, that both removed nothing by a removal from a relation and inserts
- * an entry of it which, with the entries held, breaks a `unique` clause the relation declares: another entry of it,
- * linking an object it links, agrees with it on the clause's other links and properties and differs on the clause's
- * own. So a writer that appends to a container whose last another has replaced, removing `Last(c, a)` and inserting
- * `Last(c, b)`, is refused ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)). Checking is otherwise on request
- * ([PRI-007: three-valued checking on request](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-007)); and an entry inserted again that is held already inserts nothing, so that
- * applying a transaction twice refuses nothing. */
+/** Refuses a transaction, just before it commits, whose writes leave two entries of a relation that agree on the key
+ * of one of its `unique` clauses, the clause's complement, every link and property outside it, and so differ on the
+ * clause: each clause declares a key, and several clauses several keys, each held at once
+ * ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)). Every write that inserts entries is checked alike, a builder's, a
+ * mapping's, an explicit insert, a spec's, an upsert's and a decoder's; none removes the entry held to make room for
+ * another, so that moving an object from one key to another removes its entry first. It is checked at commit, once
+ * the transaction's writes are all made (CAP-124), not as each is written, so that a transaction may remove and insert
+ * in either order; only the entries it inserts are checked, each against those its result holds. So a writer that
+ * appends to a container whose last another has replaced, removing `Last(c, a)` and inserting `Last(c, b)`, is
+ * refused ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)); and an entry inserted again that is held already
+ * inserts nothing, so that applying a transaction twice refuses nothing. */
 function checkUniques(proposals: any): void {
+  const inserted = new Map<RelationSchema, Map<string, _Entry>>();
   for (const [holder, tables] of proposals.entries_ as Map<object, Map<RelationSchema, Map<string, unknown>>>) {
     const before = proposals.base.entries(holder) as Map<RelationSchema, Map<string, unknown>>;
     for (const [relation, held] of tables) {
-      if (!proposals.missed.has(relation)) continue;
       const old = before.get(relation) ?? new Map();
-      for (const [key, entry] of held) if (!old.has(key)) checkUnique(innerOf(entry) as _Entry, proposals.store);
+      for (const [key, entry] of held) {
+        if (old.has(key) || relation.uniques.length === 0) continue;
+        let entries = inserted.get(relation);
+        if (entries === undefined) inserted.set(relation, (entries = new Map()));
+        if (!entries.has(key)) entries.set(key, innerOf(entry) as _Entry);
+      }
     }
   }
+  for (const [relation, entries] of inserted) checkKeys(relation, [...entries.values()], proposals.store);
+}
+
+/** Throws `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
+ * `unique` clauses. The entries that could agree with one are those held by the object it links through a link of
+ * the key, all of them, and the others inserted. Where the key holds no link that links an object present, those are
+ * the ones held by every object it links and the others inserted: the store keeps no index of a relation's entries
+ * apart from the objects they link. */
+function checkKeys(relation: RelationSchema, inserted: _Entry[], store: unknown): void {
+  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
+  const part = (entry: _Entry, name: string): unknown => {
+    const target = entry._links.get(name);
+    if (target !== undefined && target !== null) return ["link", linkKey(target)];
+    const value = entry._properties.get(name);
+    return ["value", value === undefined || value === null ? null : scalarKey(value)];
+  };
+  for (const clause of relation.uniques) {
+    const key = names.filter((name) => !clause.has(name));
+    const of = (entry: _Entry): string => JSON.stringify(key.map((name) => part(entry, name)));
+    const held = new Map<string, Map<string, _Entry>>(); // the entries that could agree, by their key's values
+    const hold = (entry: _Entry): void => {
+      let agreeing = held.get(of(entry));
+      if (agreeing === undefined) held.set(of(entry), (agreeing = new Map()));
+      if (!agreeing.has(entry._key())) agreeing.set(entry._key(), entry);
+    };
+    const scanned = new Set<number>();
+    for (const entry of inserted) {
+      hold(entry);
+      const anchors = key.filter((name) => entry._links.has(name) && !isEnd(entry._links.get(name)))
+        .map((name) => entry._links.get(name));
+      const linked = [...entry._links.values()].filter((target) => !isEnd(target));
+      for (const target of anchors.length > 0 ? anchors.slice(0, 1) : linked) {
+        if (scanned.has(identityOf(target))) continue;
+        scanned.add(identityOf(target));
+        for (const other of table(target, relation, store).values()) hold(innerOf(other) as _Entry);
+      }
+    }
+    for (const entry of inserted) {
+      const agreeing = held.get(of(entry))!;
+      const other = [...agreeing].find(([k]) => k !== entry._key())?.[1];
+      if (other !== undefined) {
+        const own = sortedStrings([...clause]);
+        throw new ValueError(`an entry of ${repr(relation.name)} breaks unique(${own.join(", ")}): two entries agree on `
+          + `its key, the links and properties outside it, ${shownParts(entry, key)}, and differ on it, `
+          + `${shownParts(other, own)} and ${shownParts(entry, own)}; an entry is refused, not replaced: remove the `
+          + "one held to write the other");
+      }
+    }
+  }
+}
+
+/** An entry's links and properties `names` in a message: each a name and what it holds, an object shown by its
+ * schema's name (a schema object by its own name or kind, one not present by its path), a value by its `repr`, one
+ * unset as None. */
+function shownParts(entry: _Entry, names: string[]): string {
+  const shown = (name: string): string => {
+    const target = entry._links.get(name);
+    if (target === undefined || target === null) return repr(entry._properties.get(name));
+    if (_is_parameter(target)) return `parameter ${repr(parameterName(target))}`;
+    if (target instanceof _Unresolved) return `<${target.key}>`;
+    const inner = innerOf(target);
+    return `<${inner instanceof _ObjectData ? inner._schemaName : shownType(target)}>`;
+  };
+  return `{${names.map((name) => `${name}: ${shown(name)}`).join(", ")}}`;
 }
 
 /** Notes, on the transaction open on `store`, that a removal from `relation` removed nothing (CAP-293): a removal is
@@ -1085,37 +1157,7 @@ function missed(store: any, relation: RelationSchema): boolean {
   return false;
 }
 
-/** Throws `ValueError` where an entry breaks a `unique` clause of its relation. */
-function checkUnique(entry: _Entry, store: unknown): void {
-  const part = (e: _Entry, name: string): [string, unknown] => {
-    const target = e._links.get(name);
-    if (target !== undefined && target !== null) {
-      return ["link", _is_parameter(target) ? JSON.stringify(linkKey(target)) : innerOf(target)];
-    }
-    const value = e._properties.get(name);
-    return ["value", value === undefined || value === null ? null : scalarKey(value)];
-  };
-  const same = (a: [string, unknown], b: [string, unknown]): boolean => a[0] === b[0] && a[1] === b[1];
-  const listed = (names: string[]): string => `[${names.map((n) => `'${n}'`).join(", ")}]`;
-  const relation = entry._relation;
-  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
-  const others = new Set<_Entry>();
-  for (const target of entry._links.values()) {
-    if (_is_parameter(target)) continue;
-    for (const e of table(target, relation, store).values()) if (innerOf(e) !== entry) others.add(innerOf(e) as _Entry);
-  }
-  for (const clause of relation.uniques) {
-    const rest = names.filter((n) => !clause.has(n)).sort();
-    const own = [...clause].sort();
-    for (const other of others) {
-      if (rest.every((n) => same(part(other, n), part(entry, n))) && own.some((n) => !same(part(other, n), part(entry, n)))) {
-        throw new ValueError(`an entry of '${relation.name}' breaks unique(${own.join(", ")}), where a removal from it `
-          + `removed nothing: entries agreeing on ${listed(rest)} differ on ${listed(own)}`);
-      }
-    }
-  }
-}
-
+/** The entries of `relation` that link `target` via `link`, in the order they were added. */
 function linking(relation: RelationSchema, link: string, target: unknown, store: unknown = null): any[] {
   target = _durable(target);
   return [...table(target, relation, store).values()].filter((entry) => innerOf(entry)._links.get(link) === target);
@@ -3198,9 +3240,8 @@ class _AdjacencyBuilder extends Shelled {
   }
 
   /** Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
-   * replacing the entry held under its key, where the relation declares one from this end (one entry at most where
-   * that key is this end alone): an entry (the entry shorthand), or, where the relation has two links (the peer
-   * shorthand), the object to link, or a function handed `_Them`, through
+   * replacing the entry held where the relation allows one only from this end: an entry (the entry shorthand), or,
+   * where the relation has two links (the peer shorthand), the object to link, or a function handed `_Them`, through
    * which it sets the entry's properties, its link, and the linked object's members. */
   _call(spec: unknown): unknown {
     if (isFunction(spec)) {
@@ -3230,8 +3271,7 @@ class _AdjacencyBuilder extends Shelled {
         entry = makeEntryBuilder(relation, this._schema.me, innerOf(this._builder)._store);
         (entry as any)[others[0] as string](item);
       }
-      innerOf(this._builder)._entries.set(this._name, this._entries() // the entry held under its key replaced (CAP-155)
-        .filter((held: unknown) => !collides(relation, this._schema.me, held, entry)));
+      if (single(relation, this._schema.me)) innerOf(this._builder)._entries.set(this._name, []);
       this.insert(entry);
     }
     return this._builder;
@@ -3280,24 +3320,6 @@ function single(relation: RelationSchema, me: string): boolean {
     const rest = names.filter((name) => !unique.has(name));
     return rest.length === 1 && rest[0] === me;
   });
-}
-
-/** Whether two entries of `relation`, seen from its link `me`, break a `unique` clause it declares without `me`: they
- * agree on the links and properties outside it, its key from `me` with `me` (empty where `me` determines the rest,
- * `single`), and differ on its own, so that an object holds one entry at most under each value of the key
- * ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)). Unset, a link or a property agrees with one unset, as `checkUnique` has it;
- * equal entries do not collide, the one held kept. */
-function collides(relation: RelationSchema, me: string, held: unknown, entry: unknown): boolean {
-  const [heldLinks, heldValues] = entryParts(held, me);
-  const [links, values] = entryParts(entry, me);
-  const key = (value: unknown): unknown => value === undefined || value === null ? null : scalarKey(value);
-  const same = (name: string): boolean => relation.entry.links.has(name)
-    ? sameLink(heldLinks.get(name), links.get(name))
-    : key(heldValues.get(name)) === key(values.get(name));
-  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
-  return relation.uniques.some((unique) => !unique.has(me)
-    && names.every((name) => unique.has(name) || name === me || same(name))
-    && ![...unique].every(same));
 }
 
 /** `OfThem.Visitor`, for one item of the peer shorthand: an entry of a relation of two links, and the object it links

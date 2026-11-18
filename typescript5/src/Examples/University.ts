@@ -91,17 +91,8 @@ store.transaction(() => { // the data: written within one transaction
   // Every link other than the object's own must be set.
   raises(ValueError, () => store.Student((s: any) => s.name("Noah").enrollments((a: any) => a.insert((x: any) => x.course(cs101)))));
 
-  // --- Entry property equality follows schema equality, not host-language == ---
-
   const noah = store.Student((s: any) => s.name("Noah"));
-
-  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(0.0))));
-  // floats compare by bit pattern: -0.0 is a different entry
   store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(-0.0))));
-  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(NaN))));
-  // all NaNs are equal: elided
-  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(Number("NaN")))));
-  assert(entries(Student, noah, "enrollments").length === 3);
 
   const zoe = store.Student((s: any) => s.name("Zoe"));
   store.Student(zoe, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).credits(1n))));
@@ -119,13 +110,11 @@ store.transaction(() => { // the data: written within one transaction
   const validate = Validators.Validate(store);
   assert(same(validate(Student, zoe), [
     "Student#0.enrollments[1].credits: expected int, got bool",
-    // Her two enrollments also share (student, course, term), which Enrollment's uniques clause forbids.
+    // Her two enrollments also share (student, course, term), the key of Enrollment's unique clause: the store
+    // refuses them at its commit, so the bad one is removed below, before then.
     "unique(audit, credits, score) violated: entries agreeing on ['course', 'student', 'term'] differ on " +
       "['audit', 'credits', 'score']",
   ]));
-
-  // Noah's three enrollments share (student, course, term), which Enrollment's uniques clause says determine the rest.
-  assert(validate(Student, noah).some((p) => p.startsWith("unique(audit, credits, score) violated")));
 
   // A linked object must have a schema that fills that link: here a Student is linked as a course.
   store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(mia).term(fall))));
@@ -179,13 +168,30 @@ store.transaction(() => { // the data: written within one transaction
     }
   });
 
-  // Apart from Noah's duplicate enrollments, the whole component is valid.
-  const problems = validate.Reachable(Term, fall);
-  assert(problems.length === 1 && (problems[0] as string).startsWith("unique("), String(problems));
+  // The whole component is valid.
+  assert(validate.Reachable(Term, fall).length === 0);
 
   // -0.0 keeps its sign through a round trip.
   const scores = entries(Student, noah, "enrollments").map((e) => e.get("score"));
   assert(scores.some((s) => s === 0 && Object.is(s, -0)));
 });
+
+// --- Entry property equality follows schema equality, not host-language == ---
+
+// Two entries agreeing on (student, course, term), the key of Enrollment's unique clause, and differing on the rest are
+// refused at the commit, whole; within the transaction they are held, so equality shows: floats compare by bit pattern.
+raises(ValueError, () => store.transaction(() => { // an entry of 'Enrollment' breaks unique(audit, credits, score)
+  const fall = store.Term((t: any) => t.code("2026-FA"));
+  const cs101 = store.Course((c: any) => c.code("CS101"));
+  const noah = store.Student((s: any) => s.name("Noah"));
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(0.0))));
+  // -0.0 is a different entry
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(-0.0))));
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(NaN))));
+  // all NaNs are equal: elided
+  store.Student(noah, (s: any) => s.enrollments((a: any) => a.insert((x: any) => x.course(cs101).term(fall).score(Number("NaN")))));
+  assert(entries(Student, noah, "enrollments").length === 3);
+  assert(Validators.Validate(store)(Student, noah).some((p) => p.startsWith("unique(audit, credits, score) violated")));
+}));
 
 console.log("University: all checks passed");

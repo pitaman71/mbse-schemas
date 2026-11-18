@@ -90,18 +90,8 @@ with store.transaction():  # the data: written within one transaction
     with raises(ValueError):
         store.Student(lambda s: s.name('Noah').enrollments(lambda a: a.insert(lambda x: x.course(cs101))))
 
-    # --- Entry property equality follows schema equality, not host-language == ---
-
     noah = store.Student(lambda s: s.name('Noah'))
-
-
-    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(0.0))))
-    # floats compare by bit pattern: -0.0 is a different entry
     store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(-0.0))))
-    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(math.nan))))
-    # all NaNs are equal: elided
-    store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(float('nan')))))
-    assert len(entries(Student, noah, 'enrollments')) == 3
 
     zoe = store.Student(lambda s: s.name('Zoe'))
     store.Student(zoe, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).credits(1))))
@@ -122,13 +112,11 @@ with store.transaction():  # the data: written within one transaction
     validate = Validators.Validate(store)
     assert validate(Student, zoe) == [
         'Student#0.enrollments[1].credits: expected int, got bool',
-        # Her two enrollments also share (student, course, term), which Enrollment's uniques clause forbids.
+        # Her two enrollments also share (student, course, term), the key of Enrollment's unique clause: the store
+        # refuses them at its commit, so the bad one is removed below, before then.
         "unique(audit, credits, score) violated: entries agreeing on ['course', 'student', 'term'] differ on "
         "['audit', 'credits', 'score']",
     ]
-
-    # Noah's three enrollments share (student, course, term), which Enrollment's uniques clause says determine the rest.
-    assert any(p.startswith('unique(audit, credits, score) violated') for p in validate(Student, noah))
 
     # A linked object must have a schema that fills that link: here a Student is linked as a course.
     store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(mia).term(fall))))
@@ -179,12 +167,29 @@ with store.transaction():  # the data: written within one transaction
             assert restored is not root
             assert Plain.ToPlain(archive).Reachable(its, restored) == graph
 
-    # Apart from Noah's duplicate enrollments, the whole component is valid.
-    problems = validate.Reachable(Term, fall)
-    assert len(problems) == 1 and problems[0].startswith('unique('), problems
+    # The whole component is valid.
+    assert validate.Reachable(Term, fall) == []
 
     # -0.0 keeps its sign through a round trip.
     scores = [e.get('score') for e in entries(Student, noah, 'enrollments')]
     assert any(s == 0.0 and math.copysign(1, s) < 0 for s in scores)
+
+# --- Entry property equality follows schema equality, not host-language == ---
+
+# Two entries agreeing on (student, course, term), the key of Enrollment's unique clause, and differing on the rest are
+# refused at the commit, whole; within the transaction they are held, so equality shows: floats compare by bit pattern.
+with raises(ValueError):  # an entry of 'Enrollment' breaks unique(audit, credits, score)
+    with store.transaction():
+        fall = store.Term(lambda t: t.code('2026-FA'))
+        cs101 = store.Course(lambda c: c.code('CS101'))
+        noah = store.Student(lambda s: s.name('Noah'))
+        store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(0.0))))
+        # -0.0 is a different entry
+        store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(-0.0))))
+        store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(math.nan))))
+        # all NaNs are equal: elided
+        store.Student(noah, lambda s: s.enrollments(lambda a: a.insert(lambda x: x.course(cs101).term(fall).score(float('nan')))))
+        assert len(entries(Student, noah, 'enrollments')) == 3
+        assert any(p.startswith('unique(audit, credits, score) violated') for p in Validators.Validate(store)(Student, noah))
 
 print('University: all checks passed')

@@ -162,6 +162,11 @@ store.transaction(() => {
       .prices((a: any) => a.insert((x: any) => x.price((m: any) => m.amount(950n)).currency("JPY")))
   ));
   assert(equal(validate(Product, gadget), ["unique(price) violated: entries agreeing on ['currency', 'product'] differ on ['price']"]));
+  // The store refuses, at its commit, a transaction that leaves two entries agreeing on the key of a unique clause, the
+  // links and properties outside it: the second price is removed before then.
+  const second = entries(Product, gadget, "prices")[1]!.get("price");
+  store.Product(gadget, (p: any) => p.prices((a: any) => a.remove((e: any) => e.price(second))));
+  assert(validate(Product, gadget).length === 0);
 
   // The root must be an instance of the schema given.
   assert(validate(Currency, widget).length > 0);

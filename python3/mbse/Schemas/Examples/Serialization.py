@@ -158,6 +158,11 @@ with store.transaction():
         .prices(lambda a: a.insert(lambda x: x.price(lambda m: m.amount(950)).currency('JPY')))
     ))
     assert validate(Product, gadget) == ['unique(price) violated: entries agreeing on [\'currency\', \'product\'] differ on [\'price\']']
+    # The store refuses, at its commit, a transaction that leaves two entries agreeing on the key of a unique clause, the
+    # links and properties outside it: the second price is removed before then.
+    second = entries(Product, gadget, 'prices')[1]['price']
+    store.Product(gadget, lambda p: p.prices(lambda a: a.remove(lambda e: e.price(second))))
+    assert validate(Product, gadget) == []
 
     # The root must be an instance of the schema given.
     assert validate(Currency, widget) != []

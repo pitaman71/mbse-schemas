@@ -937,22 +937,81 @@ def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> No
 
 
 def _check_uniques(proposals: Any) -> None:
-    """Refuses a transaction, just before it commits, that both removed nothing by a removal from a relation and inserts
-    an entry of it which, with the entries held, breaks a `unique` clause the relation declares: another entry of it,
-    linking an object it links, agrees with it on the clause's other links and properties and differs on the clause's
-    own. So a writer that appends to a container whose last another has replaced, removing `Last(c, a)` and inserting
-    `Last(c, b)`, is refused ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)). Checking is otherwise on request
-    ([PRI-007: three-valued checking on request](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-007)); and an entry inserted again that is held already inserts nothing, so that
-    applying a transaction twice refuses nothing."""
-    base = proposals.base
+    """Refuses a transaction, just before it commits, whose writes leave two entries of a relation that agree on the
+    key of one of its `unique` clauses, the clause's complement, every link and property outside it, and so differ on
+    the clause: each clause declares a key, and several clauses several keys, each held at once
+    ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)). Every write that inserts entries is checked alike, a builder's, a
+    mapping's, an explicit insert, a spec's, an upsert's and a decoder's; none removes the entry held to make room for
+    another, so that moving an object from one key to another removes its entry first. It is checked at commit, once
+    the transaction's writes are all made (CAP-124), not as each is written, so that a transaction may remove and insert
+    in either order; only the entries it inserts are checked, each against those its result holds. So a writer that
+    appends to a container whose last another has replaced, removing `Last(c, a)` and inserting `Last(c, b)`, is
+    refused ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)); and an entry inserted again that is held already
+    inserts nothing, so that applying a transaction twice refuses nothing."""
+    inserted: dict[int, tuple[RelationSchema, dict[Hashable, _Entry]]] = {}
     for holder, tables in proposals.entries_.values():
-        before = base.entries(holder)
+        before = proposals.base.entries(holder)
         for relation_id, table in tables.items():
-            if relation_id in proposals.missed:
-                old = before.get(relation_id, {})
-                for key, entry in table.items():
-                    if key not in old:
-                        _check_unique(entry, proposals.store)
+            old = before.get(relation_id, {})
+            for key, entry in table.items():
+                if key not in old and entry._relation.uniques:
+                    inserted.setdefault(relation_id, (entry._relation, {}))[1].setdefault(key, entry)
+    for relation, entries in inserted.values():
+        _check_keys(relation, list(entries.values()), proposals.store)
+
+
+def _check_keys(relation: RelationSchema, inserted: list[_Entry], store: Any) -> None:
+    """Raises `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
+    `unique` clauses. The entries that could agree with one are those held by the object it links through a link of
+    the key, all of them, and the others inserted. Where the key holds no link that links an object present, those are
+    the ones held by every object it links and the others inserted: the store keeps no index of a relation's entries
+    apart from the objects they link."""
+    names = [*relation.entry.links, *relation.entry.properties]
+
+    def part(entry: _Entry, name: str) -> Hashable:
+        target = entry._links.get(name)
+        if target is not None:
+            return ("link", _link_key(target))
+        value = entry._properties.get(name)
+        return ("value", None if value is None else _scalar_key(value))
+
+    for clause in relation.uniques:
+        key = [name for name in names if name not in clause]
+        held: dict[Hashable, dict[Hashable, _Entry]] = {}  # the entries that could agree, by their key's values
+        scanned: set[int] = set()
+        for entry in inserted:
+            held.setdefault(tuple(part(entry, n) for n in key), {}).setdefault(entry._key(), entry)
+            anchors = [entry._links[name] for name in key if name in entry._links and not _end(entry._links[name])]
+            for target in anchors[:1] or [t for t in entry._links.values() if not _end(t)]:
+                if id(target) not in scanned:
+                    scanned.add(id(target))
+                    for other in _table(target, id(relation), store).values():
+                        held.setdefault(tuple(part(other, n) for n in key), {}).setdefault(other._key(), other)
+        for entry in inserted:
+            agreeing = held.get(tuple(part(entry, n) for n in key), {})
+            other = next((e for k, e in agreeing.items() if k != entry._key()), None)
+            if other is not None:
+                raise ValueError(
+                    f"an entry of {relation.name!r} breaks unique({', '.join(sorted(clause))}): two entries agree on "
+                    f"its key, the links and properties outside it, {_shown_parts(entry, key)}, and differ on it, "
+                    f"{_shown_parts(other, sorted(clause))} and {_shown_parts(entry, sorted(clause))}; an entry is "
+                    "refused, not replaced: remove the one held to write the other")
+
+
+def _shown_parts(entry: _Entry, names: list[str]) -> str:
+    """An entry's links and properties `names` in a message: each a name and what it holds, an object shown by its
+    schema's name (a schema object by its own name or kind, one not present by its path), a value by its `repr`, one
+    unset as None."""
+    def shown(name: str) -> str:
+        target = entry._links.get(name)
+        if target is None:
+            return repr(entry._properties.get(name))
+        if _is_parameter(target):
+            return f"parameter {_parameter_name(target)!r}"
+        if isinstance(target, _Unresolved):
+            return f"<{target.key}>"
+        return f"<{target._schema_name if isinstance(target, _ObjectData) else _shown_type(target)}>"
+    return "{" + ", ".join(f"{name}: {shown(name)}" for name in names) + "}"
 
 
 def _note_missed(store: Any, relation: RelationSchema) -> None:
@@ -971,29 +1030,6 @@ def _missed(store: Any, relation: RelationSchema) -> bool:
             return True
         at = at.base
     return False
-
-
-def _check_unique(entry: _Entry, store: Any) -> None:
-    """Raises `ValueError` where `entry` breaks a `unique` clause of its relation."""
-    def part(e: _Entry, name: str) -> Hashable:
-        target = e._links.get(name)
-        if target is not None:
-            return ("link", _link_key(target) if _is_parameter(target) else id(target))
-        value = e._properties.get(name)
-        return ("value", None if value is None else _scalar_key(value))
-
-    relation = entry._relation
-    names = set(relation.entry.links) | set(relation.entry.properties)
-    others = {id(e): e for target in entry._links.values()  # those an entry inserted links: present, outside loading
-              if not _is_parameter(target) for e in _table(target, id(relation), store).values() if e is not entry}
-    for clause in relation.uniques:
-        rest = sorted(names - clause)
-        for other in others.values():
-            if all(part(other, n) == part(entry, n) for n in rest) \
-                    and any(part(other, n) != part(entry, n) for n in clause):
-                raise ValueError(f"an entry of {relation.name!r} breaks unique({', '.join(sorted(clause))}), where a "
-                                 f"removal from it removed nothing: entries agreeing on {rest} differ on "
-                                 f"{sorted(clause)}")
 
 
 def _linking(relation: RelationSchema, link: str, target: Any, store: Any = None) -> list[_Entry]:
@@ -2755,9 +2791,8 @@ class _AdjacencyBuilder(_Unassignable):
 
     def __call__(self, spec: Any) -> Any:
         """Called with a callback, it visits through it. Called with an iterable, a shorthand, each item inserted, or
-        replacing the entry held under its key, where the relation declares one from this end (one entry at most where
-        that key is this end alone): an entry (the entry shorthand), or, where the relation has two links (the peer
-        shorthand), the object to link, or a callable handed `_Them`,
+        replacing the entry held where the relation allows one only from this end: an entry (the entry shorthand), or,
+        where the relation has two links (the peer shorthand), the object to link, or a callable handed `_Them`,
         through which it sets the entry's properties, its link, and the linked object's members."""
         if _is_function(spec):
             _visit(spec, self)
@@ -2782,8 +2817,8 @@ class _AdjacencyBuilder(_Unassignable):
             else:
                 entry = _EntryBuilder(relation, self._schema.me, self._builder._store)
                 _LinkMember(entry, others[0])(item)
-            self._builder._entries[self._name] = [  # the entry held under its key replaced (CAP-155)
-                held for held in self._entries() if not _collides(relation, self._schema.me, held, entry)]
+            if _single(relation, self._schema.me):
+                self._builder._entries[self._name] = []
             self.insert(entry)
         return self._builder
 
@@ -2820,26 +2855,6 @@ def _single(relation: RelationSchema, me: str) -> bool:
     determine every other link and property."""
     names = {*relation.entry.links, *relation.entry.properties}
     return any(names - unique == {me} for unique in relation.uniques)
-
-
-def _collides(relation: RelationSchema, me: str, held: Any, entry: Any) -> bool:
-    """Whether two entries of `relation`, seen from its link `me`, break a `unique` clause it declares without `me`:
-    they agree on the links and properties outside it, its key from `me` with `me` (empty where `me` determines the
-    rest, `_single`), and differ on its own, so that an object holds one entry at most under each value of the key
-    ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)). Unset, a link or a property agrees with one unset, as `_check_unique`
-    has it; equal entries do not collide, the one held kept."""
-    held_links, held_values = _entry_parts(held, me)
-    links, values = _entry_parts(entry, me)
-
-    def same(name: str) -> bool:
-        if name in relation.entry.links:
-            return _same_link(held_links.get(name), links.get(name))
-        was, now = held_values.get(name), values.get(name)
-        return (None if was is None else _scalar_key(was)) == (None if now is None else _scalar_key(now))
-
-    names = [*relation.entry.links, *relation.entry.properties]
-    return any(all(same(name) for name in names if name not in unique and name != me)
-               and not all(same(name) for name in unique) for unique in relation.uniques if me not in unique)
 
 
 class _Them(_Unassignable):

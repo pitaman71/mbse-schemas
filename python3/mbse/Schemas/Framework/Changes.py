@@ -600,8 +600,9 @@ def _effect_of(store: Any, transaction: PlainData, prefix: str = "") -> PlainDat
                   for name, value in body.get("properties", {}).items()]
         spec.append({symbol(body["holder"]): [{"as_adjacency": {"name": body["adjacency"], "mutations": [
             {body["verb"]: {"entries": [{"mutations": parts}]}}]}}]})
+    keyed = {"key": transaction["id"]} if "id" in transaction else {}  # a replay finds the counted objects it made
     return {**({"uid": transaction["id"]} if "id" in transaction else {}),
-            "mutations": [{"upsert": {"exists": [{"symbols": symbols, "spec": spec + values}]}}]}
+            "mutations": [{"upsert": {**keyed, "exists": [{"symbols": symbols, "spec": spec + values}]}}]}
 
 
 def _renamed(plain: PlainData, prefix: str) -> PlainData:

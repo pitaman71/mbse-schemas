@@ -2242,15 +2242,54 @@ export class Store extends Proxies.OfStore {
   /** Executes a transaction (object identity 85 to 97 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a `Mutations.OfTransaction`, or a callback
    * building one, its root term given through `mutations`. Every write it makes is held apart until it ends, and dropped
    * where it throws. Gives the frames its chain of terms ends with, each the objects its symbols bind, by symbol
-   * (`Transactions.Frame`). Where a term fails to process a frame, the frame is annotated with the error (its `errors`)
-   * and the others go on; then nothing is written, and the error that arose first is thrown, its `frames` every frame,
-   * those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Given a function of no arguments, a transaction's imperative scope (98), `store.transaction(() => { ... })`, within which
-   * builders write as they do anywhere, all or nothing; it gives what the function returns. */
+   * (`Transactions.Frame`): its transaction's `exec` over one input frame, empty, writing, collected. Where a term fails
+   * to process a frame, the frame is annotated with the error (its `errors`) and the others go on; then nothing is
+   * written, and the error that arose first is thrown, its `frames` every frame, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)).
+   *
+   * Given a function that declares no parameter, a transaction's imperative scope (98), within which builders write as
+   * they do anywhere, all or nothing; it gives what the function returns. The function is given the transaction open
+   * (`Transactions.Transaction`), which executes expressions over frames within it (`txn.exec`), and names it with a
+   * default, so that it still declares none: `store.transaction((txn: any = null) => { ... })`. Where a frame its `exec`
+   * gave is annotated with an error, the scope commits nothing, and throws the first error annotated. */
   transaction(spec: unknown): any {
-    if (Proxies._isFunction(spec) && spec.length === 0) return this._transacting(spec as () => unknown); // its scope (98)
+    if (Proxies._isFunction(spec) && spec.length === 0) return this._scope(spec as (txn: unknown) => unknown); // (98)
+    const transaction = this._expressed(spec);
+    const frames: Transactions.Frame[] = [];
+    try {
+      this._scope((open) => {
+        this._proposals!.expression = transaction; // what its record gives (Provenance)
+        let failure: { error: unknown } | null = null;
+        open.exec(new Transactions.Frame(), transaction, true).subscribe({
+          next: (item) => { if (item instanceof Transactions.Frame) frames.push(item); },
+          error: (error) => { failure = { error }; },
+        });
+        if (failure !== null) throw (failure as { error: unknown }).error;
+      });
+    } catch (error) {
+      // one at the commit, which no frame made: every frame given
+      if ((error as any).frames === undefined) (error as any).frames = frames;
+      throw error;
+    }
+    return frames;
+  }
+
+  /** A transaction's imperative scope, `body` given the transaction open (`Transactions.Transaction`); where a frame its
+   * `exec` gave is annotated with an error, it commits nothing, throwing the first error annotated (CAP-309). */
+  _scope<T>(body: (txn: Transactions.Transaction) => T): T {
+    return this._transacting(() => {
+      const txn = new Transactions.Transaction(this, this._life!);
+      const result = body(txn);
+      txn._raise();
+      return result;
+    });
+  }
+
+  /** A transaction's expression: one given, or the one a callback builds, given the store's schemas by name besides
+   * (78). */
+  _expressed(spec: unknown): any {
     const transaction = Proxies._isFunction(spec) // a callback building one, given the store's schemas by name besides (78)
       ? this.Mutations.OfTransaction((t: any) => (spec as (txn: unknown) => unknown)(makeTransaction(this, t))) : spec;
-    return Transactions._execute(this, Proxies._durable(transaction), false, true);
+    return Proxies._durable(transaction);
   }
 
   /** Whether a builder's update of a schema object waits for the commit of the transaction open: where the object existed
@@ -2258,6 +2297,7 @@ export class Store extends Proxies.OfStore {
   _defers(builder: Builder): boolean {
     const proposals = this._proposals;
     if (proposals === null || !this._existed(builder._original, proposals)) return false;
+    this._written(); // halted, where the store interprets read-only
     this._link(builder._original, builder._working);
     proposals.deferred.set(builder._original, builder); // its last: each began from what the one before made
     return true;

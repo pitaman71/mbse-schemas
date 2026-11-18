@@ -17,6 +17,12 @@ transaction, `follow(follower)`; and whether it records the transactions it
 commits, `records`. Everything given and given back is plain data, as a
 store above writes and reads it ([CAP-283: a store given a store below](mbse:mbse-basis/docs/capabilities/README.md#CAP-283), [CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285)).
 
+A store is stacked on another by `txn.exec(frame, remainder, allow_write)`, of the transaction open on it (`Transactions.Transaction`; [CAP-308: stacking by mutation
+transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)), a transaction's suffix executed over a stream of frames, read-only or writing,
+that replaces `Below`; as built (stage 1 of [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), a `Builders.Store` has no
+layer below it there, and a frame that halts read-only is executed again within the same transaction, writing (the
+loopback).
+
 `Catalog` holds schemas by name and the roots, as every store does, with the messages every store gives, and computes
 extents from the roots.
 

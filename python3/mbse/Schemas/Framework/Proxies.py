@@ -74,6 +74,12 @@ _SERIALS = itertools.count(1)  # proxies' serial numbers, in the order made
 _get = object.__getattribute__
 
 
+class _Halt(BaseException):  # noqa: N818 - no error: what a read-only interpretation does where a term would write
+    """A write attempted while a store interprets a transaction read-only (`txn.exec`, `allow_write` false): the frame
+    halts where it is, and is given carrying the remainder of the expression. Raised by the write itself, before it
+    writes; a `BaseException`, so that nothing between the write and the interpreter takes it for a failure."""
+
+
 # --- Lifetimes: a visitor lives within the transaction that made it (CAP-315) ---
 
 
@@ -244,6 +250,7 @@ class OfStore(Stores.Catalog):
         self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
         self._expressing = 0  # how deep in building an expression, or in making the store, a write is (`_written`)
+        self._read_only = 0  # how deep in interpreting read-only a write is (`txn.exec`), halted (`_written`)
         self._proposals: Any = None  # the proposals of the transaction open on it, and its savepoints', if any
         self._framework_entries: dict[int, dict[Hashable, dict[Hashable, Any]]] = {}  # entries linking its own schemas
         self._committed = _Committed(self)  # what it holds as committed
@@ -452,7 +459,10 @@ class OfStore(Stores.Catalog):
 
     def _written(self) -> None:
         """Refuses a write outside a transaction of this store (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided)), but while a
-        transaction's expression is built (94), the store is made, or a transaction commits."""
+        transaction's expression is built (94), the store is made, or a transaction commits. Within a read-only
+        interpretation (`txn.exec`, `allow_write` false), it halts the frame instead, writing nothing (`_Halt`)."""
+        if self._read_only:
+            raise _Halt()
         if self._proposals is None and not self._expressing:
             raise ValueError("a store is written only within a transaction (store.transaction)")
 
@@ -466,6 +476,16 @@ class OfStore(Stores.Catalog):
             return
         with self._proposing():  # a savepoint: its writes all or nothing within the transaction
             yield
+
+    @contextlib.contextmanager
+    def _reading_only(self) -> Iterator[None]:
+        """A read-only interpretation of a term over a frame (`txn.exec`, `allow_write` false): a write attempted
+        within it halts the frame (`_written`)."""
+        self._read_only += 1
+        try:
+            yield
+        finally:
+            self._read_only -= 1
 
     @contextlib.contextmanager
     def _expression(self) -> Iterator[None]:

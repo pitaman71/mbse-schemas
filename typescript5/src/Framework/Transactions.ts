@@ -28,6 +28,18 @@
  * removed where every link and property the removal gives agrees with it, so that run again, a spec that removes writes
  * nothing.
  *
+ * Within a transaction, `store.transaction((txn: any = null) => { ... })`, the transaction open (`Transaction`, a first
+ * piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md)) executes the suffix of a transaction's expression, a `Remainder`, over
+ * input frames with `txn.exec(frame, remainder, allow_write)`, giving a stream of frames, an observable of the
+ * framework's own (`Observable`), and opening and committing no transaction of its own ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)):
+ * each frame carries the id of its input frame, `scope`, and each input frame's frames end with its completion marker,
+ * `{"end": scope}`. Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
+ * empty frame. Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a
+ * symbol, or a term would write, the frame halts, given as bound so far, carrying its `remainder`; the same transaction
+ * completes it, writing, as the loopback of a store with no layer below. A partition keeps its join: the rest of a
+ * branch a frame halted in is executed by the loopback, within the transaction. All of it commits, or is dropped, with
+ * the scope.
+ *
  * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
  * schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
  */
@@ -35,6 +47,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as Builders from "./Builders.js";
+import * as Changes from "./Changes.js";
 import { LookupError, path as plainPath, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
@@ -590,23 +603,62 @@ export class FrameError {
   }
 }
 
+/** The suffix of a transaction's expression yet to be executed over a frame ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): the term
+ * at `at`, its path in the expression's wire form (`["mutations", 0, "map", "then", 0, "update"]`, which `subterm`
+ * writes `$.mutations[0].map.then[0].update`), and the terms after it in its chain, through `then`, to the end of the
+ * transaction, or of the branch it is in. A position in `transaction`, the original expression, not a copy of it: as it
+ * is a suffix, no rewrite is required. Where a frame halts within a term, a map that bound some of its symbols and not
+ * the rest, the term is the remainder's first, and the frame binds those symbols: executed again over it, the term binds
+ * the rest, as a term binds only the symbols its frame does not. */
+export class Remainder {
+  readonly at: readonly (string | number)[];
+
+  constructor(readonly transaction: any, at: readonly (string | number)[]) {
+    this.at = [...at];
+  }
+
+  /** Where the remainder starts, as `FrameError.subterm` writes it; `$` for an expression of no term. */
+  get subterm(): string {
+    return plainPath(...this.at);
+  }
+
+  /** Whether `other` is the same position in the same expression. */
+  equals(other: unknown): boolean {
+    return other instanceof Remainder && other.transaction === this.transaction && other.at.length === this.at.length
+      && other.at.every((step, index) => step === this.at[index]);
+  }
+
+  toString(): string {
+    return `<remainder ${this.subterm}>`;
+  }
+}
+
 /** A frame: the objects its symbols bind, by symbol, a `Map`; and its `errors`, each what failed as a term processed
  * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
  *
- * One `store.transaction` gives back holds bindings and assignments, not visitors ([CAP-315: every read within a
- * transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a value that
+ * One `store.transaction` or `txn.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every read
+ * within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a value that
  * outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by symbol, the
  * values the transaction left in the properties its terms' specs name for it, as data, harvested within it. A counted
- * object has no reference: the frame refuses it, its symbol read throwing `LookupError`, and assigns nothing of it. */
+ * object has no reference: the frame refuses it, its symbol read throwing `LookupError`, and assigns nothing of it.
+ *
+ * One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
+ * unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); null where it is
+ * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one. */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
   readonly assigns: Map<string, Map<string, unknown>>;
+  remainder: Remainder | null;
+  scope: string | null;
 
   constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = [],
-    assigns: Iterable<readonly [string, Map<string, unknown>]> = []) {
+    assigns: Iterable<readonly [string, Map<string, unknown>]> = [], remainder: Remainder | null = null,
+    scope: string | null = null) {
     super(bound);
     this.errors = [...errors];
     this.assigns = new Map([...assigns].map(([name, values]) => [name, new Map(values)]));
+    this.remainder = remainder;
+    this.scope = scope;
   }
 
   override get(name: string): any {
@@ -619,16 +671,76 @@ export class Frame extends Map<string, any> {
 /** What a frame given back holds for a symbol that binds a counted object, which has no reference: refused, saying
  * why. */
 export class _Refused {
-  constructor(readonly message: string) {}
+  /** `target`, the object it binds, given again to `exec` within the transaction that gave it, whose life is `life`, so
+   * that a frame halted there is resumed there. */
+  constructor(readonly message: string, readonly target: unknown = null, readonly life: unknown = null) {}
 
   toString(): string {
     return "<refused: a counted object>";
   }
 }
 
+/** An item of `txn.exec`'s stream: a frame, or the completion marker of the input frame or branch whose id is its
+ * `end`, `{"end": scope}`, plain data. */
+export type Item = Frame | Map<string, string | null>;
+
+/** Who is given a stream's items: its subscription by `start`, before any item, then each item by `next`, then
+ * `complete`, or `error` where it ends with one. */
+export interface Observer<T> {
+  start?(subscription: Subscription): void;
+  next?(value: T): void;
+  error?(error: unknown): void;
+  complete?(): void;
+}
+
+/** What `subscribe` gives back: `unsubscribe` ends the subscription, and `closed` says whether it has ended. */
+export interface Subscription {
+  unsubscribe(): void;
+  readonly closed: boolean;
+}
+
+/** A stream of items, given to each subscriber as it subscribes: the framework's own, its core depending on no package
+ * ([CAP-310: a cache layer's partial-aware interpretation](mbse:mbse-basis/docs/capabilities/CAP-310.md#decided-by-an-agent-for-review)), shaped as the ECMAScript Observable proposal and RxJS have it,
+ * so that either takes it (`from(observable)`, through its `"@@observable"` member). `subscribe` takes an observer, or
+ * its `next`, `error` and `complete`, and gives back a `Subscription`, which it gives the observer's `start` first, as
+ * the proposal does. A store's stream is produced synchronously, within `subscribe`; unsubscribed from within `next`, it
+ * is given nothing more. */
+export class Observable<T> {
+  constructor(private readonly produce: (observer: Observer<T> & { readonly closed: boolean }) => void) {}
+
+  subscribe(observer: Observer<T> | ((value: T) => void) = {}, error?: (error: unknown) => void,
+    complete?: () => void): Subscription {
+    const given: Observer<T> = typeof observer === "function" ? { next: observer, error, complete } : observer;
+    let closed = false;
+    const subscription: Subscription = {
+      unsubscribe: () => { closed = true; },
+      get closed() { return closed; },
+    };
+    given.start?.(subscription);
+    this.produce({
+      next: (value) => given.next?.(value),
+      error: (thrown) => {
+        closed = true;
+        given.error?.(thrown);
+      },
+      complete: () => {
+        closed = true;
+        given.complete?.();
+      },
+      get closed() { return closed; },
+    });
+    return subscription;
+  }
+
+  /** Itself, as the ECMAScript Observable proposal and RxJS ask of what they take. */
+  ["@@observable"](): Observable<T> {
+    return this;
+  }
+}
+
 /** The frames a transaction gives back, made within it: each symbol's object by its reference, and what it assigns, as
- * data (CAP-315). */
-function givenBack(store: any, frames: Frame[], named: Map<string, string[]>): Frame[] {
+ * data (CAP-315); each carrying `scope`, and its remainder where it halted. */
+function givenBack(store: any, frames: Frame[], named: Map<string, string[]>, scope: string | null = null): Frame[] {
   if (store._unowned.length > 0) store._settle_owners(); // the owners the store gives, so that each object has its path
   return frames.map((frame) => {
     const bound: [string, any][] = [];
@@ -641,7 +753,7 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>): F
       const state = Proxies._stateOf(target);
       if (Proxies._counted(target)) {
         bound.push([symbol, new _Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make `
-          + "it a singleton's or an owner's)")]);
+          + "it a singleton's or an owner's)", target, store._life)]);
         continue;
       }
       if (Proxies._deleted(target)) {
@@ -655,25 +767,24 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>): F
         .map((name) => [name, Proxies._copied(values.get(name))] as const));
       if (held.size > 0) assigns.push([symbol, held]);
     }
-    return new Frame(bound, frame.errors, assigns);
+    return new Frame(bound, frame.errors, assigns, frame.remainder, scope);
   });
 }
 
 /** A transaction a frame of which is annotated with an error: dropped, whole (CAP-124). */
 class Uncommitted extends Error {}
 
+/** A stream unsubscribed from: given nothing more. */
+class Unsubscribed extends Error {}
+
 type Members = Map<string, any>[];
 
 /** The objects a frame binds, by symbol, as the executor binds them. */
 type Bound = Map<string, any>;
 
-/** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
- * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
- * in its proposals and written when it ends. Gives the frames its chain ends with. Where a frame is annotated with an
- * error, it commits nothing and throws the first error annotated, the one that arose first, as it arose, its `frames`
- * all the frames, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
-export function _execute(store: any, transaction: any, joined = false, given = false): Frame[] {
-  const frames = _frames(store, transaction, joined, given);
+/** `frames`, where none is annotated with an error; else the first error annotated is thrown, the one that arose
+ * first, as it arose, its `frames` all the frames, those annotated among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
+export function _raised(frames: Frame[]): Frame[] {
   const failed = frames.find((frame) => frame.errors.length > 0);
   if (failed !== undefined) {
     const error = failed.errors[0]!.error as any; // annotated here
@@ -683,24 +794,29 @@ export function _execute(store: any, transaction: any, joined = false, given = f
   return frames;
 }
 
+/** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
+ * stream starts as one frame, empty, which its root term transforms and passes on through `then`. Its writes are held
+ * in its proposals and written when it ends. Gives the frames its chain ends with, as bound, the library's own (a
+ * decoder's, `commit`'s, `install`'s). Where a frame is annotated with an error, it commits nothing and throws the first
+ * error annotated (`_raised`). */
+export function _execute(store: any, transaction: any, joined = false): Frame[] {
+  return _raised(_frames(store, transaction, joined));
+}
+
 /** The frames a transaction's expression gives, throwing nothing for an error a term meets processing a frame: that
  * frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its chain
  * ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped, whole
- * (CAP-124), else committed, a decoder's (`joined`) into the transaction open. What a layer streaming the frames it
- * makes would give, not throwing ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308)). An error in the expression itself, found before it
- * runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its `frames`
- * all the frames, none annotated. */
-export function _frames(store: any, transaction: any, joined = false, given = false): Frame[] {
+ * (CAP-124), else committed, a decoder's (`joined`) into the transaction open. An error in the expression itself, found
+ * before it runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its
+ * `frames` all the frames, none annotated. What `txn.exec` gives, as a stream, is `_exec`'s. */
+export function _frames(store: any, transaction: any, joined = false): Frame[] {
   const root = next(transaction, "mutations");
   let made: Frame[] = [];
   const write = (): void => {
-    const failed: Frame[] = [];
-    const named = new Map<string, string[]>();
-    made = root === null ? [new Frame()]
-      : run(store, root, [new Frame()], ["mutations", 0, kindOf(store, root)], failed, named);
-    made.push(...failed);
-    if (given) made = givenBack(store, made, named); // `store.transaction`'s: bindings and assignments, before it commits
-    if (failed.length > 0) throw new Uncommitted();
+    const state = new Run(transaction, true, new Map(), null);
+    made = root === null ? [new Frame()] : run(store, root, [new Frame()], ["mutations", 0, kindOf(store, root)], state);
+    made.push(...state.failed);
+    if (state.failed.length > 0) throw new Uncommitted();
   };
   try {
     if (root !== null) check(store, root, new Set());
@@ -718,6 +834,187 @@ export function _frames(store: any, transaction: any, joined = false, given = fa
     throw error;
   }
   return made;
+}
+
+/** What `txn.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root term;
+ * at `[]` where it has none. */
+export function _remainder(store: any, transaction: any): Remainder {
+  if (transaction instanceof Remainder) return transaction;
+  const root = next(transaction, "mutations");
+  return new Remainder(transaction, root === null ? [] : ["mutations", 0, kindOf(store, root)]);
+}
+
+/** The term at `at` in a transaction's expression, its path in the wire form: each step an adjacency of one entry
+ * (`mutations`, `then`, `none`), its index and the kind of the term it links, or `branches` and a branch's index. */
+function termAt(transaction: any, at: readonly (string | number)[]): any {
+  let term = transaction;
+  let step = 0;
+  while (step < at.length) {
+    if (at[step] === "branches") {
+      term = [...term.branches][at[step + 1] as number].branch;
+      step += 2;
+    } else {
+      term = next(term, at[step] as string);
+      step += 3;
+    }
+  }
+  return term;
+}
+
+/** The transaction open on a store, an object of its own, which the imperative scope gives its function,
+ * `store.transaction((txn: any = null) => { ... })`: a first piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md), holding the
+ * transaction, and executing expressions within it (`exec`). Its writes commit, or are dropped, with the scope: where a
+ * frame its `exec` gave is annotated with an error, the scope commits nothing, throwing the first error annotated
+ * (CAP-309). It lives within its transaction: used after it ends, it is refused. */
+export class Transaction {
+  /** Every frame its `exec` gave, in order. */
+  readonly _given: Frame[] = [];
+
+  constructor(readonly _store: any, readonly _life: { readonly ended: boolean }) {}
+
+  /** Executes the suffix of a transaction's expression over input frames, within this transaction, giving a stream of
+   * frames, an observable, produced as each subscriber subscribes ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308), [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). It
+   * opens and commits no transaction of its own.
+   *
+   * `frame` is the current execution frame, the symbols bound so far, each by its reference, a schema object as itself
+   * (`Frame`, or any `Map`); or a stream of them, an iterable each item of which is taken as it arrives. `remainder` is
+   * what is yet to be executed: a `Remainder`, as a frame that halted carries it, or a whole transaction, as
+   * `store.transaction` takes it. Where `allow_write` is true, the expression is interpreted fully, writing; where false,
+   * read-only, over what the store holds: where it holds nothing to bind a symbol, or a term would write, the frame
+   * halts, and is given as bound so far, carrying its `remainder`, which `txn.exec(halted, halted.remainder, true)`
+   * completes, in the same transaction, a counted object it binds among it. A partition keeps its join: a frame that
+   * halts within one of its branches, the rest of that branch alone is executed below it, by the loopback, this store
+   * having no layer below, writing within this transaction, and what each branch ends with is joined.
+   *
+   * Each input frame gives the frames made of it, given back as references and assignments (CAP-315), each carrying its
+   * `scope`, the input frame's id (its own `scope`, else its position in the stream, `"0"`, `"1"`, ...), then the
+   * completion marker `{"end": scope}`, a `Map`; the stream ends where the observable completes. An error a term meets
+   * is annotated on the frame it processed (CAP-309); an error of no one frame is the observable's error. Unsubscribed
+   * from before it completes, it is given nothing more, and what it wrote is the transaction's. */
+  exec(frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
+    const transaction = Proxies._isFunction(remainder) // built as an expression is, outside the transaction (94)
+      ? Changes._as_committed(this._store, () => this._store._expressed(remainder)) : Proxies._durable(remainder);
+    return _exec(this._store, this, frame, _remainder(this._store, transaction), allow_write);
+  }
+
+  /** Refuses a transaction that has ended. */
+  _open(): void {
+    if (this._life.ended) throw new ValueError("a transaction's exec runs within it: this one has ended (store.transaction)");
+  }
+
+  /** At the end of its scope: the first error annotated on a frame its `exec` gave, thrown (`_raised`). */
+  _raise(): void {
+    _raised(this._given);
+  }
+}
+
+/** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
+ * subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are made of it,
+ * then `{"end": scope}`, `scope` its id. Each given back holds references and assignments (CAP-315), carries its input
+ * frame's id, `scope`, and, where it halted read-only, its `remainder`. An error a term meets processing a frame is
+ * annotated on it (CAP-309). An error of no one frame is the stream's error, its `frames` every frame the transaction
+ * gave, and those made of the input frame it arose processing. */
+export function _exec(store: any, txn: Transaction, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
+  return new Observable<Item>((observer) => {
+    let made: Frame[] = [];
+    const emit = (item: Item): void => {
+      observer.next!(item);
+      if (observer.closed) throw new Unsubscribed();
+    };
+    try {
+      const named = new Map<string, string[]>();
+      let index = 0;
+      // a frame, or a stream of them, consumed as it arrives
+      for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
+        txn._open();
+        const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
+        index += 1;
+        made = one(store, remainder, frame, write, named, scope);
+        const back = givenBack(store, made, named, scope);
+        made = [];
+        for (const item of back) {
+          txn._given.push(item);
+          emit(item);
+        }
+        emit(new Map([["end", scope]]));
+      }
+    } catch (error) {
+      if (error instanceof Unsubscribed) return;
+      (error as any).frames = [...txn._given, ...made];
+      observer.error!(error);
+      return;
+    }
+    observer.complete!();
+  });
+}
+
+/** What executing a transaction over one input frame keeps: whether it writes (`write`), else interprets read-only,
+ * halting; the frames a term failed to process (`failed`) and those that halted (`halted`), each carrying its
+ * remainder; the properties the specs name, by symbol (`named`); the input frame's id (`scope`); and how many branches
+ * it sent below (`sent`), each a scope of its own. */
+class Run {
+  failed: Frame[] = [];
+  readonly halted: Frame[] = [];
+
+  constructor(readonly transaction: any, readonly write: boolean, readonly named: Map<string, string[]>,
+    readonly scope: string | null, readonly sent: { count: number } = { count: 0 }) {}
+
+  /** The run of a branch of a partition: its own halted frames, which the partition joins; the rest shared. */
+  arm(): Run {
+    const branch = new Run(this.transaction, this.write, this.named, this.scope, this.sent);
+    branch.failed = this.failed;
+    return branch;
+  }
+
+  halt(frame: Frame, at: (string | number)[]): void {
+    frame.remainder = new Remainder(this.transaction, at);
+    this.halted.push(frame);
+  }
+}
+
+/** The frames one input frame gives, within the transaction open: those the remainder's chain ends with, then those
+ * that halted read-only, then those annotated with an error. A frame given annotated is given back as it is, executed no
+ * further; one whose reference designates nothing is annotated so. An error in the expression, as the frame's symbols
+ * leave it, is thrown. */
+function one(store: any, remainder: Remainder, given: Map<string, any>, write: boolean, named: Map<string, string[]>,
+  scope: string): Frame[] {
+  const frame = taken(store, given, remainder);
+  if (frame.errors.length > 0 || remainder.at.length === 0) return [frame];
+  const term = termAt(remainder.transaction, remainder.at);
+  check(store, term, new Set(frame.keys()));
+  const state = new Run(remainder.transaction, write, named, scope);
+  const made = run(store, term, [frame], [...remainder.at], state);
+  return [...made, ...state.halted, ...state.failed];
+}
+
+/** An input frame, as the executor binds: each symbol's object by what its reference designates, a schema object or a
+ * store's object as itself; annotated where one designates nothing, or is refused (CAP-309). */
+function taken(store: any, given: Map<string, any>, remainder: Remainder): Frame {
+  const frame = new Frame(null, given instanceof Frame ? given.errors : []);
+  for (const [name, value] of Map.prototype.entries.call(given) as IterableIterator<[string, any]>) {
+    try {
+      frame.set(name, bound(store, name, value));
+    } catch (error) {
+      frame.errors.push(new FrameError(remainder.subterm, (error as Error).name, (error as Error).message, error));
+    }
+  }
+  return frame;
+}
+
+/** What a symbol of an input frame binds: the object its reference designates, else what it holds. */
+function bound(store: any, name: string, value: unknown): any {
+  if (value instanceof _Refused) {
+    if (value.life === store._life && value.target !== null) return value.target; // given back within this transaction
+    throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
+  }
+  const target = Proxies._deref(value);
+  const inner = Proxies._innerOf(target);
+  if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {
+    const found = References._designated(store, target);
+    if (found === null) throw new LookupError(`symbol ${repr(name)} of the frame: no object of the store has its reference's path`);
+    return Proxies._durable(found);
+  }
+  return Proxies._durable(value);
 }
 
 /** The term a term's adjacency of one entry links (91): a transaction's root, a term's next; null where it holds none. */
@@ -882,15 +1179,21 @@ function extent(store: any, schema: any): any[] {
 
 /** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
  * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
- * `failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). */
-function run(store: any, term: any, frames: Frame[], at: (string | number)[], failed: Frame[],
-  named: Map<string, string[]>): Frame[] {
+ * `state.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). `state.named` gathers, by symbol, the properties the specs
+ * name, in order: what the frames given back assign.
+ *
+ * Read-only (`state.write` false), a term is interpreted over each frame within a savepoint, and where it would write,
+ * or a map finds nothing the store holds to bind a symbol, the frame halts, added to `state.halted` with its remainder:
+ * as it was given to the term, or, where a map bound some of its symbols, binding those. A partition keeps its join: a
+ * frame halted within a branch is sent below with the rest of the branch alone, and what comes back is joined
+ * (`below`). */
+function run(store: any, term: any, frames: Frame[], at: (string | number)[], state: Run): Frame[] {
   const kind = kindOf(store, term);
   if (kind === "map" || kind === "upsert" || kind === "update") {
     const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
     for (const [symbol, items] of membersOf(pattern)) { // the properties the specs name: what the frames given back assign
-      if (!named.has(symbol)) named.set(symbol, []);
-      const names = named.get(symbol)!;
+      if (!state.named.has(symbol)) state.named.set(symbol, []);
+      const names = state.named.get(symbol)!;
       for (const item of items) {
         const body = item.get("as_property");
         if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
@@ -900,15 +1203,22 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], fa
     const made: Frame[] = [];
     for (const frame of frames) {
       try {
-        if (kind === "update") {
-          writeSpec(store, pattern, frame);
-          made.push(frame);
-        } else {
-          made.push(...bind(store, pattern, frame, kind === "upsert", key).map((found) => new Frame(found)));
+        if (state.write) {
+          made.push(...termOf(store, kind, pattern, frame, key, null));
+          continue;
         }
+        const halted: Bound[] = [];
+        try { // a savepoint: what a halted term began, dropped
+          made.push(...store._joined(() => store._readingOnly(() => termOf(store, kind, pattern, frame, key, halted))));
+        } catch (error) {
+          if (!(error instanceof Proxies._Halt)) throw error;
+          state.halt(frame, at); // it would write: the frame halts at the term, as it was given to it
+          continue;
+        }
+        for (const partial of halted) state.halt(new Frame(partial), at); // a symbol nothing the store holds binds
       } catch (error) {
         frame.errors.push(new FrameError(plainPath(...at), (error as Error).name, (error as Error).message, error));
-        failed.push(frame);
+        state.failed.push(frame);
       }
     }
     frames = made;
@@ -930,18 +1240,64 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], fa
     }
     const otherwise = next(term, "none");
     if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
-    frames = arms.flatMap(([armAt, arm]) => run(store, arm, frames.map((frame) => new Frame(frame)), armAt, failed, named));
+    const joined: Frame[] = [];
+    for (const [armAt, arm] of arms) {
+      const branch = state.arm();
+      joined.push(...run(store, arm, frames.map((frame) => new Frame(frame)), armAt, branch));
+      for (const partial of branch.halted) joined.push(...below(store, state, partial)); // the layer that split keeps the join
+    }
+    frames = joined;
   }
   const after = next(term, "then");
-  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], failed, named);
+  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], state);
+}
+
+/** The frames a map, an upsert or an update makes of one frame; `halted`, where it interprets read-only, gathers the
+ * frames a map halts within it. */
+function termOf(store: any, kind: string, pattern: any, frame: Frame, key: unknown, halted: Bound[] | null): Frame[] {
+  if (kind === "update") {
+    writeSpec(store, pattern, frame);
+    return [frame];
+  }
+  return bind(store, pattern, frame, kind === "upsert", key, halted).map((found) => new Frame(found));
+}
+
+/** The frames a branch ends with where a frame halted within it, the rest of the branch alone executed below,
+ * collected until the completion marker of the scope it was sent with, a branch's own: here by the loopback, the store
+ * having no layer below ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). Those annotated with an error go on to `state.failed`,
+ * as they came. */
+function below(store: any, state: Run, partial: Frame): Frame[] {
+  partial.scope = `${state.scope}/${state.sent.count}`;
+  state.sent.count += 1;
+  const joined: Frame[] = [];
+  const stream = loopback(store, state, partial);
+  let item = stream.next().value as Item;
+  while (item instanceof Frame) { // until the completion marker, `{"end": scope}`
+    (item.errors.length > 0 ? state.failed : joined).push(item);
+    item = stream.next().value as Item;
+  }
+  return joined;
+}
+
+/** What a store with no layer below gives back for a frame sent below with its remainder: the frame executed again by
+ * the same store, writing, within the transaction open; its frames, each carrying the frame's scope, then the
+ * completion marker, `{"end": scope}`. */
+function* loopback(store: any, state: Run, frame: Frame): Generator<Item> {
+  for (const made of one(store, frame.remainder!, frame, true, state.named, frame.scope!)) {
+    made.scope = frame.scope;
+    yield made;
+  }
+  yield new Map([["end", frame.scope]]);
 }
 
 /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
  * spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
  * where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a symbol,
  * and writes its spec where it does not hold; a counted object it created before from the same frame, for the same
- * symbol and key, it finds again (63), and finds none otherwise (102). */
-function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unknown = null): Bound[] {
+ * symbol and key, it finds again (63), and finds none otherwise (102). Read-only, a map gives to `halted`, rather than
+ * dropping, each frame as bound so far where nothing the store holds binds a symbol. */
+function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unknown = null,
+  halted: Bound[] | null = null): Bound[] {
   const members = membersOf(pattern);
   let frames: Bound[] = [new Map(frame)];
   for (const [name, symbol] of pattern.symbols) {
@@ -949,6 +1305,7 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
     const reference = _givenReference(symbol);
     if (reference !== null) { // what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
       const target = Proxies._durable(References._designated(store, reference));
+      if (target === null && halted !== null) halted.push(...frames);
       frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
       continue;
     }
@@ -981,6 +1338,7 @@ function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unkn
         const finding = identifying.length > 0 ? identifying : own;
         found = extent(store, schema).filter((target: unknown) => holds(store, target, schema, finding, partial, partial));
       }
+      if (found.length === 0 && halted !== null && !upsert) halted.push(partial);
       if (found.length > 0 || !upsert) {
         for (const target of found) grown.push(new Map([...partial, [name, target]]));
         continue;

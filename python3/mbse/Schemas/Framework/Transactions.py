@@ -820,7 +820,7 @@ def _run(store: Any, term: Any, frames: list[Frame], at: tuple[str | int, ...], 
             names = named.setdefault(symbol, [])
             names += [body["name"] for item in items for kind_, body in item.items()
                       if kind_ == "as_property" and body["name"] not in names]
-        key = store.member(term, "key") if kind == "upsert" else None
+        key = (store.member(term, "key") or _transaction_uid(store)) if kind == "upsert" else None
         made: list[Frame] = []
         for frame in frames:
             try:
@@ -916,6 +916,18 @@ def _schema(store: Any, pattern: Any, name: str, frame: dict[str, Any]) -> Any:
     """The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's."""
     schema = pattern.symbols[name].schema
     return _reader(store, frame[name]).as_schema() if schema is None else schema
+
+
+def _transaction_uid(store: Any) -> str:
+    """The uid of the transaction open, as `Provenance` records it and its journal gives it: an upsert that gives no key
+    is keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no
+    other transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided))."""
+    from . import Proposals, Provenance
+
+    proposals = store._proposals
+    while isinstance(proposals.base, Proposals.OfStore):  # a savepoint's: the transaction's are the outermost
+        proposals = proposals.base
+    return Provenance._uid(store, proposals)
 
 
 def _upsert_index(store: Any, key: str | None, name: str, frame: dict[str, Any]) -> tuple[Any, ...]:

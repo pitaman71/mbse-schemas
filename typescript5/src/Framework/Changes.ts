@@ -686,7 +686,8 @@ export function _effect_of(store: any, transaction: PlainMap, prefix = ""): Plai
       ["mutations", [m([[verb, m([["entries", [m([["mutations", entryParts]])]]])]])]]])]])]]]));
   }
   const id = transaction.has("id") ? [["uid", transaction.get("id")] as [string, unknown]] : [];
-  return m([...id, ["mutations", [m([["upsert", m([["exists", [m([["symbols", symbols],
+  const keyed = transaction.has("id") ? [["key", transaction.get("id")] as [string, unknown]] : []; // a replay finds
+  return m([...id, ["mutations", [m([["upsert", m([...keyed, ["exists", [m([["symbols", symbols], // what it made
     ["spec", [...spec, ...values]]])]]])]])]]]) as Plain.PlainData;
 }
 

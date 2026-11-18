@@ -39,6 +39,8 @@ import { LookupError, path as plainPath, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
+import * as Proposals from "./Proposals.js";
+import * as Provenance from "./Provenance.js";
 import * as Proxies from "./Proxies.js";
 import * as References from "./References.js";
 import { repr, sortedStrings, TYPE_NAME } from "./Repr.js";
@@ -889,7 +891,7 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], fa
         if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
       }
     }
-    const key = kind === "upsert" ? store.member(term, "key") : null;
+    const key = kind === "upsert" ? (store.member(term, "key") || transactionUid(store)) : null;
     const made: Frame[] = [];
     for (const frame of frames) {
       try {
@@ -998,6 +1000,15 @@ function schemaIn(store: any, pattern: any, name: string, frame: Bound): any {
 
 /** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
  * that reached it, each as it is told apart in memory. */
+/** The uid of the transaction open, as `Provenance` records it and its journal gives it: an upsert that gives no key is
+ * keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no other
+ * transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
+function transactionUid(store: any): string {
+  let proposals = store._proposals as Proposals.OfStore;
+  while (proposals.base instanceof Proposals.OfStore) proposals = proposals.base; // a savepoint's: the outermost
+  return Provenance._uid(store, proposals);
+}
+
 function _upsert_index(store: any, key: unknown, name: string, frame: Bound): string {
   return JSON.stringify([key, name, sortedStrings([...frame.keys()])
     .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);

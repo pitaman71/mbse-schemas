@@ -88,7 +88,13 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    `get()`. One call builds: given a callback it creates, given an object and a callback it updates that object,
    given an object alone it clones it. Entries are inserted and removed through an adjacency's visitor (`insert`,
    `remove`, which removes every entry agreeing with a template, and `clear`), or given as a list of what they link
-   (the peer shorthand). An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
+   (the peer shorthand) or, for a keyed adjacency, as a mapping from key to entry. Each `unique` clause declares a key,
+   the links and properties outside it, and a relation's keys hold at once: a transaction that leaves two entries
+   agreeing on the key of any clause and differing on the clause is refused when it commits, however its entries were
+   written (an `insert`, a mapping, a spec, a decoder), and no entry held is removed to make room. To move an object
+   to another key, remove its entry first, in that transaction or an earlier one. (The shorthand on an adjacency whose
+   own end alone is the key of a unique clause, so that it holds one entry at most, sets that entry, replacing the one
+   held, as it always has.) An adjacency iterates its entries, each link the linked object itself; `project(name)` gives
    each entry's link or property, and `at(key)` the entry by the key its relation declares. Write within
    `store.transaction`; a write outside one is refused, and one that raises writes nothing. Read within one too: an
    object, and every visitor read from it (a member, an adjacency, an entry, a value it holds), lives only within the
@@ -110,6 +116,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [PRX-19: An adjacency is a tuple of its entries](mbse:mbse-schemas/python3/tests/03_Proxies.ipynb#PRX-19) · TypeScript: [PRX-19: An adjacency is a tuple of its entries](mbse:mbse-schemas/typescript5/tests/03_Proxies.ipynb#PRX-19)
    - Python: [BLD-13: Proxies: a container property's value given whole](mbse:mbse-schemas/python3/tests/25_Builders.ipynb#BLD-13) · TypeScript: [BLD-13: Proxies: a container property's value given whole](mbse:mbse-schemas/typescript5/tests/25_Builders.ipynb#BLD-13)
    - Python: [TXN-11: A transaction's imperative scope](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-11) · TypeScript: [TXN-11: A transaction's imperative scope](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-11)
+   - Python: [TXN-21: Every unique clause's key held, a write that breaks any refused](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-21) · TypeScript: [TXN-21: Every unique clause's key held, a write that breaks any refused](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-21)
 6. **Scalars are exact, and there are five.** *Why*: coercion is where data silently changes meaning between
    languages. *When*: every property of a value. *How*: a store's basic scalars, `store.Schemas.OfBool`, `OfInt`,
    `OfFloat`, `OfStr` and `OfBytes`, are its only scalar schemas; `1`, `1.0` and true are different values, and none
@@ -128,7 +135,8 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    value and its entries, and `.Reachable(schema, root)` everything connected to it, each problem with a path.
    `Validators.Check` gives an outcome that may also be unknown. Each takes a parameter context as an optional last
    argument, against which it checks parameter references ([Designing and extending schemas](references/schemas.md),
-   item 12). Decoding does not validate.
+   item 12). Decoding does not validate, but a store refuses, at every commit, entries that break the key of a `unique`
+   clause (item 5).
    [CAP-160: data validated against its schema on request](mbse:mbse-basis/docs/capabilities/CAP-160.md).
    - Python: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.2) · TypeScript: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.2)
    - Python: [T05.3: Good data](mbse:mbse-schemas/python3/tutorials/05_A_Price_List.ipynb#T05.3) · TypeScript: [T05.3: Good data](mbse:mbse-schemas/typescript5/tutorials/05_A_Price_List.ipynb#T05.3)

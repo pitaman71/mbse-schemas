@@ -28,15 +28,17 @@
  * removed where every link and property the removal gives agrees with it, so that run again, a spec that removes writes
  * nothing.
  *
- * `store.exec(frame, remainder, allow_write)` executes the suffix of a transaction's expression, a `Remainder`, over
- * input frames, within one transaction of the store, giving a stream of frames, an observable of the framework's own
- * (`Observable`) ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): each frame carries
- * the id of its input frame, `scope`, and each input frame's frames end with its completion marker, `{"end": scope}`.
- * Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one empty frame.
- * Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a symbol, or a
- * term would write, the frame halts, given as bound so far, carrying its `remainder`; the same store completes it,
- * writing, as the loopback of a store with no layer below. A partition keeps its join: the rest of a branch a frame
- * halted in is executed by the loopback.
+ * Within a transaction, `store.transaction((txn: any = null) => { ... })`, the transaction open (`Transaction`, a first
+ * piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md)) executes the suffix of a transaction's expression, a `Remainder`, over
+ * input frames with `txn.exec(frame, remainder, allow_write)`, giving a stream of frames, an observable of the
+ * framework's own (`Observable`), and opening and committing no transaction of its own ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)):
+ * each frame carries the id of its input frame, `scope`, and each input frame's frames end with its completion marker,
+ * `{"end": scope}`. Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
+ * empty frame. Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a
+ * symbol, or a term would write, the frame halts, given as bound so far, carrying its `remainder`; the same transaction
+ * completes it, writing, as the loopback of a store with no layer below. A partition keeps its join: the rest of a
+ * branch a frame halted in is executed by the loopback, within the transaction. All of it commits, or is dropped, with
+ * the scope.
  *
  * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
  * schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
@@ -45,6 +47,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import * as Builders from "./Builders.js";
+import * as Changes from "./Changes.js";
 import { LookupError, path as plainPath, ValueError } from "./Errors.js";
 import * as Json from "./JSON.js";
 import * as Paths from "./Paths.js";
@@ -633,15 +636,15 @@ export class Remainder {
 /** A frame: the objects its symbols bind, by symbol, a `Map`; and its `errors`, each what failed as a term processed
  * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
  *
- * One `store.transaction` or `store.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every read
+ * One `store.transaction` or `txn.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every read
  * within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a value that
  * outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by symbol, the
  * values the transaction left in the properties its terms' specs name for it, as data, harvested within it. A counted
  * object has no reference: the frame refuses it, its symbol read throwing `LookupError`, and assigns nothing of it.
  *
- * One `store.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
+ * One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
  * unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); null where it is
- * complete. Given to `store.exec`, a frame's `scope` is its id, where it has one. */
+ * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one. */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
   readonly assigns: Map<string, Map<string, unknown>>;
@@ -668,14 +671,16 @@ export class Frame extends Map<string, any> {
 /** What a frame given back holds for a symbol that binds a counted object, which has no reference: refused, saying
  * why. */
 export class _Refused {
-  constructor(readonly message: string) {}
+  /** `target`, the object it binds, given again to `exec` within the transaction that gave it, whose life is `life`, so
+   * that a frame halted there is resumed there. */
+  constructor(readonly message: string, readonly target: unknown = null, readonly life: unknown = null) {}
 
   toString(): string {
     return "<refused: a counted object>";
   }
 }
 
-/** An item of `store.exec`'s stream: a frame, or the completion marker of the input frame or branch whose id is its
+/** An item of `txn.exec`'s stream: a frame, or the completion marker of the input frame or branch whose id is its
  * `end`, `{"end": scope}`, plain data. */
 export type Item = Frame | Map<string, string | null>;
 
@@ -748,7 +753,7 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>, sc
       const state = Proxies._stateOf(target);
       if (Proxies._counted(target)) {
         bound.push([symbol, new _Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make `
-          + "it a singleton's or an owner's)")]);
+          + "it a singleton's or an owner's)", target, store._life)]);
         continue;
       }
       if (Proxies._deleted(target)) {
@@ -769,7 +774,7 @@ function givenBack(store: any, frames: Frame[], named: Map<string, string[]>, sc
 /** A transaction a frame of which is annotated with an error: dropped, whole (CAP-124). */
 class Uncommitted extends Error {}
 
-/** A stream unsubscribed from: its transaction dropped. */
+/** A stream unsubscribed from: given nothing more. */
 class Unsubscribed extends Error {}
 
 type Members = Map<string, any>[];
@@ -803,7 +808,7 @@ export function _execute(store: any, transaction: any, joined = false): Frame[] 
  * ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped, whole
  * (CAP-124), else committed, a decoder's (`joined`) into the transaction open. An error in the expression itself, found
  * before it runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its
- * `frames` all the frames, none annotated. What `store.exec` gives, as a stream, is `_exec`'s. */
+ * `frames` all the frames, none annotated. What `txn.exec` gives, as a stream, is `_exec`'s. */
 export function _frames(store: any, transaction: any, joined = false): Frame[] {
   const root = next(transaction, "mutations");
   let made: Frame[] = [];
@@ -831,7 +836,7 @@ export function _frames(store: any, transaction: any, joined = false): Frame[] {
   return made;
 }
 
-/** What `store.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root term;
+/** What `txn.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root term;
  * at `[]` where it has none. */
 export function _remainder(store: any, transaction: any): Remainder {
   if (transaction instanceof Remainder) return transaction;
@@ -856,50 +861,88 @@ function termAt(transaction: any, at: readonly (string | number)[]): any {
   return term;
 }
 
-/** `store.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within one transaction of the store, produced as each
- * subscriber subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are
- * made of it, then `{"end": scope}`, `scope` its id. Each given back holds references and assignments (CAP-315),
- * carries its input frame's id, `scope`, and, where it halted read-only, its `remainder`. An error a term meets
- * processing a frame is annotated on it (CAP-309); where one is, the transaction commits nothing. An error of no one
- * frame, in the expression or at the commit, is the stream's error, its `frames` every frame given, and those made of
- * the input frame it arose processing. */
-export function _exec(store: any, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
+/** The transaction open on a store, an object of its own, which the imperative scope gives its function,
+ * `store.transaction((txn: any = null) => { ... })`: a first piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md), holding the
+ * transaction, and executing expressions within it (`exec`). Its writes commit, or are dropped, with the scope: where a
+ * frame its `exec` gave is annotated with an error, the scope commits nothing, throwing the first error annotated
+ * (CAP-309). It lives within its transaction: used after it ends, it is refused. */
+export class Transaction {
+  /** Every frame its `exec` gave, in order. */
+  readonly _given: Frame[] = [];
+
+  constructor(readonly _store: any, readonly _life: { readonly ended: boolean }) {}
+
+  /** Executes the suffix of a transaction's expression over input frames, within this transaction, giving a stream of
+   * frames, an observable, produced as each subscriber subscribes ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308), [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). It
+   * opens and commits no transaction of its own.
+   *
+   * `frame` is the current execution frame, the symbols bound so far, each by its reference, a schema object as itself
+   * (`Frame`, or any `Map`); or a stream of them, an iterable each item of which is taken as it arrives. `remainder` is
+   * what is yet to be executed: a `Remainder`, as a frame that halted carries it, or a whole transaction, as
+   * `store.transaction` takes it. Where `allow_write` is true, the expression is interpreted fully, writing; where false,
+   * read-only, over what the store holds: where it holds nothing to bind a symbol, or a term would write, the frame
+   * halts, and is given as bound so far, carrying its `remainder`, which `txn.exec(halted, halted.remainder, true)`
+   * completes, in the same transaction, a counted object it binds among it. A partition keeps its join: a frame that
+   * halts within one of its branches, the rest of that branch alone is executed below it, by the loopback, this store
+   * having no layer below, writing within this transaction, and what each branch ends with is joined.
+   *
+   * Each input frame gives the frames made of it, given back as references and assignments (CAP-315), each carrying its
+   * `scope`, the input frame's id (its own `scope`, else its position in the stream, `"0"`, `"1"`, ...), then the
+   * completion marker `{"end": scope}`, a `Map`; the stream ends where the observable completes. An error a term meets
+   * is annotated on the frame it processed (CAP-309); an error of no one frame is the observable's error. Unsubscribed
+   * from before it completes, it is given nothing more, and what it wrote is the transaction's. */
+  exec(frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
+    const transaction = Proxies._isFunction(remainder) // built as an expression is, outside the transaction (94)
+      ? Changes._as_committed(this._store, () => this._store._expressed(remainder)) : Proxies._durable(remainder);
+    return _exec(this._store, this, frame, _remainder(this._store, transaction), allow_write);
+  }
+
+  /** Refuses a transaction that has ended. */
+  _open(): void {
+    if (this._life.ended) throw new ValueError("a transaction's exec runs within it: this one has ended (store.transaction)");
+  }
+
+  /** At the end of its scope: the first error annotated on a frame its `exec` gave, thrown (`_raised`). */
+  _raise(): void {
+    _raised(this._given);
+  }
+}
+
+/** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
+ * subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are made of it,
+ * then `{"end": scope}`, `scope` its id. Each given back holds references and assignments (CAP-315), carries its input
+ * frame's id, `scope`, and, where it halted read-only, its `remainder`. An error a term meets processing a frame is
+ * annotated on it (CAP-309). An error of no one frame is the stream's error, its `frames` every frame the transaction
+ * gave, and those made of the input frame it arose processing. */
+export function _exec(store: any, txn: Transaction, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
   return new Observable<Item>((observer) => {
-    const gave: Frame[] = [];
     let made: Frame[] = [];
     const emit = (item: Item): void => {
       observer.next!(item);
       if (observer.closed) throw new Unsubscribed();
     };
     try {
-      store._transacting(() => {
-        store._proposals.expression = remainder.transaction; // what its record gives (Provenance)
-        const named = new Map<string, string[]>();
-        let failed = false;
-        let index = 0;
-        // a frame, or a stream of them, consumed as it arrives
-        for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
-          const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
-          index += 1;
-          made = one(store, remainder, frame, write, named, scope);
-          const back = givenBack(store, made, named, scope);
-          made = [];
-          for (const item of back) {
-            failed ||= item.errors.length > 0;
-            gave.push(item);
-            emit(item);
-          }
-          emit(new Map([["end", scope]]));
+      const named = new Map<string, string[]>();
+      let index = 0;
+      // a frame, or a stream of them, consumed as it arrives
+      for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
+        txn._open();
+        const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
+        index += 1;
+        made = one(store, remainder, frame, write, named, scope);
+        const back = givenBack(store, made, named, scope);
+        made = [];
+        for (const item of back) {
+          txn._given.push(item);
+          emit(item);
         }
-        if (failed) throw new Uncommitted();
-      });
+        emit(new Map([["end", scope]]));
+      }
     } catch (error) {
       if (error instanceof Unsubscribed) return;
-      if (!(error instanceof Uncommitted)) {
-        (error as any).frames = [...gave, ...made];
-        observer.error!(error);
-        return;
-      }
+      (error as any).frames = [...txn._given, ...made];
+      observer.error!(error);
+      return;
     }
     observer.complete!();
   });
@@ -960,7 +1003,10 @@ function taken(store: any, given: Map<string, any>, remainder: Remainder): Frame
 
 /** What a symbol of an input frame binds: the object its reference designates, else what it holds. */
 function bound(store: any, name: string, value: unknown): any {
-  if (value instanceof _Refused) throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
+  if (value instanceof _Refused) {
+    if (value.life === store._life && value.target !== null) return value.target; // given back within this transaction
+    throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
+  }
   const target = Proxies._deref(value);
   const inner = Proxies._innerOf(target);
   if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {

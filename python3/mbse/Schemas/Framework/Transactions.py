@@ -26,14 +26,16 @@ its branches and joins what they end with. It gives the frames its chain ends wi
 by symbol. A spec holds where the entries it inserts are held and those it removes are absent: an entry is removed
 where every link and property the removal gives agrees with it, so that run again, a spec that removes writes nothing.
 
-`store.exec(frame, remainder, allow_write)` executes the suffix of a transaction's expression, a `Remainder`, over input
-frames, within one transaction of the store, giving a stream of frames, a generator ([CAP-308: stacking by mutation
-transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): each frame carries the id of its input frame,
-`scope`, and each input frame's frames end with its completion marker, `{"end": scope}`. Writing, it interprets the
-expression fully; `store.transaction(spec)` collects its stream over one empty frame. Read-only, it interprets over
-what the store holds, writing nothing: where it holds nothing to bind a symbol, or a term would write, the frame halts,
-given as bound so far, carrying its `remainder`; the same store completes it, writing, as the loopback of a store with
-no layer below. A partition keeps its join: the rest of a branch a frame halted in is executed by the loopback.
+Within a transaction, `with store.transaction() as txn:`, the transaction open (`Transaction`, a first piece of [the
+transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md)) executes the suffix of a transaction's expression, a `Remainder`, over input frames with
+`txn.exec(frame, remainder, allow_write)`, giving a stream of frames, a generator, and opening and committing no
+transaction of its own ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): each frame
+carries the id of its input frame, `scope`, and each input frame's frames end with its completion marker,
+`{"end": scope}`. Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
+empty frame. Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a
+symbol, or a term would write, the frame halts, given as bound so far, carrying its `remainder`; the same transaction
+completes it, writing, as the loopback of a store with no layer below. A partition keeps its join: the rest of a branch
+a frame halted in is executed by the loopback, within the transaction. All of it commits, or is dropped, with the scope.
 
 A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
 schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
@@ -51,7 +53,7 @@ from typing import Any
 from . import Errors, Plain, Proxies
 from . import Schemas as S
 
-__all__ = ["Frame", "FrameError", "Remainder"]
+__all__ = ["Frame", "FrameError", "Remainder", "Transaction"]
 
 
 def _recorded(store: Any, symbols: Mapping[str, Any], spec: Any) -> dict[str, list[Any]]:
@@ -562,16 +564,16 @@ class Frame(dict[str, Any]):
     """A frame: the objects its symbols bind, by symbol; and its `errors`, each what failed as a term processed it
     ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
 
-    One `store.transaction` or `store.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every
+    One `store.transaction` or `txn.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every
     read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a
     value that outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by
     symbol, the values the transaction left in the properties its terms' specs name for it, as data, harvested within
     it. A counted object has no reference: the frame refuses it, its symbol read raising `LookupError`, and assigns
     nothing of it.
 
-    One `store.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
+    One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
     unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); None where it
-    is complete. Given to `store.exec`, a frame's `scope` is its id, where it has one."""
+    is complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one."""
 
     def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = (),
                  assigns: Mapping[str, Mapping[str, Any]] | None = None, remainder: Remainder | None = None,
@@ -593,10 +595,11 @@ class Frame(dict[str, Any]):
 
 class _Refused:
     """What a frame given back holds for a symbol that binds a counted object, which has no reference: its every use is
-    refused, saying why."""
+    refused, saying why; but given again to `exec` within the transaction that gave it (`life`), the object it binds
+    (`target`), so that a frame halted there is resumed there."""
 
-    def __init__(self, message: str):
-        self.message = message
+    def __init__(self, message: str, target: Any = None, life: Any = None):
+        self.message, self._target, self._life = message, target, life
 
     def __getattr__(self, name: str) -> Any:
         raise LookupError(self.message)
@@ -622,7 +625,7 @@ def _given_back(store: Any, frames: list[Frame], named: dict[str, list[str]], sc
                 continue
             if Proxies._counted(target):
                 bound[symbol] = _Refused(f"a counted {target._schema_name!r} has no reference: nothing names it (make "
-                                         "it a singleton's or an owner's)")
+                                         "it a singleton's or an owner's)", target, store._life)
                 continue
             if Proxies._deleted(target):
                 bound[symbol] = _Refused(f"a {target._schema_name!r} the transaction deleted has no reference: nothing "
@@ -668,7 +671,7 @@ def _frames(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
     chain ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped,
     whole (CAP-124), else committed, a decoder's (`joined`) into the transaction open. An error in the expression
     itself, found before it runs, is raised, its `frames` none; one raised at the commit, which no frame made, is raised
-    as it is, its `frames` all the frames, none annotated. What `store.exec` gives, as a stream, is `_exec`'s."""
+    as it is, its `frames` all the frames, none annotated. What `txn.exec` gives, as a stream, is `_exec`'s."""
     root = _next(transaction, "mutations")
     made: list[Frame] = []
     try:
@@ -692,7 +695,7 @@ def _frames(store: Any, transaction: Any, joined: bool = False) -> list[Frame]:
 
 
 def _remainder(store: Any, transaction: Any) -> Remainder:
-    """What `store.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root
+    """What `txn.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root
     term; at `()` where it has none."""
     if isinstance(transaction, Remainder):
         return transaction
@@ -714,37 +717,79 @@ def _term_at(transaction: Any, at: tuple[str | int, ...]) -> Any:
     return term
 
 
-def _exec(store: Any, given: Any, remainder: Remainder, write: bool) -> Iterator[Any]:
-    """`store.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within one transaction of the store: each input frame, as it
+class Transaction:
+    """The transaction open on a store, an object of its own, which `with store.transaction() as txn:` gives: a first
+    piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md), holding the transaction, and executing expressions within it
+    (`exec`). Its writes commit, or are dropped, with the scope: where a frame its `exec` gave is annotated with an
+    error, the scope commits nothing, raising the first error annotated (CAP-309). It lives within its transaction:
+    used after it ends, it is refused."""
+
+    def __init__(self, store: Any, life: Any):
+        self._store, self._life = store, life
+        self._given: list[Frame] = []  # every frame its `exec` gave, in order
+
+    def exec(self, frame: Any, remainder: Any, allow_write: bool) -> Iterator[Any]:
+        """Executes the suffix of a transaction's expression over input frames, within this transaction, giving a
+        stream of frames, a generator ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308), [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)).
+        It opens and commits no transaction of its own.
+
+        `frame` is the current execution frame, the symbols bound so far, each by its reference, a schema object as
+        itself (`Frame`, or any mapping); or a stream of them, an iterable each item of which is taken as it arrives.
+        `remainder` is what is yet to be executed: a `Remainder`, as a frame that halted carries it, or a whole
+        transaction, as `store.transaction` takes it. Where `allow_write` is true, the expression is interpreted fully,
+        writing; where false, read-only, over what the store holds: where it holds nothing to bind a symbol, or a term
+        would write, the frame halts, and is given as bound so far, carrying its `remainder`, which
+        `txn.exec(halted, halted.remainder, True)` completes, in the same transaction, a counted object it binds among
+        it. A partition keeps its join: a frame that halts within one of its branches, the rest of that branch alone is
+        executed below it, by the loopback, this store having no layer below, writing within this transaction, and what
+        each branch ends with is joined.
+
+        Each input frame gives the frames made of it, given back as references and assignments (CAP-315), each
+        carrying its `scope`, the input frame's id (its own `scope`, else its position in the stream, `"0"`, `"1"`,
+        ...), then the completion marker `{"end": scope}`; the stream ends where the generator does. An error a term
+        meets is annotated on the frame it processed (CAP-309); an error of no one frame is raised."""
+        from . import Builders, Changes
+
+        store = self._store
+        transaction = remainder
+        if Builders._is_function(remainder):  # built as an expression is, outside the transaction (94)
+            with Changes._as_committed(store):
+                transaction = store._expressed(remainder)
+        return _exec(store, self, frame, _remainder(store, Proxies._durable(transaction)), allow_write)
+
+    def _open(self) -> None:
+        """Refuses a transaction that has ended."""
+        if self._life.ended:
+            raise ValueError("a transaction's exec runs within it: this one has ended (store.transaction)")
+
+    def _raise(self) -> None:
+        """At the end of its scope: the first error annotated on a frame its `exec` gave, raised (`_raised`)."""
+        _raised(self._given)
+
+
+def _exec(store: Any, txn: Transaction, given: Any, remainder: Remainder, write: bool) -> Iterator[Any]:
+    """`txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds: each input frame, as it
     arrives, extended through `remainder`, its frames given as they are made of it, then `{"end": scope}`, `scope` its
     id. Each given back holds references and assignments (CAP-315), carries its input frame's id, `scope`, and, where
-    it halted read-only, its `remainder`. An error a term meets processing a frame is annotated on it (CAP-309); where
-    one is, the transaction commits nothing. An error of no one frame, in the expression or at the commit, is raised,
-    its `frames` every frame given, and those made of the input frame it arose processing."""
+    it halted read-only, its `remainder`. An error a term meets processing a frame is annotated on it (CAP-309). An
+    error of no one frame is raised, its `frames` every frame the transaction gave, and those made of the input frame
+    it arose processing."""
     inputs = [given] if isinstance(given, Mapping) else given  # a frame, or a stream of them, consumed as it arrives
-    gave: list[Frame] = []
     made: list[Frame] = []
     try:
-        with store._transacting() as proposals:
-            proposals.expression = remainder.transaction  # what its record gives (Provenance)
-            named: dict[str, list[str]] = {}
-            failed = False
-            for index, frame in enumerate(inputs):
-                scope = str(index) if getattr(frame, "scope", None) is None else frame.scope
-                made = _one(store, remainder, frame, write, named, scope)
-                given_back = _given_back(store, made, named, scope)
-                made = []
-                for item in given_back:
-                    failed = failed or bool(item.errors)
-                    gave.append(item)
-                    yield item
-                yield {"end": scope}
-            if failed:
-                raise _Uncommitted()
-    except _Uncommitted:
-        return
+        named: dict[str, list[str]] = {}
+        for index, frame in enumerate(inputs):
+            txn._open()
+            scope = str(index) if getattr(frame, "scope", None) is None else frame.scope
+            made = _one(store, remainder, frame, write, named, scope)
+            given_back = _given_back(store, made, named, scope)
+            made = []
+            for item in given_back:
+                txn._given.append(item)
+                yield item
+            yield {"end": scope}
     except Exception as error:
-        error.frames = gave + made  # type: ignore[attr-defined]
+        error.frames = txn._given + made  # type: ignore[attr-defined]
         raise
 
 
@@ -804,6 +849,8 @@ def _bound(store: Any, name: str, value: Any) -> Any:
     from . import References
 
     if isinstance(value, _Refused):
+        if value._life is store._life and value._target is not None:  # given back within this transaction
+            return value._target
         raise LookupError(f"symbol {name!r} of the frame: {value.message}")
     target = Proxies._deref(value)
     if isinstance(target, Proxies._RecordData) and target._schema is store.registered("References.OfObject"):

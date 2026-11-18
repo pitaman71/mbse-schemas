@@ -305,7 +305,7 @@ abstract class Shelled implements Shellable {
 
 // --- Stores ---
 
-/** A write attempted while a store interprets a transaction read-only (`Store.exec`, `allow_write` false): the frame
+/** A write attempted while a store interprets a transaction read-only (`txn.exec`, `allow_write` false): the frame
  * halts where it is, and is given carrying the remainder of the expression. Thrown by the write itself, before it
  * writes: no error, the interpreter catches it. */
 export class _Halt {}
@@ -323,7 +323,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 
   /** How deep in building an expression, or in making the store, a write is (`_written`). */
   _expressing = 0;
-  /** How deep in interpreting read-only a write is (`Store.exec`), halted (`_written`). */
+  /** How deep in interpreting read-only a write is (`txn.exec`), halted (`_written`). */
   _read_only = 0;
   /** The proposals of the transaction open on it, and its savepoints', if any. */
   _proposals: Proposals.OfStore | null = null;
@@ -425,7 +425,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 
   /** Refuses a write outside a transaction of this store (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided)), but while a transaction's
    * expression is built (94), the store is made, or a transaction commits. Within a read-only interpretation
-   * (`Store.exec`, `allow_write` false), it halts the frame instead, writing nothing (`_Halt`). */
+   * (`txn.exec`, `allow_write` false), it halts the frame instead, writing nothing (`_Halt`). */
   _written(): void {
     if (this._read_only > 0) throw new _Halt();
     if (this._proposals === null && this._expressing === 0) {
@@ -439,7 +439,7 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
     return this._proposals === null ? this._transacting(write) : this._proposing(write); // within one, a savepoint
   }
 
-  /** A read-only interpretation of a term over a frame (`Store.exec`, `allow_write` false): a write attempted within it
+  /** A read-only interpretation of a term over a frame (`txn.exec`, `allow_write` false): a write attempted within it
    * halts the frame (`_written`). */
   _readingOnly<T>(read: () => T): T {
     this._read_only += 1;

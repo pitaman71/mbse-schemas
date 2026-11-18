@@ -2055,42 +2055,31 @@ class Store(Proxies.OfStore):
         """Executes a transaction (object identity 85 to 97 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a `Mutations.OfTransaction`, or a
         callback building one, its root term given through `mutations`. Every write it makes is held apart until it
         ends, and dropped where it raises. Gives the frames its chain of terms ends with, each the objects its symbols
-        bind, by symbol (`Transactions.Frame`): `exec`'s stream over one input frame, empty, writing, collected. Where a
-        term fails to process a frame, the frame is annotated with the error (its `errors`) and the others go on; then
-        nothing is written, and the error that arose first is raised, its `frames` every frame, those annotated among
-        them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). With no `spec`, a transaction's imperative scope (98), `with store.transaction(): ...`, within
-        which builders write as they do anywhere, all or nothing."""
+        bind, by symbol (`Transactions.Frame`): its transaction's `exec` over one input frame, empty, writing, collected.
+        Where a term fails to process a frame, the frame is annotated with the error (its `errors`) and the others go
+        on; then nothing is written, and the error that arose first is raised, its `frames` every frame, those annotated
+        among them ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)).
+
+        With no `spec`, a transaction's imperative scope (98), `with store.transaction() as txn: ...`, within which
+        builders write as they do anywhere, all or nothing, and `txn`, the transaction open
+        (`Transactions.Transaction`), executes expressions over frames within it (`txn.exec`); where a frame its
+        `exec` gave is annotated with an error, the scope commits nothing, and raises the first error annotated."""
         from . import Transactions
 
         if spec is None:
             return self._scope()
-        stream = self.exec(Transactions.Frame(), self._expressed(spec), True)
-        return Transactions._raised([item for item in stream if isinstance(item, Transactions.Frame)])
-
-    def exec(self, frame: Any, remainder: Any, allow_write: bool) -> Iterator[Any]:
-        """Executes the suffix of a transaction's expression over input frames, within one transaction of the store,
-        giving a stream of frames, a generator ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308), [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)).
-
-        `frame` is the current execution frame, the symbols bound so far, each by its reference, a schema object as
-        itself (`Transactions.Frame`, or any mapping); or a stream of them, an iterable each item of which is taken as
-        it arrives. `remainder` is what is yet to be executed: a `Transactions.Remainder`, as a frame that halted
-        carries it, or a whole transaction, as `transaction` takes it. Where `allow_write` is true, the expression is
-        interpreted fully, writing; where false, read-only, over what the store holds: where it holds nothing to bind a
-        symbol, or a term would write, the frame halts, and is given as bound so far, carrying its `remainder`, which
-        `exec(halted, halted.remainder, True)` completes. A partition keeps its join: a frame that halts within one of
-        its branches, the rest of that branch alone is executed below it, by the loopback, this store having no layer
-        below, with writes, and what each branch ends with is joined.
-
-        Each input frame gives the frames made of it, given back as references and assignments (CAP-315), each
-        carrying its `scope`, the input frame's id (its own `scope`, else its position in the stream, `"0"`, `"1"`,
-        ...), then the completion marker `{"end": scope}`; the stream ends where the generator does. An error a term
-        meets is annotated on the frame it processed (CAP-309), and the transaction then commits nothing; an error of no
-        one frame is raised. The transaction is open while the stream is: one consumed in part, then closed, commits
-        nothing."""
-        from . import Transactions
-
-        transaction = remainder if isinstance(remainder, Transactions.Remainder) else self._expressed(remainder)
-        return Transactions._exec(self, frame, Transactions._remainder(self, transaction), allow_write)
+        transaction = self._expressed(spec)
+        frames: list[Any] = []
+        try:
+            with self._scope() as txn:
+                self._proposals.expression = transaction  # what its record gives (Provenance)
+                frames += [item for item in txn.exec(Transactions.Frame(), transaction, True)
+                           if isinstance(item, Transactions.Frame)]
+        except Exception as error:
+            if not hasattr(error, "frames"):  # one at the commit, which no frame made: every frame given
+                error.frames = frames  # type: ignore[attr-defined]
+            raise
+        return frames
 
     def _expressed(self, spec: Any) -> Any:
         """A transaction's expression: one given, or the one a callback builds, given the store's schemas by name
@@ -2102,9 +2091,15 @@ class Store(Proxies.OfStore):
         return Proxies._durable(transaction)
 
     @contextlib.contextmanager
-    def _scope(self) -> Iterator[None]:
+    def _scope(self) -> Iterator[Any]:
+        """A transaction's imperative scope, giving the transaction open (`Transactions.Transaction`); where a frame its
+        `exec` gave is annotated with an error, it commits nothing, raising the first error annotated (CAP-309)."""
+        from . import Transactions
+
         with self._transacting():
-            yield
+            txn = Transactions.Transaction(self, self._life)
+            yield txn
+            txn._raise()
 
     def _defers(self, builder: _Builder[Any]) -> bool:
         """Whether a builder's update of a schema object waits for the commit of the transaction open: where the object

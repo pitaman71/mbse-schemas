@@ -24,7 +24,9 @@ binds keeps its object.
   - Python: [T10.2: Map: symbols ranging over a schema's objects](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.2) · TypeScript: [T10.2: Map: symbols ranging over a schema's objects](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.2)
   - Python: [TXN-07: Map and update](mbse:mbse-schemas/python3/tests/31_Transactions.ipynb#TXN-07) · TypeScript: [TXN-07: Map and update](mbse:mbse-schemas/typescript5/tests/31_Transactions.ipynb#TXN-07)
 - **`upsert`** (`key`, `exists([pattern])`, `then`) binds symbols as a map does; where it finds nothing, it creates the
-  object, and then writes the spec wherever it does not hold. Installs are upserts, and so is every document.
+  object, and then writes the spec wherever it does not hold. Installs are upserts, and so is every document. A
+  counted object it creates is found again only by the same frame, `key` and symbol; an upsert given no `key` is keyed
+  by its transaction's uid, so that only a replay of that transaction finds it.
   [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md).
   - Python: [T10.1: A transaction as an expression](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.1) · TypeScript: [T10.1: A transaction as an expression](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.1)
   - Python: [T10.6: Writing from frames](mbse:mbse-schemas/python3/tutorials/10_Asking_The_Store.ipynb#T10.6) · TypeScript: [T10.6: Writing from frames](mbse:mbse-schemas/typescript5/tutorials/10_Asking_The_Store.ipynb#T10.6)

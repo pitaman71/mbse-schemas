@@ -257,7 +257,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
 |---|---|
 | Decide how to model something: MBSE, UML, ORM or JSON Schema concepts mapped to schema elements | [Modeling with mbse-schemas](references/modeling.md) |
 | Design new schemas, or extend, version, refine or generate existing ones; values of any schema; parameters | [Designing and extending schemas](references/schemas.md) |
-| Find, filter, traverse or write data with a transaction's expression: terms, patterns, specs, frames and their references; a store's stream of frames (`store.exec`) | [Querying with transactions](references/queries.md) |
+| Find, filter, traverse or write data with a transaction's expression: terms, patterns, specs, frames and their references; a transaction's stream of frames (`txn.exec`) | [Querying with transactions](references/queries.md) |
 | Save, load or exchange data: documents, journals, snapshots and strict decoding | [Saving, loading and exchanging data](references/serialization.md) |
 | Constraints over data: mandatory, possible or forbidden entries | the separate [mbse-patterns](https://github.com/pitaman71/mbse-patterns) package, and its skill |
 | Expressions and value domains | the separate [mbse-expressions](https://github.com/pitaman71/mbse-expressions) package, and its skill |

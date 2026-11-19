@@ -63,8 +63,8 @@ The commands print the counts. They differ between the languages because the too
 both:
 
 - A gap in one implementation was closed by an assertion in the shared case, added to both suites (VIS-07, SCH-17,
-  PRX-16, PRX-17, PRX-21, PLN-14, PLN-15, VAL-13, EMB-02, EMB-03, EMB-09, JSN-09..11, YML-13, TXT-01..04). A
-  gap never became a one-language test, except for rows about JavaScript-only mechanics (probes, `in`, `inspect`,
+  PRX-16, PRX-17, PRX-21, PLN-14, PLN-15, VAL-13, EMB-02, EMB-03, EMB-09, JSN-09..11, YML-13, TXT-01..04, CHG-13).
+  A gap never became a one-language test, except for rows about JavaScript-only mechanics (probes, `in`, `inspect`,
   assigning to a visitor, a prototype-less object), which are listed below.
 - Code that no input could reach was removed from both implementations: branches in `Plain` that `_check` already
   excludes, a YAML key check the loader already makes, and in TypeScript helper methods, exports and emitter paths

@@ -1676,7 +1676,6 @@ class Store(Proxies.OfStore):
         self._installing = 0  # how deep in running an install, which a cache layer runs itself, after the layer below
         self._observers: list[Any] = []  # what is given each transaction's changes at its commit (`Changes.observe`)
         self._changes: Any = None  # what the transaction committing changed, gathered for its observers
-        self._uid: str | None = None  # the uid of the transaction committing, which its journal's id is (`Provenance`)
         self._objects: dict[int, Any] = {}  # the schema objects it holds with a name of their own, and its own, by id
         # those with none, held while what links them is (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)): a term's pattern goes
         # with its transaction
@@ -1845,11 +1844,10 @@ class Store(Proxies.OfStore):
             self._lower = None
             _extend_builders(self, before)
             gathered, self._changes = self._changes if committed else None, None
-            uid, self._uid = self._uid, None
             if gathered is not None and self._observers:  # once committed: one that raised is observed by none
                 from . import Changes
 
-                journal = Changes._journal(self, uid, Changes._plain_effect(self, Changes._effect(self, gathered)))
+                journal = Changes._journal(self, [gathered])
                 for observer in list(self._observers):
                     observer(journal)
 
@@ -1863,8 +1861,7 @@ class Store(Proxies.OfStore):
         if self._lower is not None:
             self._lower.close()
         if self._observers:
-            self._changes = Changes._gather(self, proposals)
-            self._uid = Provenance._uid(self, proposals)
+            self._changes = Changes._gather(self, proposals, Provenance._uid(self, proposals))
 
     def follow(self, follower: Any) -> Any:
         """Gives `follower` each transaction the store commits, in the order it commits them, as a `Changes.Journal` of
@@ -1881,32 +1878,31 @@ class Store(Proxies.OfStore):
         own transaction, as it commits, is taken into it; another, applied as a transaction of its own, in the order the
         layer below committed them: in a process, the layer below commits none other while a cache layer's transaction
         holds one of its own open."""
-        from . import Changes
+        from . import Changes, Plain
 
-        for effect in Changes._effects(self, plain):
-            self._apply(effect, joined=self._lower is not None and self._lower.closing)
+        journal = Plain.FromPlain(self)(self.registered("Changes.Journal"), plain)
+        for transaction in Changes._transactions(journal):
+            self._apply(transaction, joined=self._lower is not None and self._lower.closing)
 
-    def _apply(self, plain: Any, joined: bool = False) -> None:
-        """Applies a transaction of the layer below's, its effect as plain data, to the objects present alone, as a
-        transaction of this store's that checks nothing and sends nothing below, its followers told what it changed
-        (CAP-285); `joined`, within the transaction open, a savepoint of it. What it creates the store holds all of;
-        an object present an entry left out links, not all of (`_knows`)."""
-        from . import Changes, Plain, Transactions
+    def _apply(self, transaction: Any, joined: bool = False) -> None:
+        """Applies a transaction of the layer below's, a `Changes.Transaction` of this store's, to the objects present
+        alone, as a transaction of this store's that checks nothing and sends nothing below, its followers told what it
+        changed (CAP-285); `joined`, within the transaction open, a savepoint of it. What it creates the store holds all
+        of; an object present an entry left out names, not all of (`_knows`)."""
+        from . import Changes, Transactions
 
-        present, lost = Changes._present_only(self, plain)
+        present, lost = Changes._present_only(self, transaction)
         for target in lost:
             self._complete.discard(target)
         if present is None:
             return
         self._applying += 1
         try:
-            # built outside a transaction open, as any expression is; but one taken into the transaction open, within
-            # it, where what the transaction made is present, by which the schema of each object it names is known
-            with contextlib.nullcontext() if joined else Changes._as_committed(self):
-                expression = Plain.FromPlain(self).Transaction(present)
+            expression = Changes._expression(self, present)
             with self._joined() if joined else self.transaction():
-                if not joined and "uid" in plain:  # its followers given its journal under the id it arrived with
-                    self._proposals.uid = plain["uid"]
+                uid = present.id.get()
+                if not joined and uid is not None:  # its followers given its journal under the id it arrived with
+                    self._proposals.uid = uid
                 with self._proposing(self._made):
                     Transactions._execute(self, expression)
         finally:
@@ -1952,9 +1948,11 @@ class Store(Proxies.OfStore):
                     and not Proxies._owner_entries(target)):
                 raise ValueError(f"a cache layer writes a {target._schema_name!r} through as it is made, with its owner: "
                                  "give it one in the same write")
-        gathered = Changes._gather(self, proposals)
+        from . import Transactions
+
+        gathered = Changes._gather(self, proposals, Transactions._transaction_uid(self))
         if gathered is not None:
-            self._lower.write(Changes._plain(self, gathered))
+            self._lower.write(gathered)
 
     def _permit(self, builder: _Builder[Any]) -> None:
         """Refuses a builder's update of a schema the store was made holding that does more than add members to it,

@@ -2101,9 +2101,7 @@ export class Store extends Proxies.OfStore {
   /** What is given each transaction's changes at its commit (`Changes.observe`). */
   _observers: ((effect: any) => void)[] = [];
   /** What the transaction committing changed, gathered for its observers. */
-  _changes: Changes._Gathered | null = null;
-  /** The uid of the transaction committing, which its journal's id is (`Provenance`). */
-  _uid: string | null = null;
+  _changes: any = null;
   /** The layer below's transaction, open while one of this store's is (`Transactions._Lower`). */
   _lower: Transactions._Lower | null = null;
   /** The objects it holds all of (`_knows`). */
@@ -2462,11 +2460,8 @@ export class Store extends Proxies.OfStore {
       extendBuilders(this, before);
       const gathered = committed ? this._changes : null;
       this._changes = null;
-      const uid = this._uid;
-      this._uid = null;
       if (gathered !== null && this._observers.length > 0) { // once committed: one that threw is observed by none
-        const effect = Changes._plain_effect(this, Changes._effect(this, gathered));
-        const journal = Changes._journal(this._self, uid!, effect as PlainModule.PlainData);
+        const journal = Changes._journal(this._self, [gathered]);
         for (const observer of [...this._observers]) observer(journal);
       }
     }
@@ -2486,8 +2481,7 @@ export class Store extends Proxies.OfStore {
    * (`Changes`): a cache layer's once the layer below's has committed, what it reported among them. */
   override _settled(proposals: Proposals.OfStore): void {
     if (this._observers.length > 0) {
-      this._changes = Changes._gather(this, proposals);
-      this._uid = Provenance._uid(this, proposals);
+      this._changes = Changes._gather(this._self, proposals, Provenance._uid(this, proposals));
     }
   }
 
@@ -2505,29 +2499,27 @@ export class Store extends Proxies.OfStore {
    * below committed them: in a process, the layer below commits none other while a cache layer's transaction holds one of
    * its own open. */
   _arrive(plain: unknown): void {
-    for (const effect of Changes._effects(this._self, plain as PlainModule.PlainData)) {
-      this._apply(effect, this._lower !== null && this._lower.closing);
+    const journal = PlainModule.FromPlain(this._self)(this.registered("Changes.Journal"), plain as PlainModule.PlainData);
+    for (const transaction of Changes._transactions(journal)) {
+      this._apply(transaction, this._lower !== null && this._lower.closing);
     }
   }
 
-  /** Applies a transaction of the layer below's, its effect as plain data, to the objects present alone, as a
-   * transaction of this store's that checks nothing and sends nothing below, its followers told what it changed
+  /** Applies a transaction of the layer below's, a `Changes.Transaction` of this store's, to the objects present alone,
+   * as a transaction of this store's that checks nothing and sends nothing below, its followers told what it changed
    * (CAP-285); `joined`, within the transaction open, a savepoint of it. What it creates the store holds all of; an object
-   * present an entry left out links, not all of (`_knows`). */
-  _apply(plain: unknown, joined = false): void {
+   * present an entry left out names, not all of (`_knows`). */
+  _apply(transaction: unknown, joined = false): void {
     const store: any = this._self;
-    const [present, lost] = Changes._present_only(store, plain as PlainModule.PlainData);
+    const [present, lost] = Changes._present_only(store, transaction);
     for (const target of lost) this._complete.delete(target as object);
     if (present === null) return;
     this._applying += 1;
     try {
-      // built outside a transaction open, as any expression is; but one taken into the transaction open, within
-      // it, where what the transaction made is present, by which the schema of each object it names is known
-      const build = (): unknown => PlainModule.FromPlain(store).Transaction(present);
-      const expression = joined ? build() : Changes._as_committed(store, build);
+      const expression = Changes._expression(store, present);
       const write = (): void => {
-        const uid = (plain as Map<string, unknown>).get("uid"); // its followers given its journal under the id it
-        if (!joined && uid !== undefined) store._proposals.uid = uid; // arrived with
+        const uid = present.id.get(); // its followers given its journal under the id it arrived with
+        if (!joined && uid !== null) store._proposals.uid = uid;
         store._proposing(() => Transactions._execute(store, expression), (proposals: Proposals.OfStore) => this._made(proposals));
       };
       if (joined) store._joined(write);
@@ -2572,8 +2564,8 @@ export class Store extends Proxies.OfStore {
           + "it one in the same write");
       }
     }
-    const gathered = Changes._gather(this._self, proposals);
-    if (gathered !== null) this._lower!.write(Changes._plain(this._self, gathered) as Map<string, unknown>);
+    const gathered = Changes._gather(this._self, proposals, Transactions._transaction_uid(this._self));
+    if (gathered !== null) this._lower!.write(gathered);
   }
 
   /** Refuses a builder's update of a schema the store was made holding that does more than add members to it, each under

@@ -9,7 +9,17 @@
  * - `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`, and `variables`, each
  *   of its variables' values; and what it witnesses: `assigns`, objects' property values (`References.OfProperties`),
  *   and `entries`, relation entries (`References.OfEntry`); and its `errors`, what failed as a term processed it
- *   (`References.OfError`, [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309));
+ *   (`References.OfError`, [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)).
+ *   As an item of a frame stream (`txn.exec`), `Changes.install` gives it its `scope`, the id of the input frame it
+ *   descends from; its `remainder`, where the rest of the expression begins, written as an error's `subterm` is, unset
+ *   on a complete frame; and its `journal`, the changes made interpreting its input frame, a `Changes.Transaction`
+ *   ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), [the decoupled-code
+ *   proposal](mbse:mbse-schemas/docs/proposals/decoupled-code/README.md#stages), stage 1);
+ * - `References.OfEnd`, a frame stream's completion marker, `{"end": scope}`: its `scope`, a branch's or an input
+ *   frame's, unset where it ends the whole stream, and its `journal`, where the input frame gave no frame; and
+ *   `References.OfItem`, an item of a frame stream, the union of a `frame` and an `end`. `Changes.install` defines both,
+ *   after the `Changes` schemas their journals are, so that the built-in serialization carries a stream to another
+ *   process as it carries any value;
  * - `References.OfError`, an error annotated on a frame: its `subterm`, where in the transaction's expression it arose,
  *   its `kind`, the name of its class, and its `message`;
  * - `References.OfProperties`, property values an object is witnessed to hold: its `object`, a `References.OfObject`,
@@ -28,8 +38,8 @@
  *   scope resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
  *   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  *
- * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
- * included. A reference is resolved within a transaction, as every read of a store's data is: a pattern's symbol given
+ * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` or `txn.exec` gave back,
+ * its errors, scope, remainder and journal included, and the `References.OfEnd` of a completion marker `txn.exec` gave. A reference is resolved within a transaction, as every read of a store's data is: a pattern's symbol given
  * an object's reference binds what it designates, and no function resolves one from outside the transaction
  * ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)). An entry's reference is matched by a pattern over the objects it links,
  * and a frame's by a pattern whose symbols are given the references it binds. A counted object has no reference, nor a
@@ -43,6 +53,7 @@
  */
 
 import * as Builders from "./Builders.js";
+import * as Changes from "./Changes.js";
 import { LookupError, ValueError } from "./Errors.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
@@ -135,8 +146,9 @@ function object(store: any, obj: unknown): Callback {
   return (o: any) => o.path(path);
 }
 
-/** A `References.OfFrame`'s callback: each symbol's object's reference, refused where one binds a counted object; and
- * the errors annotated on it, where it is a frame the executor gave back (`Transactions.Frame`). */
+/** A `References.OfFrame`'s callback: each symbol's object's reference, refused where one binds a counted object;
+ * and, where it is a frame the executor gave back (`Transactions.Frame`), the errors annotated on it, its `scope`, its
+ * `remainder`'s subterm where it halted, and its `journal`'s one transaction where it carries one (CAP-318). */
 function frameOf(store: any, frame: Map<string, unknown>): Callback {
   const binds = new Map<string, Callback>();
   for (const [name, target] of frame) {
@@ -151,11 +163,43 @@ function frameOf(store: any, frame: Map<string, unknown>): Callback {
     x.as_object((r: any) => r.subterm(error.subterm).kind(error.kind).message(error.message)));
   const assigns = [...(frame instanceof Transactions.Frame ? frame.assigns : [])].map(([name, values]) => (x: any) =>
     x.as_object((p: any) => p.object(binds.get(name)).properties(values))); // what it witnesses (CAP-131)
+  const [scope, remainder, journal] = frame instanceof Transactions.Frame
+    ? [frame.scope, frame.remainder, journaled(frame.journal)] : [null, null, null];
   return (f: any) => {
     f.binds(binds);
     if (assigns.length > 0) f.assigns(assigns);
-    return errors.length > 0 ? f.errors(errors) : f; // none: written as before them
+    if (errors.length > 0) f.errors(errors);
+    if (scope !== null) f.scope(scope);
+    if (remainder !== null) f.remainder(remainder.subterm); // where it halted: a position, not a copy of the expression
+    return journal === null ? f : f.journal(journal); // none of these: written as before them
   };
+}
+
+/** A `References.OfEnd`'s callback: a completion marker's scope, unset where it ends the whole stream
+ * (`{"end": null}`), and its journal's one transaction, where the input frame gave no frame (CAP-318). */
+function endOf(marker: Map<string, unknown>): Callback {
+  const scope = marker.get("end") as string | null;
+  const journal = journaled(marker.get("journal") ?? null);
+  return (e: any) => {
+    if (scope !== null) e.scope(scope);
+    return journal === null ? e : e.journal(journal);
+  };
+}
+
+/** The one transaction of a journal the executor gave a frame or a completion marker (`Changes.Journal`), a
+ * `Changes.Transaction`; null where it gave none. */
+function journaled(journal: unknown): unknown {
+  if (journal === null) return null;
+  const [transaction] = Changes._transactions(journal); // a frame's journal holds one transaction, its own
+  return transaction;
+}
+
+/** Whether a map is a completion marker of a frame stream, `{"end": scope}` with its `journal` where it carries one:
+ * not a frame, which binds objects, never a scope, by its symbols. */
+function isEnd(x: Map<string, unknown>): boolean {
+  const end = x.get("end");
+  return !(x instanceof Transactions.Frame) && x.has("end") && [...x.keys()].every((key) => key === "end" || key === "journal")
+    && (end === null || typeof end === "string");
 }
 
 /** A `References.OfEntry`'s callback: its relation's path, each link's object's reference and each property's value. */
@@ -229,12 +273,16 @@ export function _implied(store: any, pathPlain: unknown): any {
 }
 
 /** The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, refused for a counted
- * object; of a relation entry (`References.OfEntry`); of a frame `store.transaction` gave back, a map of symbols to
- * objects (`References.OfFrame`), refused where it binds a counted object. It gives no `References.OfParameter`, since
+ * object; of a relation entry (`References.OfEntry`); of a frame `store.transaction` or `txn.exec` gave back, a map of
+ * symbols to objects (`References.OfFrame`), refused where it binds a counted object, with its scope, remainder and
+ * journal where it carries them; of a completion marker `txn.exec` gave, `{"end": scope}` (`References.OfEnd`). It
+ * gives no `References.OfParameter`, since
  * a parameter is not an object that a store holds: a parameter reference is built by its name,
  * `store.References.OfParameter((p: any) => p.name(...))`. */
 export function of(store: any, x: unknown): any {
-  if (x instanceof Map) return store.References.OfFrame(frameOf(store, x));
+  if (x instanceof Map) {
+    return isEnd(x) ? store.References.OfEnd(endOf(x)) : store.References.OfFrame(frameOf(store, x));
+  }
   const inner = Proxies._innerOf(x);
   if (inner instanceof Proxies._internals._Entry) return store.References.OfEntry(entryOf(store, inner));
   return store.References.OfObject(object(store, x));

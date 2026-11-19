@@ -121,8 +121,16 @@ one-transaction `Changes.Journal` over the frame's own symbols
 ### What a frame carries: its state, in the journal form
 
 A frame given back carries its **state**: a `Changes.Journal` of one transaction, whose symbols are the frame's own,
-in the form that the persistence session's stage 2 gives a frame's changes. Each of the user's three kinds maps onto a
-part of the journal language that exists:
+in the form that the persistence session's stage 2 gives a frame's changes. That form is being rewritten by
+[CAP-321](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md#CAP-321) (INI-014), as the
+user decided: "`Changes` needs `Remove` as well as `Insert`."; "`Changes` should probably use `References` if it
+doesn't already"; "I kind of prefer: `Changes.OfKind` as a union of `Changes.OfKind.Action`."; "Also `Changes.*`
+should be entirely value objects". A frame's state takes CAP-321's form once its schemas are settled: each kind of
+change a union of its actions (`Changes.OfEntry.Insert` and `.Remove`, `Changes.OfProperty.Set` and `.Clear`, as
+CAP-321 settles them), links given by object reference as well as by symbol, every part a value object. A frame's
+state, what it holds from nothing, needs only the actions that add (an entry inserted, a property set); a frame's
+changes need the others too. Each of the user's three kinds maps onto a part of the journal language, described
+below as it stands in 0.32.0:
 
 - **Symbol bindings** are the transaction's `symbols`, each a `Changes.Symbol` holding the object's `reference`, and
   its `schema` where its reference does not imply it, as `Changes.observe` writes one.
@@ -165,7 +173,9 @@ store.References.OfFrame(lambda f: f
         ]))]))
 ```
 
-The `Changes.Transaction` within it was built as written here and read back; `state` itself is proposed. Whether a
+The `Changes.Transaction` within it was built as written here, in 0.32.0's form, and read back; `state` itself is
+proposed, and is written in CAP-321's form once that is settled: the entry an `insert` action rather than `verb("insert")`,
+and the property a `set` action rather than a list of `mutations`. Whether a
 frame's state and its changes are one journal or two is question 1; what a frame's state holds of each bound object
 is question 3.
 
@@ -224,11 +234,11 @@ transaction's stream. Where the store records the transaction, its provenance re
 
 ## Stages
 
-Each stage lands after the persistence session's `Store.exec` (`store-exec`, 0.31.0) lands, in Python and TypeScript,
-each passing both gates at 100%.
+Each stage lands after CAP-321 (INI-014) has rewritten `Changes` and `Changes.apply`, in Python and TypeScript, each
+passing both gates at 100%. `Store.exec` (0.31.0) has landed.
 
-1. **`Changes.apply` makes what a frame's state names.** It applies an entry linked by an object reference not bound to
-   a symbol, and, where question 2 so decides, a symbol bound by reference to an object the store does not hold,
+1. **`Changes.apply` makes what a frame's state names**, in CAP-321's rewriting of it, where CAP-321 does not
+   already: it applies an entry linked by an object reference not bound to a symbol, and, where question 2 so decides, a symbol bound by reference to an object the store does not hold,
    found or made through the ownership that its reference gives. It changes nothing that a journal given by
    `Changes.observe` does today.
 2. **A frame carries its state.** After the persistence session's stage 2, which adds a frame's changes in the same

@@ -160,6 +160,22 @@ schemas from anything a program holds; the builders make a new version beside a 
    - Python: [PAR-10: A reference whose parameter its context maps to nothing is partial, and valid](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-10) · TypeScript: [PAR-10: A reference whose parameter its context maps to nothing is partial, and valid](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-10)
    - Python: [PAR-11: A reference is invalid where its context maps its parameter to the wrong kind of thing or another schema](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-11) · TypeScript: [PAR-11: A reference is invalid where its context maps its parameter to the wrong kind of thing or another schema](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-11)
    - Python: [PAR-12: Data that holds no parameter reference validates as without a context](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-12) · TypeScript: [PAR-12: Data that holds no parameter reference validates as without a context](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-12)
+13. **Schema and value references.** *Why*: data that designates a schema, or holds a value whose schema is not fixed,
+   is schema data like any other, written and read with no code of its own. *When*: a context, a request or a model
+   names a schema, or carries a value of any schema, by reference. *How*: a schema object's reference,
+   `References.OfSchema`, refines `References.OfObject`: build it through its `path`, a schema object's path
+   (`Paths.of(schema)`), which starts from the root module, the singleton `"."`. Writing or reading one whose path does
+   not start there is refused. Where a `References.OfObject` is declared, it is written marked with its schema, and a
+   map's symbol given it binds the schema object. A schema argument, as in `References.OfSchema[Schemas.OfObject]`,
+   constrains the kind of schema that the reference designates: `References.validate_schema(store, reference, kind)`
+   reports a reference that designates a schema of another kind (`kind` a schema of schemas, such as
+   `store.Schemas.OfObject`), or no schema object the store holds; with no kind, it checks the rest. A value reference,
+   `References.OfValue`, holds a value of any schema in its one property, `value`, written tagged with its schema, as
+   a value of any schema is (item 8).
+   [CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320).
+   - Python: [REF-18: A schema object's reference refines References.OfObject; one whose path does not start at "." refused](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-18) · TypeScript: [REF-18: A schema object's reference refines References.OfObject; one whose path does not start at "." refused](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-18)
+   - Python: [REF-19: A value reference holds a value of any schema](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-19) · TypeScript: [REF-19: A value reference holds a value of any schema](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-19)
+   - Python: [REF-20: A schema argument constrains the kind of schema a schema object's reference designates](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-20) · TypeScript: [REF-20: A schema argument constrains the kind of schema a schema object's reference designates](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-20)
 
 ## Practices
 

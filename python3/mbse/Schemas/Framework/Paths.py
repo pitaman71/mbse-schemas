@@ -97,7 +97,9 @@ def _schema_steps(obj: Any) -> tuple[str, list[tuple[str, str, dict[str, Any]]]]
     if steps is None:
         raise LookupError(f"{_builder_for(obj)._noun} with no name of its own, nor a member of one that has a name, has "
                           "no path: it is written nested in the one object that links it")
-    return ".", [(i, "", {"name": name}) for i, name in steps]
+    from . import Plain
+
+    return Plain.ROOT, [(i, "", {"name": name}) for i, name in steps]
 
 
 def of(obj: Any) -> Any:

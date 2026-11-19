@@ -788,7 +788,8 @@ def _exec(store: Any, txn: Transaction, given: Any, remainder: Remainder, write:
             txn._open()
             scope = str(index) if getattr(frame, "scope", None) is None else frame.scope
             changed: list[Any] = []
-            with store._proposing(lambda proposals: changed.append(Changes._gather(store, proposals))):
+            with store._proposing(lambda proposals: changed.append(Changes._gather(
+                    store, proposals, f"{_transaction_uid(store)}#{len(txn._given)}"))):
                 if write and store._lower is not None and not store._installing:  # a cache layer's
                     given_back = _cached(store, remainder, frame, named, scope)
                 else:  # a savepoint: what it changed, gathered
@@ -797,7 +798,7 @@ def _exec(store: Any, txn: Transaction, given: Any, remainder: Remainder, write:
             made = []
             marker: dict[str, Any] = {"end": scope}
             if changed[0] is not None:  # carried by its first frame, else by its completion marker
-                journal = Changes._frame_journal(store, changed[0], f"{_transaction_uid(store)}#{len(txn._given)}")
+                journal = Changes._journal(store, [changed[0]])
                 if given_back:
                     given_back[0].journal = journal
                 else:
@@ -1277,8 +1278,8 @@ def _apply_journal(store: Any, journal: Any) -> None:
     applies what the layer below's follow gives it (`Builders.Store._apply`)."""
     from . import Changes
 
-    for effect in Changes._effects(store, Plain.ToPlain(store)(store.registered("Changes.Journal"), journal)):
-        store._apply(effect, joined=True)
+    for transaction in Changes._transactions(journal):
+        store._apply(transaction, joined=True)
 
 
 class _Lower:
@@ -1336,14 +1337,16 @@ class _Lower:
             else:
                 yield {**item, **({"journal": self.journal(item["journal"])} if "journal" in item else {})}
 
-    def write(self, plain: Any) -> None:
-        """Executes a cache layer's own write, its effect as plain data, in the layer below's transaction, under the
-        cache layer's transaction's uid; raises the first error a frame of it is annotated with."""
+    def write(self, transaction: Any) -> None:
+        """Executes a cache layer's own write, what it changed, a `Changes.Transaction` of the cache layer's whose id is
+        its transaction's uid, in the layer below's transaction, as the mutation transaction that makes those changes
+        there (`Changes._expression`); raises the first error a frame of it is annotated with."""
         from . import Changes
 
-        with Changes._as_committed(self.below):
-            copied = Plain.FromPlain(self.below).Transaction({**plain, "uid": _transaction_uid(self.store)})
-        self.run(copied)
+        schema = self.store.registered("Changes.Transaction")
+        copied = Plain.FromPlain(self.below)(self.below.registered("Changes.Transaction"),
+                                             Plain.ToPlain(self.store)(schema, transaction))
+        self.run(Changes._expression(self.below, copied))
 
     def run(self, transaction: Any) -> None:
         """Executes a transaction of the layer below's in its transaction, writing: an install, the layer below's

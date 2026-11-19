@@ -16,9 +16,16 @@
  *   and its `properties`, each its value;
  * - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
  *   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one;
+ * - `References.OfSchema`, a schema object's reference, which refines `References.OfObject`: its `path` is a schema
+ *   object's, from the root module, the singleton `"."`, and writing or reading one whose path is not refuses it;
+ *   `validate_schema(store, reference, kind)` reports one that designates no schema object the store holds, or one of
+ *   another kind than `kind` where a schema argument constrains it, as `References.OfSchema[Schemas.OfObject]` does
+ *   ([CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320));
+ * - `References.OfValue`, data that holds a value of any schema, its one property, `value`, an `OfAny`, as
+ *   `Schemas.OfAny` is the schema that admits one (CAP-320);
  * - `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
- *   proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
- *   resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
+ *   proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A parameter assignment or a parameter binding in the enclosing
+ *   scope resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
  *   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
@@ -51,7 +58,7 @@ export function install(txn: any): any {
   const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
   return txn.uid("mbse.Schemas.References/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
     .symbols({OfObject: S.OfObject, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject,
-      OfError: S.OfObject, OfSymbol: S.OfObject, OfParameter: S.OfObject})
+      OfError: S.OfObject, OfSymbol: S.OfObject, OfParameter: S.OfObject, OfSchema: S.OfObject, OfValue: S.OfObject})
     .spec([
       (_: any) => _.OfObject.name("References.OfObject").properties({
         path: txn.Paths.OfRoot, // a singleton's, an owned object's or a schema object's
@@ -79,6 +86,10 @@ export function install(txn: any): any {
       }),
       (_: any) => _.OfParameter.name("References.OfParameter").properties({
         name: S.OfStr, // the parameter's name, and nothing else (CAP-311)
+      }),
+      (_: any) => _.OfSchema.name("References.OfSchema").refines([_.OfObject]), // its path starts at "." (CAP-320)
+      (_: any) => _.OfValue.name("References.OfValue").properties({
+        value: S.OfAny((a: any) => a), // a value of any schema (CAP-320)
       }),
       // --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
       (_: any) => _.OfSymbol.name("Schemas.OfSymbol").properties({ reference: _.OfObject }),
@@ -156,6 +167,39 @@ function entryOf(store: any, entry: any): Callback {
   return (e: any) => e.relation(relation).links(links).properties(properties);
 }
 
+/** The problems of a schema object's reference (`References.OfSchema`) in `store`, where `kind`, a schema of schemas
+ * (`store.Schemas.OfObject`), constrains the kind of schema it designates, as the schema argument of
+ * `References.OfSchema[Schemas.OfObject]` does; null constrains nothing. A reference's problems: its path is not a
+ * schema object's, from the root module; the store holds no schema object at its path; or the schema object it
+ * designates is not of `kind`, nor of a refinement of it ([CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320)). */
+export function validate_schema(store: any, reference: unknown, kind: unknown = null): string[] {
+  const inner = Proxies._innerOf(Proxies._durable(reference));
+  if (!(inner instanceof Proxies._internals._RecordData && S.is_a(inner._schema, store.registered(Plain.SCHEMA_REFERENCE)))) {
+    throw new TypeError(`References.validate_schema takes a schema object's reference, not ${repr(reference)}`);
+  }
+  let held: unknown;
+  try {
+    held = _schema(store, reference);
+  } catch (error) { // a ValueError: a path that is not a schema object's, refused when written
+    return [(error as Error).message];
+  }
+  if (held === null) return ["a schema object's reference designates no schema object the store holds"];
+  const builder = Builders._builder_for(held) as new (...args: unknown[]) => any;
+  const own = new builder(held, false, store).as_schema();
+  const expected = Proxies._deref(kind) as any;
+  if (expected !== null && !S.is_a(own, expected)) {
+    return [`a schema object's reference designates a ${repr(own.name)}, where a ${repr(expected.name)} is expected`];
+  }
+  return [];
+}
+
+/** The schema object a schema object's reference designates in `store`, or null where the store holds none at its path,
+ * or it has none; `ValueError` where its path is not a schema object's. */
+export function _schema(store: any, reference: any): unknown {
+  const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path");
+  return path === undefined ? null : store.held(path);
+}
+
 /** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the one
  * schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`, marked
  * owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds what a
@@ -163,7 +207,7 @@ function entryOf(store: any, entry: any): Callback {
  * lacks, a link no one schema fills; or a schema object's path, where the store does not hold it. */
 export function _implied(store: any, pathPlain: unknown): any {
   const [singleton, steps] = Plain._steps(pathPlain, []);
-  if (singleton === ".") throw new LookupError("names a schema object the store does not hold");
+  if (singleton === Plain.ROOT) throw new LookupError("names a schema object the store does not hold");
   const schemas = ([...store._schemas] as [string, any][]).filter(([, schema]) => schema instanceof S.OfObject.Data);
   let current = schemas.find(([, schema]) => schema.singleton === singleton)?.[1];
   if (current === undefined) throw new LookupError(`starts from ${repr(singleton)}, which no schema declares a singleton`);

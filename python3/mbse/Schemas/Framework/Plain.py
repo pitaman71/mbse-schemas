@@ -28,6 +28,10 @@ such is written marked with its schema, `{"$schema": "References.OfParameter", "
 wherever it stands: a property, a container's element, a union's branch or an intersection's part
 ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). In the place of an object a link links, a link set refers to it so, beside a symbol or a
 path: `{"reference": {"$schema": "References.OfParameter", "name": n}}`.
+
+A schema object's reference (`References.OfSchema`) is written and read as the `References.OfObject` it refines, and
+its path is a schema object's, from the root module, `"."`: writing one whose path is not refuses it, a `ValueError`,
+and reading one refuses it, a `DecodeError` ([CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320)).
 """
 
 from __future__ import annotations
@@ -49,6 +53,11 @@ PlainData = None | bool | int | float | str | list["PlainData"] | dict[str, "Pla
 
 SCHEMA = "$schema"
 REFERENCE = "References.OfObject"
+SCHEMA_REFERENCE = "References.OfSchema"
+ROOT = "."
+"""The singleton a schema object's path starts from, the root module: the path that a schema object's reference, a
+`References.OfSchema`, holds starts from it, and its writing and reading refuse any other ([CAP-320: schema and value
+references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320))."""
 ID = "$id"
 PAYLOAD = "Mutations.Payload"
 
@@ -343,6 +352,11 @@ def _object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref) -> 
         name = prop.as_schema().name
         with _within(_member_at(getattr(ref, "store", None), schema, name, out)):
             out[name] = _value(prop, prop.as_schema().schema, ref)[1]
+    if schema.name == SCHEMA_REFERENCE and "path" in out:  # a schema object's reference: its path from the root (CAP-320)
+        try:
+            _schema_steps(out["path"], ())
+        except DecodeError as error:
+            raise ValueError(f"a schema object's reference ({SCHEMA_REFERENCE}): {error.reason}") from None
     return out
 
 
@@ -567,6 +581,8 @@ def _decode(schema: Schemas.OfAny.Data, plain: PlainData, where: tuple, store: A
             values[key] = _decode(schema.properties[key].schema, item, (*where, key), store)
     if isinstance(schema, Schemas.OfUnion.Data) and len(values) != 1:
         raise DecodeError(f"a union value holds exactly one branch, got {len(values)}", path=path(*where))
+    if schema.name == SCHEMA_REFERENCE and "path" in plain:  # a schema object's reference: its path from the root (CAP-320)
+        _schema_steps(plain["path"], (*where, "path"))
     return _Record(schema, values)
 
 
@@ -781,7 +797,7 @@ def _schema_steps(path_plain: PlainData, where: tuple) -> list[tuple[str, str]]:
     """A schema object's path as plain data: each step's adjacency and the name its entry gives (object
     identity 81 in [CAP-123: schema objects identified by path](mbse:mbse-basis/docs/capabilities/CAP-123.md#decided)). `DecodeError` where it is not one."""
     singleton, steps = _steps(path_plain, where)
-    if singleton != "." or any(o != "" or set(keys) != {"name"} or not isinstance(keys["name"], str)
+    if singleton != ROOT or any(o != "" or set(keys) != {"name"} or not isinstance(keys["name"], str)
                                for _, o, keys in steps):
         raise DecodeError("a schema object's path starts from the root module, '.', and each step names an entry, "
                           "{'i': adjacency, 'o': '', 'properties': {'name': name}}", path=path(*where))
@@ -793,7 +809,7 @@ def _by_path(store: Any, path_plain: PlainData, where: tuple) -> Any:
     singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
     adjacency is `o`: one the store holds, a cache layer's among them, which loads nothing."""
     singleton, steps = _steps(path_plain, where)
-    if singleton == ".":
+    if singleton == ROOT:
         return store._at(_schema_steps(path_plain, where))
     if not steps:
         return store._singletons.get(singleton)
@@ -895,7 +911,7 @@ def _schema_path(steps: list[tuple[str, str]]) -> PlainData:
     nested: PlainData = {"target": {}}
     for i, name in reversed(steps):
         nested = {"entry": {"i": i, "o": "", "properties": {"name": name}, "next": nested}}
-    return {"singleton": ".", "next": nested}
+    return {"singleton": ROOT, "next": nested}
 
 
 # --- Documents, snapshots and transactions on the wire ([CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md), [CAP-127: snapshots made of transactions](mbse:mbse-basis/docs/capabilities/CAP-127.md), [CAP-129: journals replayed by execution](mbse:mbse-basis/docs/capabilities/CAP-129.md)) ---

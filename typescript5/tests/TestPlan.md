@@ -59,7 +59,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `15_Skill.ipynb` | SKL | 3 | as in Python, SKL-02 retired |
 | `20_Stores.ipynb` | STO | 8 | as in Python; the store protocol's arities are checked from `STORE_PROTOCOLS` (interfaces vanish at runtime), and STO-05 builds its unplaced value object through `Proxies._internals` |
 | `21_Random.ipynb` | RND | 3 | as in Python; PCG32 computes on `bigint`s, and the UTF-8 bytes of keys are encoded without `TextEncoder` |
-| `22_Parametrics.ipynb` | PAR | 12 | as in Python; a parameter context is a `ReadonlyMap<string, unknown>` |
+| `22_Parametrics.ipynb` | PAR | 12 | as in Python |
 | `23_Containers.ipynb` | CNT | 7 | as in Python; an index of several ints is an array, `[1n, 2n]`, not a tuple; a container's size is `length`, not `len()`; the writer's option is `ToPlain(store, { flat: true })` |
 | `24_Any.ipynb` | ANY | 8 | as in Python; `OfAny.Value` is constructed with an array of schemas, `new S.OfAny.Value([Int], { description })` |
 | `25_Builders.ipynb` | BLD | 13 | as in Python; builders, their members and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; a name starting with `_` reads as `undefined` on a visitor, and throws `AttributeError` on the store and its paths, whose protocol probes read as `undefined`; a path's `as_schema()` gives the schema it names; a map is given as a `Map` or a record; a schema object in a message is `<ScalarData object>`; a few assertions cover TypeScript's branches (a clause of one name beside a clause of several, removing by a template of container properties, a meta-schema missing, a link given a link, a term of a dialect, a refinement's own index, an argument for an undeclared parameter, an unnamed relation of three links, a visitor's default `repr`) |
@@ -70,14 +70,15 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `30_Patterns.ipynb` | PAT | 4 | as in Python; schema data compares by `.equals()` |
 | `31_Transactions.ipynb` | TXN | 23 | as in Python; a mapping is a `Map` or a record, ints `bigint`s; a frame a `Transactions.Frame`, a `Map`, its error raised carrying it in `frames`; TXN-03 checks that the store holds a term's pattern, but not that it goes with its transaction, since a test cannot force a collection (the store holds such objects in a `WeakSet`); TXN-15 cannot force a collection either, nor reuse an object's memory: it checks that every schema object the transaction made is changed at once, which this store has always done, numbering what it holds |
 | `32_Installs.ipynb` | INS | 6 | as in Python; the transaction an install is given is a `Proxy`, and JavaScript's protocol probes (`then`) read as `undefined` |
-| `33_References.ipynb` | REF | 17 | as in Python; a frame is a `Map`, and a map's frames are `Map`s |
+| `33_References.ipynb` | REF | 20 | as in Python; a frame is a `Map`, and a map's frames are `Map`s |
 | `34_Provenance.ipynb` | PRV | 11 | as in Python; a frame is a `Map`, and an unset property reads as `null` or `undefined` where Python reads None |
-| `35_Changes.ipynb` | CHG | 14 | as in Python; a journal's plain form is read by `JSON.loads`, as a `Map`, its ints `bigint`s |
-| `36_Below.ipynb` | BLW | 13 | as in Python; a store given a layer below is `new B.Store(below)`, and the store given none has `_below` `null`; the cache layer's transaction is the imperative scope's, `store.transaction((txn: any = null) => { ... })`, and its writes, owner settlement and unique checks run within the layer below's scope, which commits as they end, before the cache layer's proposals do; a test double of a layer below (BLW-06) overrides the scope (`_scope`); BLW-13 watches the layer below's commit through `_settled`, set on the store, its `exec` an observable of the framework's own; a completion marker is a `Map`; a term's `then` is written within the term's callback, as EXE writes it |
+| `35_Changes.ipynb` | CHG | 16 | as in Python; a journal's plain form is read by `JSON.loads`, as a `Map`, its ints `bigint`s |
+| `36_Below.ipynb` | BLW | 14 | as in Python; a store given a layer below is `new B.Store(below)`, and the store given none has `_below` `null`; the cache layer's transaction is the imperative scope's, `store.transaction((txn: any = null) => { ... })`, and its writes, owner settlement and unique checks run within the layer below's scope, which commits as they end, before the cache layer's proposals do; a test double of a layer below (BLW-06) overrides the scope (`_scope`); BLW-13 watches the layer below's commit through `_settled`, set on the store, its `exec` an observable of the framework's own; a completion marker is a `Map`; a term's `then` is written within the term's callback, as EXE writes it |
 | `37_Lifetimes.ipynb` | LIF | 6 | as in Python; the imperative transaction is `store.transaction(() => { ... })`, a frame's `assigns` a `Map` of `Map`s, a transaction's visitor a second shell over the durable object's state (docs/EQUIVALENCE.md) |
 | `38_Exec.ipynb` | EXE | 8 | as in Python; the imperative scope's function is given the transaction open, and names it with a default, so that it declares no parameter: `store.transaction((txn: any = null) => { ... })`; the stream is an observable of the framework's own (`Transactions.Observable`: `subscribe` with an observer, or `next`, `error` and `complete`, giving back a `Subscription`, given first to the observer's `start`; `"@@observable"`, for RxJS and the ECMAScript Observable proposal), produced synchronously as it is subscribed to; unsubscribed from within `next`, it is given nothing more, what it wrote kept by the transaction; an error of no one frame is its `error`, given to none where the observer has none; the completion marker a `Map`, `{"end": scope}`; an input stream an iterable, a generator's |
+| `39_Contexts.ipynb` | CTX | 4 | as in Python |
 
-Total: 347 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 357 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences
@@ -110,6 +111,7 @@ Each of these was agreed before the port. Tests assert the TypeScript behavior a
 | Schema builders (`Builders`) and building in a store | descriptors and `__getattr__`; a name starting with `_` raises `AttributeError` | `Proxy` objects, members typed loosely; a name starting with `_` reads as `undefined` on a visitor, throws `AttributeError` on the store and its paths | BLD-01..13 |
 | A store's plain schemas of schemas, by name | registered in the store, reached by its paths (`store.Schemas.OfObject`) | the same, a path a `Proxy` | BLD-01 |
 | A map given whole | a `Mapping` | a `Map` or a record | BLD-06, BLD-13 |
+| A context's entries by name (`Contexts.entries`) | a `dict` | a `Map` | CTX-02 |
 | A schema object in a message | its dataclass `repr()` | `<ScalarData object>` | BLD-04, BLD-08 |
 | A visitor's default `repr()` | `<...Proxies._Them object at 0x...>` | `<_Them object>` | BLD-13 |
 | Incomparable | `None` | `null` | CMP-01..13 |

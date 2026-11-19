@@ -1,7 +1,8 @@
-"""Changes: a transaction's effect, observed at its commit, written as a journal
+"""Changes: what a transaction changed, gathered at its commit as schema data, a journal
 ([CAP-270: a transaction's changes observed at its commit](mbse:mbse-basis/docs/capabilities/README.md#CAP-270),
 [CAP-269: transactions resolved into their effects](mbse:mbse-basis/docs/capabilities/README.md#CAP-269),
 [CAP-271: the journal language](mbse:mbse-basis/docs/capabilities/README.md#CAP-271),
+[CAP-321: changes gathered as schema data](mbse:mbse-basis/docs/capabilities/CAP-321.md),
 [the journals proposal](mbse:mbse-basis/proposals/JOURNALS.md#the-changes-schemas-proposed)).
 
 The journal language's value schemas, which every store holds, its own, as it holds `References` (`install`):
@@ -12,54 +13,61 @@ The journal language's value schemas, which every store holds, its own, as it ho
 - `Changes.Transaction`, one transaction: its `id`, unique, the uid `Provenance` records it by; its `symbols`, each by
   its name (`Changes.Symbol`), the transaction's own; then its `changes`, in order, each a `Changes.Change`.
 - `Changes.Symbol`, an object that exists (A): an object held before, by its `reference` (`References.OfObject`), or a
-  new object, by its `schema`'s reference alone, an object reference from the singleton `"."`; an object held before
-  is given its `schema` too where its path does not imply it, as where objects of several schemas are owned through
-  one relation, so that a reader never guesses it.
-- `Changes.Change`, a change: a relation entry's (`entry`, `Changes.OfEntry`) or a property's (`property`,
-  `Changes.OfProperty`).
-- `Changes.OfEntry`, a relation entry inserted or removed (B): written on its `holder`'s adjacency named `adjacency`,
-  its `verb`, `insert` or `remove`, its other `links`, each by its name, and its `properties`' values. A link is set as
-  a spec sets one (`Mutations.OfLink.Set`): to a symbol, `{"reference": {"symbol": "o0"}}`, or, a counted object, to
-  its value, inline, `{"def": {"schema": ..., "mutations": [...]}}`, never bound to a symbol: an immutable object,
-  found by its value, or made; the holder too, where only the counted object has an adjacency to the entry by name.
-- `Changes.OfProperty`, a property mutated (C): its `holder`'s symbol, the property's `name`, and its `mutations`,
-  mbse-schemas' verbs (`Mutations.OfProperty`): `set` and `clear`, and, nested, the verbs of the value's kind.
+  new object, by its `schema` (`References.OfSchema`) alone. An object held before is given its `schema` too where its
+  path does not imply it, as where objects of several schemas are owned through one relation, so that a reader never
+  guesses it.
+- `Changes.Change`, a change: the union of the kinds of change, a relation entry's (`entry`, `Changes.OfEntry`) and a
+  property's (`property`, `Changes.OfProperty`).
+- `Changes.OfEntry`, a relation entry inserted or removed (B): the union of its actions, `Changes.OfEntry.Insert` and
+  `Changes.OfEntry.Remove`. Each action is written on its `holder`'s adjacency named `adjacency`, and names its other
+  `links`, each by its name, and its `properties`' values.
+- `Changes.OfLink`, an object that an entry change names, as `References` names one: a `symbol` of the transaction; an
+  object held, by its `reference` (`References.OfObject`); a counted object, which has no reference, by its value
+  (`counted`, a `Changes.Counted`: its `schema`, a `References.OfSchema`, and its `properties`' values), found by that
+  value or made; or a `parameter` reference in the object's place (`References.OfParameter`).
+- `Changes.OfProperty`, a property changed (C): the union of its actions, `Changes.OfProperty.Set`, which gives its
+  `holder`'s symbol, the property's `name` and its whole `value`, and `Changes.OfProperty.Clear`, which gives its
+  `holder` and `name`. A change within a property's value is
+  [CAP-272: surgical mutations of a property's value](mbse:mbse-basis/docs/capabilities/README.md#CAP-272)'s.
 
-A value, a property's in a change or an entry's, is a payload (`Mutations.Payload`), written by the schema of the
-property it is the value of, as a recorded spec writes it, marked with its schema only where that schema cannot tell
-it ([PRI-025: never guess the schema](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-025)): the plain form reads a transaction's
-symbols first, and each payload by the schema its holder's schema gives the property (`_within`), so that it is read
-where the store holds the schemas the journal's objects are of.
+Every `Changes` schema is a value object. A value, a property's in a change, an entry's or a counted object's, is a
+payload (`Mutations.Payload`), written by the schema of the property it is the value of, and marked with its schema
+only where that schema cannot tell it ([PRI-025: never guess the schema](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-025)):
+the plain form reads a transaction's symbols first, and each payload by the schema that its holder's schema gives the
+property (`_within`), so that a journal is read where the store holds the schemas that its objects are of.
 
 `observe(store, observer)` calls `observer(journal)` after each transaction of `store` that commits having changed
-something, a `Changes.Journal` of that one transaction, a value that outlives it; and returns a function that ends the
-observing; a transaction that raises, its writes dropped, is observed by none. What it changed is net of what it undid
-within itself: its symbols, each object the transaction touched that was held before it, by its reference as it was,
-and each owned object it created, by its schema, after its owner's, so that applying finds it by its ownership entry;
-then its changes, the relation entries it removed, then those it inserted, each written on the adjacency of one object
-it links, then the properties it changed, each set to its value or cleared. An object the transaction deleted is never
-named: the entry that owned it is removed by its owner's key for it, written on its owner's adjacency, and what its
-deletion removed in cascade, every entry linking it and what it owned, is left to follow from that, as it does in
+something, a `Changes.Journal` of that one transaction, a value that outlives it, and returns a function that ends the
+observing; a transaction that raises, its writes dropped, is observed by none. What a transaction changed is net of what
+it undid within itself: its symbols, each object the transaction touched that was held before it, by its reference as
+it was, and each owned object it created, by its schema, after its owner's, so that applying finds it by its ownership
+entry; then its changes, the relation entries it removed, then those it inserted, each written on the adjacency of one
+object it links, then the properties it changed, each set to its value or cleared. An object the transaction deleted is
+never named: the entry that owned it is removed by its owner's key for it, written on its owner's adjacency, and what
+its deletion removed in cascade, every entry linking it and what it owned, is left to follow from that, as it does in
 every store that applies the journal. `store.follow(follower)` gives the same journal as plain data.
 
 `apply(txn, journal)` writes, within the transaction `txn` builds, each transaction of a journal, in order: applied to
 the store as it was before them, it makes the same changes, and applied again, it changes nothing. A transaction's
-changes are applied as one upsert, of its symbols, each counted object inline bound to a symbol of its own, one per
-value, whose spec writes its changes where they do not hold.
+changes are applied as one upsert, which `_upsert` builds through the builders from the `Changes.Transaction`, read
+through the visitors: of its symbols, of each object that an entry change names by its reference, and of each counted
+object that it names inline, one symbol for each value, whose spec writes its changes where they do not hold.
 
 The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records it and
 its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an object
-is before is read from what the store holds as committed. They are written outside the transaction's proposals, since
-writing them builds, once the transaction has committed, for its observers. A savepoint's changes are gathered alike,
-relative to the transaction it is within: what interpreting an input frame changed, which the frame given carries as a
-journal (`Transactions.Frame.journal`). An expression's terms, and the entries linking schema objects, are no data,
-and are left out.
+was before is read from what the store holds as committed. `_gather` builds them as a `Changes.Transaction`, through
+its builders, a value that outlives the transaction. A savepoint's changes are gathered alike, relative to the
+transaction it is within: what interpreting an input frame changed, which the frame given carries as a journal
+(`Transactions.Frame.journal`). An expression's terms, and the entries linking schema objects, are no data, and are left
+out.
 
-A cache layer, a store given a layer below, applies to what it holds the journals the frames the layer below gives back
-carry, and those the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the objects
-present in it alone (`_present_only`), making those made under one present, and leaving out an entry that links one not
-present. What it writes itself, by builders, it sends below as the effect of the savepoint that wrote it, a mutation
-transaction (`_effect`), executed in the layer below's transaction.
+A cache layer, a store given a layer below, applies to what it holds the journals that the frames the layer below gives
+back carry, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
+objects present in it alone. `_present_only` reads the layer below's `Changes.Transaction` through the visitors, and
+builds the one that changes those objects alone, making an object created under one present, and leaving out an entry
+that names one not present. What the cache layer writes itself, by builders, it sends below as the
+`Changes.Transaction` of the savepoint that wrote it, which the layer below's transaction executes as the mutation
+transaction that makes those changes (`_expression`).
 """
 
 from __future__ import annotations
@@ -68,10 +76,10 @@ import contextlib
 import itertools
 import json
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field
 from typing import Any
 
-from . import JSON, Plain, Proxies, References
+from . import Paths, Plain, Proxies, References
+from . import Schemas as S
 from .Builders import _transaction_of
 from .Plain import PlainData
 
@@ -83,10 +91,21 @@ def install(txn: Any) -> Any:
     A store is made by it, after `References.install` and `Mutations.install`, read by the bootstrap (`Builders`); run
     again in a store, it finds each by its name and writes nothing."""
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
-    Mu = txn.Mutations
+    R = txn.References
+
+    def entry(_: Any) -> dict[str, Any]:
+        """An entry change's members, an insert's and a remove's alike."""
+        return {
+            "holder": _.OfLink,  # the object whose adjacency writes it
+            "adjacency": S.OfStr,  # the holder's, by name
+            "links": S.OfContainer(lambda c: c.index([S.OfStr]).element([_.OfLink])),  # its other links, by name
+            "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([txn.Mutations.Payload])),
+        }
+
     return txn.uid("mbse.Schemas.Changes/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({"Journal": S.OfContainer, "Transaction": S.OfObject, "Symbol": S.OfObject, "Change": S.OfUnion,
-                  "OfEntry": S.OfObject, "OfProperty": S.OfObject})
+                  "OfEntry": S.OfUnion, "Insert": S.OfObject, "Remove": S.OfObject, "OfProperty": S.OfUnion,
+                  "Set": S.OfObject, "Clear": S.OfObject, "OfLink": S.OfUnion, "Counted": S.OfObject})
         .spec([
             lambda _: _.Journal.name("Changes.Journal").index([S.OfInt]).element([_.Transaction]),  # in order
             lambda _: _.Transaction.name("Changes.Transaction").properties({
@@ -95,24 +114,41 @@ def install(txn: Any) -> Any:
                 "changes": S.OfContainer(lambda c: c.index([S.OfInt]).element([_.Change])),  # in order
             }),
             lambda _: _.Symbol.name("Changes.Symbol").properties({  # A: an object exists
-                "reference": txn.References.OfObject,  # held before
-                "schema": txn.References.OfObject,  # alone, a new one's; else where its path does not imply it
+                "reference": R.OfObject,  # held before
+                "schema": R.OfSchema,  # alone, a new one's; else where its path does not imply it
             }),
             lambda _: _.Change.name("Changes.Change").branches([
                 lambda t: t.name("entry").schema([_.OfEntry]),
                 lambda t: t.name("property").schema([_.OfProperty]),
             ]),
-            lambda _: _.OfEntry.name("Changes.OfEntry").properties({  # B: a relation entry inserted or removed
-                "holder": getattr(Mu, "OfLink.Set"),  # a symbol, or a counted object inline
-                "adjacency": S.OfStr,  # the holder's, by name
-                "verb": S.OfStr,  # insert or remove
-                "links": S.OfContainer(lambda c: c.index([S.OfStr]).element([getattr(Mu, "OfLink.Set")])),
-                "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([Mu.Payload])),
-            }),
-            lambda _: _.OfProperty.name("Changes.OfProperty").properties({  # C: a property mutated
+            lambda _: _.OfEntry.name("Changes.OfEntry").branches([  # B: a relation entry inserted or removed
+                lambda t: t.name("insert").schema([_.Insert]),
+                lambda t: t.name("remove").schema([_.Remove]),
+            ]),
+            lambda _: _.Insert.name("Changes.OfEntry.Insert").properties(entry(_)),
+            lambda _: _.Remove.name("Changes.OfEntry.Remove").properties(entry(_)),
+            lambda _: _.OfProperty.name("Changes.OfProperty").branches([  # C: a property set or cleared
+                lambda t: t.name("set").schema([_.Set]),
+                lambda t: t.name("clear").schema([_.Clear]),
+            ]),
+            lambda _: _.Set.name("Changes.OfProperty.Set").properties({
                 "holder": S.OfStr,  # a symbol
                 "name": S.OfStr,
-                "mutations": S.OfContainer(lambda c: c.index([S.OfInt]).element([Mu.OfProperty])),
+                "value": txn.Mutations.Payload,  # its whole value
+            }),
+            lambda _: _.Clear.name("Changes.OfProperty.Clear").properties({
+                "holder": S.OfStr,  # a symbol
+                "name": S.OfStr,
+            }),
+            lambda _: _.OfLink.name("Changes.OfLink").branches([  # an object an entry change names
+                lambda t: t.name("symbol").schema([S.OfStr]),  # a symbol of the transaction
+                lambda t: t.name("reference").schema([R.OfObject]),  # an object held, by its reference
+                lambda t: t.name("counted").schema([_.Counted]),  # a counted object, by its value
+                lambda t: t.name("parameter").schema([R.OfParameter]),  # a parameter reference in its place (CAP-312)
+            ]),
+            lambda _: _.Counted.name("Changes.Counted").properties({  # no reference: found by its value, or made
+                "schema": R.OfSchema,
+                "properties": S.OfContainer(lambda c: c.index([S.OfStr]).element([txn.Mutations.Payload])),
             }),
         ])]))])
 
@@ -133,27 +169,185 @@ def apply(txn: Any, journal: Any) -> Any:
     """Writes each transaction of `journal`, a `Changes.Journal`, in order, within the transaction `txn` builds: each
     one upsert, its symbols its own, chained, so that what one makes the next finds; gives `txn`, as an install does:
     `store.transaction(lambda txn: Changes.apply(txn, journal))`."""
-    store, builder = _transaction_of(txn)
-    plain = Plain.ToPlain(store)(store.registered("Changes.Journal"), journal)
-    term: PlainData = None
-    for i, transaction in reversed(list(enumerate(plain))):
-        ((upsert,),) = [_effect_of(store, transaction, f"t{i}_")["mutations"]]
-        if term is not None:
-            upsert["upsert"]["then"] = [term]
-        term = upsert
-    Plain._built(store, builder, store.registered("Mutations.OfTransaction"),
-                 {} if term is None else {"mutations": [term]}, ())
-    return txn
+    store, _ = _transaction_of(txn)
+    term = None
+    for i, transaction in reversed(list(enumerate(_transactions(journal)))):
+        term = _upsert(store, transaction, f"t{i}_", term)
+    return txn if term is None else txn.mutations([term])
 
 
-@dataclass
-class _Gathered:
-    """What a transaction changed, gathered before it commits, to be written as its effect once it has: the symbols, by
-    name, each a reference or a schema; each entry removed or inserted, as the symbol whose adjacency writes it, that
-    adjacency, the verb, its other links' symbols and its properties; each property changed, by symbol, as plain."""
-    symbols: dict[str, Any] = field(default_factory=dict)
-    entries: list[tuple[str, str, str, dict[str, str], dict[str, Any]]] = field(default_factory=list)
-    assigned: list[tuple[str, str, Any, Any]] = field(default_factory=list)
+# --- Reading a `Changes` value through the visitors ---
+
+
+def _transactions(journal: Any) -> list[Any]:
+    """A journal's transactions, in order, each as its visitor."""
+    found: list[Any] = []
+    journal.as_entries(found.extend)
+    return [_object(element) for _, element in found]
+
+
+def _visited(member: Any) -> Any:
+    """The visitor of the value a member holds (`Visitors.OfAny`), or an element, as it is one."""
+    if not isinstance(member, Proxies._Property):
+        return member
+    found: list[Any] = []
+    member.as_value(lambda a: found.append(a) or a)
+    return found[0]
+
+
+def _items(member: Any) -> list[tuple[Any, Any]]:
+    """The elements of the container a member holds, each with its index, in order; none where it holds none."""
+    found: list[tuple[Any, Any]] = []
+
+    def entries(c: Any) -> Any:
+        c.as_entries(found.extend)
+        return c
+
+    _visited(member).as_container(entries)
+    return found
+
+
+def _object(member: Any) -> Any:
+    """The value object a member or an element holds, as its visitor; None where it holds none."""
+    found: list[Any] = []
+    _visited(member).as_object(lambda o: found.append(o) or o)
+    return found[0] if Plain._present(found[0]) else None
+
+
+def _union(member: Any) -> Any:
+    """The union value a member or an element holds, as its visitor."""
+    found: list[Any] = []
+    _visited(member).as_union(lambda u: found.append(u) or u)
+    return found[0]
+
+
+def _branch(union: Any) -> tuple[str, Any]:
+    """The branch a union value holds, by name, and what it holds: a scalar, or a value object's visitor."""
+    schema = union.as_schema()
+    for branch in [] if schema is None else schema.branches:
+        held = getattr(union, branch.name)
+        scalar = isinstance(Proxies._deref(branch.schema), S.OfScalar.Data)
+        value = held.get() if scalar else held
+        if (value is not None) if scalar else Plain._present(value):
+            return branch.name, value
+    raise ValueError("a union of the journal language holds one of its branches, and one here holds none")
+
+
+def _payload(member: Any) -> Any:
+    """The value a payload holds, a member's or an element's: a scalar, a parameter reference in its place, or the
+    visitor of a value object, a union's, an intersection's or a container's value."""
+    found: list[Any] = []
+
+    def read(a: Any) -> Any:
+        a.as_parameter(lambda p: found.extend([p] if Plain._present(p) else []) or p)
+        a.as_scalar(lambda s: found.extend([] if s.get() is None else [s.get()]) or s)
+        for select in ("as_object", "as_union", "as_intersection", "as_container"):
+            getattr(a, select)(lambda v: found.extend([v] if Plain._present(v) else []) or v)
+        return a
+
+    read(_visited(member))
+    return found[0]
+
+
+def _path(store: Any, reference: Any) -> PlainData:
+    """The path of an object's reference, or a schema object's, as plain data, as `Plain` writes it."""
+    return Plain.ToPlain(store)(reference.as_schema(), reference)["path"]
+
+
+def _schema_of(store: Any, reference: Any) -> Any:
+    """The schema a schema object's reference (`References.OfSchema`) designates in `store`."""
+    return Plain._by_path(store, _path(store, reference), ())
+
+
+# --- Applying: a `Changes.Transaction` as the mutation transaction that makes its changes ---
+
+
+def _upsert(store: Any, transaction: Any, prefix: str, then: Any) -> Callable[[Any], Any]:
+    """A `Changes.Transaction` as the upsert that makes its changes, a term's Spec, built through the builders: under
+    its id, of its symbols, each named with `prefix` before its name, of an object held named by its reference, and of
+    each counted object written inline, one symbol for each value, bound to its schema, whose values the spec writes
+    after its changes, so that it is found by its value, or made; `then`, where given, the term after it."""
+    uid = transaction.id.get()
+    symbols: dict[str, Any] = {}
+    for name, element in _items(transaction.symbols):
+        symbol = _object(element)
+        reference = _object(symbol.reference)
+        symbols[prefix + name] = reference if reference is not None else _schema_of(store, _object(symbol.schema))
+    inline: dict[str, str] = {}  # each symbol bound to an object named inline, by what names it
+    values: list[Callable[[Any], Any]] = []
+
+    def bound(key: str, kind: str, to: Any) -> str:
+        """The symbol an object named inline is bound to, one for each reference or value, declared where first
+        named."""
+        if key not in inline:
+            inline[key] = next(name for n in itertools.count(len(inline))
+                               if (name := f"{prefix}{kind}{n}") not in symbols)
+            symbols[inline[key]] = to
+        return inline[key]
+
+    def named(link: Any, holder: bool = False) -> Callable[[Any], Any]:
+        """What an entry change's link names, as a spec links it: a symbol's object, or a parameter reference, which
+        names no object whose adjacency writes the entry, as its holder must."""
+        kind, held = _branch(_union(link))
+        if kind == "parameter" and holder:
+            raise ValueError("an entry change is written on an object's adjacency: its holder names an object")
+        if kind == "parameter":
+            return lambda _: held
+        if kind == "symbol":
+            name = prefix + held
+        elif kind == "reference":
+            name = bound(json.dumps(["r", _path(store, held)], sort_keys=True), "r", held)
+        else:
+            schema = _schema_of(store, _object(held.schema))
+            given = {n: _payload(v) for n, v in _items(held.properties)}
+            key = json.dumps(["c", store.name_of(schema), {n: Plain.ToPlain(store)(schema.properties[n].schema, v)
+                                                           for n, v in given.items()}], sort_keys=True)
+            fresh = key not in inline
+            name = bound(key, "c", schema)
+            if fresh:
+                values.extend(lambda _, n=n, v=v: getattr(getattr(_, name), n)(v) for n, v in given.items())
+        return lambda _: getattr(_, name)
+
+    spec: list[Callable[[Any], Any]] = []
+    for _, element in _items(transaction.changes):
+        kind, change = _branch(_union(element))
+        verb, body = _branch(change)
+        if kind == "property":
+            value = _payload(body.value) if verb == "set" else None
+            spec.append(lambda _, s=prefix + body.holder.get(), n=body.name.get(), v=value: getattr(getattr(_, s), n)(v))
+            continue
+        holder = named(body.holder, True)
+        links = {n: named(link) for n, link in _items(body.links)}
+        properties = {n: _payload(v) for n, v in _items(body.properties)}
+
+        def fill(e: Any, _: Any, links: dict[str, Any] = links, properties: dict[str, Any] = properties) -> Any:
+            for n, link in links.items():
+                e = getattr(e, n)(link(_))
+            for n, v in properties.items():
+                e = getattr(e, n)(v)
+            return e
+
+        spec.append(lambda _, h=holder, a=body.adjacency.get(), v=verb, f=fill: getattr(h(_), a)(
+            lambda adv: getattr(adv, v)(lambda e: f(e, _))))
+
+    def upsert(u: Any) -> Any:
+        u = (u if uid is None else u.key(uid)).exists([lambda p: p.symbols(symbols).spec(spec + values)])
+        return u if then is None else u.then([then])
+
+    return lambda mu: mu.upsert(upsert)
+
+
+def _expression(store: Any, transaction: Any) -> Any:
+    """A `Changes.Transaction` of `store`'s as the mutation transaction that makes its changes, one upsert under its id,
+    built through the builders outside the transaction open's proposals, as any expression is."""
+    uid = transaction.id.get()
+    with _as_committed(store):
+        return store.Mutations.OfTransaction(lambda t: (t if uid is None else t.uid(uid)).mutations([
+            _upsert(store, transaction, "", None)]))
+
+
+
+# --- Gathering: what a transaction changed, as a `Changes.Transaction`, built through the builders ---
 
 
 @contextlib.contextmanager
@@ -181,12 +375,16 @@ def _schema(x: Any) -> Any:
     return object.__getattribute__(x, "_schema")
 
 
-def _value(store: Any, holder: Any, name: str) -> Any:
-    """A property's value, plain, as its schema writes it; None where the object holds none."""
+def _value(store: Any, holder: Any, name: str) -> tuple[PlainData, Any]:
+    """A property's value, as plain, as its schema writes it, to compare, and as the value itself; each None where the
+    object holds none."""
     value = store.member(holder, name)
-    if value is not None and Proxies._is_parameter(Proxies._durable(value)):  # a parameter in its place (CAP-312)
-        return Plain._marked(store, value)
-    return None if value is None else Plain.ToPlain(store)(_schema(holder).properties[name].schema, value)
+    if value is None:
+        return None, None
+    value = Proxies._durable(value)
+    if Proxies._is_parameter(value):  # a parameter in its place (CAP-312)
+        return Plain._marked(store, value), value
+    return Plain.ToPlain(store)(_schema(holder).properties[name].schema, value), value
 
 
 def _data(store: Any, entry: Any) -> bool:
@@ -197,8 +395,15 @@ def _data(store: Any, entry: Any) -> bool:
                for x in entry._links.values())
 
 
-def _gather(store: Any, proposals: Any) -> _Gathered | None:
-    """What the transaction whose proposals these are changed, gathered just before it commits; None where nothing."""
+def _at(schema: Any) -> Callable[[Any], Any]:
+    """A schema object's reference (`References.OfSchema`) to `schema`, as a Spec."""
+    return lambda r: r.path(Paths.of(schema))
+
+
+def _gather(store: Any, proposals: Any, uid: str) -> Any:
+    """What the transaction whose proposals these are changed, gathered just before it commits, as a
+    `Changes.Transaction` of id `uid`, built through the builders, a value that outlives the transaction; None where
+    it changed nothing."""
     base = proposals.base
     removed: dict[Any, Any] = {}
     inserted: dict[Any, Any] = {}
@@ -221,56 +426,90 @@ def _gather(store: Any, proposals: Any) -> _Gathered | None:
         names = list(dict.fromkeys([*base.values(holder), *values]))
         after = {name: _value(store, holder, name) for name in names}
         with _before(store, proposals):
-            before = {name: None if id(holder) in made else _value(store, holder, name) for name in names}
-        changed += [(holder, name, after[name]) for name in names if before[name] != after[name]]
+            before = {name: None if id(holder) in made else _value(store, holder, name)[0] for name in names}
+        changed += [(holder, name, after[name][1]) for name in names if before[name] != after[name][0]]
     if not (removed or inserted or changed):
         return None
-    gathered = _Gathered()
+    symbols: dict[str, Callable[[Any], Any]] = {}  # each a `Changes.Symbol`'s Spec, in the order first named
     named: dict[Any, str] = {}  # by the object
 
     def symbol(x: Any) -> str:
-        """The symbol of an object the effect names, declared where first needed: a created owned object's after its
-        owner's."""
+        """The symbol of an object the transaction changed, declared where first needed: a created owned object's after
+        its owner's."""
         found = named.get(Proxies._link_key(x))
         if found is not None:
             return found
-        counted = Proxies._counted(x)
-        if counted or id(x) in made:
-            for entry in [] if counted else Proxies._owner_entries(x):
+        if id(x) in made:
+            for entry in Proxies._owner_entries(x):
                 for owner in entry._links.values():
                     if owner is not x:
                         symbol(owner)
-            bound = _schema(x)
+            spec = lambda s, schema=_schema(x): s.schema(_at(schema))
         else:
             with _before(store, proposals):
-                bound = References.of(store, x)
+                spec = _held_symbol(store, x, References.of(store, x))
         name = named[Proxies._link_key(x)] = f"o{len(named)}"
-        gathered.symbols[name] = bound
-        if counted:  # found by its value, which it never changes
-            gathered.assigned += [(name, n, v, p.schema) for n, p in _schema(x).properties.items()
-                                  if (v := _value(store, x, n)) is not None]
+        symbols[name] = spec
         return name
 
+    def link(x: Any) -> Callable[[Any], Any]:
+        """What an entry change names an object by, a `Changes.OfLink`'s Spec: a parameter reference, as itself
+        (CAP-312); a counted object, by its value, which it never changes; else its symbol."""
+        if Proxies._is_parameter(x):
+            return lambda link_: link_.parameter(x)
+        if Proxies._counted(x):
+            values = {n: v for n in _schema(x).properties if (v := _value(store, x, n)[1]) is not None}
+            return lambda link_, schema=_schema(x): link_.counted(lambda c: c.schema(_at(schema)).properties(values))
+        name = symbol(x)
+        return lambda link_: link_.symbol(name)
+
+    changes: list[Callable[[Any], Any]] = []
+
+    def entry_change(verb: str, holder: Callable[[Any], Any], adjacency: str, links: dict[str, Any],
+                     properties: dict[str, Any]) -> None:
+        def body(b: Any) -> Any:
+            b = b.holder(holder).adjacency(adjacency)
+            b = b.links(links) if links else b
+            return b.properties(properties) if properties else b
+
+        changes.append(lambda c: c.entry(lambda e: getattr(e, verb)(body)))
+
     for entry in removed.values():  # a deleted object's: its owning entry, by its key; the rest follows from that
-        lost = [link for link, x in entry._links.items() if id(x) in deleted]
+        lost = [link_ for link_, x in entry._links.items() if id(x) in deleted]
         if not lost:
             continue
         owned = _owning(entry, lost, store)
         if owned is not None:
             owner, me = owned
             keys = {k: entry._properties[k] for k in Proxies._key_names(entry._relation, me, lost[0])}
-            gathered.entries.append((symbol(entry._links[me]), owner, "remove", {}, keys))
+            entry_change("remove", link(entry._links[me]), owner, {}, keys)
     for verb, entries in (("remove", [e for e in removed.values() if not any(id(x) in deleted
                                                                            for x in e._links.values())]),
                           ("insert", inserted.values())):
         for entry in entries:
-            link, adjacency = _writer(entry, made)
-            others = {other: x if Proxies._is_parameter(x) else symbol(x)  # a parameter reference, as itself (CAP-312)
-                      for other, x in entry._links.items() if other != link}
-            gathered.entries.append((symbol(entry._links[link]), adjacency, verb, others, dict(entry._properties)))
-    gathered.assigned += [(symbol(holder), name, after, _schema(holder).properties[name].schema)
-                          for holder, name, after in changed if not Proxies._counted(holder)]
-    return gathered
+            writer, adjacency = _writer(entry, made)
+            others = {other: link(x) for other, x in entry._links.items() if other != writer}
+            entry_change(verb, link(entry._links[writer]), adjacency, others, dict(entry._properties))
+    for holder, name, value in changed:
+        if Proxies._counted(holder):  # found by its value, which it never changes
+            continue
+        s = symbol(holder)
+        changes.append(lambda c, s=s, n=name, v=value: c.property(
+            lambda p: p.clear(lambda b: b.holder(s).name(n)) if v is None else p.set(
+                lambda b: b.holder(s).name(n).value(v))))
+    return store.Changes.Transaction(lambda t: t.id(uid).symbols(symbols).changes(changes))
+
+
+def _held_symbol(store: Any, x: Any, reference: Any) -> Callable[[Any], Any]:
+    """The `Changes.Symbol` of an object held before, a Spec: its reference, and its schema too where its path does not
+    imply it, as where objects of several schemas are owned through one relation, so that a reader never guesses it."""
+    try:
+        implied = References._implied(store, _path(store, reference))
+    except LookupError:
+        implied = None
+    if _schema(x) is implied:
+        return lambda s: s.reference(reference)
+    return lambda s: s.reference(reference).schema(_at(_schema(x)))
 
 
 def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
@@ -282,7 +521,7 @@ def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
                if adjacency.relation is entry._relation and adjacency.me == link]
     if not choices:
         raise ValueError(f"no object an entry of {entry._relation.name!r} links has an adjacency to it by name, so "
-                         "that its effect cannot write it: name one")
+                         "that its change cannot be written: name one")
     _, link, name = min(choices, key=lambda choice: choice[0])
     return link, name
 
@@ -301,67 +540,87 @@ def _owning(entry: Any, lost: list[str], store: Any) -> tuple[str, str] | None:
              if a.relation is entry._relation and a.me == me]
     if not names:
         raise ValueError(f"no owner of an entry of {entry._relation.name!r} has an adjacency to it by name, so that "
-                         "its effect cannot remove what the entry owned: name one")
+                         "its change cannot remove what the entry owned: name one")
     return names[0], me
 
 
-def _frame_journal(store: Any, gathered: _Gathered, uid: str) -> Any:
-    """What a frame's interpretation changed, gathered from its savepoint, as a `Changes.Journal` of one transaction of
-    id `uid`, a value that outlives the transaction (`Transactions.Frame.journal`)."""
-    with _as_committed(store):  # built outside the transaction's proposals, as an effect is
-        effect = _plain_effect(store, _effect(store, gathered))
-    return _journal(store, uid, effect)
+def _journal(store: Any, transactions: list[Any]) -> Any:
+    """A `Changes.Journal` of `store`'s of these transactions, in order, built through the builders: a value that
+    outlives them."""
+    def fill(j: Any) -> Any:
+        for i, transaction in enumerate(transactions):
+            j.at(i).as_object(transaction)
+        return j
+
+    return store.Changes.Journal(fill)
 
 
-def _plain_effect(store: Any, effect: Any) -> PlainData:
-    """An effect of `store`'s as plain data, as it is sent from one store to another."""
-    return JSON.loads(JSON.dumps(Plain.ToPlain(store).Transaction(effect)))
+# --- A cache layer: a layer below's changes, to the objects it holds alone ---
 
 
-def _plain(store: Any, gathered: _Gathered) -> PlainData:
-    """The effect of the transaction open, as plain data, built just before it commits, its proposals set aside, as it
-    is once it has: what a cache layer sends the layer below of its own write (CAP-285)."""
-    with _as_committed(store):
-        return _plain_effect(store, _effect(store, gathered))
-
-
-def _present_only(store: Any, plain: PlainData) -> tuple[PlainData | None, list[Any]]:
-    """A transaction of the layer below's, its effect as plain data, made to change only the objects present in `store`
+def _present_only(store: Any, transaction: Any) -> tuple[Any, list[Any]]:
+    """A `Changes.Transaction` of the layer below's, read in `store`, made to change only the objects present in it
     ([CAP-285: writes through, others' writes in](mbse:mbse-basis/docs/capabilities/README.md#CAP-285), its second decision): each object is named by its path, an object it created by its
     owner's and its owning entry's keys, and is present where the store holds it, or where it was created owned by one
     present, which applying it creates; a counted object is found by its value, or made. A property of an object present
-    is set; an entry is written where every object it links is present, and left out otherwise, nothing being made that
-    is not present. Gives that effect, under the transaction's `uid` where given, None where it changes nothing present;
-    and the objects present an entry left out links, whose entries the store no longer holds all of (`_complete`)."""
-    (pattern,) = plain["mutations"][0]["upsert"]["exists"]
-    symbols, spec = pattern["symbols"], pattern["spec"]
-    schemas = {name: Plain._by_path(store, bound["schema"][0]["path"], ()) for name, bound in symbols.items()
-               if "schema" in bound}  # each symbol's schema: one created's, an object present's, or its path's
-    counted = {name for name, schema in schemas.items() if Proxies._counted_schema(schema)}
-    present = set(counted)
+    is set; an entry is written where every object it names is present, and left out otherwise, nothing being made that
+    is not present. Gives that transaction, built through the builders, None where it changes nothing present; and the
+    objects present an entry left out names, whose entries the store no longer holds all of (`_complete`)."""
+    symbols = {name: _object(element) for name, element in _items(transaction.symbols)}
+    schemas: dict[str, Any] = {}  # each symbol's schema: one created's, or an object present's
+    present: set[str] = set()
     held: dict[str, Any] = {}
-    for name, bound in symbols.items():
-        x = None if "reference" not in bound else store._present(bound["reference"]["path"])
+    for name, symbol in symbols.items():
+        reference = _object(symbol.reference)
+        if reference is None:
+            schemas[name] = _schema_of(store, _object(symbol.schema))
+            continue
+        x = store._present(_path(store, reference))
         if isinstance(x, Proxies._ObjectData):
             present.add(name)
-            held[name] = x
-            schemas[name] = _schema(x)
+            held[name], schemas[name] = x, _schema(x)
+
+    def at(link: Any) -> tuple[str, str | None, Any, Any]:
+        """What an entry change's link names: its kind; its symbol, where it is one; the object present it names, where
+        any; and its schema, where known."""
+        kind, given = _branch(_union(link))
+        if kind == "symbol":
+            return kind, given, held.get(given), schemas.get(given)
+        if kind == "reference":
+            x = store._present(_path(store, given))
+            return (kind, None, x, _schema(x)) if isinstance(x, Proxies._ObjectData) else (kind, None, None, None)
+        return kind, None, None, _schema_of(store, _object(given.schema)) if kind == "counted" else None
+
+    def known(link: tuple[str, str | None, Any, Any]) -> bool:
+        """Whether a link names an object present: a symbol present, an object held by its reference, or a counted
+        object, found by its value or made; a parameter reference names none, and is kept."""
+        kind, name, x, _ = link
+        return name in present if kind == "symbol" else x is not None or kind != "reference"
+
+    changes: list[tuple[Any, str, str, Any, Any, dict[str, Any]]] = []  # each: its value, kind, action, holder, links
+    for _, element in _items(transaction.changes):
+        value = _union(element)
+        kind, change = _branch(value)
+        verb, body = _branch(change)
+        if kind == "property":
+            changes.append((value, kind, verb, body.holder.get(), None, {}))
+            continue
+        changes.append((value, kind, verb, at(body.holder), body.adjacency.get(),
+                        {name: at(link) for name, link in _items(body.links)}))
+
     def owned(name: str) -> bool:
         """Whether an entry the transaction inserts owns the object it created a symbol names, written on the
         adjacency of an object present."""
-        for item in spec:
-            ((subject, (mutation,)),) = item.items()
-            adjacency = mutation.get("as_adjacency")
-            if subject not in present or adjacency is None:
+        for _, kind, verb, holder, adjacency, links in changes:
+            if kind != "entry" or verb != "insert" or holder[3] is None or not known(holder):
                 continue
-            relation = schemas[subject].adjacencies[adjacency["name"]].relation
-            inserted = adjacency["mutations"][0].get("insert", {"entries": []})["entries"]
-            if any(links.get(a.me) == name for links, _ in map(_parts, inserted)
-                   for a in Proxies._owner_adjacencies(schemas[name]) if a.relation is relation):
+            relation = holder[3].adjacencies[adjacency].relation
+            symbols_of = {link: symbol for link, (_, symbol, _, _) in links.items()}
+            if any(symbols_of.get(a.me) == name for a in Proxies._owner_adjacencies(schemas[name]) if a.relation is relation):
                 return True
         return False
 
-    created = [name for name, bound in symbols.items() if "schema" in bound and name not in counted]
+    created = [name for name, symbol in symbols.items() if _object(symbol.reference) is None]
     grown = True
     while grown:  # an object created owned by one present: present once applied
         grown = False
@@ -369,205 +628,26 @@ def _present_only(store: Any, plain: PlainData) -> tuple[PlainData | None, list[
             if name not in present and owned(name):
                 present.add(name)
                 grown = True
-    kept: list[PlainData] = []
+    kept: list[Any] = []
     lost: list[Any] = []
-    for item in spec:
-        ((subject, (mutation,)),) = item.items()
-        adjacency = mutation.get("as_adjacency")
-        if adjacency is None:  # a property: of an object present, set
-            if subject in present:
-                kept.append(item)
+    used: set[str] = set()  # the symbols what is kept names
+    for value, kind, _, holder, _, links in changes:
+        if kind == "property":
+            if holder in present:
+                kept.append(value)
+                used.add(holder)
             continue
-        ((_, body),) = adjacency["mutations"][0].items()
-        linked = [subject, *(symbol for entry in body["entries"] for symbol in _parts(entry)[0].values()
-                             if isinstance(symbol, str))]
-        if all(symbol in present for symbol in linked):
-            kept.append(item)
-        else:  # it links one not present: left out, and each present it links holds its entries no more all
-            lost += [held[symbol] for symbol in linked if symbol in held]
+        named = [holder, *links.values()]
+        if all(known(link) for link in named):
+            kept.append(value)
+            used.update(link[1] for link in named if link[1] is not None)
+        else:  # it names one not present: left out, and each present it names holds its entries no more all
+            lost += [link[2] for link in named if link[2] is not None]
     if not kept:
         return None, lost
-    used = set()  # the symbols what is kept names
-    for item in kept:
-        ((subject, (mutation,)),) = item.items()
-        used.add(subject)
-        if "as_adjacency" in mutation:
-            ((_, body),) = mutation["as_adjacency"]["mutations"][0].items()
-            used.update(symbol for entry in body["entries"] for symbol in _parts(entry)[0].values()
-                        if isinstance(symbol, str))
-    return {**{k: v for k, v in plain.items() if k == "uid"}, "mutations": [{"upsert": {**{
-        k: v for k, v in plain["mutations"][0]["upsert"].items() if k == "key"}, "exists": [{"symbols": {
-        name: bound for name, bound in symbols.items() if name in used}, "spec": kept}]}}]}, lost
-
-
-def _parts(entry: PlainData) -> tuple[dict[str, str], dict[str, PlainData]]:
-    """An entry's links, each to the symbol it is set to, or to a parameter reference, marked, and its properties, each
-    as plain, as an effect writes it."""
-    links, keys = {}, {}
-    for part in entry["mutations"]:
-        ((kind, member),) = part.items()
-        ((_, set_),) = member["mutations"][0].items()
-        if kind == "as_link":
-            reference = set_["reference"]
-            links[member["name"]] = reference if Plain._is_marked(reference) else reference["symbol"]
-        else:
-            keys[member["name"]] = set_["value"]
-    return links, keys
-
-
-def _effect(store: Any, gathered: _Gathered) -> Any:
-    """The effect, built outside the transaction's proposals: `Mutations.OfTransaction`, one upsert."""
-    specs: list[Callable[[Any], Any]] = []
-    for symbol, adjacency, verb, others, properties in gathered.entries:
-        def fill(entry: Any, _: Any, others: dict[str, str] = others, properties: dict[str, Any] = properties) -> Any:
-            for link, other in others.items():
-                entry = getattr(entry, link)(getattr(_, other) if isinstance(other, str) else other)
-            for name, value in properties.items():
-                entry = getattr(entry, name)(value)
-            return entry
-
-        specs.append(lambda _, s=symbol, a=adjacency, v=verb, f=fill: getattr(getattr(_, s), a)(
-            lambda adv: getattr(adv, v)(lambda e: f(e, _))))
-    for symbol, name, plain, schema in gathered.assigned:
-        value = None if plain is None else Plain._unmarked(store, plain) if Plain._is_marked(plain) else \
-            Plain.FromPlain(store)(schema, plain)
-        specs.append(lambda _, s=symbol, n=name, v=value: getattr(getattr(_, s), n)(v))
-    return store.Mutations.OfTransaction(lambda t: t.mutations([lambda mu: mu.upsert(lambda u: u.exists([
-        lambda p: p.symbols(gathered.symbols).spec(specs)]))]))
-
-
-# --- The journal: an effect written in the `Changes` schemas, and read back as one ---
-
-
-def _transaction(store: Any, uid: str, effect: PlainData) -> PlainData:
-    """A transaction's effect, as plain data (`_plain_effect`), written as a `Changes.Transaction`, plain, of id `uid`:
-    each symbol bound to a reference, or to the schema of an object it made, a `Changes.Symbol`; each counted object,
-    bound to its schema in the effect, written by its value, inline, where an entry links it; each entry the effect
-    writes a `Changes.OfEntry`, and each property it sets or clears a `Changes.OfProperty`, in the effect's order."""
-    (pattern,) = effect["mutations"][0]["upsert"]["exists"]
-    symbols, spec = pattern.get("symbols", {}), pattern.get("spec", [])  # none: a counted object made, linked by none
-    counted: dict[str, PlainData] = {}  # by symbol: its value, inline
-    for name, bound in symbols.items():
-        if "schema" in bound:
-            schema = Plain._by_path(store, bound["schema"][0]["path"], ())
-            if Proxies._counted_schema(schema):
-                counted[name] = {"schema": store.name_of(schema), "mutations": []}
-    for item in spec:  # a counted object's values, which it never changes: its value
-        for name, mutations in item.items():
-            if name in counted:
-                counted[name]["mutations"] += [m for m in mutations if "as_property" in m]
-
-    def link(target: Any) -> PlainData:
-        if not isinstance(target, str):  # a parameter reference, marked, in the object's place (CAP-312)
-            return {"reference": target}
-        return {"def": counted[target]} if target in counted else {"reference": {"symbol": target}}
-
-    changes: list[PlainData] = []
-    for item in spec:
-        for name, mutations in item.items():
-            for mutation in mutations:
-                if "as_property" in mutation:
-                    if name not in counted:
-                        changes.append({"property": {"holder": name, **mutation["as_property"]}})
-                    continue
-                adjacency = mutation["as_adjacency"]
-                for verb in adjacency["mutations"]:
-                    ((kind, body),) = verb.items()
-                    for entry in body["entries"]:
-                        links, keys = _parts(entry)
-                        changes.append({"entry": {"holder": link(name), "adjacency": adjacency["name"], "verb": kind,
-                                                  "links": {other: link(x) for other, x in links.items()},
-                                                  "properties": keys}})
-    return {"id": uid, "symbols": {name: _symbol(store, bound) for name, bound in symbols.items() if name not in counted},
-            "changes": changes}
-
-
-def _symbol(store: Any, bound: PlainData) -> PlainData:
-    """An effect's symbol as a `Changes.Symbol`, plain: a new object's schema's reference; an object held before's
-    reference, with its schema's where its path does not imply it, the store holding it."""
-    if "schema" in bound:
-        return {"schema": {"path": bound["schema"][0]["path"]}}
-    path = bound["reference"]["path"]
-    try:
-        implied = References._implied(store, path)
-    except LookupError:
-        implied = None
-    held = store._present(path)
-    if held is not None and _schema(held) is not implied:
-        return {"reference": bound["reference"], "schema": {"path": Plain._schema_path(store._path(_schema(held)))}}
-    return {"reference": bound["reference"]}
-
-
-def _journal(store: Any, uid: str, effect: PlainData) -> Any:
-    """A transaction's effect, as plain data, as a `Changes.Journal` of that one transaction, of id `uid`: a value of
-    `store`'s, which outlives the transaction."""
-    return Plain.FromPlain(store)(store.registered("Changes.Journal"), [_transaction(store, uid, effect)])
-
-
-def _effect_of(store: Any, transaction: PlainData, prefix: str = "") -> PlainData:
-    """A `Changes.Transaction`, as plain data, as the effect it writes: one upsert, under its id, of its symbols, each
-    named with `prefix` before its name, and of each counted object it writes inline, one symbol for each value, bound
-    to its schema, whose values the spec writes after its changes, so that it is found by its value, or made."""
-    symbols: dict[str, PlainData] = {}
-    for name, bound in transaction.get("symbols", {}).items():
-        symbols[prefix + name] = {"reference": bound["reference"]} if "reference" in bound else {
-            "schema": [{Plain.SCHEMA: Plain.REFERENCE, **bound["schema"]}]}
-    counted: dict[str, str] = {}  # each counted object's symbol, by its value
-    values: list[PlainData] = []
-
-    def symbol(link: PlainData) -> Any:
-        """What a link set to a symbol, a counted object's value or a parameter reference names, as an effect does."""
-        ((kind, given),) = link.items()
-        if kind == "reference" and Plain._is_marked(given):
-            return given
-        if kind == "reference" and "symbol" in given:
-            return prefix + given["symbol"]
-        if kind != "def":
-            raise ValueError("a change links an object by a symbol of its transaction, or a counted object by its value")
-        key = json.dumps(given, sort_keys=True)
-        if key not in counted:
-            counted[key] = next(name for n in itertools.count(len(counted)) if (name := f"{prefix}c{n}") not in symbols)
-            path = Plain._schema_path(store._path(store.registered(given["schema"])))
-            symbols[counted[key]] = {"schema": [{Plain.SCHEMA: Plain.REFERENCE, "path": path}]}
-            values.extend({counted[key]: [_renamed(mutation, prefix)]} for mutation in given["mutations"])
-        return counted[key]
-
-    spec: list[PlainData] = []
-    for change in transaction.get("changes", []):
-        ((kind, body),) = change.items()
-        if kind == "property":
-            spec.append({prefix + body["holder"]: [{"as_property": {"name": body["name"],
-                                                                    "mutations": body["mutations"]}}]})
-            continue
-        if body["verb"] not in ("insert", "remove"):
-            raise ValueError(f"an entry's change is an insert or a remove, not {body['verb']!r}")
-        parts = [{"as_link": {"name": name, "mutations": [{"set": {"reference": target if isinstance(target, dict)
-                                                                    else {"symbol": target}}}]}}
-                 for name, target in ((name, symbol(link)) for name, link in body.get("links", {}).items())]
-        parts += [{"as_property": {"name": name, "mutations": [{"set": {"value": value}}]}}
-                  for name, value in body.get("properties", {}).items()]
-        spec.append({symbol(body["holder"]): [{"as_adjacency": {"name": body["adjacency"], "mutations": [
-            {body["verb"]: {"entries": [{"mutations": parts}]}}]}}]})
-    keyed = {"key": transaction["id"]} if "id" in transaction else {}  # a replay finds the counted objects it made
-    return {**({"uid": transaction["id"]} if "id" in transaction else {}),
-            "mutations": [{"upsert": {**keyed, "exists": [{"symbols": symbols, "spec": spec + values}]}}]}
-
-
-def _renamed(plain: PlainData, prefix: str) -> PlainData:
-    """Plain mutations with each symbol a link is set to named with `prefix` before its name."""
-    if isinstance(plain, list):
-        return [_renamed(item, prefix) for item in plain]
-    if not isinstance(plain, dict):
-        return plain
-    return {k: {**v, "symbol": prefix + v["symbol"]} if k == "reference" and isinstance(v, dict) and "symbol" in v
-            else _renamed(v, prefix) for k, v in plain.items()}
-
-
-def _effects(store: Any, journal: PlainData) -> list[PlainData]:
-    """A `Changes.Journal`, as plain data, as the effect of each of its transactions, in order (`_effect_of`)."""
-    if not isinstance(journal, list):
-        raise ValueError("a journal, as plain data, is a list of its transactions")
-    return [_effect_of(store, transaction) for transaction in journal]
+    uid = transaction.id.get()
+    return store.Changes.Transaction(lambda t: (t if uid is None else t.id(uid)).symbols(
+        {name: symbol for name, symbol in symbols.items() if name in used}).changes(kept)), lost
 
 
 # --- What a payload is interpreted by, as `Plain` writes and reads a journal (`Plain._AT`) ---
@@ -599,6 +679,12 @@ class _At:
         return self
 
 
+_UNIONS = {"Changes.Change", "Changes.OfEntry", "Changes.OfProperty", "Changes.OfLink"}
+"""The unions of a transaction's changes, and of what an entry change names: each branch within what the union is."""
+
+_ENTRIES = {"Changes.OfEntry.Insert", "Changes.OfEntry.Remove"}
+
+
 class _Symbols(_At):
     """A transaction's changes: within its symbols, each bound to the schema of the object it names."""
 
@@ -613,129 +699,42 @@ class _Symbols(_At):
         return References._implied(self.store, bound["reference"]["path"])
 
     def linked(self, link: PlainData) -> Any:
-        """The schema of what a link is set to: a symbol's, or a counted object's, inline."""
-        given = link.get("def")
-        return self.store.registered(given["schema"]) if given is not None else self.schema(link["reference"]["symbol"])
+        """The schema of the object an entry change names: a symbol's, an object's held by its reference, as the store
+        holds it or its path implies it, or a counted object's, inline."""
+        ((kind, given),) = link.items()
+        if kind == "symbol":
+            return self.schema(given)
+        if kind == "counted":
+            return Plain._by_path(self.store, given["schema"]["path"], ())
+        held = self.store._present(given["path"])
+        return _schema(held) if isinstance(held, Proxies._ObjectData) else References._implied(self.store, given["path"])
 
     def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
-        if schema == "Changes.Change":
+        if schema in _UNIONS or (schema in _ENTRIES and member in ("holder", "links")):
             return self
-        if schema == "Changes.OfProperty" and member == "mutations":
+        if schema == "Changes.OfProperty.Set" and member == "value":
             return _Value(self.schema(siblings["holder"]).properties[siblings["name"]].schema)
-        if schema == "Changes.OfEntry" and member in ("holder", "links"):
-            return _Links(self)
-        if schema == "Changes.OfEntry" and member == "properties":
-            return _EntryProperties(self.linked(siblings["holder"]).adjacencies[siblings["adjacency"]].relation)
+        if schema in _ENTRIES and member == "properties":
+            return _Properties(self.linked(siblings["holder"]).adjacencies[siblings["adjacency"]].relation.entry)
+        if schema == "Changes.Counted" and member == "properties":
+            return _Properties(Plain._by_path(self.store, siblings["schema"]["path"], ()))
         return None
 
 
-class _Links(_At):
-    """A link set, to a symbol or a counted object inline (`Mutations.OfLink.Set`): its definition, within its
-    schema."""
-
-    def __init__(self, symbols: _Symbols) -> None:
-        self.symbols = symbols
-
-    def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
-        if schema == "Mutations.OfLink":
-            return self
-        if schema == "Mutations.OfLink.Set" and member == "def":
-            return self
-        if schema == "Mutations.OfObject.Def" and member == "mutations":
-            return _Object(self.symbols.store.registered(siblings["schema"]), self.symbols)
-        return None
-
-
-class _Object(_At):
-    """An object's mutations, a counted object's inline: each property's within its schema, each adjacency's within
-    its relation."""
-
-    def __init__(self, schema: Any, symbols: _Symbols) -> None:
-        self.schema, self.symbols = schema, symbols
-
-    def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
-        if schema == "Mutations.OfObject":
-            return self
-        if schema == "Mutations.OfObject.AsProperty" and member == "mutations":
-            return _Value(self.schema.properties[siblings["name"]].schema)
-        if schema == "Mutations.OfObject.AsAdjacency" and member == "mutations":
-            return _Adjacency(self.schema.adjacencies[siblings["name"]].relation, self.symbols)
-        return None
-
-
-class _Adjacency(_At):
-    """An adjacency's mutations: each entry's properties within its relation's, its links set as links are."""
-
-    def __init__(self, relation: Any, symbols: _Symbols) -> None:
-        self.relation, self.symbols = relation, symbols
-
-    def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
-        if schema in ("Mutations.OfAdjacency", "Mutations.OfAdjacency.Insert", "Mutations.OfAdjacency.Remove",
-                      "Mutations.OfEntry", "Mutations.OfEntry.Member"):
-            return self
-        if schema == "Mutations.OfEntry.AsProperty" and member == "mutations":
-            return _Value(self.relation.entry.properties[siblings["name"]].schema)
-        if schema == "Mutations.OfEntry.AsLink" and member == "mutations":
-            return _Links(self.symbols)
-        return None
-
-
-class _EntryProperties(_At):
-    """An entry's properties, each within its schema: a container, whose elements are within, not its members."""
-
-    def __init__(self, relation: Any) -> None:
-        self.relation = relation
-
-    def element(self, index: Any) -> Any:
-        found = self.relation.entry.properties.get(index)
-        return None if found is None else _Value(found.schema)
-
-
-_UNIONS = {"Mutations.OfProperty", "Mutations.OfAny", "Mutations.OfScalar", "Mutations.OfContainer"}
-"""The unions of a value's verbs: each verb within what the union is."""
-
-_VERBS = {  # each verb's member that holds a payload, or verbs, by its schema's name and its own, and what it is
-    # within: the value's schema, or its part's
-    "Mutations.OfProperty.Set value": "self", "Mutations.OfAny.Set value": "self", "Mutations.OfScalar.Set value": "self",
-    "Mutations.OfProperty.AsAny mutations": "self", "Mutations.OfAny.AsScalar mutations": "self",
-    "Mutations.OfAny.AsContainer mutations": "self", "Mutations.OfAny.AsObject mutations": "members",
-    "Mutations.OfAny.AsUnion mutations": "members", "Mutations.OfAny.AsIntersection mutations": "members",
-    "Mutations.OfContainer.Insert slice": "self", "Mutations.OfContainer.Slice index": "index",
-    "Mutations.OfContainer.Slice items": "element", "Mutations.OfContainer.Remove index": "index",
-    "Mutations.OfContainer.Append items": "element", "Mutations.OfContainer.Prepend items": "element",
-    "Mutations.OfContainer.AsItems mutations": "element",
-}
-
-
-class _Value(_At):
-    """A value's mutations, mbse-schemas' verbs: each payload in them interpreted by the value's schema, or, in a
-    container's verbs, by its index's or its element's, and, in a value object's, a union's or an intersection's, by
-    its member's."""
-
-    def __init__(self, schema: Any) -> None:
-        self.payload = Proxies._deref(schema)
-
-    def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
-        if schema in _UNIONS:
-            return self
-        within = _VERBS.get(f"{schema} {member}")
-        if within is None:
-            return None
-        if within == "self":
-            return self
-        if within == "members":
-            return _Members(self.payload)
-        return _Value(getattr(self.payload, within))
-
-
-class _Members(_At):
-    """A value object's, a union's or an intersection's members' mutations (`AsProperty`, `AsBranch`, `AsPart`)."""
+class _Properties(_At):
+    """The properties of an entry, or of a counted object, each within its schema: a container, whose elements are
+    within, not its members."""
 
     def __init__(self, schema: Any) -> None:
         self.schema = schema
 
-    def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
-        if member == "mutations" and schema in ("Mutations.OfObject.AsProperty", "Mutations.OfUnion.AsBranch",
-                                                "Mutations.OfIntersection.AsPart"):
-            return _Value(self.schema.properties[siblings["name"]].schema)
-        return None
+    def element(self, index: Any) -> Any:
+        found = self.schema.properties.get(index)
+        return None if found is None else _Value(found.schema)
+
+
+class _Value(_At):
+    """A property's value, a payload: interpreted by the property's schema."""
+
+    def __init__(self, schema: Any) -> None:
+        self.payload = Proxies._deref(schema)

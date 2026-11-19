@@ -32,6 +32,10 @@
  * wherever it stands: a property, a container's element, a union's branch or an intersection's part
  * ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)). In the place of an object a link links, a link set refers to it so, beside a symbol or
  * a path: `{"reference": {"$schema": "References.OfParameter", "name": n}}`.
+ *
+ * A schema object's reference (`References.OfSchema`) is written and read as the `References.OfObject` it refines, and
+ * its path is a schema object's, from the root module, `"."`: writing one whose path is not refuses it, a `ValueError`,
+ * and reading one refuses it, a `DecodeError` ([CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320)).
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -54,6 +58,11 @@ export type PlainMap = Map<string, PlainData>;
 
 export const SCHEMA = "$schema";
 export const REFERENCE = "References.OfObject";
+export const SCHEMA_REFERENCE = "References.OfSchema";
+/** The singleton a schema object's path starts from, the root module: the path that a schema object's reference, a
+ * `References.OfSchema`, holds starts from it, and its writing and reading refuse any other ([CAP-320: schema and value
+ * references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320)). */
+export const ROOT = ".";
 export const ID = "$id";
 export const PAYLOAD = "Mutations.Payload";
 
@@ -405,6 +414,13 @@ function object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref)
   for (const prop of read.as_properties) {
     const name = prop.as_schema().name;
     out.set(name, within(memberAt(ref.store, schema, name, out), () => value(prop, prop.as_schema().schema, ref)[1]));
+  }
+  if (schema.name === SCHEMA_REFERENCE && out.has("path")) { // a schema object's reference: its path from the root (CAP-320)
+    try {
+      _schemaSteps(out.get("path"), []);
+    } catch (error) {
+      throw new ValueError(`a schema object's reference (${SCHEMA_REFERENCE}): ${(error as DecodeError).reason}`);
+    }
   }
   return out;
 }
@@ -783,6 +799,9 @@ function decode(schema: Schemas.OfAny.Data, plain: unknown, where: Where, store:
   if (record instanceof Schemas.OfUnion.Data && values.size !== 1) {
     throw new DecodeError(`a union value holds exactly one branch, got ${values.size}`, { path: path(...where) });
   }
+  if (record.name === SCHEMA_REFERENCE && (plain as PlainMap).has("path")) { // a schema object's reference: its path from the root (CAP-320)
+    _schemaSteps((plain as PlainMap).get("path"), [...where, "path"]);
+  }
   return new DecodedRecord(record, values);
 }
 
@@ -1034,7 +1053,7 @@ function sameKeys(properties: Map<string, unknown>, keys: PlainMap): boolean {
  * identity 81 in [CAP-123: schema objects identified by path](mbse:mbse-basis/docs/capabilities/CAP-123.md#decided)). `DecodeError` where it is not one. */
 export function _schemaSteps(plain: unknown, where: Where): [string, string][] {
   const [singleton, steps] = stepsOf(plain, where);
-  if (singleton !== "." || steps.some(([, o, keys]) => o !== "" || keys.size !== 1 || typeof keys.get("name") !== "string")) {
+  if (singleton !== ROOT || steps.some(([, o, keys]) => o !== "" || keys.size !== 1 || typeof keys.get("name") !== "string")) {
     throw new DecodeError("a schema object's path starts from the root module, '.', and each step names an entry, "
       + "{'i': adjacency, 'o': '', 'properties': {'name': name}}", { path: path(...where) });
   }
@@ -1046,7 +1065,7 @@ export function _schemaSteps(plain: unknown, where: Where): [string, string][] {
  * adjacency is `o`: one the store holds, a cache layer's among them, which loads nothing. */
 function byPath(store: any, plain: unknown, where: Where): unknown {
   const [singleton, steps] = stepsOf(plain, where);
-  if (singleton === ".") return store._at(_schemaSteps(plain, where));
+  if (singleton === ROOT) return store._at(_schemaSteps(plain, where));
   if (steps.length === 0) return store._singletons.get(singleton) ?? null;
   const owner = byPath(store, ownerPath(singleton, steps), where);
   return owner === null ? null : ownedBy(owner, steps[steps.length - 1]!);
@@ -1396,7 +1415,7 @@ class StoreSnapshot {
 /** A schema object's path as plain data (object identity 81 in [CAP-123: schema objects identified by path](mbse:mbse-basis/docs/capabilities/CAP-123.md#decided)): from the root module, the singleton
  * `"."`, each step through a keyed adjacency, by name. */
 function schemaPath(steps: [string, string][]): PlainMap {
-  return pathFrom(".", steps.map(([i, name]): Step => [i, "", new Map([["name", name]])]));
+  return pathFrom(ROOT, steps.map(([i, name]): Step => [i, "", new Map([["name", name]])]));
 }
 
 /** Snapshots read, each keyed afresh. */

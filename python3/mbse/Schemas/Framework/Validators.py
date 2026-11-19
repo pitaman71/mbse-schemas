@@ -23,13 +23,16 @@ The validator reads the value through the visitor protocol (`Readers.OfObject`),
 - an intersection value holds every one of the intersection's parts, each with a value of that part's schema, a part
   that holds a parameter reference counting as held;
 - each parameter reference standing in the place of a value, or of an object that a link links, is checked against
-  the parameter context, a mapping from a parameter's name to the value assigned to it or the object or symbol bound
-  to it, which each entry point takes as its last argument, empty unless the caller gives one
-  ([CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313)).
-  A reference is invalid, a problem, where the context maps its parameter to the wrong kind of thing (an object where
-  its place expects a value, or a value where it expects an object) or to something of another schema than its place
-  expects; partial, and valid, where the context does not map its parameter, which `Outcome.partials` lists; and bound,
-  and valid, where the context maps its parameter to a value or an object of that schema. `Outcome.result` is
+  the context, a `Contexts.OfContext` value, which each entry point takes as its last argument, None unless the caller
+  gives one ([CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313), [CAP-319: contexts as schema data](mbse:mbse-basis/docs/capabilities/README.md#CAP-319)). Validation reads the
+  context's `parameters`, each a `Contexts.OfParameter` that binds its parameter to an object (`object`, a
+  `References.OfObject`) or assigns it a value (`value`, a `References.OfValue`). A reference is invalid, a problem,
+  where the context gives its parameter the wrong kind of thing (an object where its place expects a value, or a value
+  where it expects an object) or something of another schema than its place expects; partial, and valid, where the
+  context gives its parameter neither, which `Outcome.partials` lists; and bound, and valid, where the context gives
+  its parameter a value or an object of that schema. A bound object's schema is the one the parameter's `schema`
+  designates, where the store holds it, else that of the object its `object` designates, where the store holds it;
+  else the object may be of any schema. `Contexts.validate` checks a context itself. `Outcome.result` is
   "invalid", "partial" or "bound". Validation makes no sub-context: a dialect's statements that assign or bind
   parameters are its own procedures' to interpret.
 """
@@ -37,11 +40,10 @@ The validator reads the value through the visitor protocol (`Readers.OfObject`),
 from __future__ import annotations
 
 from collections.abc import Hashable
-from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from . import Builders, Proxies, Reachable, Readers, Schemas, Visitors
+from . import Builders, Contexts, Proxies, Reachable, Readers, References, Schemas, Visitors
 from .Visitors import Scalar
 
 __all__ = ["Validate", "Check", "Outcome"]
@@ -139,13 +141,6 @@ def _identity(target: Any) -> Hashable:
 
 
 # --- Checks ---
-
-
-def _is_object(target: Any) -> bool:
-    """Whether what a parameter context maps a name to is an object, a reference object, a schema object or a symbol,
-    rather than a value."""
-    return isinstance(target, Schemas.OfSymbol.Data) or Builders._builder_for(target) is not None or isinstance(
-        Proxies._durable(target), Proxies._ObjectData)
 
 
 def _is_of(value: Any, expected: Any) -> bool:
@@ -254,8 +249,9 @@ class _Entry:
 
 
 class _Check:
-    def __init__(self, store: Visitors.OfStore, context: Mapping[str, Any]):
-        self._store, self._context = store, context
+    def __init__(self, store: Visitors.OfStore, context: Any):
+        self._store = store
+        self._context = {} if context is None else Contexts.entries(store, context, "parameters")
         self.problems: list[str] = []
         self.unknowns: list[str] = []
         self.partials: list[str] = []
@@ -279,33 +275,47 @@ class _Check:
 
     def reference(self, label: str, name: str, schema: Any) -> list[str]:
         """Problems with a parameter reference standing in the place of a value of `schema`: invalid where the context
-        maps its parameter to an object, or to a value of another schema; partial where it maps it to nothing (CAP-313)."""
-        if name not in self._context:
-            self.partials.append(f"{label}: parameter {name!r} is neither assigned nor bound in its context")
-            return []
-        target = self._context[name]
-        if _is_object(target):
+        binds its parameter to an object, or assigns it a value of another schema; partial where it gives it neither
+        (CAP-313)."""
+        parameter = self._context.get(name)
+        if parameter is not None and Contexts.held(parameter.object) is not None:
             return [f"{label}: parameter {name!r} is bound to an object, where a value is expected"]
+        value = None if parameter is None else Contexts.held(parameter.value)
+        target = None if value is None else _held(value.value, value.as_schema().properties["value"].schema)
+        if target is None:
+            return self._partial(label, name)
         if _is_of(target, schema):
             return []
         return [f"{label}: parameter {name!r} is assigned a value of another schema than its place expects"]
 
+    def _partial(self, label: str, name: str) -> list[str]:
+        """A parameter reference whose parameter the context neither assigns nor binds: partial, and valid."""
+        self.partials.append(f"{label}: parameter {name!r} is neither assigned nor bound in its context")
+        return []
+
+    def _kinds(self, parameter: Any, target: Any) -> list[Any]:
+        """The schemas an object bound to a parameter may be of, each of which must fill the link: the one its
+        `schema` designates, each kind of a union, where the store holds it; else that of the object `target`
+        designates, where the store holds it; else none, any object."""
+        schema = Contexts.held(parameter.schema)
+        held = None if schema is None or References.validate_schema(self._store, schema) else References._schema(
+            self._store, schema)
+        if held is None:
+            designated = References._designated(self._store, target)
+            return [] if designated is None else [_visited(designated, self._store).as_schema()]
+        return [b.schema for b in held.branches] if isinstance(held, Schemas.OfUnion.Data) else [held]
+
     def _linked(self, label: str, relation: Schemas.OfRelation.Data, link: str, name: str) -> list[str]:
         """Problems with a parameter reference standing in the place of the object that `link` links: invalid where the
-        context maps its parameter to a value, or to an object that may not fill the link; partial where it maps it to
-        nothing (CAP-313). A symbol is of its schema, and may fill the link where each of its kinds may; one with no
-        schema may stand for any object."""
-        if name not in self._context:
-            self.partials.append(f"{label}: parameter {name!r} is neither assigned nor bound in its context")
-            return []
-        target = self._context[name]
-        if not _is_object(target):
-            return [f"{label}: parameter {name!r} is assigned a value, where an object is expected"]
-        if isinstance(target, Schemas.OfSymbol.Data):
-            kinds = [] if target.schema is None else [b.schema for b in target.schema.branches] if isinstance(
-                target.schema, Schemas.OfUnion.Data) else [target.schema]
-        else:
-            kinds = [_visited(target, self._store).as_schema()]
+        context assigns its parameter a value, or binds it to an object that may not fill the link; partial where it
+        gives it neither (CAP-313). The object may fill the link where each of its kinds may (`_kinds`)."""
+        parameter = self._context.get(name)
+        target = None if parameter is None else Contexts.held(parameter.object)
+        if target is None:
+            if parameter is not None and Contexts.held(parameter.value) is not None:
+                return [f"{label}: parameter {name!r} is assigned a value, where an object is expected"]
+            return self._partial(label, name)
+        kinds = self._kinds(parameter, target)
         found = [problem for problem in (_filling(relation, link, kind) for kind in kinds) if problem is not None]
         return [f"{label}: parameter {name!r} is bound to an object of another schema: {found[0]}"] if found else []
 
@@ -454,7 +464,7 @@ class Check:
     def __init__(self, store: Visitors.OfStore):
         self._store = store
 
-    def __call__(self, schema: Schemas.OfAny.Data, value: Any, context: Mapping[str, Any] | None = None) -> Outcome:
+    def __call__(self, schema: Schemas.OfAny.Data, value: Any, context: Any = None) -> Outcome:
         schema = Proxies._deref(schema)  # a path names its schema
         if isinstance(schema, Schemas.OfScalar.Data):
             return self.OfScalar(schema, value, context)
@@ -462,27 +472,27 @@ class Check:
             return self.OfObject(schema, value, context)
         raise NotImplementedError(f"{type(schema).__name__} cannot be validated yet")
 
-    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar, context: Mapping[str, Any] | None = None) -> Outcome:
+    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar, context: Any = None) -> Outcome:
         """Checks a scalar; a parameter reference given in its place, in `context`."""
         schema = Proxies._deref(schema)  # a path names its schema
         if Proxies._is_parameter(value):
-            check = _Check(self._store, context or {})
+            check = _Check(self._store, context)
             problems = check.reference("the value", value.name.get(), schema)
             return Outcome(schema.validate() + problems, [], check.partials)
         problem = _scalar_problem(schema, value)
         return Outcome(schema.validate() + ([problem] if problem else []), [])
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, context: Mapping[str, Any] | None = None) -> Outcome:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, context: Any = None) -> Outcome:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
         schema = Proxies._deref(schema)  # a path names its schema
-        return self._run(schema, [value], context or {})
+        return self._run(schema, [value], context)
 
-    def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject, context: Mapping[str, Any] | None = None) -> Outcome:
+    def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject, context: Any = None) -> Outcome:
         """Checks the root and every object reachable from it through adjacencies."""
         schema = Proxies._deref(schema)  # a path names its schema
-        return self._run(schema, Reachable.of(root), context or {})
+        return self._run(schema, Reachable.of(root), context)
 
-    def _run(self, schema: Schemas.OfObject.Data, values: list[Readers.OfObject], context: Mapping[str, Any]) -> Outcome:
+    def _run(self, schema: Schemas.OfObject.Data, values: list[Readers.OfObject], context: Any) -> Outcome:
         """Checks the objects, each by its own schema; the first, the root, must be an instance of `schema`: of it, or
         of a refinement of it, since an instance of a refinement is an instance of what it refines (`Schemas.is_a`)."""
         root = values[0]
@@ -502,21 +512,21 @@ class Validate:
     def __init__(self, store: Visitors.OfStore):
         self._check = Check(store)
 
-    def __call__(self, schema: Schemas.OfAny.Data, value: Any, context: Mapping[str, Any] | None = None) -> list[str]:
+    def __call__(self, schema: Schemas.OfAny.Data, value: Any, context: Any = None) -> list[str]:
         schema = Proxies._deref(schema)  # a path names its schema
         return self._check(schema, value, context).problems
 
-    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar, context: Mapping[str, Any] | None = None) -> list[str]:
+    def OfScalar(self, schema: Schemas.OfScalar.Data, value: Scalar, context: Any = None) -> list[str]:
         """Checks a scalar; a parameter reference given in its place, in `context`."""
         schema = Proxies._deref(schema)  # a path names its schema
         return self._check.OfScalar(schema, value, context).problems
 
-    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, context: Mapping[str, Any] | None = None) -> list[str]:
+    def OfObject(self, schema: Schemas.OfObject.Data, value: Readers.OfObject, context: Any = None) -> list[str]:
         """Checks one object and its entries; uniqueness only over the entries it is part of."""
         schema = Proxies._deref(schema)  # a path names its schema
         return self._check.OfObject(schema, value, context).problems
 
-    def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject, context: Mapping[str, Any] | None = None) -> list[str]:
+    def Reachable(self, schema: Schemas.OfObject.Data, root: Readers.OfObject, context: Any = None) -> list[str]:
         """Checks the root and every object reachable from it through adjacencies."""
         schema = Proxies._deref(schema)  # a path names its schema
         return self._check.Reachable(schema, root, context).problems

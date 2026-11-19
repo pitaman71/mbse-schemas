@@ -15,9 +15,16 @@ Value schemas, which every store holds, its own, as it holds `Paths`:
   and its `properties`, each its value;
 - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one;
+- `References.OfSchema`, a schema object's reference, which refines `References.OfObject`: its `path` is a schema
+  object's, from the root module, the singleton `"."`, and writing or reading one whose path is not refuses it;
+  `validate_schema(store, reference, kind)` reports one that designates no schema object the store holds, or one of
+  another kind than `kind` where a schema argument constrains it, as `References.OfSchema[Schemas.OfObject]` does
+  ([CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320));
+- `References.OfValue`, data that holds a value of any schema, its one property, `value`, an `OfAny`, as
+  `Schemas.OfAny` is the schema that admits one (CAP-320);
 - `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
-  proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
-  resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
+  proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A parameter assignment or a parameter binding in the enclosing
+  scope resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
@@ -43,7 +50,7 @@ from . import Paths, Plain, Proxies
 from . import Schemas as S
 from .Builders import _builder_for
 
-__all__ = ["install", "of", "validate"]
+__all__ = ["install", "of", "validate", "validate_schema"]
 
 
 def install(txn: Any) -> Any:
@@ -53,7 +60,8 @@ def install(txn: Any) -> Any:
     S = txn.Schemas  # the store's meta-schemas and basic scalars (78)
     return txn.uid("mbse.Schemas.References/1").mutations([lambda mu: mu.upsert(lambda u: u.exists([lambda p: p
         .symbols({"OfObject": S.OfObject, "OfFrame": S.OfObject, "OfProperties": S.OfObject, "OfEntry": S.OfObject,
-                  "OfError": S.OfObject, "OfSymbol": S.OfObject, "OfParameter": S.OfObject})
+                  "OfError": S.OfObject, "OfSymbol": S.OfObject, "OfParameter": S.OfObject, "OfSchema": S.OfObject,
+                  "OfValue": S.OfObject})
         .spec([
             lambda _: _.OfObject.name("References.OfObject").properties({
                 "path": txn.Paths.OfRoot,  # a singleton's, an owned object's or a schema object's
@@ -82,6 +90,10 @@ def install(txn: Any) -> Any:
             lambda _: _.OfParameter.name("References.OfParameter").properties({
                 "name": S.OfStr,  # the parameter's name, and nothing else (CAP-311)
             }),
+            lambda _: _.OfSchema.name("References.OfSchema").refines([_.OfObject]),  # its path starts at "." (CAP-320)
+            lambda _: _.OfValue.name("References.OfValue").properties({
+                "value": S.OfAny(lambda a: a),  # a value of any schema (CAP-320)
+            }),
             # --- The extension: a pattern's symbol given the object it binds in place of a schema (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)) ---
             lambda _: _.OfSymbol.name("Schemas.OfSymbol").properties({"reference": _.OfObject}),
         ])]))])
@@ -103,6 +115,36 @@ def validate(pattern: Any) -> list[str]:
     return problems
 
 
+def validate_schema(store: Any, reference: Any, kind: Any = None) -> list[str]:
+    """The problems of a schema object's reference (`References.OfSchema`) in `store`, where `kind`, a schema of schemas
+    (`store.Schemas.OfObject`), constrains the kind of schema it designates, as the schema argument of
+    `References.OfSchema[Schemas.OfObject]` does; None constrains nothing. A reference's problems: its path is not a
+    schema object's, from the root module; the store holds no schema object at its path; or the schema object it
+    designates is not of `kind`, nor of a refinement of it ([CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320))."""
+    reference = Proxies._durable(reference)
+    if not (isinstance(reference, Proxies._RecordData)
+            and S.is_a(reference._schema, store.registered(Plain.SCHEMA_REFERENCE))):
+        raise TypeError(f"References.validate_schema takes a schema object's reference, not {reference!r}")
+    try:
+        held = _schema(store, reference)
+    except ValueError as error:
+        return [str(error)]
+    if held is None:
+        return ["a schema object's reference designates no schema object the store holds"]
+    own = _builder_for(held)(held, False, store).as_schema()
+    kind = Proxies._deref(kind)
+    if kind is not None and not S.is_a(own, kind):
+        return [f"a schema object's reference designates a {own.name!r}, where a {kind.name!r} is expected"]
+    return []
+
+
+def _schema(store: Any, reference: Any) -> Any:
+    """The schema object a schema object's reference designates in `store`, or None where the store holds none at its
+    path, or it has none; `ValueError` where its path is not a schema object's."""
+    path = Plain.ToPlain(store)(reference.as_schema(), reference).get("path")
+    return None if path is None else store.held(path)
+
+
 def _implied(store: Any, path_plain: Any) -> Any:
     """The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the
     one schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`,
@@ -110,7 +152,7 @@ def _implied(store: Any, path_plain: Any) -> Any:
     what a link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the
     schema lacks, a link no one schema fills; or a schema object's path, where the store does not hold it."""
     singleton, steps = Plain._steps(path_plain, ())
-    if singleton == ".":
+    if singleton == Plain.ROOT:
         raise LookupError("names a schema object the store does not hold")
     schemas = [(name, schema) for name, schema in store._schemas.items() if isinstance(schema, S.OfObject.Data)]
     current = next((schema for _, schema in schemas if schema.singleton == singleton), None)

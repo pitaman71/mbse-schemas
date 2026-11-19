@@ -95,7 +95,7 @@ schemas from anything a program holds; the builders make a new version beside a 
    (`for_object`). `Parametrics.validate(store, schema)` checks them; a schema's own `validate()` does not. A schema
    neither assigns nor binds its parameters. A parameter reference, `References.OfParameter`, built through its `name`
    alone, designates a parameter by its name and holds nothing else. It is a value, written and read as any value is.
-   Its parameter context resolves it, not a store, and `References.of` makes none.
+   Its context resolves it, not a store, and `References.of` makes none.
    [CAP-171: parameters attached to every schema kind by extension](mbse:mbse-basis/docs/capabilities/CAP-171.md),
    [CAP-112: parameters modeled as schema data](mbse:mbse-basis/docs/capabilities/CAP-112.md),
    [CAP-311: references stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311).
@@ -134,7 +134,7 @@ schemas from anything a program holds; the builders make a new version beside a 
    reads as an empty object visitor, whose `as_parameter` hands it over. Where the place's schema
    could take the reference for its own value, the plain form marks it, `{"$schema": "References.OfParameter", "name":
    "n"}`, and reads it back the same; a link set refers to it so, beside a symbol or a path. Validation reports no wrong value for it, and an intersection's part that holds one
-   is held; validation checks it against its parameter context (item 12). A comparison that meets one halts and says
+   is held; validation checks it against its context (item 12). A comparison that meets one halts and says
    incomparable. A relation that owns what it links takes none. [CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided).
    - Python: [REF-12: A parameter reference stands in the place of anything with a schema](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-12) · TypeScript: [REF-12: A parameter reference stands in the place of anything with a schema](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-12)
    - Python: [REF-13: A parameter reference in another schema's place written marked, and read back the same](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-13) · TypeScript: [REF-13: A parameter reference in another schema's place written marked, and read back the same](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-13)
@@ -142,24 +142,53 @@ schemas from anything a program holds; the builders make a new version beside a 
    - Python: [REF-15: A place that holds no parameter reference reads as empty through as_parameter](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-15) · TypeScript: [REF-15: A place that holds no parameter reference reads as empty through as_parameter](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-15)
    - Python: [REF-16: A parameter reference in the place of an object a link links](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-16) · TypeScript: [REF-16: A parameter reference in the place of an object a link links](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-16)
    - Python: [REF-17: A link to a parameter reference written in a link set and read back the same](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-17) · TypeScript: [REF-17: A link to a parameter reference written in a link set and read back the same](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-17)
-12. **Parameter references checked against a parameter context.** *Why*: a parameter reference is valid only where
-   what gives its parameter a value or an object gives one of the schema its place expects, and validation finds the
-   reference given the wrong thing. *When*: whenever data holds parameter references; give a context where your
-   application, or a dialect's procedure that interprets its own statements that assign or bind parameters, knows what
-   each parameter is. *How*: a parameter context is a plain mapping from a parameter's name to the value assigned to it,
-   or to the object or symbol bound to it. Every entry point of `Validators.Validate` and `Validators.Check` takes one
-   as an optional last argument, empty by default; validation makes no sub-context of its own. A reference is
-   **invalid** where the context maps its parameter to the wrong kind of thing (an object where a value is expected, a
-   value where an object is) or to something of another schema, and `Validate` reports it; **partial**, and valid,
-   where the context does not map its parameter, which `Validate` does not report and `Check` lists in
-   `Outcome.partials`; and **bound**, and valid, where the context maps it to a value or an object of the place's
-   schema. `Outcome.result` is "invalid", "partial" or "bound". Data that holds no parameter reference validates as it
-   does without a context.
-   [CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313).
-   - Python: [PAR-09: Validation takes a parameter context at every entry point; a reference it maps to the right schema is bound](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-09) · TypeScript: [PAR-09: Validation takes a parameter context at every entry point; a reference it maps to the right schema is bound](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-09)
-   - Python: [PAR-10: A reference whose parameter its context maps to nothing is partial, and valid](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-10) · TypeScript: [PAR-10: A reference whose parameter its context maps to nothing is partial, and valid](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-10)
-   - Python: [PAR-11: A reference is invalid where its context maps its parameter to the wrong kind of thing or another schema](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-11) · TypeScript: [PAR-11: A reference is invalid where its context maps its parameter to the wrong kind of thing or another schema](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-11)
+12. **Parameter references checked against a context.** *Why*: a parameter reference is valid only where what gives
+   its parameter a value or an object gives one of the schema its place expects, and validation finds the reference
+   given the wrong thing. *When*: whenever data holds parameter references; give a context where your application, or
+   a dialect's procedure that interprets its own statements that assign or bind parameters, knows what each parameter
+   is. *How*: a context is schema data, a `Contexts.OfContext` value built through the builders, every store holding
+   its schemas. Its `parameters`, keyed by name, are each a `Contexts.OfParameter`: the parameter's `name`, its
+   `schema` (a `References.OfSchema`), and either the object it is bound to (`object`, a `References.OfObject`) or the
+   value assigned to it (`value`, a `References.OfValue`); its `variables` and `symbols` hold variables and symbols
+   likewise (`Contexts.OfVariable`, `Contexts.OfSymbol`, a symbol's schema an object schema's). Every entry point of
+   `Validators.Validate` and `Validators.Check` takes a context as an optional last argument, and reads its parameters;
+   a plain mapping is refused. A reference is **invalid** where the context gives its parameter the wrong kind of thing
+   (an object where a value is expected, a value where an object is) or something of another schema, and `Validate`
+   reports it; **partial**, and valid, where the context neither assigns nor binds its parameter, which `Validate` does
+   not report and `Check` lists in `Outcome.partials`; and **bound**, and valid, where the context gives it a value or
+   an object of the place's schema. A bound object is of the schema its parameter's `schema` designates, where the store
+   holds it, else of the object's own; where the store holds neither, it may be of any schema. `Outcome.result` is
+   "invalid", "partial" or "bound". Data that holds no parameter reference validates as it does without a context.
+   Where a procedure meets a statement that assigns or binds names, it makes a sub-context by copying:
+   `Contexts.within(store, outer, own)` gives a new context holding the outer context's entries, each of its own
+   replacing the outer entry of its name, linked to neither. `Contexts.validate(store, context)` reports a context's
+   own problems: an entry named otherwise than its key, a symbol whose schema is not an object schema, a schema
+   reference that designates no schema object the store holds, and a parameter both bound and assigned.
+   [CAP-313: parameter references valid where their parameters are assigned or bound](mbse:mbse-basis/docs/capabilities/README.md#CAP-313),
+   [CAP-319: contexts as schema data](mbse:mbse-basis/docs/capabilities/README.md#CAP-319).
+   - Python: [PAR-09: Validation takes a context at every entry point; a reference it gives the right schema is bound](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-09) · TypeScript: [PAR-09: Validation takes a context at every entry point; a reference it gives the right schema is bound](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-09)
+   - Python: [PAR-10: A reference whose parameter its context neither assigns nor binds is partial, and valid](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-10) · TypeScript: [PAR-10: A reference whose parameter its context neither assigns nor binds is partial, and valid](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-10)
+   - Python: [PAR-11: A reference is invalid where its context gives its parameter the wrong kind of thing or another schema](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-11) · TypeScript: [PAR-11: A reference is invalid where its context gives its parameter the wrong kind of thing or another schema](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-11)
    - Python: [PAR-12: Data that holds no parameter reference validates as without a context](mbse:mbse-schemas/python3/tests/22_Parametrics.ipynb#PAR-12) · TypeScript: [PAR-12: Data that holds no parameter reference validates as without a context](mbse:mbse-schemas/typescript5/tests/22_Parametrics.ipynb#PAR-12)
+   - Python: [CTX-02: A context built through the builders, written and read back the same](mbse:mbse-schemas/python3/tests/39_Contexts.ipynb#CTX-02) · TypeScript: [CTX-02: A context built through the builders, written and read back the same](mbse:mbse-schemas/typescript5/tests/39_Contexts.ipynb#CTX-02)
+   - Python: [CTX-03: A sub-context is copied](mbse:mbse-schemas/python3/tests/39_Contexts.ipynb#CTX-03) · TypeScript: [CTX-03: A sub-context is copied](mbse:mbse-schemas/typescript5/tests/39_Contexts.ipynb#CTX-03)
+   - Python: [CTX-04: Contexts.validate reports a context's problems](mbse:mbse-schemas/python3/tests/39_Contexts.ipynb#CTX-04) · TypeScript: [CTX-04: Contexts.validate reports a context's problems](mbse:mbse-schemas/typescript5/tests/39_Contexts.ipynb#CTX-04)
+13. **Schema and value references.** *Why*: data that designates a schema, or holds a value whose schema is not fixed,
+   is schema data like any other, written and read with no code of its own. *When*: a context, a request or a model
+   names a schema, or carries a value of any schema, by reference. *How*: a schema object's reference,
+   `References.OfSchema`, refines `References.OfObject`: build it through its `path`, a schema object's path
+   (`Paths.of(schema)`), which starts from the root module, the singleton `"."`. Writing or reading one whose path does
+   not start there is refused. Where a `References.OfObject` is declared, it is written marked with its schema, and a
+   map's symbol given it binds the schema object. A schema argument, as in `References.OfSchema[Schemas.OfObject]`,
+   constrains the kind of schema that the reference designates: `References.validate_schema(store, reference, kind)`
+   reports a reference that designates a schema of another kind (`kind` a schema of schemas, such as
+   `store.Schemas.OfObject`), or no schema object the store holds; with no kind, it checks the rest. A value reference,
+   `References.OfValue`, holds a value of any schema in its one property, `value`, written tagged with its schema, as
+   a value of any schema is (item 8).
+   [CAP-320: schema and value references](mbse:mbse-basis/docs/capabilities/README.md#CAP-320).
+   - Python: [REF-18: A schema object's reference refines References.OfObject; one whose path does not start at "." refused](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-18) · TypeScript: [REF-18: A schema object's reference refines References.OfObject; one whose path does not start at "." refused](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-18)
+   - Python: [REF-19: A value reference holds a value of any schema](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-19) · TypeScript: [REF-19: A value reference holds a value of any schema](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-19)
+   - Python: [REF-20: A schema argument constrains the kind of schema a schema object's reference designates](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-20) · TypeScript: [REF-20: A schema argument constrains the kind of schema a schema object's reference designates](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-20)
 
 ## Practices
 

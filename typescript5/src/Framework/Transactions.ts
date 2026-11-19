@@ -931,16 +931,18 @@ export function _exec(store: any, txn: Transaction, given: unknown, remainder: R
         txn._open();
         const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
         index += 1;
-        let changed: Changes._Gathered | null = null;
+        let changed: any = null;
         const back = store._proposing(() => { // a savepoint: what it changed, gathered
           if (write && store._lower !== null && store._installing === 0) return cached(store, remainder, frame, named, scope);
           made = one(store, remainder, frame, write, named, scope);
           return givenBack(store, made, named, scope);
-        }, (proposals: Proposals.OfStore) => { changed = Changes._gather(store, proposals); }) as Frame[];
+        }, (proposals: Proposals.OfStore) => {
+          changed = Changes._gather(store, proposals, `${_transaction_uid(store)}#${txn._given.length}`);
+        }) as Frame[];
         made = [];
         const marker: Map<string, any> = new Map([["end", scope]]);
         if (changed !== null) { // carried by its first frame, else by its completion marker
-          const journal = Changes._frame_journal(store, changed, `${transactionUid(store)}#${txn._given.length}`);
+          const journal = Changes._journal(store, [changed]);
           if (back.length > 0) back[0]!.journal = journal;
           else marker.set("journal", journal);
         }
@@ -1233,7 +1235,7 @@ function run(store: any, term: any, frames: Frame[], at: (string | number)[], st
         if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
       }
     }
-    const key = kind === "upsert" ? (store.member(term, "key") || transactionUid(store)) : null;
+    const key = kind === "upsert" ? (store.member(term, "key") || _transaction_uid(store)) : null;
     const made: Frame[] = [];
     for (const frame of frames) {
       try {
@@ -1449,8 +1451,7 @@ function fromBelow(store: any, local: Frame, rest: Remainder, named: Map<string,
 /** Applies a journal a layer below gave back, a value of the cache layer's, to what the cache layer holds, as it applies
  * what the layer below's follow gives it (`Builders.Store._apply`). */
 function applyJournal(store: any, journal: unknown): void {
-  const plain = Plain.ToPlain(store)(store.registered("Changes.Journal"), journal) as Plain.PlainData;
-  for (const effect of Changes._effects(store, plain)) store._apply(effect, true);
+  for (const transaction of Changes._transactions(journal)) store._apply(transaction, true);
 }
 
 /** The items of a stream, as it gives them, synchronously; its error thrown. */
@@ -1504,7 +1505,7 @@ export class _Lower {
     let copied = this.copies.get(transaction);
     if (copied === undefined) {
       const plain = Plain.ToPlain(this.store).Transaction(transaction) as Map<string, unknown>; // as the transaction sees it
-      plain.set("uid", transactionUid(this.store));
+      plain.set("uid", _transaction_uid(this.store));
       copied = Changes._as_committed(this.below, () => Plain.FromPlain(this.below).Transaction(plain));
       this.copies.set(transaction, copied);
       this.originals.set(copied, transaction);
@@ -1522,11 +1523,13 @@ export class _Lower {
       });
   }
 
-  /** Executes a cache layer's own write, its effect as plain data, in the layer below's transaction, under the cache
-   * layer's transaction's uid; throws the first error a frame of it is annotated with. */
-  write(plain: Map<string, unknown>): void {
-    const given = new Map([...plain, ["uid", transactionUid(this.store)]]) as Plain.PlainData;
-    this.run(Changes._as_committed(this.below, () => Plain.FromPlain(this.below).Transaction(given)));
+  /** Executes a cache layer's own write, what it changed, a `Changes.Transaction` of the cache layer's whose id is its
+   * transaction's uid, in the layer below's transaction, as the mutation transaction that makes those changes there
+   * (`Changes._expression`); throws the first error a frame of it is annotated with. */
+  write(transaction: unknown): void {
+    const plain = Plain.ToPlain(this.store)(this.store.registered("Changes.Transaction"), transaction);
+    const copied = Plain.FromPlain(this.below)(this.below.registered("Changes.Transaction"), plain);
+    this.run(Changes._expression(this.below, copied));
   }
 
   /** Executes a transaction of the layer below's in its transaction, writing: an install, the layer below's before the
@@ -1690,7 +1693,7 @@ function schemaIn(store: any, pattern: any, name: string, frame: Bound): any {
 /** The uid of the transaction open, as `Provenance` records it and its journal gives it: an upsert that gives no key is
  * keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no other
  * transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
-function transactionUid(store: any): string {
+export function _transaction_uid(store: any): string {
   return Provenance._uid(store, outermost(store._proposals));
 }
 

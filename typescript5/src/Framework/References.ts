@@ -24,8 +24,8 @@
  * - `References.OfValue`, data that holds a value of any schema, its one property, `value`, an `OfAny`, as
  *   `Schemas.OfAny` is the schema that admits one (CAP-320);
  * - `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
- *   proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
- *   resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
+ *   proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A parameter assignment or a parameter binding in the enclosing
+ *   scope resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
  *   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
@@ -177,13 +177,12 @@ export function validate_schema(store: any, reference: unknown, kind: unknown = 
   if (!(inner instanceof Proxies._internals._RecordData && S.is_a(inner._schema, store.registered(Plain.SCHEMA_REFERENCE)))) {
     throw new TypeError(`References.validate_schema takes a schema object's reference, not ${repr(reference)}`);
   }
-  let path: unknown;
+  let held: unknown;
   try {
-    path = (Plain.ToPlain(store)((reference as any).as_schema(), reference) as Map<string, unknown>).get("path");
+    held = _schema(store, reference);
   } catch (error) { // a ValueError: a path that is not a schema object's, refused when written
     return [(error as Error).message];
   }
-  const held = path === undefined ? null : store.held(path);
   if (held === null) return ["a schema object's reference designates no schema object the store holds"];
   const builder = Builders._builder_for(held) as new (...args: unknown[]) => any;
   const own = new builder(held, false, store).as_schema();
@@ -192,6 +191,13 @@ export function validate_schema(store: any, reference: unknown, kind: unknown = 
     return [`a schema object's reference designates a ${repr(own.name)}, where a ${repr(expected.name)} is expected`];
   }
   return [];
+}
+
+/** The schema object a schema object's reference designates in `store`, or null where the store holds none at its path,
+ * or it has none; `ValueError` where its path is not a schema object's. */
+export function _schema(store: any, reference: any): unknown {
+  const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path");
+  return path === undefined ? null : store.held(path);
 }
 
 /** The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the one

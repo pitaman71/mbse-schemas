@@ -23,8 +23,8 @@ Value schemas, which every store holds, its own, as it holds `Paths`:
 - `References.OfValue`, data that holds a value of any schema, its one property, `value`, an `OfAny`, as
   `Schemas.OfAny` is the schema that admits one (CAP-320);
 - `References.OfParameter`, a parameter, by its `name` and nothing else, as the user decided ([the parametrics
-  proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A binding in the scope that encloses the reference
-  resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
+  proposal](mbse:mbse-basis/proposals/PARAMETRICS.md#decided)). A parameter assignment or a parameter binding in the enclosing
+  scope resolves it, not a store. It may stand in the place of a value of any schema, which `Visitors.OfAny.as_parameter`
   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
 
 `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` gave back, its errors
@@ -126,10 +126,9 @@ def validate_schema(store: Any, reference: Any, kind: Any = None) -> list[str]:
             and S.is_a(reference._schema, store.registered(Plain.SCHEMA_REFERENCE))):
         raise TypeError(f"References.validate_schema takes a schema object's reference, not {reference!r}")
     try:
-        path = Plain.ToPlain(store)(reference.as_schema(), reference).get("path")
+        held = _schema(store, reference)
     except ValueError as error:
         return [str(error)]
-    held = None if path is None else store.held(path)
     if held is None:
         return ["a schema object's reference designates no schema object the store holds"]
     own = _builder_for(held)(held, False, store).as_schema()
@@ -137,6 +136,13 @@ def validate_schema(store: Any, reference: Any, kind: Any = None) -> list[str]:
     if kind is not None and not S.is_a(own, kind):
         return [f"a schema object's reference designates a {own.name!r}, where a {kind.name!r} is expected"]
     return []
+
+
+def _schema(store: Any, reference: Any) -> Any:
+    """The schema object a schema object's reference designates in `store`, or None where the store holds none at its
+    path, or it has none; `ValueError` where its path is not a schema object's."""
+    path = Plain.ToPlain(store)(reference.as_schema(), reference).get("path")
+    return None if path is None else store.held(path)
 
 
 def _implied(store: Any, path_plain: Any) -> Any:

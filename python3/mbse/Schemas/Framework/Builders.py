@@ -1565,7 +1565,8 @@ class _BootModule:
 
 
 class _Bootstrap:
-    """Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Mutations.install`) when a store is
+    """Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Contexts.install`,
+    `Mutations.install`) when a store is
     made, which holds nothing yet to run it as a transaction ([CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#the-bootstrap)): its terms are read
     as they are built, its one upsert making each symbol's schema object through its kind's builder, then writing each
     spec item through those builders. `made` holds what the installs read before made, by name, which
@@ -1683,7 +1684,7 @@ class Store(Proxies.OfStore):
         # when each schema object was first held, in order (`_held_at` in its data): those held when a transaction began
         # are those whose updates wait for its commit; an `id()` would not do, since one freed is given to another object
         self._held = 0
-        from . import Changes, Mutations, Paths, References
+        from . import Changes, Contexts, Mutations, Paths, References
 
         made: dict[str, Any] = {}  # its own, as the framework's installs define them, read by the bootstrap
         self._meta = _bootstrap(S.install, made)  # its plain schemas of schemas and basic scalars
@@ -1691,10 +1692,12 @@ class Store(Proxies.OfStore):
         before = {id(meta): (set(meta.properties), set(meta.adjacencies)) for meta in vars(self._meta).values()
                   if isinstance(meta, S.OfObject.Data)}
         self._references = _bootstrap(References.install, made)  # which extends `Schemas.OfSymbol`
+        self._contexts = _bootstrap(Contexts.install, made)  # the contexts procedures take (CAP-319)
         self._mutations = _bootstrap(Mutations.install, made)
         self._changes_schemas = _bootstrap(Changes.install, made)  # the journal language's
         framework = (*vars(self._meta).values(), *vars(self._mutations).values(), *vars(self._paths).values(),
-                     *vars(self._references).values(), *vars(self._changes_schemas).values())
+                     *vars(self._references).values(), *vars(self._contexts).values(),
+                     *vars(self._changes_schemas).values())
         for schema in framework:
             self._register(schema)
         reached = list(framework)

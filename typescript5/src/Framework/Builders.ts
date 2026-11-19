@@ -32,6 +32,7 @@ import * as Paths from "./Paths.js";
 import * as Changes from "./Changes.js";
 import * as Parametrics from "./Parametrics.js";
 import * as Provenance from "./Provenance.js";
+import * as Contexts from "./Contexts.js";
 import * as References from "./References.js";
 import * as Json from "./JSON.js";
 import * as PlainModule from "./Plain.js";
@@ -1888,7 +1889,7 @@ function bootModule(made: Map<string, unknown>, module: string): any {
   });
 }
 
-/** Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Mutations.install`) when a store is
+/** Reads an install (`Schemas.install`, `Paths.install`, `References.install`, `Contexts.install`, `Mutations.install`) when a store is
  * made, which holds nothing yet to run it as a transaction ([CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#the-bootstrap)): its terms are read
  * as they are built, its one upsert making each symbol's schema object through its kind's builder, then writing each
  * spec item through those builders. `made` holds what the installs read before made, by name, which
@@ -2124,10 +2125,11 @@ export class Store extends Proxies.OfStore {
     }
     const references = bootstrap(References.install, made); // which extends `Schemas.OfSymbol`
     extendBuilders(this, before); // the members it adds
+    const contexts = bootstrap(Contexts.install, made); // the contexts procedures take (CAP-319)
     const mutations = bootstrap(Mutations.install, made);
     const changes = bootstrap(Changes.install, made); // the journal language's
     const framework = [...Object.values(this._meta), ...Object.values(mutations), ...Object.values(paths),
-      ...Object.values(references), ...Object.values(changes)] as (ObjectData | RelationData)[];
+      ...Object.values(references), ...Object.values(contexts), ...Object.values(changes)] as (ObjectData | RelationData)[];
     for (const schema of framework) this._register(schema);
     const reached: unknown[] = [...framework];
     while (reached.length > 0) { // each with what it holds: framework schemas share their unnamed ones, never written

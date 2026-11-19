@@ -237,17 +237,45 @@ transaction's stream. Where the store records the transaction, its provenance re
 Each stage lands after CAP-321 (INI-014) has rewritten `Changes` and `Changes.apply`, in Python and TypeScript, each
 passing both gates at 100%. `Store.exec` (0.31.0) has landed.
 
-1. **`Changes.apply` makes what a frame's state names**, in CAP-321's rewriting of it, where CAP-321 does not
+1. **A frame is schema data, for stacked stores.** Delegated by the user, for the stacked stores' stage 3, which waits
+   on it: a layer across a process boundary (mbse-rest, mbse-dynamodb) receives frames, and a frame holds parts that
+   `References.OfFrame` does not carry. Each part becomes schema data, additively, so that `References.OfFrame` values
+   stored today (mbse-transforms' certificates, mbse-programs' corpora) still read; the built-in serialization then
+   carries a frame to any process, with no wire format of its own ("Serialization and wire format are built-in to
+   mbse-schemas.", [PRI-018: no model needs code to read or write](https://github.com/pitaman71/mbse-basis/blob/main/docs/PRINCIPLES.md#PRI-018)). `Changes.install`,
+   which runs after `References.install`, extends `References.OfFrame` and adds the stream's item:
+
+   ```python
+   lambda _: _.OfFrame.name("References.OfFrame").properties({
+       "scope": S.OfStr,  # the scope the frame was made in, as `Transactions.Frame.scope`
+       "remainder": S.OfStr,  # where the rest of the expression begins, written as `References.OfError`'s subterm
+       "journal": _.Transaction,  # the changes made interpreting its input frame (CAP-321's form)
+   }),
+   lambda _: _.OfEnd.name("References.OfEnd").properties({  # the stream's completion marker, `{"end": scope}`
+       "scope": S.OfStr,
+       "journal": _.Transaction,
+   }),
+   lambda _: _.OfItem.name("References.OfItem").branches([  # an item of a frame stream
+       lambda t: t.name("frame").schema([txn.References.OfFrame]),
+       lambda t: t.name("end").schema([_.OfEnd]),
+   ]),
+   ```
+
+   `remainder` names a place in the expression the receiving layer already holds, as `Transactions.Remainder.at`
+   does, not a copy of the expression. `References.of` writes the three parts of a frame, and an end marker's
+   `References.OfEnd`. Lands after mbse-schemas #62 (CAP-321, 0.33.0), which makes the journal a
+   `Changes.Transaction`; the "mbse persistence" session is told when it lands.
+2. **`Changes.apply` makes what a frame's state names**, in CAP-321's rewriting of it, where CAP-321 does not
    already: it applies an entry linked by an object reference not bound to a symbol, and a symbol bound by reference to an object the store does not hold, found or made through the
    ownership that its reference gives (Decided, 1). It changes nothing that a journal given by
    `Changes.observe` does today.
-2. **A frame carries its state.** After the persistence session's stage 2, which adds a frame's changes in the same
+3. **A frame carries its state.** After the persistence session's stage 2, which adds a frame's changes in the same
    form: `Changes.install` extends `References.OfFrame` with `state`; `_given_back` writes each frame's state, by its
    own symbols, as question 3 decides; `References.of` writes it; `assigns` and `entries` as question 6 decides.
-3. **Copies.** A copy made from a frame's state; the frame given as a `Visitors.OfPattern` within a copy's transaction,
+4. **Copies.** A copy made from a frame's state; the frame given as a `Visitors.OfPattern` within a copy's transaction,
    as question 5 decides; `sync`'s and `target`'s write-back by `Changes.observe` and `Changes.apply`, each a case in
    both languages. mbse-transforms then takes it, and mbse-codegen-python's stages 2 to 4 with it.
-4. **mbse-basis.** CAP-131 revised, and CAP-318's detail file with what was built, in a pull request to mbse-basis.
+5. **mbse-basis.** CAP-131 revised, and CAP-318's detail file with what was built, in a pull request to mbse-basis.
 
 ## Decided
 
@@ -293,10 +321,11 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
 1. **`Changes.apply` refuses a link by an object reference not bound to a symbol**, in both languages
    (`Changes._effect_of`; `Changes.ts`), though `Changes.OfEntry`'s schema holds one and its builders build one. A
    frame's state therefore cannot carry what CAP-318 asks for, "object references not otherwise bound to a symbol",
-   and be applied. Stage 1 closes it.
+   and be applied. CAP-321 closes it (mbse-schemas #62: `Changes.apply` binds a symbol to each object named by
+   reference).
 2. **`Changes.apply` refuses a symbol bound by reference to an object the store does not hold**, even where the
-   journal inserts its ownership entry. A copy cannot be made from state that names its objects by reference. Stage 1
-   closes it, as question 2 decides.
+   journal inserts its ownership entry. A copy cannot be made from state that names its objects by reference. Stage 2
+   closes it (Decided, 1).
 3. **`References.OfFrame`'s `entries` is never written by `References.of`**, and its `variables` never can be until
    CAP-142. A frame given back carries none of the entries its specs matched.
 4. **CAP-318 is in no initiative.** [Initiatives](https://github.com/pitaman71/mbse-basis/blob/main/proposals/PRIORITIES.md) lists none that holds it, so that this proposal is headed by

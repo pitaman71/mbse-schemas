@@ -192,9 +192,8 @@ def _check(store: Any, proposals: Any) -> None:
     `Parametrics.Defines`, where the store has `Parametrics` installed
     ([CAP-314: parameters bound by the data objects their schema governs](mbse:mbse-basis/docs/capabilities/README.md#CAP-314)). It is checked at commit, as a unique clause is
     ([CAP-293: an entry inserted against a unique clause refuses its transaction](mbse:mbse-basis/docs/capabilities/README.md#CAP-293)), once the transaction's writes are all made, and
-    only of the entries the transaction inserts. An entry whose object or parameter is a parameter reference, or an
-    object of the store below that is not present, is not checked: what it gives a value or an object is not known
-    here."""
+    only of the entries the transaction inserts. An entry whose object or parameter is a parameter reference is not
+    checked: what it gives a value or an object is not known here."""
     if "Parametrics.AssignsValue" not in proposals.saved["_schemas"]:
         return
     relations = {id(relation): relation for relation in (
@@ -221,7 +220,7 @@ def _check_entry(store: Any, relation: Any, entry: Any) -> None:
 
 def _undeclared(store: Any, relation: Any, entry: Any) -> str | None:
     """Why an assignment's or a binding's parameter is not one its object's schema declares; None where it is, or where
-    the object or the parameter is a parameter reference, or an object of the store below that is not present."""
+    the object or the parameter is a parameter reference."""
     target, param = entry._links["object"], entry._links["param"]
     if Proxies._end(target) or Proxies._end(param):
         return None

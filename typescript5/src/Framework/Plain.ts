@@ -409,8 +409,7 @@ function object(read: Readers.OfObject, schema: Schemas.OfObject.Data, ref: Ref)
   return out;
 }
 
-/** What an entry links through `link`, as it holds it: one of the store below's not present by its path, unread, so
- * that writing an entry loads nothing (CAP-284). What the writer reads is a proxy's entry. */
+/** What an entry links through `link`, as it holds it. What the writer reads is a proxy's entry. */
 function linkedAsHeld(read: any, link: string): any {
   return Proxies._innerOf(read)._links.get(link);
 }
@@ -505,7 +504,6 @@ class Document {
     const number = this.numbers.get(target);
     if (number !== undefined) return new Map([["symbol", String(number)]]);
     if (Proxies._is_parameter(target)) return _marked(this.store, target); // in the place of the object it links (CAP-312)
-    if (target instanceof Proxies._Unresolved) return new Map([["path", target.path as PlainData]]); // not present (CAP-284)
     if (Proxies._is_data(target)) {
       if (Proxies._counted(target)) {
         throw new ValueError(`a document refers to a counted ${repr(this.store.name_of(target.as_schema()))} it does not `
@@ -655,7 +653,7 @@ function readDocument(store: any, schema: unknown, plain: unknown): unknown {
   }
   const transaction = FromPlain(store).Transaction(plain);
   return store._joined(() => { // what it writes, kept only where its root is what is asked for
-    const frames = Transactions._execute(store, transaction, true);
+    const frames = Transactions._execute(store, transaction);
     if (frames.length !== 1 || !frames[0]!.has("0")) {
       throw new DecodeError("a document binds its root, the symbol '0', in one frame", { path: "$" });
     }
@@ -1045,14 +1043,11 @@ export function _schemaSteps(plain: unknown, where: Where): [string, string][] {
 
 /** The object a path names in `store`, or null: a schema object from the root module (`Builders.Store.held`), a
  * singleton, or through its owner's entries, the one whose keys the path's last step gives and whose other end's owner
- * adjacency is `o`. In a store with a store below, an object of its below's it holds already is found by its path, one
- * it made itself through its owner's entries, and any other is the store below's, held by its path until it is read
- * (CAP-284). */
+ * adjacency is `o`: one the store holds, a cache layer's among them, which loads nothing. */
 function byPath(store: any, plain: unknown, where: Where): unknown {
   const [singleton, steps] = stepsOf(plain, where);
   if (singleton === ".") return store._at(_schemaSteps(plain, where));
   if (steps.length === 0) return store._singletons.get(singleton) ?? null;
-  if (store._below !== null) return store._found(plain);
   const owner = byPath(store, ownerPath(singleton, steps), where);
   return owner === null ? null : ownedBy(owner, steps[steps.length - 1]!);
 }
@@ -1060,15 +1055,6 @@ function byPath(store: any, plain: unknown, where: Where): unknown {
 /** The path of the owner of the object at the path of `singleton` and `steps`. */
 function ownerPath(singleton: string, steps: Step[]): PlainMap {
   return pathFrom(singleton, steps.slice(0, -1));
-}
-
-/** Whether the object at `path` is the one at `owner`'s path, or one it owns, through any depth (CAP-284). */
-function under(path: unknown, owner: unknown): boolean {
-  const [[singleton, steps], [at, above]] = [stepsOf(path, []), stepsOf(owner, [])];
-  return singleton === at && steps.length >= above.length && above.every(([i, o, keys], n) => {
-    const [i2, o2, keys2] = steps[n]!;
-    return i === i2 && o === o2 && keys.size === keys2.size && [...keys].every(([k, v]) => keys2.get(k) === v);
-  });
 }
 
 /** The object `owner` owns by the path's last step, among the objects present: through the relation of the owner's
@@ -1443,7 +1429,7 @@ function readSnapshot(store: any, transactions: unknown, ignored: Ignored[] | nu
       if (upsert instanceof Map) upsert.set("key", `\0snapshot ${++snapshots}`);
       const schema = store.registered("Mutations.OfTransaction");
       const transaction = (store as any).Mutations.OfTransaction((t: any) => built(store, t, schema, plain, [i], kept));
-      const frames = Transactions._execute(store, transaction, true);
+      const frames = Transactions._execute(store, transaction);
       bound = [...frames[0]!.values()].filter((target) => Proxies._is_data(target));
     });
   } finally {
@@ -1864,4 +1850,4 @@ export function FromPlain(store: Visitors.OfStore): FromPlainCall {
 }
 
 export { decode as _decode, set as _set, byPath as _by_path, stepsOf as _steps, ownerPath as _owner_path,
-  ownedBy as _owned_by, under as _under, schemaPath as _schema_path, built as _built };
+  ownedBy as _owned_by, schemaPath as _schema_path, built as _built };

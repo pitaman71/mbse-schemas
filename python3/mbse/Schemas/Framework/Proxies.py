@@ -220,13 +220,11 @@ class _Committed:
         self.store = store
 
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
-        self.store._load(holder)
         return object.__getattribute__(holder, "_own_values")
 
     def entries(self, holder: Any, write: bool = False) -> dict[Hashable, dict[Hashable, Any]]:
-        """An object's own entry tables, an object of the store below's loaded first (CAP-284); a schema the store was
-        made holding is never written: the store keeps the entries that link it."""
-        self.store._load(holder)
+        """An object's own entry tables; a schema the store was made holding is never written: the store keeps the
+        entries that link it."""
         if self.store.framework(holder):
             return self.store._framework_entries.setdefault(id(holder), {})
         try:
@@ -254,170 +252,24 @@ class OfStore(Stores.Catalog):
         self._proposals: Any = None  # the proposals of the transaction open on it, and its savepoints', if any
         self._framework_entries: dict[int, dict[Hashable, dict[Hashable, Any]]] = {}  # entries linking its own schemas
         self._committed = _Committed(self)  # what it holds as committed
-        self._below: Any = None  # the store it is given below it, from which it loads what it is asked for (CAP-283)
-        self._identities: dict[str, _ObjectData] = {}  # the store below's objects it has loaded, each by its path
-        self._waiting: dict[str, list[_Entry]] = {}  # the entries that link an object not present, by its path
+        self._below: Any = None  # the layer below it, where it is a cache layer (CAP-283)
         self._owning: dict[tuple[int, str], bool] = {}  # whether a relation owns through a link (`_owns_through`)
-        self._loaded: weakref.WeakSet[Any] = weakref.WeakSet()  # those loaded, held weakly: an id, reused, would not do
-        self._loading = 0  # how deep in loading one: what it reads then loads nothing more
-        self._applying = 0  # how deep in applying a transaction of the store below's: it loads nothing (CAP-285)
+        self._applying = 0  # how deep in applying the layer below's changes: checked there, sent nowhere (CAP-285)
         # the counted objects upserts created, weakly, by upsert key, symbol and the frame that reached the upsert (63)
         self._upserted: dict[tuple[Any, ...], weakref.ref[Any]] = {}
         self._life: _Life | None = None  # the life of the visitors the transaction open made (CAP-315)
 
-    def _below_path(self, singleton: str) -> Any:
-        """A singleton's path, where the store has a store below, from which it loads; else None."""
-        return {"singleton": singleton, "next": {"target": {}}} if self._below is not None else None
-
     def _present(self, path: Any) -> _ObjectData | None:
-        """The object at `path` the store holds, made in it or loaded from the store below, without loading anything:
-        a singleton, one loaded by its path, or one through its owner's entries, keys compared first; else None. One
-        loaded and since deleted is none: deleted as committed, its path is forgotten, free to name another."""
+        """The object at `path` the store holds, made in it or given it by the layer below's changes: a singleton, or
+        one through its owner's entries; else None. A store reads only what it holds: nothing is loaded (CAP-284 is
+        replaced, [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below))."""
         from . import Plain
 
         singleton, steps = Plain._steps(path, ())
         if not steps:
             return self._singletons.get(singleton)
-        key = _identity(path)
-        loaded = self._identities.get(key)
-        if loaded is not None:
-            if self._loading or not _deleted(loaded):  # loading, its owner's entry may be yet to come; it deletes nothing
-                return loaded
-            proposals, self._proposals = self._proposals, None
-            try:
-                committed = _deleted(loaded)
-            finally:
-                self._proposals = proposals
-            if not committed:  # deleted within the transaction open: none, its path kept so that it is not fetched
-                return None
-            del self._identities[key]
         owner = self._present(Plain._owner_path(singleton, steps))
-        if owner is None:
-            return None
-        self._loading += 1  # what the store holds of the owner, as it is
-        try:
-            return Plain._owned_by(owner, steps[-1])
-        finally:
-            self._loading -= 1
-
-    def _found(self, path: Any) -> Any:
-        """The object at `path`: one the store holds; else, while loading, or applying a transaction of the store
-        below's, the store below's, held by its path until it is read (`_Unresolved`); else the store below's, loaded;
-        None where neither holds one (CAP-284, CAP-285)."""
-        found = self._present(path)
-        if found is not None:
-            return found
-        if self._loading or self._applying:
-            return _Unresolved(self, path)
-        if _identity(path) in self._identities:  # deleted within the transaction open: the store below's is not it
-            return None
-        return self._fetched(path)
-
-    def _resolved(self, link: _Unresolved) -> _ObjectData:
-        """The object a link holds by its path: present, or loaded, which links it in every entry waiting on it;
-        refused where the store below holds none."""
-        found = self._present(link.path) or self._fetched(link.path)
-        if found is None:
-            raise LookupError("the store below holds no object at this path")
-        return found
-
-    def _fetched(self, path: Any) -> _ObjectData | None:
-        """The store below's object at `path`, loaded: made from the document the store below gives of it, each entry
-        that waits on its path linking it, then its document applied as committed; then each transaction open on the
-        store, or savepoint, holding those entries as it holds them; None where the store below holds none."""
-        from . import Plain
-
-        plain = self._below.document(path)
-        if plain is None:
-            return None
-        (pattern,) = plain["mutations"][0]["upsert"]["exists"]
-        ((_, bound),) = pattern["symbols"].items()
-        schema = Plain._by_path(self, bound["schema"][0]["path"], ())
-        key = _identity(path)
-        made = self._identities[key] = _ObjectData(self, schema, schema.name, path)
-        waiting = [(entry, entry._key()) for entry in {id(e): e for e in self._waiting.pop(key, [])}.values()]
-        for entry, _ in waiting:
-            for name, target in entry._links.items():
-                if isinstance(target, _Unresolved) and target.key == key:
-                    entry._links[name] = made
-        levels, at = [], self._proposals
-        while at is not None and hasattr(at, "entries_"):  # a transaction's, or a savepoint's, innermost first
-            levels.append(at)
-            at = at.base
-        views = {id(made): object.__getattribute__(made, "_adjacent")}
-        self._relink(waiting, made, None, views)
-        self._load(made, plain)
-        for level in reversed(levels):
-            self._relink(waiting, made, level, views)
-        return made
-
-    def _relink(self, waiting: list[tuple[_Entry, Hashable]], made: _ObjectData, level: Any,
-                views: dict[int, dict[Hashable, dict[Hashable, Any]]]) -> None:
-        """Holds each entry that waited on `made`, now linking it, by its new key, where `level`, what the store holds as
-        committed (None) or a transaction open on it, holds it by its old one: there, the objects present it links hold
-        it by its new key, an entry equal to one held going, and `made` holds it; where it holds it not, as where the
-        transaction removed it, `made` holds it not either. `views` is each object's tables as the level below has
-        them."""
-        for entry, old in waiting:
-            relation, new = id(entry._relation), entry._key()
-            others = [t for t in entry._links.values() if isinstance(t, _ObjectData) and t is not made]
-            if level is None:
-                tables = {id(t): object.__getattribute__(t, "_adjacent") for t in others}
-            else:  # where it copied the others' tables, a copy of `made`'s
-                tables = {id(t): level.entries_[id(t)][1] for t in others if id(t) in level.entries_}
-                if not tables:
-                    continue
-                tables[id(made)] = level.entries_.setdefault(
-                    id(made), (made, {k: dict(table) for k, table in views[id(made)].items()}))[1]
-            views.update(tables)
-            holds = False
-            for target in others:
-                table = views[id(target)].get(relation, {})
-                if table.pop(old, None) is not None:
-                    table.setdefault(new, entry)
-                    holds = True
-            table = views[id(made)].setdefault(relation, {})
-            if holds:
-                table.setdefault(new, entry)
-            else:
-                table.pop(new, None)
-
-    def _load(self, holder: Any, plain: Any = None) -> None:
-        """Loads `holder`, an object of the store below's not yet loaded, from the document the store below gives of it:
-        its property values and its entries, written as the store's committed data, outside any transaction open, and
-        observed by none (CAP-284)."""
-        from . import Plain
-
-        from . import Transactions
-
-        if self._loading or not isinstance(holder, _ObjectData) or holder in self._loaded:
-            return
-        path = object.__getattribute__(holder, "_reference")
-        if path is None:
-            return
-        self._loaded.add(holder)
-        plain = self._below.document(path) if plain is None else plain
-        (pattern,) = plain["mutations"][0]["upsert"]["exists"]
-        ((symbol, _),) = pattern["symbols"].items()
-        pattern["symbols"][symbol] = {"reference": {"path": path}}
-        proposals, self._proposals = self._proposals, None
-        self._loading += 1
-        try:
-            Transactions._execute(self, Plain.FromPlain(self).Transaction(plain))  # its frames given back to none
-        finally:
-            self._loading -= 1
-            self._proposals = proposals
-
-    def document(self, path: Any) -> Any:
-        """The document of the object at `path`, a one-transaction document of its properties and entries, each object
-        they link by its path ([CAP-128: graphs sent as one-transaction documents](mbse:mbse-basis/docs/capabilities/CAP-128.md)), as plain data; None where the store holds none: what
-        a store above it loads (CAP-283)."""
-        from . import JSON, Plain
-
-        target = Plain._by_path(self, path, ())
-        if target is None:
-            return None
-        return JSON.loads(JSON.dumps(Plain.ToPlain(self)(object.__getattribute__(target, "_schema"), target)))
+        return None if owner is None else Plain._owned_by(owner, steps[-1])
 
     def values(self, holder: Any, write: bool = False) -> dict[str, Any]:
         """A data object's or a value object's property values (`Visitors.OfStore`): within a transaction, as its
@@ -504,7 +356,7 @@ class OfStore(Stores.Catalog):
         before it began. One is open on a store at a time; each store's is its own."""
         if self._proposals is not None:
             raise ValueError("a transaction is open: transactions do not nest")
-        outer, self._life = self._life, _Life()  # outer: a transaction open when the store loads (`_load`)
+        outer, self._life = self._life, _Life()
         try:
             with self._proposing() as proposals:
                 yield proposals
@@ -513,9 +365,10 @@ class OfStore(Stores.Catalog):
             self._life = outer
 
     @contextlib.contextmanager
-    def _proposing(self) -> Iterator[Any]:
+    def _proposing(self, settled: Any = None) -> Iterator[Any]:
         """Proposals over what the store holds, or over the transaction open's (a savepoint): committed when the block
-        ends, dropped where it raises."""
+        ends, dropped where it raises; `settled`, where given, is called with them once their ownership is settled, just
+        before they commit (a savepoint's changes, gathered: `Transactions`' frames' journals)."""
         from . import Proposals
 
         below = self._proposals
@@ -523,9 +376,9 @@ class OfStore(Stores.Catalog):
         try:
             with self._writing():  # ownership is settled within the outermost
                 yield proposals
-            if below is None and not self._loading:  # loading what the store below holds checks nothing
-                if self._below is not None:
-                    self._unlink_gone(proposals)
+            if settled is not None:
+                settled(proposals)
+            if below is None:
                 if not self._applying:  # nor does applying what it committed: it was checked there (CAP-285)
                     _check_uniques(proposals)
                 self._settled(proposals)
@@ -589,20 +442,6 @@ class OfStore(Stores.Catalog):
             for relation_id, table in list(_entries_of(target, self).items()):
                 _discard(relation_id, list(table.values()))
 
-    def _unlink_gone(self, proposals: Any) -> None:
-        """Deletes in cascade, among what is present, what each object not present that the transaction deleted
-        reaches: every entry that links it, or an object it owns, and so each object present it owns."""
-        gone = _gone_paths(proposals, self)
-        if not gone:
-            return
-        for key, entries in list(self._waiting.items()):
-            path = next((x.path for entry in entries for x in entry._links.values()
-                         if isinstance(x, _Unresolved) and x.key == key), None)
-            if path is not None and any(_under(path, g) for g in gone):
-                for entry in list(entries):
-                    _discard(id(entry._relation), [entry], self)
-        self._delete_orphans()
-
     def _next_key(self, relation: RelationSchema, owner: Any, name: str, link: str, owned: str) -> str:
         """The next value a key's naming pattern gives among the entries of `relation` its owner holds: strictly
         increasing, past every number held."""
@@ -622,13 +461,13 @@ class OfStore(Stores.Catalog):
             raise ValueError(f"singleton {global_name!r} is already registered")
         super()._register(schema)
         if global_name is not None:
-            self._singletons[global_name] = _ObjectData(self, schema, schema.name, self._below_path(global_name))
+            self._singletons[global_name] = _ObjectData(self, schema, schema.name)
 
     def _declared(self, schema: Any) -> None:
         """A registered schema declared a singleton after it was registered: its instance, created with the
         declaration."""
         if isinstance(schema, ObjectSchema) and schema.singleton is not None and schema.singleton not in self._singletons:
-            self._singletons[schema.singleton] = _ObjectData(self, schema, schema.name, self._below_path(schema.singleton))
+            self._singletons[schema.singleton] = _ObjectData(self, schema, schema.name)
 
     def builder(self, name: str, instance: Any = None) -> Any:
         """A builder of an object of the schema registered as `name`; for a value object, union, intersection or
@@ -693,8 +532,7 @@ def _deleted(target: Any) -> bool:
 
 
 def _counted(target: Any) -> bool:
-    """Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)). One of the
-    store below's not yet present, which a link holds by its path, is no proxy at all (CAP-284)."""
+    """Whether a proxy is a counted object: neither a singleton nor owned (object identity 37 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided))."""
     return _counted_schema(object.__getattribute__(target, "_schema"))
 
 
@@ -772,39 +610,12 @@ def _scalar_key(value: Any) -> Hashable:
     return (type(value).__name__, value)
 
 
-class _Unresolved:
-    """A link to an object of the store below's that is not present in the store: its path, held until the link is read,
-    when the store loads it from the store below (CAP-284). An entry is held only by the objects it links that are
-    present; one present links it again once it is loaded."""
-
-    __slots__ = ("store", "path", "key")
-
-    def __init__(self, store: Any, path: Any) -> None:
-        self.store, self.path, self.key = store, path, _identity(path)
-
-
-def _identity(path: Any) -> str:
-    """An object's identity by its path, in one canonical form: the path's JSON, each mapping's keys in sorted order, so
-    that two equal paths have one identity whatever the order of their keys ([CAP-311: references
-    stabilized](mbse:mbse-basis/docs/capabilities/README.md#CAP-311))."""
-    from . import JSON
-
-    return JSON.dumps(_sorted_keys(path))
-
-
-def _sorted_keys(value: Any) -> Any:
-    """`value`, a path's plain data, with each mapping's keys in sorted order; a path holds no lists."""
-    if isinstance(value, dict):
-        return {key: _sorted_keys(value[key]) for key in sorted(value)}
-    return value
-
-
 def _link_key(target: Any) -> Hashable:
-    """What a link contributes to its entry's key: the object linked, the path of one not present, or the name of the
-    parameter a parameter reference in the object's place designates (CAP-312)."""
+    """What a link contributes to its entry's key: the object linked, or the name of the parameter a parameter reference
+    in the object's place designates (CAP-312)."""
     if _is_parameter(target):
         return ("parameter", _parameter_name(target))
-    return ("path", target.key) if isinstance(target, _Unresolved) else id(target)
+    return id(target)
 
 
 def _parameter_name(reference: Any) -> Any:
@@ -819,42 +630,20 @@ def _parameter_in(visitor: Any) -> Any:
 
 
 def _end(target: Any) -> bool:
-    """Whether a link's target is an end that holds no entry table: one not present (CAP-284), or a parameter reference
-    in the place of an object (CAP-312)."""
-    return isinstance(target, _Unresolved) or _is_parameter(target)
+    """Whether a link's target is an end that holds no entry table: a parameter reference in the place of an object
+    (CAP-312)."""
+    return _is_parameter(target)
 
 
 def _owns_through(relation: RelationSchema, link: str, store: Any) -> bool:
     """Whether `relation` owns what it links through `link`, whatever that is: a schema the store holds marks its
-    adjacency to it `owner()`; so that one of the store below's not present is known owned without reading it
-    (CAP-284)."""
+    adjacency to it `owner()`."""
     key = (id(relation), link)
     found = store._owning.get(key)
     if found is None:
         found = store._owning[key] = any(
             a.relation is relation and a.me == link for name in store.names()
             if isinstance(held := store.registered(name), ObjectSchema) for a in _owner_adjacencies(held))
-    return found
-
-
-def _under(path: Any, owner: Any) -> bool:
-    """Whether the object at `path` is the one at `owner`'s path, or one it owns, through any depth."""
-    from . import Plain
-
-    (singleton, steps), (at, above) = Plain._steps(path, ()), Plain._steps(owner, ())
-    return singleton == at and steps[:len(above)] == above
-
-
-def _gone_paths(proposals: Any, store: Any) -> list[Any]:
-    """The paths of the objects not present an owning entry of which the transaction removed: deleted, with what they
-    own (CAP-284)."""
-    found = []
-    for holder, tables in proposals.entries_.values():
-        before = proposals.base.entries(holder)
-        for relation_id, table in tables.items():
-            found += [x.path for key, entry in before.get(relation_id, {}).items() if key not in table
-                      for link, x in entry._links.items()
-                      if isinstance(x, _Unresolved) and _owns_through(entry._relation, link, store)]
     return found
 
 
@@ -882,8 +671,6 @@ class _Entry(_Lived):
             target = self._links[name]
             if _is_parameter(target):  # in the place of the object it links (CAP-312): an empty visitor holding it
                 return _Empty(f"link {name!r} holds a parameter reference", _wrap(target, self._life))
-            if isinstance(target, _Unresolved):  # read: loaded from the store below, which links it in every entry
-                target = self._links[name] = target.store._resolved(target)  # that waits on it, this one too
             return _wrap(target, self._life)
         prop = self._relation.entry.properties.get(name)
         if prop is None:
@@ -950,10 +737,7 @@ def _add_entry(relation: RelationSchema, entry: _Entry, store: Any = None) -> No
     for target in entry._links.values():
         if _is_parameter(target):  # in the place of an object (CAP-312): it holds no table
             continue
-        if isinstance(target, _Unresolved):  # held by the objects present, linked again once it is loaded (CAP-284)
-            target.store._waiting.setdefault(target.key, []).append(entry)
-        else:
-            _table(target, id(relation), store, write=True)[key] = entry
+        _table(target, id(relation), store, write=True)[key] = entry
 
 
 def _check_uniques(proposals: Any) -> None:
@@ -1020,16 +804,13 @@ def _check_keys(relation: RelationSchema, inserted: list[_Entry], store: Any) ->
 
 def _shown_parts(entry: _Entry, names: list[str]) -> str:
     """An entry's links and properties `names` in a message: each a name and what it holds, an object shown by its
-    schema's name (a schema object by its own name or kind, one not present by its path), a value by its `repr`, one
-    unset as None."""
+    schema's name (a schema object by its own name or kind), a value by its `repr`, one unset as None."""
     def shown(name: str) -> str:
         target = entry._links.get(name)
         if target is None:
             return repr(entry._properties.get(name))
         if _is_parameter(target):
             return f"parameter {_parameter_name(target)!r}"
-        if isinstance(target, _Unresolved):
-            return f"<{target.key}>"
         return f"<{target._schema_name if isinstance(target, _ObjectData) else _shown_type(target)}>"
     return "{" + ", ".join(f"{name}: {shown(name)}" for name in names) + "}"
 
@@ -1064,7 +845,7 @@ def _discard(relation_id: int, entries: list[_Entry], store: Any = None) -> None
     for entry in entries:
         key, held = entry._key(), _entry_store(entry, store)
         for target in entry._links.values():
-            if not _end(target):  # one not present waits on it still: held as committed, maybe; a parameter, none
+            if not _end(target):  # a parameter reference holds no table
                 _table(target, relation_id, held, write=True).pop(key, None)
         for _, owned in _owned_links(entry):
             object.__getattribute__(owned, "_store")._orphaned.append(owned)
@@ -1081,7 +862,7 @@ def _orders(schema: ObjectSchema, source: Any) -> list[tuple[dict[Hashable, _Ent
     for adjacency in schema.adjacencies.values():
         for entry in _linking(adjacency.relation, adjacency.me, source):
             for target in entry._links.values():
-                if _end(target):  # not present, or a parameter reference: it holds no table (CAP-284, CAP-312)
+                if _end(target):  # a parameter reference: it holds no table (CAP-312)
                     continue
                 table = _table(target, id(adjacency.relation), store, write=True)  # reordered after the update
                 tables.setdefault(id(table), (table, list(table.values())))
@@ -2125,10 +1906,10 @@ class _ObjectData(_Lived):
     transaction, a proxy wrapping it (`_durable`), sharing its state, which the transaction reads and writes through
     its proposals and which lives only within it (`_life`, CAP-315)."""
 
-    __slots__ = ("_store", "_schema", "_schema_name", "_reference", "_serial", "_own_values", "_adjacent",
+    __slots__ = ("_store", "_schema", "_schema_name", "_serial", "_own_values", "_adjacent",
                  "_durable", "_life", "__weakref__")
 
-    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str, reference: Any = None):
+    def __init__(self, store: OfStore, schema: ObjectSchema, schema_name: str):
         object.__setattr__(self, "_durable", None)
         object.__setattr__(self, "_life", None)
         object.__setattr__(self, "_serial", next(_SERIALS))  # tells it apart in memory; never written
@@ -2136,7 +1917,6 @@ class _ObjectData(_Lived):
         object.__setattr__(self, "_store", store)
         object.__setattr__(self, "_schema", schema)
         object.__setattr__(self, "_schema_name", schema_name)
-        object.__setattr__(self, "_reference", reference)  # its path, where it is the store below's, to load from
         object.__setattr__(self, "_own_values", {})
 
     @property
@@ -2321,7 +2101,7 @@ class _Adjacency(_Unassignable, tuple):  # type: ignore[type-arg]
             if all(name in entry._properties
                    and _scalar_key(_view(entry._properties[name], properties[name].schema)) == _scalar_key(value)
                    for name, value in keys.items()):
-                return getattr(entry, others[0])  # one not present: loaded
+                return getattr(entry, others[0])
         raise LookupError(f"no entry of {self._schema.name!r} has the keys {dict(keys)!r}")
 
     def project(self, name: str) -> tuple[Any, ...]:
@@ -2994,9 +2774,6 @@ class _LinkMember(_Unassignable):
             entry._links[name] = builder
             return entry
         spec = _durable(_deref(spec))
-        if isinstance(spec, _Unresolved):  # one of the store below's not present, which loading it links (CAP-284)
-            entry._links[name] = spec
-            return entry
         if isinstance(spec, _LinkMember):
             spec = spec._target()
         if _parameter_in(spec) is not None:  # a link's, or an entry's, that holds one

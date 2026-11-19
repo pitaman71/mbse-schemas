@@ -180,7 +180,7 @@ def _entry(store: Any, entry: Any) -> Any:
     value."""
     relation = Paths.of(entry._relation)
     links = {link: Proxies._parameter_in(getattr(entry, link)) or _object(store, getattr(entry, link))  # each read:
-             for link in entry._links}  # present, or loaded; a parameter reference in its place, as it is (CAP-312)
+             for link in entry._links}  # a parameter reference in its place, as it is (CAP-312)
     properties = dict(entry._properties)
     return lambda e: e.relation(relation).links(links).properties(properties)
 

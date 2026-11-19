@@ -248,12 +248,12 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    ```python
    lambda _: _.OfFrame.name("References.OfFrame").properties({
        "scope": S.OfStr,  # the scope the frame was made in, as `Transactions.Frame.scope`
-       "remainder": S.OfStr,  # where the rest of the expression begins, written as `References.OfError`'s subterm
+       "remainder": S.OfStr,  # where the rest begins, as `References.OfError`'s subterm; unset on a complete frame
        "journal": _.Transaction,  # the changes made interpreting its input frame (CAP-321's form)
    }),
    lambda _: _.OfEnd.name("References.OfEnd").properties({  # the stream's completion marker, `{"end": scope}`
-       "scope": S.OfStr,
-       "journal": _.Transaction,
+       "scope": S.OfStr,  # a branch's or an input frame's; unset where it ends the whole stream, `{"end": None}`
+       "journal": _.Transaction,  # set only where the input frame gave no frame
    }),
    lambda _: _.OfItem.name("References.OfItem").branches([  # an item of a frame stream
        lambda t: t.name("frame").schema([txn.References.OfFrame]),
@@ -262,7 +262,10 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    ```
 
    `remainder` names a place in the expression the receiving layer already holds, as `Transactions.Remainder.at`
-   does, not a copy of the expression. `References.of` writes the three parts of a frame, and an end marker's
+   does, not a copy of the expression: every layer below is given the transaction's expression. A frame's errors are
+   carried already, as `errors`, each a `References.OfError` (subterm, kind, message;
+   [CAP-309: errors annotated on frames](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md#CAP-309)). As the "mbse persistence" session reviewed it on this pull
+   request, for the stacked stores' stage 3. `References.of` writes the three parts of a frame, and an end marker's
    `References.OfEnd`. Lands after mbse-schemas #62 (CAP-321, 0.33.0), which makes the journal a
    `Changes.Transaction`; the "mbse persistence" session is told when it lands.
 2. **`Changes.apply` makes what a frame's state names**, in CAP-321's rewriting of it, where CAP-321 does not

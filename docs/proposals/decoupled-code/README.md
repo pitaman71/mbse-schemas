@@ -238,8 +238,8 @@ Each stage lands after CAP-321 (INI-014) has rewritten `Changes` and `Changes.ap
 passing both gates at 100%. `Store.exec` (0.31.0) has landed.
 
 1. **`Changes.apply` makes what a frame's state names**, in CAP-321's rewriting of it, where CAP-321 does not
-   already: it applies an entry linked by an object reference not bound to a symbol, and, where question 2 so decides, a symbol bound by reference to an object the store does not hold,
-   found or made through the ownership that its reference gives. It changes nothing that a journal given by
+   already: it applies an entry linked by an object reference not bound to a symbol, and a symbol bound by reference to an object the store does not hold, found or made through the
+   ownership that its reference gives (Decided, 1). It changes nothing that a journal given by
    `Changes.observe` does today.
 2. **A frame carries its state.** After the persistence session's stage 2, which adds a frame's changes in the same
    form: `Changes.install` extends `References.OfFrame` with `state`; `_given_back` writes each frame's state, by its
@@ -249,6 +249,14 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    both languages. mbse-transforms then takes it, and mbse-codegen-python's stages 2 to 4 with it.
 4. **mbse-basis.** CAP-131 revised, and CAP-318's detail file with what was built, in a pull request to mbse-basis.
 
+## Decided
+
+1. **A symbol bound by object reference to an object the store does not hold** (question 2): applying finds or makes
+   it through the ownership that its object reference gives, as an upsert finds an owned object by its owning entry.
+   The user: "yeah (a) not sure why (b) or (c) would even be functional". Binding such an object by its schema instead
+   would make a new object, which written back is another object than the one the frame bound; and a copy made from
+   the original's snapshot is not decoupled code's.
+
 ## Questions for the user
 
 1. **A frame's state and its changes.** The persistence session's stage 2 gives a frame its changes as a
@@ -256,12 +264,7 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    same form over the frame's symbols; (b) one journal, the frame's state, of which a cache layer applies all; (c) one
    journal, the frame's changes, and no state beyond them. *Recommended: (a). A read-only map changes nothing, and its
    frames still hold what decoupled code reads; a cache layer applies the changes and nothing more.*
-2. **A symbol bound by reference to an object the store does not hold.** `Changes.apply` refuses it today. (a) Applying
-   finds or makes it through the ownership that its reference gives, as an upsert finds an owned object by its owning
-   entry; (b) a frame's state binds each object that the copy may not hold to its schema, and inserts its ownership
-   entries, as `Changes.observe` writes a new object; (c) a copy is made from the original's snapshot instead.
-   *Recommended: (a). The state stays one form for every store, and (c) goes against "No snapshots in the framework,
-   but for checkpoints" ([the stacked stores proposal](https://github.com/pitaman71/mbse-basis/blob/main/proposals/STACKED-STORES.md#decided)).*
+2. *Decided* (Decided, 1).
 3. **How much of each bound object a frame carries.** (a) What its specs name, as today; (b) every property value and
    every entry of each bound object; (c) what the transaction asks for, per symbol. *Recommended: (a), with each
    bound owned object's ownership entries implied by its reference, as question 2 (a) makes them, so that a copy can

@@ -415,13 +415,18 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   _proposing<T>(write: () => T, settled: ((proposals: Proposals.OfStore) => void) | null = null): T {
     const below = this._proposals;
     const proposals = this._proposals = new Proposals.OfStore(below ?? this._committed, this);
-    let written: T;
-    try {
+    let written!: T;
+    const checked = (): void => {
       written = this._writing(write); // ownership is settled within the outermost
       if (settled !== null) settled(proposals);
+      if (below === null && this._applying === 0) checkUniques(proposals); // nor does applying what it committed: it
+    }; // was checked there (CAP-285)
+    try {
       if (below === null) {
-        if (this._applying === 0) checkUniques(proposals); // nor does applying what it committed: it was checked there (CAP-285)
+        this._checking(checked);
         this._settled(proposals);
+      } else {
+        checked();
       }
     } catch (error) {
       this._proposals = below;
@@ -435,6 +440,11 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 
   /** A transaction's writes, its ownership settled, just before they commit. */
   abstract _settled(proposals: Proposals.OfStore): void;
+
+  /** Runs a transaction's writes, then settles its ownership and checks its unique clauses, `check`, before it commits:
+   * a store given a layer below, within the layer below's transaction, which commits once they have, before this one
+   * does (`Builders.Store._checking`). */
+  abstract _checking(check: () => void): void;
 
   /** Applies the updates of schema objects that waited for the transaction's commit. */
   abstract _commit_schemas(proposals: Proposals.OfStore): void;

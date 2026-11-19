@@ -2427,9 +2427,10 @@ export class Store extends Proxies.OfStore {
    * are given it as a journal once it has committed (`Changes`).
    *
    * A cache layer's transaction, a store given a layer below, runs within one transaction of the layer below
-   * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below), `Transactions._Lower`), which commits first, as the cache layer's body ends and before its
-   * proposals commit, what it reports of it taken into this one; a refusal there refuses this one, and where this one
-   * throws, the layer below's is dropped. Applying what the layer below reports is a transaction of its own, opening
+   * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below), `Transactions._Lower`), which commits first, once this one's ownership is settled and its unique
+   * clauses checked, a refusal in them dropping it, and before this one's proposals commit (`_checking`), what it
+   * reports of it taken into this one; a refusal there refuses this one, and where this one throws, the layer below's is
+   * dropped. Applying what the layer below reports is a transaction of its own, opening
    * none below. */
   override _transacting<T>(write: () => T): T {
     const before = new Map<unknown, [Set<string>, Set<string>]>();
@@ -2437,7 +2438,8 @@ export class Store extends Proxies.OfStore {
       if (meta instanceof S.OfObject.Data) before.set(meta, [new Set(meta.properties.keys()), new Set(meta.adjacencies.keys())]);
     }
     this._changes = null;
-    const lower = this._below !== null && this._applying === 0 ? new Transactions._Lower(this._self) : null;
+    const outer = this._lower;
+    this._lower = this._below !== null && this._applying === 0 ? new Transactions._Lower(this._self) : null;
     const checked = (): T => {
       const result = write();
       if (this._applying === 0 && this._restoring === 0) { // checked where committed, as unique clauses are (CAP-293);
@@ -2451,13 +2453,10 @@ export class Store extends Proxies.OfStore {
     let committed = false;
     let written!: T;
     try {
-      written = super._transacting(() => {
-        this._lower = lower;
-        return lower === null ? checked() : lower.within(checked);
-      });
+      written = super._transacting(checked);
       committed = true;
     } finally {
-      this._lower = null;
+      this._lower = outer;
       extendBuilders(this, before);
       const gathered = committed ? this._changes : null;
       this._changes = null;
@@ -2472,9 +2471,17 @@ export class Store extends Proxies.OfStore {
     return written;
   }
 
+  /** A transaction's writes, its ownership settled and its unique clauses checked, `check`: a cache layer's within the
+   * layer below's transaction, which commits once they have, a refusal here dropping it, and before this one commits, a
+   * refusal there refusing this one; what it reports as it commits taken into this one (`_arrive`). */
+  override _checking(check: () => void): void {
+    if (this._lower === null) check();
+    else this._lower.within(check);
+  }
+
   /** A transaction's changes, for the store's observers, gathered once its ownership is settled, so that what it
    * deleted in cascade is among them, just before it commits, with its uid; its journal is written once it has
-   * (`Changes`). */
+   * (`Changes`): a cache layer's once the layer below's has committed, what it reported among them. */
   override _settled(proposals: Proposals.OfStore): void {
     if (this._observers.length > 0) {
       this._changes = Changes._gather(this, proposals);

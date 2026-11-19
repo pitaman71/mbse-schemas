@@ -1463,9 +1463,10 @@ function collected(stream: Observable<Item>): Item[] {
 }
 
 /** The layer below's transaction, which a cache layer's transaction holds for its whole duration
- * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): the cache layer's runs within it (`within`), and it commits first, as that ends,
- * before the cache layer's proposals commit, what it reports of it, as it commits (`closing`), taken into the cache
- * layer's; and where the cache layer's throws, it is dropped. What passes between them is `exec`, its frames,
+ * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): the cache layer's writes run within it, and its ownership is settled and its unique
+ * clauses checked there (`within`, `Builders.Store._checking`); then it commits, before the cache layer's proposals do,
+ * what it reports of it, as it commits (`closing`), taken into the cache layer's; and where the cache layer's throws, its
+ * checks among it, it is dropped. What passes between them is `exec`, its frames,
  * remainders and journals each made a value of the store it goes to, through their plain forms: an object by its
  * reference, a schema object by its path, an expression by its wire form, whose positions are the same in both. */
 export class _Lower {
@@ -1481,8 +1482,9 @@ export class _Lower {
     this.below = store._below;
   }
 
-  /** Runs `body`, the cache layer's transaction, within the layer below's, which commits as it ends; throws where it is
-   * refused. */
+  /** Runs `body`, the cache layer's transaction's writes, its ownership settled and its unique clauses checked, within
+   * the layer below's transaction, which commits as it ends, a refusal in it dropping that, and before the cache layer's
+   * commits; throws where the layer below's is refused. */
   within<T>(body: () => T): T {
     try {
       return this.below.transaction((txn: any = null) => {

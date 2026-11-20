@@ -42,6 +42,12 @@
  *
  * A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
  * schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
+ *
+ * Each layer of a stack interprets with an interpreter of its own, coupled with it ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)):
+ * `Interpreter`, the base class, holds what every layer interprets alike, the walk of the terms, binding symbols, frames
+ * and their errors, unique clauses checked at commit and the stream, and drives the layer's reads and writes of its own
+ * storage through the hooks a layer's class gives; `InMemory` is a store in memory's, `Builders.Store`'s, which reads
+ * its proxies and writes through its builders, and keeps a cache layer's forwarding to the layer below.
  */
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -742,48 +748,22 @@ export class Observable<T> {
   }
 }
 
-/** The frames a transaction gives back, made within it: each symbol's object by its reference, and what it assigns, as
- * data (CAP-315); each carrying `scope`, and its remainder where it halted. */
-function givenBack(store: any, frames: Frame[], named: Map<string, string[]>, scope: string | null = null): Frame[] {
-  if (store._unowned.length > 0) store._settle_owners(); // the owners the store gives, so that each object has its path
-  return frames.map((frame) => {
-    const bound: [string, any][] = [];
-    const assigns = new Map([...frame.assigns].map(([name, values]) => [name, new Map(values)])); // a layer below's
-    for (const [symbol, target] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
-      if (!Proxies._isObjectData(target)) {
-        bound.push([symbol, target]); // a schema object, as itself
-        continue;
-      }
-      const state = Proxies._stateOf(target);
-      if (Proxies._counted(target)) {
-        bound.push([symbol, new _Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make `
-          + "it a singleton's or an owner's)", target, store._life)]);
-        continue;
-      }
-      if (Proxies._deleted(target)) {
-        bound.push([symbol, new _Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: `
-          + "nothing designates it")]);
-        continue;
-      }
-      bound.push([symbol, References.of(store, target)]);
-      const values: Map<string, unknown> = store.values(state);
-      const held = new Map((named.get(symbol) ?? []).filter((name) => values.has(name))
-        .map((name) => [name, Proxies._copied(values.get(name))] as const));
-      if (held.size > 0) assigns.set(symbol, new Map([...assigns.get(symbol) ?? [], ...held]));
-    }
-    return new Frame(bound, frame.errors, assigns, frame.remainder, scope);
-  });
-}
-
 /** A transaction a frame of which is annotated with an error: dropped, whole (CAP-124). */
 class Uncommitted extends Error {}
 
 /** A stream unsubscribed from: given nothing more. */
 class Unsubscribed extends Error {}
 
+/** A term that would write, interpreted read-only: its frame halts at it, writing nothing (`Interpreter._written`); no
+ * error, the interpreter catches it. */
+class Halt {}
+
+/** A frame's reference that designates nothing the layer holds. */
+class Absent extends Error {}
+
 type Members = Map<string, any>[];
 
-/** The objects a frame binds, by symbol, as the executor binds them. */
+/** The objects a frame binds, by symbol, as the interpreter binds them. */
 type Bound = Map<string, any>;
 
 /** `frames`, where none is annotated with an error; else the first error annotated is thrown, the one that arose
@@ -798,39 +778,13 @@ export function _raised(frames: Frame[]): Frame[] {
   return frames;
 }
 
-/** Executes a transaction's expression over the store, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
- * stream starts as one frame, empty, which its root term transforms and passes on through `then`, within a savepoint of
- * the transaction open. Gives the frames its chain ends with, as bound, the library's own (a decoder's, a cache layer's
- * applying what the layer below changed). Where a frame is annotated with an error, it writes nothing and throws the
- * first error annotated (`_raised`). */
+/** Executes a transaction's expression over the store, sequentially, by its interpreter (`Interpreter._execute`): the
+ * library's own (a decoder's, a cache layer's applying what the layer below changed). A store standing in for another,
+ * which reads and writes through it, as a test's recorder does, is interpreted as itself. */
 export function _execute(store: any, transaction: any): Frame[] {
-  return _raised(_frames(store, transaction));
-}
-
-/** The frames a transaction's expression gives, throwing nothing for an error a term meets processing a frame: that
- * frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its chain
- * ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped, whole
- * (CAP-124), else committed into the transaction open. An error in the expression itself, found
- * before it runs, is thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its
- * `frames` all the frames, none annotated. What `txn.exec` gives, as a stream, is `_exec`'s. */
-export function _frames(store: any, transaction: any): Frame[] {
-  const root = next(transaction, "mutations");
-  let made: Frame[] = [];
-  const write = (): void => {
-    const state = new Run(transaction, true, new Map(), null);
-    made = root === null ? [new Frame()] : run(store, root, [new Frame()], ["mutations", 0, kindOf(store, root)], state);
-    made.push(...state.failed);
-    if (state.failed.length > 0) throw new Uncommitted();
-  };
-  try {
-    if (root !== null) check(store, root, new Set());
-    store._joined(write); // a savepoint of the one open
-  } catch (error) {
-    if (error instanceof Uncommitted) return made;
-    (error as any).frames = made;
-    throw error;
-  }
-  return made;
+  let interpreter: Interpreter = store._interpreter();
+  if (interpreter.store !== store) interpreter = new InMemory(store);
+  return interpreter._execute(transaction);
 }
 
 /** What `txn.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root term;
@@ -858,16 +812,17 @@ function termAt(transaction: any, at: readonly (string | number)[]): any {
   return term;
 }
 
-/** The transaction open on a store, an object of its own, which the imperative scope gives its function,
+/** The transaction open on a layer, an object of its own, which the imperative scope gives its function,
  * `store.transaction((txn: any = null) => { ... })`: a first piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md), holding the
- * transaction, and executing expressions within it (`exec`). Its writes commit, or are dropped, with the scope: where a
- * frame its `exec` gave is annotated with an error, the scope commits nothing, throwing the first error annotated
- * (CAP-309). It lives within its transaction: used after it ends, it is refused. */
+ * transaction, and executing expressions within it (`exec`) by its layer's interpreter (`Interpreter`). Its writes
+ * commit, or are dropped, with the scope: where a frame its `exec` gave is annotated with an error, the scope commits
+ * nothing, throwing the first error annotated (CAP-309). It lives within its transaction, `life`, whose `ended` says it
+ * has ended: used after, it is refused. */
 export class Transaction {
   /** Every frame its `exec` gave, in order. */
   readonly _given: Frame[] = [];
 
-  constructor(readonly _store: any, readonly _life: { readonly ended: boolean }) {}
+  constructor(readonly _interpreter: Interpreter, readonly _life: { readonly ended: boolean }) {}
 
   /** Executes the suffix of a transaction's expression over input frames, within this transaction, giving a stream of
    * frames, an observable, produced as each subscriber subscribes ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308), [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). It
@@ -889,14 +844,7 @@ export class Transaction {
    * is annotated on the frame it processed (CAP-309); an error of no one frame is the observable's error. Unsubscribed
    * from before it completes, it is given nothing more, and what it wrote is the transaction's. */
   exec(frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
-    const transaction = Proxies._isFunction(remainder) // built as an expression is, outside the transaction (94)
-      ? Changes._as_committed(this._store, () => this._store._expressed(remainder)) : Proxies._durable(remainder);
-    const given = _remainder(this._store, transaction);
-    const proposals = this._store._proposals === null ? null : outermost(this._store._proposals);
-    if (proposals !== null && proposals.expression === null && proposals.uid === null) {
-      proposals.expression = given.transaction; // a scope's: its record's, and its uid (Provenance)
-    }
-    return _exec(this._store, this, frame, given, allow_write);
+    return this._interpreter.exec(this, frame, remainder, allow_write);
   }
 
   /** Refuses a transaction that has ended. */
@@ -908,58 +856,6 @@ export class Transaction {
   _raise(): void {
     _raised(this._given);
   }
-}
-
-/** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
- * subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are made of it,
- * then `{"end": scope}`, `scope` its id. Each given back holds references and assignments (CAP-315), carries its input
- * frame's id, `scope`, and, where it halted read-only, its `remainder`. An error a term meets processing a frame is
- * annotated on it (CAP-309). An error of no one frame is the stream's error, its `frames` every frame the transaction
- * gave, and those made of the input frame it arose processing. */
-export function _exec(store: any, txn: Transaction, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
-  return new Observable<Item>((observer) => {
-    let made: Frame[] = [];
-    const emit = (item: Item): void => {
-      observer.next!(item);
-      if (observer.closed) throw new Unsubscribed();
-    };
-    try {
-      const named = namedIn(store, remainder.transaction);
-      let index = 0;
-      // a frame, or a stream of them, consumed as it arrives
-      for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
-        txn._open();
-        const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
-        index += 1;
-        let changed: any = null;
-        const back = store._proposing(() => { // a savepoint: what it changed, gathered
-          if (write && store._lower !== null && store._installing === 0) return cached(store, remainder, frame, named, scope);
-          made = one(store, remainder, frame, write, named, scope);
-          return givenBack(store, made, named, scope);
-        }, (proposals: Proposals.OfStore) => {
-          changed = Changes._gather(store, proposals, `${_transaction_uid(store)}#${txn._given.length}`);
-        }) as Frame[];
-        made = [];
-        const marker: Map<string, any> = new Map([["end", scope]]);
-        if (changed !== null) { // carried by its first frame, else by its completion marker
-          const journal = Changes._journal(store, [changed]);
-          if (back.length > 0) back[0]!.journal = journal;
-          else marker.set("journal", journal);
-        }
-        for (const item of back) {
-          txn._given.push(item);
-          emit(item);
-        }
-        emit(marker);
-      }
-    } catch (error) {
-      if (error instanceof Unsubscribed) return;
-      (error as any).frames = [...txn._given, ...made];
-      observer.error!(error);
-      return;
-    }
-    observer.complete!();
-  });
 }
 
 /** What executing a transaction over one input frame keeps: whether it writes (`write`), else interprets read-only,
@@ -986,72 +882,7 @@ class Run {
   }
 }
 
-/** The frames one input frame gives, within the transaction open: those the remainder's chain ends with, then those
- * that halted read-only, then those annotated with an error. A frame given annotated is given back as it is, executed no
- * further; one whose reference designates nothing is annotated so, but where a cache layer interprets read-only, where
- * it holds the reference, unresolved, and halts. An error in the expression, as the frame's symbols leave it, is
- * thrown. */
-function one(store: any, remainder: Remainder, given: Map<string, any>, write: boolean, named: Map<string, string[]>,
-  scope: string): Frame[] {
-  const frame = taken(store, given, remainder, !write && store._below !== null);
-  if (frame.errors.length > 0 || remainder.at.length === 0) return [frame];
-  const term = termAt(remainder.transaction, remainder.at);
-  check(store, term, new Set(frame.keys()));
-  const state = new Run(remainder.transaction, write, named, scope);
-  const made = run(store, term, [frame], [...remainder.at], state);
-  return [...made, ...state.halted, ...state.failed];
-}
-
-/** An input frame, as the executor binds: each symbol's object by what its reference designates, a schema object or a
- * store's object as itself; annotated where one designates nothing, or is refused (CAP-309); `keep`, a reference that
- * designates nothing the store holds kept as it is, unresolved (`unresolved`). */
-function taken(store: any, given: Map<string, any>, remainder: Remainder, keep = false): Frame {
-  const frame = new Frame(null, given instanceof Frame ? given.errors : [], given instanceof Frame ? given.assigns : []);
-  for (const [name, value] of Map.prototype.entries.call(given) as IterableIterator<[string, any]>) {
-    try {
-      frame.set(name, bound(store, name, value));
-    } catch (error) {
-      if (error instanceof Absent) {
-        if (keep) {
-          frame.set(name, Proxies._durable(value));
-          continue;
-        }
-        error = new LookupError(`symbol ${repr(name)} of the frame: no object of the store has its reference's path`);
-      }
-      frame.errors.push(new FrameError(remainder.subterm, (error as Error).name, (error as Error).message, error));
-    }
-  }
-  return frame;
-}
-
-/** What a symbol of an input frame binds: the object its reference designates, else what it holds. */
-function bound(store: any, name: string, value: unknown): any {
-  if (value instanceof _Refused) {
-    if (value.life === store._life && value.target !== null) return value.target; // given back within this transaction
-    throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
-  }
-  const target = Proxies._deref(value);
-  const inner = Proxies._innerOf(target);
-  if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {
-    const found = References._designated(store, target);
-    if (found === null) throw new Absent();
-    return Proxies._durable(found);
-  }
-  return Proxies._durable(value);
-}
-
-/** A frame's reference that designates nothing the store holds. */
-class Absent extends Error {}
-
-/** Whether a frame holds a reference that designates nothing the store holds, which a cache layer's interpretation
- * read-only kept (`taken`): it halts at the next term, for the layer below to resolve. */
-function unresolved(store: any, frame: Map<string, any>): boolean {
-  const reference = store.registered("References.OfObject");
-  return [...Map.prototype.values.call(frame) as IterableIterator<unknown>].some((value) => {
-    const inner = Proxies._innerOf(value);
-    return inner instanceof Proxies._internals._RecordData && inner._schema === reference;
-  });
-}
+// --- What an expression says, read through the store's schemas alone ---
 
 /** The term a term's adjacency of one entry links (91): a transaction's root, a term's next; null where it holds none. */
 function next(term: any, name: string): any {
@@ -1188,163 +1019,6 @@ function meta(store: any, schema: any): boolean {
   return store._meta_builder(store.name_of(schema)) !== null;
 }
 
-/** A visitor of an object, to read: a schema object's builder, read-only, which sees what the transaction open has made
- * of it, or data's proxy. */
-function reader(store: any, target: any): any {
-  const kind = store._meta_builder_class(target);
-  return kind === null ? target : new kind(target, false, store);
-}
-
-/** A builder of an object of `schema`, new or `target`: a schema object's by its meta-schema, data's by its schema. */
-function writer(store: any, schema: any, target: unknown = null): any {
-  const name = store.name_of(schema);
-  return meta(store, schema) ? store._meta_builder(name, target) : store.builder(name, target);
-}
-
-/** The object an entry links, as read: a schema object's entry gives a link, read through its builder. */
-function linked(value: unknown): any {
-  return Builders._linked_data(value) ?? Proxies._durable(value); // compared by identity with what frames bind
-}
-
-/** The objects a symbol of `schema` ranges over: a meta-schema's, the named schema objects of its kind the store holds,
- * the framework's left out; data's, those the store reaches from its singletons. */
-function extent(store: any, schema: any): any[] {
-  if (!meta(store, schema)) return [...store.extent(store.name_of(schema))].map((found) => Proxies._durable(found));
-  return [...store._objects].filter((held) => !store.framework(held) && reader(store, held).as_schema() === schema);
-}
-
-/** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
- * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
- * `state.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). `state.named` gathers, by symbol, the properties the specs
- * name, in order: what the frames given back assign.
- *
- * Read-only (`state.write` false), a term is interpreted over each frame within a savepoint, and where it would write,
- * or a map finds nothing the store holds to bind a symbol, the frame halts, added to `state.halted` with its remainder:
- * as it was given to the term, or, where a map bound some of its symbols, binding those. A partition keeps its join: a
- * frame halted within a branch is sent below with the rest of the branch alone, and what comes back is joined
- * (`below`). */
-function run(store: any, term: any, frames: Frame[], at: (string | number)[], state: Run): Frame[] {
-  const kind = kindOf(store, term);
-  if (kind === "map" || kind === "upsert" || kind === "update") {
-    const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
-    for (const [symbol, items] of membersOf(pattern)) { // the properties the specs name: what the frames given back assign
-      if (!state.named.has(symbol)) state.named.set(symbol, []);
-      const names = state.named.get(symbol)!;
-      for (const item of items) {
-        const body = item.get("as_property");
-        if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
-      }
-    }
-    const key = kind === "upsert" ? (store.member(term, "key") || _transaction_uid(store)) : null;
-    const made: Frame[] = [];
-    for (const frame of frames) {
-      try {
-        if (state.write) {
-          made.push(...termOf(store, kind, pattern, frame, key, null));
-          continue;
-        }
-        if (store._below !== null && (kind !== "map" || unresolved(store, frame))) {
-          state.halt(frame, at); // a cache layer's: what writes, or what it cannot resolve, the layer below
-          continue;
-        }
-        const halted: Bound[] = [];
-        try { // a savepoint: what a halted term began, dropped
-          made.push(...store._joined(() => store._readingOnly(() => termOf(store, kind, pattern, frame, key, halted))));
-        } catch (error) {
-          if (!(error instanceof Proxies._Halt)) throw error;
-          state.halt(frame, at); // it would write: the frame halts at the term, as it was given to it
-          continue;
-        }
-        for (const partial of halted) state.halt(new Frame(partial), at); // a symbol nothing the store holds binds
-      } catch (error) {
-        frame.errors.push(new FrameError(plainPath(...at), (error as Error).name, (error as Error).message, error));
-        state.failed.push(frame);
-      }
-    }
-    frames = made;
-  } else if (kind === "reduce") {
-    const dropped: string[] = [...term.symbols][0].collector.symbols;
-    const unique = new Map<string, Frame>();
-    if (!state.write && store._below !== null) {
-      for (const frame of frames.filter((each) => unresolved(store, each))) {
-        state.halt(frame, at); // a cache layer's: it cannot tell what it does not hold apart
-      }
-      frames = frames.filter((frame) => frame.remainder === null);
-    }
-    for (const frame of frames) {
-      const kept = new Frame([...frame].filter(([name]) => !dropped.includes(name)));
-      const identity = JSON.stringify([...kept].map(([name, target]) => [name, Proxies._key_of(reader(store, target))]));
-      if (!unique.has(identity)) unique.set(identity, kept);
-    }
-    frames = [...unique.values()];
-  } else if (kind === "partition") {
-    let arms: [(string | number)[], any][] = [...term.branches].map((entry: any, index: number) =>
-      [[...at, "branches", index], entry.branch]);
-    const first = store.member(term, "first");
-    if (arms.length > 0 && (first || store.member(term, "last"))) { // every branch matches, none requiring constraints (87)
-      arms = [first ? arms[0]! : arms[arms.length - 1]!];
-    }
-    const otherwise = next(term, "none");
-    if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
-    const joined: Frame[] = [];
-    for (const [armAt, arm] of arms) {
-      const branch = state.arm();
-      joined.push(...run(store, arm, frames.map((frame) => new Frame(frame)), armAt, branch));
-      for (const partial of branch.halted) joined.push(...below(store, state, partial)); // the layer that split keeps the join
-    }
-    frames = joined;
-  }
-  const after = next(term, "then");
-  return after === null ? frames : run(store, after, frames, [...at, "then", 0, kindOf(store, after)], state);
-}
-
-/** The frames a map, an upsert or an update makes of one frame; `halted`, where it interprets read-only, gathers the
- * frames a map halts within it. */
-function termOf(store: any, kind: string, pattern: any, frame: Frame, key: unknown, halted: Bound[] | null): Frame[] {
-  if (kind === "update") {
-    writeSpec(store, pattern, frame);
-    return [frame];
-  }
-  return bind(store, pattern, frame, kind === "upsert", key, halted).map((found) => new Frame(found));
-}
-
-/** The frames a branch ends with where a frame halted within it, the rest of the branch alone executed below,
- * collected until the completion marker of the scope it was sent with, a branch's own: here by the loopback, the store
- * having no layer below ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). Those annotated with an error go on to `state.failed`,
- * as they came. */
-function below(store: any, state: Run, partial: Frame): Frame[] {
-  const scope = `${state.scope}/${state.sent.count}`;
-  partial.scope = scope;
-  state.sent.count += 1;
-  const joined: Frame[] = [];
-  if (store._lower !== null && store._installing === 0) { // a cache layer's: the layer below's transaction executes it
-    const [given] = givenBack(store, [partial], state.named, scope);
-    for (const item of fromBelow(store, given!, partial.remainder!, state.named, scope)) {
-      if (item.errors.length > 0) state.failed.push(item);
-      else joined.push(taken(store, item, partial.remainder!, true));
-    }
-    return joined;
-  }
-  const stream = loopback(store, state, partial);
-  let item = stream.next().value as Item;
-  while (item instanceof Frame) { // until the completion marker, `{"end": scope}`
-    (item.errors.length > 0 ? state.failed : joined).push(item);
-    item = stream.next().value as Item;
-  }
-  return joined;
-}
-
-/** What a store with no layer below gives back for a frame sent below with its remainder: the frame executed again by
- * the same store, writing, within the transaction open; its frames, each carrying the frame's scope, then the
- * completion marker, `{"end": scope}`. */
-function* loopback(store: any, state: Run, frame: Frame): Generator<Item> {
-  for (const made of one(store, frame.remainder!, frame, true, state.named, frame.scope!)) {
-    made.scope = frame.scope;
-    yield made;
-  }
-  yield new Map([["end", frame.scope]]);
-}
-
 /** The properties a transaction's specs name, by symbol, in order, through every term: what the frames it gives assign,
  * wherever in it a frame is executed, so that the frames a layer below gives back of the rest of an expression assign
  * what the whole expression names. */
@@ -1374,8 +1048,6 @@ function namedIn(store: any, transaction: any): Map<string, string[]> {
   return named;
 }
 
-// --- A cache layer: a store given a layer below (stage 2 of the stacked stores proposal) ---
-
 /** Whether an expression writes schemas: an upsert or an update of it binds a symbol of a meta-schema. A cache layer
  * runs such a transaction, an install, itself, after the layer below has, as a store with no layer below does. */
 export function _writesSchemas(store: any, transaction: any): boolean {
@@ -1398,60 +1070,909 @@ export function _writesSchemas(store: any, transaction: any): boolean {
   return false;
 }
 
-/** The frames a cache layer gives of one input frame, writing ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): it interprets it read-only
- * over what it holds, as far as it can know (`bind`, `_knows`); each frame that halts, with its remainder, and each it
- * completes, with nothing left to execute, goes to the layer below's transaction, which executes it, writing; and each
- * that comes back is given (`fromBelow`). A frame annotated with an error here is given as it is. */
-function cached(store: any, remainder: Remainder, given: Map<string, any>, named: Map<string, string[]>,
-  scope: string): Frame[] {
-  const made = one(store, remainder, given, false, named, scope);
-  const frames: Frame[] = [];
-  for (const local of givenBack(store, made, named, scope)) {
-    if (local.errors.length > 0) {
-      frames.push(local);
-      continue;
+/** A pattern's spec, by symbol: the members of each, its items in order. */
+function membersOf(pattern: any): Map<string, Members> {
+  const members = new Map<string, Members>();
+  for (const item of pattern.spec as Map<string, Members>[]) {
+    for (const [name, written] of item) {
+      if (!members.has(name)) members.set(name, []);
+      (members.get(name) as Members).push(...written);
     }
-    const rest = local.remainder ?? new Remainder(remainder.transaction, []); // complete: down too, for the layer below
-    local.remainder = null;
-    frames.push(...fromBelow(store, local, rest, named, scope));
   }
-  return frames;
+  return members;
 }
 
-/** What the layer below's transaction gives back of a frame a cache layer sends it with the rest of the expression to
- * execute, writing: each frame annotated with an error, as it is; each complete, its journal applied to what the cache
- * layer holds; each partial, executed again by the cache layer, writing, its writes sent below as it makes them
- * (`Builders.Store._forward`); a completion marker's journal applied. Its frames carry no journal: the cache layer gives
- * one of what it changed, in its own terms. */
-function fromBelow(store: any, local: Frame, rest: Remainder, named: Map<string, string[]>, scope: string): Frame[] {
-  const frames: Frame[] = [];
-  for (const item of store._lower.forward(local, rest) as Item[]) {
-    if (!(item instanceof Frame)) {
-      if (item.has("journal")) applyJournal(store, item.get("journal"));
-      continue;
-    }
-    const journal = item.journal;
-    item.journal = null;
-    if (item.errors.length > 0) {
-      frames.push(item);
-      continue;
-    }
-    if (journal !== null) applyJournal(store, journal);
-    if (item.remainder === null) {
-      frames.push(item);
-      continue;
-    }
-    const made = store._proposing(() => one(store, item.remainder!, item, true, named, scope), // partial: executed
-      (proposals: Proposals.OfStore) => store._forward(proposals)); // again here, writing, its writes sent below
-    frames.push(...givenBack(store, made, named, scope));
-  }
-  return frames;
+/** A spec item's one member: its kind and its body. */
+function only(item: Map<string, any>): [string, any] {
+  return [...item][0] as [string, any];
 }
 
-/** Applies a journal a layer below gave back, a value of the cache layer's, to what the cache layer holds, as it applies
- * what the layer below's follow gives it (`Builders.Store._apply`). */
-function applyJournal(store: any, journal: unknown): void {
-  for (const transaction of Changes._transactions(journal)) store._apply(transaction, true);
+/** Whether a spec's member gives its object's identity, by which an upsert finds it: a schema object's name (86), an
+ * owned object's owning entry (60). */
+function identifies(store: any, schema: any, member: Map<string, any>): boolean {
+  const [kind, body] = only(member);
+  if (kind === "as_property") return body.get("name") === "name" && meta(store, schema);
+  return kind === "as_adjacency" && schema.adjacencies.get(body.get("name")).owner
+    && verbsOf(body).some(([verb]) => verb === "insert");
+}
+
+/** The references to symbols an entry gives, its own and those of the objects it defines. */
+function symbolRefs(entry: Map<string, any>): Map<string, any>[] {
+  const found: Map<string, any>[] = [];
+  for (const item of entry.get("mutations")) {
+    const [kind, body] = only(item);
+    if (kind === "as_link") {
+      const held = body.get("mutations")[0].get("set");
+      if (held.has("reference") && held.get("reference").has("symbol")) {
+        found.push(held.get("reference"));
+      } else if (held.has("def")) {
+        for (const member of held.get("def").get("mutations")) {
+          const [memberKind, memberBody] = only(member);
+          if (memberKind === "as_adjacency") {
+            for (const [, nested] of verbsOf(memberBody)) for (const given of nested) found.push(...symbolRefs(given));
+          }
+        }
+      }
+    }
+  }
+  return found;
+}
+
+/** A spec's property verb as `[present, plain]`. */
+function given(verb: Map<string, any>): [boolean, unknown] {
+  return verb.has("set") ? [true, verb.get("set").get("value")] : [false, null];
+}
+
+/** Whether two `[present, plain]` agree: both absent, or both present with the same plain value. */
+function agree([present, plain]: [boolean, unknown], [wanted, value]: [boolean, unknown]): boolean {
+  return present === wanted && (!present || Plain._symbol(plain) === Plain._symbol(value));
+}
+
+// --- The interpreter: what every layer interprets alike ---
+
+/** A layer's transaction interpreter, the base class of each kind of layer's: what every layer interprets alike
+ * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)), so that each refuses what every layer refuses. It drives the
+ * walk of a transaction's terms (map, upsert, update, reduce, partition, then), binding symbols; the frames, each
+ * annotated with what failed as a term processed it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)); unique clauses, which a layer checks at its
+ * commit (`_check_uniques`); and the stream `txn.exec` gives, each frame carrying its scope and, where it halted, its
+ * remainder, each input frame's frames ending with its completion marker, the first carrying its journal.
+ *
+ * Each kind of layer's class, coupled with the layer, gives what only that layer knows, as the hooks below: its reads of
+ * its own storage, which the interpreter drives as the walk needs them, not through the Store interface; its writes;
+ * and its transaction's savepoints. `store` is the store whose schemas the expressions are read by. An object the layer
+ * holds is, to the interpreter, what its hooks give for it, compared by identity
+ * ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#design)): a store in memory's are its proxies' durable objects (`InMemory`). */
+export abstract class Interpreter {
+  /** How deep in interpreting a term read-only: a write halts the frame (`_written`). */
+  _reading = 0;
+
+  constructor(readonly store: any) {
+    if (new.target === Interpreter) throw new TypeError("Interpreter is abstract: a layer's class gives its hooks");
+  }
+
+  // --- What a layer gives: reads of its own storage ---
+
+  /** The objects a symbol of `schema` ranges over, among those the layer holds: a singleton schema's, its singleton; a
+   * meta-schema's, the named schema objects of its kind, the framework's left out; data's, every object of it. */
+  abstract candidates(schema: any): any[];
+
+  /** The schema object of the meta-schema `schema` named `name`, the layer's own included, a module by its path, the
+   * root module where `name` is null; none where it holds none (86). */
+  abstract named(schema: any, name: string | null): any[];
+
+  /** The object an object reference designates among what the layer holds, given the reference's path as plain data
+   * (`References.OfObject`'s `path`); null where it holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). */
+  abstract designated(path: unknown): any;
+
+  /** The schema of an object the layer holds. */
+  abstract schema_of(target: any): any;
+
+  /** What tells an object the layer holds apart from every other: frames that bind the same objects are one, where a
+   * reduce drops symbols, and a counted object an upsert made is found again by it (63). */
+  abstract key(target: any): unknown;
+
+  /** A property's value, `[present, plain]`, as a spec gives it: the property `name` of `holder`, an object of `schema`
+   * or an entry of the relation whose entry schema is `schema`, its value as `Plain` writes it. Of a pattern
+   * (`Schemas.OfPattern`), `name` "spec", which is no property, gives its spec as recorded. */
+  abstract value(holder: any, schema: any, name: string): [boolean, unknown];
+
+  /** The entries of an object's adjacency `name`, `schema` the object's, in the order they were added: those of its
+   * relation that link it through the adjacency's link. */
+  abstract entries(target: any, schema: any, name: string): any[];
+
+  /** The object an entry links through its link `name`, a parameter reference in its place (CAP-312); null where the
+   * link is not set. */
+  abstract link(entry: any, name: string): any;
+
+  /** Every entry of `relation` that links `target`, through any of its links: those a unique clause is checked
+   * against. */
+  abstract linking(target: any, relation: any): any[];
+
+  /** An entry's property `name`, as its relation's unique clauses compare it; null where it is not set
+   * ([CAP-111: equality and ordering defined by the schema](mbse:mbse-basis/docs/capabilities/CAP-111.md)). */
+  abstract part(entry: any, name: string): unknown;
+
+  /** An entry's links and properties `names`, as a message shows them. */
+  abstract shown(entry: any, names: string[]): string;
+
+  /** What a frame given back binds for an object, and assigns of it ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its reference, a
+   * `References.OfObject`, a value that outlives the transaction (a schema object as itself), or a `_Refused` where it
+   * has none; and the values it holds of its properties `names`, as data. */
+  abstract given(target: any, names: readonly string[]): [any, Map<string, unknown>];
+
+  // --- What a layer gives: its writes, which the interpreter makes only writing (`_written`) ---
+
+  /** Writes a property of an object of `schema`, as a spec's verb gives it, `{"set": {"value": plain}}` or
+   * `{"clear": {}}`; of a pattern, `name` "spec", its spec as recorded. */
+  abstract assign(target: any, schema: any, name: string, verb: Map<string, any>): void;
+
+  /** Adds an entry to an object's adjacency `name`: linking it and `links`, each an object by its link, its properties
+   * `values`, plain, by name; replacing the one it holds where its relation lets it hold one at most, but where a
+   * removal from the relation removed nothing (CAP-293). */
+  abstract insert(target: any, schema: any, name: string, links: Map<string, any>, values: Map<string, unknown>): void;
+
+  /** Removes the entries of an object's adjacency `name` at `positions`, as `entries` gives them, deleting what an
+   * owning entry owned (object identity 48 in [CAP-121: owned objects deleted in cascade](mbse:mbse-basis/docs/capabilities/CAP-121.md#decided)); none, a removal that removed nothing, is noted
+   * (CAP-293). */
+  abstract remove(target: any, schema: any, name: string, positions: number[]): void;
+
+  /** A new object of `schema`, its properties `values` set, each by a spec's verb; `within`, where it is defined where
+   * an adjacency links it, the schema of the object that holds the adjacency and its name. */
+  abstract create(schema: any, values: Map<string, Map<string, any>>, within?: [any, string] | null): any;
+
+  /** The counted object an upsert made for `index`, as long as the layer holds it, null where none (63); given `made`,
+   * remembers it. */
+  abstract upserted(index: string, made?: any): any;
+
+  // --- What a layer gives: its transaction ---
+
+  /** `body`, within a savepoint of the layer's transaction open: its writes kept where it returns, dropped where it
+   * throws. Given `journal`, a function giving the id of the changes it made, `changed` holds them once it has returned,
+   * a `Changes.Transaction` of the layer's, or null where none were made; else it stays empty. */
+  abstract savepoint<T>(body: () => T, journal?: (() => string) | null, changed?: unknown[]): T;
+
+  /** The uid of the transaction open, as its record and its journal give it: an upsert that gives no key is keyed by it
+   * (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
+  abstract uid(): string;
+
+  // --- What a layer gives: what it does where it holds no such object ---
+
+  /** Whether the layer is a cache layer, a store over another, which interprets read-only over what it can know it
+   * holds all of, halting a frame elsewhere for the layer below (a cache layer's completeness rule). */
+  get cache(): boolean {
+    return false;
+  }
+
+  /** The life of the layer's transaction open, given to a frame's `_Refused` so that it is resumed within it. */
+  get life(): unknown {
+    return null;
+  }
+
+  /** Whether the layer holds all of an object, so that its interpreter may read it: a layer with no layer below holds
+   * all it holds. */
+  knows(_target: any): boolean {
+    return true;
+  }
+
+  // --- The stream ---
+
+  /** `txn.exec`: the stream of the frames `remainder`, a `Remainder` or a whole transaction's expression, makes of
+   * `frame`, a frame or a stream of them, within `txn`. */
+  exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
+    return this._exec(txn, frame, _remainder(this.store, Proxies._durable(remainder)), allow_write);
+  }
+
+  /** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
+   * subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are made of it,
+   * then `{"end": scope}`, `scope` its id. Each given back holds references and assignments (CAP-315), carries its input
+   * frame's id, `scope`, and, where it halted read-only, its `remainder`. An error a term meets processing a frame is
+   * annotated on it (CAP-309). An error of no one frame is the stream's error, its `frames` every frame the transaction
+   * gave, and those made of the input frame it arose processing. What each input frame changed, a savepoint's, is
+   * carried by its first frame, else by its completion marker, as a one-transaction journal whose id is the
+   * transaction's uid and the frame's position. */
+  _exec(txn: Transaction, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
+    return new Observable<Item>((observer) => {
+      const made: Frame[] = [];
+      const emit = (item: Item): void => {
+        observer.next!(item);
+        if (observer.closed) throw new Unsubscribed();
+      };
+      try {
+        const named = namedIn(this.store, remainder.transaction);
+        let index = 0;
+        // a frame, or a stream of them, consumed as it arrives
+        for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
+          txn._open();
+          const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
+          index += 1;
+          const changed: unknown[] = [];
+          const back = this.savepoint(() => this._extended(remainder, frame, write, named, scope, made),
+            () => `${this.uid()}#${txn._given.length}`, changed);
+          made.length = 0;
+          const marker: Map<string, any> = new Map([["end", scope]]);
+          if (changed.length > 0 && changed[0] !== null) { // carried by its first frame, else by its completion marker
+            const journal = Changes._journal(this.store, [changed[0]]);
+            if (back.length > 0) back[0]!.journal = journal;
+            else marker.set("journal", journal);
+          }
+          for (const item of back) {
+            txn._given.push(item);
+            emit(item);
+          }
+          emit(marker);
+        }
+      } catch (error) {
+        if (error instanceof Unsubscribed) return;
+        (error as any).frames = [...txn._given, ...made];
+        observer.error!(error);
+        return;
+      }
+      observer.complete!();
+    });
+  }
+
+  /** The frames given back of one input frame, extended through `remainder`; `made` gathers them as made, for an error
+   * thrown after. */
+  _extended(remainder: Remainder, frame: Map<string, any>, write: boolean, named: Map<string, string[]>, scope: string,
+    made: Frame[]): Frame[] {
+    made.push(...this._one(remainder, frame, write, named, scope));
+    return this._givenBack(made, named, scope);
+  }
+
+  /** Executes a transaction's expression over the layer, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its stream
+   * starts as one frame, empty, which its root term transforms and passes on through `then`, within a savepoint of the
+   * transaction open. Gives the frames its chain ends with, as bound. Where a frame is annotated with an error, it writes
+   * nothing and throws the first error annotated (`_raised`). */
+  _execute(transaction: any): Frame[] {
+    return _raised(this._frames(transaction));
+  }
+
+  /** The frames a transaction's expression gives, throwing nothing for an error a term meets processing a frame: that
+   * frame is annotated with it, as bound as it was, and the others go on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Gives the frames its chain
+   * ends with, then those annotated, in the order their errors arose; where one is, its writes are dropped, whole
+   * (CAP-124), else committed into the transaction open. An error in the expression itself, found before it runs, is
+   * thrown, its `frames` none; one thrown at the commit, which no frame made, is thrown as it is, its `frames` all the
+   * frames, none annotated. What `txn.exec` gives, as a stream, is `_exec`'s. */
+  _frames(transaction: any): Frame[] {
+    const root = next(transaction, "mutations");
+    let made: Frame[] = [];
+    const write = (): void => {
+      const state = new Run(transaction, true, new Map(), null);
+      made = root === null ? [new Frame()]
+        : this._run(root, [new Frame()], ["mutations", 0, kindOf(this.store, root)], state);
+      made.push(...state.failed);
+      if (state.failed.length > 0) throw new Uncommitted();
+    };
+    try {
+      if (root !== null) check(this.store, root, new Set());
+      this.savepoint(write);
+    } catch (error) {
+      if (error instanceof Uncommitted) return made;
+      (error as any).frames = made;
+      throw error;
+    }
+    return made;
+  }
+
+  /** The frames a transaction gives back, made within it: each symbol's object by its reference, and what it assigns,
+   * as data (CAP-315, `given`); each carrying `scope`, and its remainder where it halted. */
+  _givenBack(frames: Frame[], named: Map<string, string[]>, scope: string | null = null): Frame[] {
+    return frames.map((frame) => {
+      const bound: [string, any][] = [];
+      const assigns = new Map([...frame.assigns].map(([name, values]) => [name, new Map(values)])); // a layer below's
+      for (const [symbol, target] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
+        const [reference, held] = this.given(target, named.get(symbol) ?? []);
+        bound.push([symbol, reference]);
+        if (held.size > 0) assigns.set(symbol, new Map([...assigns.get(symbol) ?? [], ...held]));
+      }
+      return new Frame(bound, frame.errors, assigns, frame.remainder, scope);
+    });
+  }
+
+  // --- The walk of the terms ---
+
+  /** The frames one input frame gives, within the transaction open: those the remainder's chain ends with, then those
+   * that halted read-only, then those annotated with an error. A frame given annotated is given back as it is, executed
+   * no further; one whose reference designates nothing is annotated so, but where a cache layer interprets read-only,
+   * where it holds the reference, unresolved, and halts. An error in the expression, as the frame's symbols leave it, is
+   * thrown. */
+  _one(remainder: Remainder, given: Map<string, any>, write: boolean, named: Map<string, string[]>, scope: string): Frame[] {
+    const frame = this._taken(given, remainder, !write && this.cache);
+    if (frame.errors.length > 0 || remainder.at.length === 0) return [frame];
+    const term = termAt(remainder.transaction, remainder.at);
+    check(this.store, term, new Set(frame.keys()));
+    const state = new Run(remainder.transaction, write, named, scope);
+    const made = this._run(term, [frame], [...remainder.at], state);
+    return [...made, ...state.halted, ...state.failed];
+  }
+
+  /** An input frame, as the interpreter binds: each symbol's object by what its reference designates, a schema object or
+   * a layer's object as itself; annotated where one designates nothing, or is refused (CAP-309); `keep`, a reference that
+   * designates nothing the layer holds kept as it is, unresolved (`_unresolved`). */
+  _taken(given: Map<string, any>, remainder: Remainder, keep = false): Frame {
+    const frame = new Frame(null, given instanceof Frame ? given.errors : [], given instanceof Frame ? given.assigns : []);
+    for (const [name, value] of Map.prototype.entries.call(given) as IterableIterator<[string, any]>) {
+      try {
+        frame.set(name, this._bound(name, value));
+      } catch (error) {
+        if (error instanceof Absent) {
+          if (keep) {
+            frame.set(name, Proxies._durable(value));
+            continue;
+          }
+          error = new LookupError(`symbol ${repr(name)} of the frame: no object of the store has its reference's path`);
+        }
+        frame.errors.push(new FrameError(remainder.subterm, (error as Error).name, (error as Error).message, error));
+      }
+    }
+    return frame;
+  }
+
+  /** What a symbol of an input frame binds: the object its reference designates, else what it holds. */
+  _bound(name: string, value: unknown): any {
+    if (value instanceof _Refused) {
+      if (value.life === this.life && value.target !== null) return value.target; // given back within this transaction
+      throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
+    }
+    const target = Proxies._deref(value);
+    const inner = Proxies._innerOf(target);
+    if (inner instanceof Proxies._internals._RecordData && inner._schema === this.store.registered("References.OfObject")) {
+      const found = this.designated((Plain.ToPlain(this.store)(inner._schema, target) as Map<string, unknown>).get("path"));
+      if (found === null || found === undefined) throw new Absent();
+      return Proxies._durable(found);
+    }
+    return Proxies._durable(value);
+  }
+
+  /** Whether a frame holds a reference that designates nothing the layer holds, which a cache layer's interpretation
+   * read-only kept (`_taken`): it halts at the next term, for the layer below to resolve. */
+  _unresolved(frame: Map<string, any>): boolean {
+    const reference = this.store.registered("References.OfObject");
+    return [...Map.prototype.values.call(frame) as IterableIterator<unknown>].some((value) => {
+      const inner = Proxies._innerOf(value);
+      return inner instanceof Proxies._internals._RecordData && inner._schema === reference;
+    });
+  }
+
+  /** A read-only interpretation of a term over a frame (`txn.exec`, `allow_write` false): a write it would make halts
+   * the frame (`_written`). */
+  _readOnly<T>(read: () => T): T {
+    this._reading += 1;
+    try {
+      return read();
+    } finally {
+      this._reading -= 1;
+    }
+  }
+
+  /** Before each write the interpreter makes: within a read-only interpretation, the frame halts (`Halt`), writing
+   * nothing. */
+  _written(): void {
+    if (this._reading > 0) throw new Halt();
+  }
+
+  /** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
+   * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
+   * `state.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). `state.named` gathers, by symbol, the properties the specs
+   * name, in order: what the frames given back assign.
+   *
+   * Read-only (`state.write` false), a term is interpreted over each frame within a savepoint, and where it would write,
+   * or a map finds nothing the layer holds to bind a symbol, the frame halts, added to `state.halted` with its
+   * remainder: as it was given to the term, or, where a map bound some of its symbols, binding those. A partition keeps
+   * its join: a frame halted within a branch is sent below with the rest of the branch alone, and what comes back is
+   * joined (`_below`). */
+  _run(term: any, frames: Frame[], at: (string | number)[], state: Run): Frame[] {
+    const store = this.store;
+    const kind = kindOf(store, term);
+    if (kind === "map" || kind === "upsert" || kind === "update") {
+      const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
+      for (const [symbol, items] of membersOf(pattern)) { // the properties the specs name: what the frames given back assign
+        if (!state.named.has(symbol)) state.named.set(symbol, []);
+        const names = state.named.get(symbol)!;
+        for (const item of items) {
+          const body = item.get("as_property");
+          if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
+        }
+      }
+      const key = kind === "upsert" ? (store.member(term, "key") || this.uid()) : null;
+      const made: Frame[] = [];
+      for (const frame of frames) {
+        try {
+          if (state.write) {
+            made.push(...this._term(kind, pattern, frame, key, null));
+            continue;
+          }
+          if (this.cache && (kind !== "map" || this._unresolved(frame))) {
+            state.halt(frame, at); // a cache layer's: what writes, or what it cannot resolve, the layer below
+            continue;
+          }
+          const halted: Bound[] = [];
+          try { // a savepoint: what a halted term began, dropped
+            made.push(...this.savepoint(() => this._readOnly(() => this._term(kind, pattern, frame, key, halted))));
+          } catch (error) {
+            if (!(error instanceof Halt)) throw error;
+            state.halt(frame, at); // it would write: the frame halts at the term, as it was given to it
+            continue;
+          }
+          for (const partial of halted) state.halt(new Frame(partial), at); // a symbol nothing the layer holds binds
+        } catch (error) {
+          frame.errors.push(new FrameError(plainPath(...at), (error as Error).name, (error as Error).message, error));
+          state.failed.push(frame);
+        }
+      }
+      frames = made;
+    } else if (kind === "reduce") {
+      const dropped: string[] = [...term.symbols][0].collector.symbols;
+      const unique = new Map<string, Frame>();
+      if (!state.write && this.cache) {
+        for (const frame of frames.filter((each) => this._unresolved(each))) {
+          state.halt(frame, at); // a cache layer's: it cannot tell what it does not hold apart
+        }
+        frames = frames.filter((frame) => frame.remainder === null);
+      }
+      for (const frame of frames) {
+        const kept = new Frame([...frame].filter(([name]) => !dropped.includes(name)));
+        const identity = JSON.stringify([...kept].map(([name, target]) => [name, this.key(target)]));
+        if (!unique.has(identity)) unique.set(identity, kept);
+      }
+      frames = [...unique.values()];
+    } else if (kind === "partition") {
+      let arms: [(string | number)[], any][] = [...term.branches].map((entry: any, index: number) =>
+        [[...at, "branches", index], entry.branch]);
+      const first = store.member(term, "first");
+      if (arms.length > 0 && (first || store.member(term, "last"))) { // every branch matches, none requiring constraints (87)
+        arms = [first ? arms[0]! : arms[arms.length - 1]!];
+      }
+      const otherwise = next(term, "none");
+      if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
+      const joined: Frame[] = [];
+      for (const [armAt, arm] of arms) {
+        const branch = state.arm();
+        joined.push(...this._run(arm, frames.map((frame) => new Frame(frame)), armAt, branch));
+        for (const partial of branch.halted) joined.push(...this._below(state, partial)); // the layer that split keeps the join
+      }
+      frames = joined;
+    }
+    const after = next(term, "then");
+    return after === null ? frames : this._run(after, frames, [...at, "then", 0, kindOf(store, after)], state);
+  }
+
+  /** The frames a map, an upsert or an update makes of one frame; `halted`, where it interprets read-only, gathers the
+   * frames a map halts within it. */
+  _term(kind: string, pattern: any, frame: Frame, key: unknown, halted: Bound[] | null): Frame[] {
+    if (kind === "update") {
+      this._writeSpec(pattern, frame);
+      return [frame];
+    }
+    return this._bind(pattern, frame, kind === "upsert", key, halted).map((found) => new Frame(found));
+  }
+
+  /** The frames a branch ends with where a frame halted within it, the rest of the branch alone executed below,
+   * collected until the completion marker of the scope it was sent with, a branch's own: here by the loopback, the layer
+   * having no layer below ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). Those annotated with an error go on to `state.failed`, as
+   * they came. */
+  _below(state: Run, partial: Frame): Frame[] {
+    partial.scope = `${state.scope}/${state.sent.count}`;
+    state.sent.count += 1;
+    const joined: Frame[] = [];
+    const stream = this._loopback(state, partial);
+    let item = stream.next().value as Item;
+    while (item instanceof Frame) { // until the completion marker, `{"end": scope}`
+      (item.errors.length > 0 ? state.failed : joined).push(item);
+      item = stream.next().value as Item;
+    }
+    return joined;
+  }
+
+  /** What a layer with no layer below gives back for a frame sent below with its remainder: the frame executed again by
+   * the same layer, writing, within the transaction open; its frames, each carrying the frame's scope, then the
+   * completion marker, `{"end": scope}`. */
+  *_loopback(state: Run, frame: Frame): Generator<Item> {
+    for (const made of this._one(frame.remainder!, frame, true, state.named, frame.scope!)) {
+      made.scope = frame.scope;
+      yield made;
+    }
+    yield new Map([["end", frame.scope]]);
+  }
+
+  /** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
+   * spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no
+   * frame where the layer holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a
+   * symbol, and writes its spec where it does not hold; a counted object it created before from the same frame, for the
+   * same symbol and key, it finds again (63), and finds none otherwise (102). Read-only, a map gives to `halted`, rather
+   * than dropping, each frame as bound so far where nothing the layer holds binds a symbol. */
+  _bind(pattern: any, frame: Bound, upsert: boolean, key: unknown = null, halted: Bound[] | null = null): Bound[] {
+    const store = this.store;
+    const members = membersOf(pattern);
+    let frames: Bound[] = [new Map(frame)];
+    const cache = halted !== null && this.cache; // a cache layer's, read-only: what it can know alone
+    for (const [name, symbol] of pattern.symbols) {
+      if (frame.has(name)) continue;
+      const reference = _givenReference(symbol);
+      if (reference !== null) { // what it designates, or no frame where the layer holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
+        const path = (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, unknown>).get("path");
+        const target = Proxies._durable(this.designated(path) ?? null);
+        if (target === null && halted !== null) halted.push(...frames);
+        frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
+        continue;
+      }
+      const schema = symbol.schema;
+      if (cache && schema.singleton === null) { // it cannot know it holds every object of a schema: below
+        halted!.push(...frames);
+        return [];
+      }
+      const grown: Bound[] = [];
+      for (const partial of frames) {
+        if (schema.singleton !== null) {
+          for (const target of this.candidates(schema)) grown.push(new Map([...partial, [name, target]]));
+          continue;
+        }
+        if (upsert && Proxies._counted_schema(schema) && !meta(store, schema)) { // found only by what made it (102)
+          const index = this._upsertIndex(key, name, frame);
+          let made = this.upserted(index);
+          if (made === null) {
+            this._written();
+            made = this.create(schema, new Map());
+            this.upserted(index, made);
+          }
+          grown.push(new Map([...partial, [name, made]]));
+          continue;
+        }
+        const own = members.get(name) ?? [];
+        const identifying = own.filter((member) => identifies(store, schema, member));
+        const located = identifying.length > 0 ? null : this._located(pattern, members, name, schema, partial);
+        let found: any[];
+        if (located !== null) { // placed by its owner's entries, which a symbol bound before it gives (60)
+          found = located;
+        } else if (identifying.length > 0 && meta(store, schema)) { // a schema object by its name, the store's own included (86)
+          const [, body] = only(identifying[0]!);
+          found = this.named(schema, given(body.get("mutations")[0])[1] as string | null);
+        } else {
+          const finding = identifying.length > 0 ? identifying : own;
+          found = this.candidates(schema).filter((target: unknown) => this._holds(target, schema, finding, partial, partial));
+        }
+        if (found.length === 0 && halted !== null && !upsert) halted.push(partial);
+        if (found.length > 0 || !upsert) {
+          for (const target of found) grown.push(new Map([...partial, [name, target]]));
+          continue;
+        }
+        grown.push(new Map([...partial, [name, this._created(schema, identifying)]]));
+      }
+      frames = grown;
+    }
+    if (upsert) {
+      for (const bound of frames) this._writeSpec(pattern, bound);
+      return frames;
+    }
+    const kept: Bound[] = [];
+    for (const bound of frames) {
+      if (cache && ![...members.keys()].every((name) => this.knows(bound.get(name)))) {
+        halted!.push(bound); // what its spec reads, it does not hold all of: below
+      } else if ([...members].every(([name, items]) =>
+        this._holds(bound.get(name), this._schema(pattern, name, bound), items, bound, null))) {
+        kept.push(bound);
+      }
+    }
+    return kept;
+  }
+
+  /** The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's. */
+  _schema(pattern: any, name: string, frame: Bound): any {
+    const schema = pattern.symbols.get(name).schema;
+    return schema === null ? this.schema_of(frame.get(name)) : schema;
+  }
+
+  /** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
+   * that reached it, each as the layer tells it apart. */
+  _upsertIndex(key: unknown, name: string, frame: Bound): string {
+    return JSON.stringify([key, name, sortedStrings([...frame.keys()]).map((bound) => [bound, this.key(frame.get(bound))])]);
+  }
+
+  /** An object an upsert makes where it finds none: a schema object made with the name it was looked up by, so that what
+   * links it before its spec is written links a named schema (86). */
+  _created(schema: any, identifying: Members): any {
+    const values = new Map<string, Map<string, any>>();
+    for (const member of identifying) {
+      const [kind, body] = only(member);
+      if (kind === "as_property") values.set(body.get("name"), body.get("mutations")[0]);
+    }
+    this._written();
+    return this.create(schema, values);
+  }
+
+  /** Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's
+   * spec bound before it (object identity 60 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)): the objects linked by each of the owner's entries agreeing with the
+   * properties it gives, one where they give its keys, every one where they leave them open, none where none agrees;
+   * null where no spec gives such an entry. */
+  _located(pattern: any, members: Map<string, Members>, name: string, schema: any, frame: Bound): unknown[] | null {
+    const owning = [...schema.adjacencies.values(), ...schema.anonymous].filter((a: any) => a.owner);
+    for (const [other, items] of members) {
+      if (!frame.has(other) || owning.length === 0) continue;
+      for (const item of items) {
+        const [kind, body] = only(item);
+        if (kind !== "as_adjacency") continue;
+        const otherSchema = this._schema(pattern, other, frame);
+        const relation = otherSchema.adjacencies.get(body.get("name")).relation;
+        for (const entry of verbsOf(body).filter(([verb]) => verb === "insert").flatMap(([, entries]) => entries)) {
+          const parts: Map<string, any>[] = entry.get("mutations");
+          const link = parts.find((part) => part.has("as_link")
+            && part.get("as_link").get("mutations")[0].get("set").get("reference")?.get("symbol") === name)?.get("as_link").get("name");
+          if (link === undefined || !owning.some((a: any) => a.relation === relation && a.me === link)) continue;
+          const properties = parts.filter((part) => part.has("as_property")).map((part) => part.get("as_property"));
+          return this.entries(frame.get(other), otherSchema, body.get("name"))
+            .filter((held: any) => properties.every((p) => agree(this.value(held, relation.entry, p.get("name")),
+              given(p.get("mutations")[0]))))
+            .map((held: any) => this.link(held, link));
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Whether what a spec gives of an object holds of `target`: its properties' values, the entries it inserts held, and
+   * those it removes absent, none where it clears the adjacency. Finding the object of a symbol (`partial`, the frame as
+   * bound so far), an entry linking a symbol not yet bound is left out. */
+  _holds(target: any, schema: any, members: Members, frame: Bound, partial: Bound | null): boolean {
+    for (const member of members) {
+      const [kind, body] = only(member);
+      if (kind === "spec") {
+        const [, spec] = this.value(target, schema, "spec");
+        if (Json.dumps(spec as Plain.PlainData) !== Json.dumps(body.get("items"))) return false;
+        continue;
+      }
+      const name = body.get("name");
+      if (kind === "as_property") {
+        if (!agree(this.value(target, schema, name), given(body.get("mutations")[0]))) return false;
+        continue;
+      }
+      const relation = schema.adjacencies.get(name).relation;
+      const held = this.entries(target, schema, name);
+      const unmatched = [...held];
+      for (const [verb, entries] of verbsOf(body)) {
+        if (verb === "clear" && held.length > 0) return false;
+        for (const entry of entries) {
+          if (partial !== null && symbolRefs(entry).some((ref) => !partial.has(ref.get("symbol")))) continue;
+          if (verb === "insert" && this._match(relation, unmatched, entry, frame) === null) return false;
+          if (verb === "remove" && this._removed(relation, held, [entry], frame).length > 0) return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /** Whether an entry held is one a spec gives: the objects it links, and its properties' values. */
+  _matches(relation: any, held: any, entry: Map<string, any>, frame: Bound): boolean {
+    for (const item of entry.get("mutations")) {
+      const [kind, body] = only(item);
+      const name = body.get("name");
+      if (kind === "as_property") {
+        if (!agree(this.value(held, relation.entry, name), given(body.get("mutations")[0]))) return false;
+        continue;
+      }
+      const wanted = body.get("mutations")[0].get("set");
+      const linked = this.link(held, name);
+      if (Proxies._is_parameter(linked) || Plain._is_marked(wanted.get("reference"))) { // by the parameter's name (CAP-312)
+        if (!wanted.has("reference") || !Proxies._is_parameter(linked) || JSON.stringify(Proxies._link_key(linked))
+          !== JSON.stringify(Proxies._link_key(this._resolve(wanted.get("reference"), frame)))) return false;
+        continue;
+      }
+      if (wanted.has("def")) {
+        const definition = wanted.get("def");
+        const schema = this.store.registered(definition.get("schema"));
+        if (this.schema_of(linked) !== schema || !this._holds(linked, schema, definition.get("mutations"), frame, null)) {
+          return false;
+        }
+      } else if (linked !== this._resolve(wanted.get("reference"), frame)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** The object a spec's reference names: the one a symbol binds, or the one at a path; or the parameter reference
+   * standing in its place (CAP-312). */
+  _resolve(ref: Map<string, any>, frame: Bound): any {
+    if (Plain._is_marked(ref)) return Proxies._durable(Plain._unmarked(this.store, ref));
+    if (ref.has("symbol")) return Proxies._durable(frame.get(ref.get("symbol")));
+    const found = Proxies._durable(this.designated(ref.get("path")));
+    if (found === null || found === undefined) throw new LookupError("no object of the store has the path a spec refers to");
+    return found;
+  }
+
+  /** Writes a pattern's spec over a frame where it does not hold (object identity 76 in [CAP-137: patterns of symbols, variables and specs](mbse:mbse-basis/docs/capabilities/CAP-137.md#decided)). */
+  _writeSpec(pattern: any, frame: Bound): void {
+    for (const [name, members] of membersOf(pattern)) {
+      this._write(frame.get(name), this._schema(pattern, name, frame), members, frame);
+    }
+  }
+
+  /** Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and
+   * the objects it defines made, and a pattern's spec, as recorded. */
+  _write(target: any, schema: any, members: Members, frame: Bound): void {
+    for (const member of members) {
+      const [kind, body] = only(member);
+      if (kind === "spec") {
+        if (!this._holds(target, schema, [member], frame, null)) {
+          this._written();
+          this.assign(target, schema, "spec", new Map([["set", new Map([["value", body.get("items")]])]]));
+        }
+        continue;
+      }
+      const name = body.get("name");
+      if (kind === "as_property") {
+        const verb = body.get("mutations")[0];
+        if (agree(this.value(target, schema, name), given(verb))) continue;
+        this._written();
+        this.assign(target, schema, name, verb);
+        continue;
+      }
+      const adjacency = schema.adjacencies.get(name);
+      for (const [verb, entries] of verbsOf(body)) {
+        const held = this.entries(target, schema, name);
+        if (verb !== "insert") {
+          this._remove(target, schema, name, verb === "clear" ? null : entries, held, frame);
+          continue;
+        }
+        for (const entry of entries) {
+          if (this._match(adjacency.relation, held, entry, frame) === null) this._insert(target, schema, name, entry, frame);
+        }
+      }
+    }
+  }
+
+  /** The positions of the entries `held` that agree with one of the entries a spec removes. */
+  _removed(relation: any, held: any[], entries: Map<string, any>[], frame: Bound): number[] {
+    return held.flatMap((candidate, index) =>
+      (entries.some((entry) => this._matches(relation, candidate, entry, frame)) ? [index] : []));
+  }
+
+  /** Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's removal,
+   * or every entry where it gives null (`clear`); a removal that removed nothing is given the layer too, which notes it
+   * (CAP-293). */
+  _remove(target: any, schema: any, name: string, entries: Map<string, any>[] | null, held: any[], frame: Bound): void {
+    const relation = schema.adjacencies.get(name).relation;
+    const removed = entries === null ? held.map((_, index) => index) : this._removed(relation, held, entries, frame);
+    if (removed.length > 0) this._written();
+    if (removed.length > 0 || entries !== null) this.remove(target, schema, name, removed);
+  }
+
+  /** The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal
+   * entry a spec gives is the k-th such entry held; null where none agrees. */
+  _match(relation: any, held: any[], entry: Map<string, any>, frame: Bound): unknown {
+    const index = held.findIndex((candidate) => this._matches(relation, candidate, entry, frame));
+    return index < 0 ? null : held.splice(index, 1)[0];
+  }
+
+  /** Adds an entry a spec gives to an object's adjacency: its links resolved, the objects it defines made, its
+   * properties as given, but one cleared, with which it is inserted without it. */
+  _insert(target: any, schema: any, name: string, entry: Map<string, any>, frame: Bound): void {
+    const links = new Map<string, any>();
+    const values = new Map<string, unknown>();
+    for (const item of entry.get("mutations")) {
+      const [kind, body] = only(item);
+      if (kind === "as_property") {
+        const verb = body.get("mutations")[0];
+        if (verb.has("set")) values.set(body.get("name"), verb.get("set").get("value")); // a property cleared: left out
+        continue;
+      }
+      const wanted = body.get("mutations")[0].get("set");
+      if (wanted.has("def")) {
+        const definition = wanted.get("def");
+        const defined = this.store.registered(definition.get("schema"));
+        this._written();
+        const made = this.create(defined, new Map(), [schema, name]);
+        this._write(made, defined, definition.get("mutations"), frame);
+        links.set(body.get("name"), made);
+      } else {
+        links.set(body.get("name"), this._resolve(wanted.get("reference"), frame));
+      }
+    }
+    this._written();
+    this.insert(target, schema, name, links, values);
+  }
+
+  // --- Unique clauses, which a layer checks at its commit ---
+
+  /** Throws `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
+   * `unique` clauses, the clause's complement, every link and property outside it, and so differs on the clause
+   * ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)): what a layer checks at its commit, once a transaction's writes are all
+   * made (CAP-124), each entry it inserted against those its result holds. The entries that could agree with one are
+   * those held by the object it links through a link of the key, all of them (`linking`), and the others inserted. Where
+   * the key holds no link that links an object present, those are the ones held by every object it links and the others
+   * inserted. */
+  _check_uniques(relation: any, inserted: any[]): void {
+    const names: string[] = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
+    const part = (entry: any, name: string): unknown => {
+      const target = this.link(entry, name);
+      if (target !== null && target !== undefined) return ["link", Proxies._link_key(target)];
+      return ["value", this.part(entry, name) ?? null];
+    };
+    // what an entry is held by: its value, its relation having a unique clause and so not open
+    const identity = (entry: any): string => JSON.stringify(names.map((name) => part(entry, name)));
+    const objects = (entry: any, among: string[]): unknown[] => among.map((name) => this.link(entry, name))
+      .filter((target) => target !== null && !Proxies._is_parameter(target));
+    for (const clause of relation.uniques as Set<string>[]) {
+      const key = names.filter((name) => !clause.has(name));
+      const of = (entry: any): string => JSON.stringify(key.map((name) => part(entry, name)));
+      const held = new Map<string, Map<string, any>>(); // the entries that could agree, by their key's values
+      const hold = (entry: any): void => {
+        let agreeing = held.get(of(entry));
+        if (agreeing === undefined) held.set(of(entry), (agreeing = new Map()));
+        if (!agreeing.has(identity(entry))) agreeing.set(identity(entry), entry);
+      };
+      const scanned = new Set<unknown>();
+      for (const entry of inserted) {
+        hold(entry);
+        const anchors = objects(entry, key);
+        for (const target of anchors.length > 0 ? anchors.slice(0, 1) : objects(entry, [...relation.entry.links.keys()])) {
+          if (scanned.has(target)) continue;
+          scanned.add(target);
+          for (const other of this.linking(target, relation)) hold(other);
+        }
+      }
+      for (const entry of inserted) {
+        const agreeing = held.get(of(entry))!;
+        const other = [...agreeing].find(([k]) => k !== identity(entry))?.[1];
+        if (other !== undefined) {
+          const own = sortedStrings([...clause]);
+          throw new ValueError(`an entry of ${repr(relation.name)} breaks unique(${own.join(", ")}): two entries agree on `
+            + `its key, the links and properties outside it, ${this.shown(entry, key)}, and differ on it, `
+            + `${this.shown(other, own)} and ${this.shown(entry, own)}; an entry is refused, not replaced: remove the `
+            + "one held to write the other");
+        }
+      }
+    }
+  }
+}
+
+// --- A store in memory: the layer-coupled interpreter of `Builders.Store` ---
+
+/** The uid of the transaction open, as `Provenance` records it and its journal gives it: an upsert that gives no key is
+ * keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no other
+ * transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
+export function _transaction_uid(store: any): string {
+  return Provenance._uid(store, outermost(store._proposals));
+}
+
+/** The proposals of the transaction open, those of a savepoint within it given: the outermost. */
+function outermost(proposals: Proposals.OfStore): Proposals.OfStore {
+  while (proposals.base instanceof Proposals.OfStore) proposals = proposals.base; // a savepoint's: the outermost
+  return proposals;
+}
+
+/** A visitor of an object, to read: a schema object's builder, read-only, which sees what the transaction open has made
+ * of it, or data's proxy. */
+function reader(store: any, target: any): any {
+  const kind = store._meta_builder_class(target);
+  return kind === null ? target : new kind(target, false, store);
+}
+
+/** A builder of an object of `schema`, new or `target`: a schema object's by its meta-schema, data's by its schema. */
+function writer(store: any, schema: any, target: unknown = null): any {
+  const name = store.name_of(schema);
+  return meta(store, schema) ? store._meta_builder(name, target) : store.builder(name, target);
+}
+
+/** The object an entry links, as read: a schema object's entry gives a link, read through its builder. */
+function linked(value: unknown): any {
+  return Builders._linked_data(value) ?? Proxies._durable(value); // compared by identity with what frames bind
+}
+
+/** A builder of an object a spec defines where an adjacency `name` of an object of `schema` links it: the one that
+ * adjacency's member declares, where it builds `defined`'s kind (a pattern's `requires`, a constraint, whose result is
+ * the store's `Schemas.OfBool`), as a builder's member does; else `defined`'s own. */
+function defining(store: any, schema: any, name: string, defined: any): any {
+  const owner = store._meta_builder_class_of(schema);
+  const member = owner !== null ? owner._table.get(name) : undefined;
+  const builder: any = member instanceof Builders._Members && member.build !== null ? member._builderClass() : null;
+  if (builder !== null && store._meta[builder._meta] === defined) return new builder(null, true, store);
+  return writer(store, defined);
+}
+
+/** A data object's entry, as the store holds it, whether given as it is or as a visitor of it; for a schema object's
+ * entry, which a builder gives, the builder's state. */
+function entryOf(entry: any): any {
+  return entry instanceof Proxies._internals._Entry ? entry : Proxies._innerOf(entry);
 }
 
 /** The items of a stream, as it gives them, synchronously; its error thrown. */
@@ -1461,6 +1982,307 @@ function collected(stream: Observable<Item>): Item[] {
   stream.subscribe({ next: (item) => given.push(item), error: (error) => { failure = { error }; } });
   if (failure !== null) throw (failure as { error: unknown }).error;
   return given;
+}
+
+/** The interpreter of a store in memory, `Builders.Store`, coupled with it: it reads the store's objects, its proxies'
+ * durable objects, as the store's own visitors and builders do, within the transaction open, and writes them through its
+ * builders, a schema object's through its meta-schema's. A store given a layer below, a cache layer, interprets
+ * read-only over what it holds all of, halting a frame elsewhere, and sends each frame and the rest of the expression to
+ * the layer below's transaction, writing (`_cached`); an install it runs the layer below's first, then its own
+ * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). */
+export class InMemory extends Interpreter {
+  // --- Its reads ---
+
+  candidates(schema: any): any[] {
+    const store = this.store;
+    if (schema.singleton !== null) return [store._singleton_of(schema.singleton)];
+    if (!meta(store, schema)) return [...store.extent(store.name_of(schema))].map((found) => Proxies._durable(found));
+    return [...store._objects].filter((held) => !store.framework(held) && reader(store, held).as_schema() === schema);
+  }
+
+  named(schema: any, name: string | null): any[] {
+    const store = this.store;
+    if (schema === store.registered("Schemas.OfModule")) {
+      const module = store._modules.get(name ?? "");
+      return module === undefined ? [] : [module];
+    }
+    let held: any;
+    try {
+      held = store.registered(name);
+    } catch { // registered throws only LookupError
+      return [];
+    }
+    return reader(store, held).as_schema() === schema ? [held] : [];
+  }
+
+  designated(path: unknown): any {
+    try {
+      return Plain._by_path(this.store, path as Plain.PlainData, []) ?? null;
+    } catch { // a schema object's path whose steps name no entries: nothing has it (only DecodeError is thrown)
+      return null;
+    }
+  }
+
+  schema_of(target: any): any {
+    return reader(this.store, target).as_schema();
+  }
+
+  key(target: any): unknown {
+    return Proxies._key_of(reader(this.store, target));
+  }
+
+  value(holder: any, schema: any, name: string): [boolean, unknown] {
+    const visitor = reader(this.store, holder);
+    if (!schema.properties.has(name)) return [true, visitor._working.spec]; // a pattern's spec, as recorded
+    return Plain._value(visitor[name], schema.properties.get(name).schema, Plain._names(this.store));
+  }
+
+  entries(target: any, schema: any, name: string): any[] {
+    return [...reader(this.store, target)[name]];
+  }
+
+  link(entry: any, name: string): any {
+    const state = entryOf(entry);
+    return state instanceof Proxies._internals._Entry ? linked(state._links.get(name) ?? null) : linked(entry[name]);
+  }
+
+  linking(target: any, relation: any): any[] {
+    return [...Proxies._table(target, relation, this.store).values()].map(entryOf);
+  }
+
+  part(entry: any, name: string): unknown {
+    const value = entryOf(entry)!._properties.get(name);
+    return value === undefined || value === null ? null : Proxies.scalarKey(value);
+  }
+
+  shown(entry: any, names: string[]): string {
+    return Proxies._shown_parts(entryOf(entry), names);
+  }
+
+  given(target: any, names: readonly string[]): [any, Map<string, unknown>] {
+    const store = this.store;
+    if (!Proxies._isObjectData(target)) return [target, new Map()]; // a schema object, as itself
+    const state = Proxies._stateOf(target);
+    if (Proxies._counted(target)) {
+      return [new _Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make it a `
+        + "singleton's or an owner's)", target, store._life), new Map()];
+    }
+    if (Proxies._deleted(target)) {
+      return [new _Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: nothing designates `
+        + "it"), new Map()];
+    }
+    const reference = References.of(store, target);
+    const values: Map<string, unknown> = store.values(state);
+    return [reference, new Map(names.filter((name) => values.has(name))
+      .map((name) => [name, Proxies._copied(values.get(name))] as const))];
+  }
+
+  // --- Its writes, through its builders ---
+
+  assign(target: any, schema: any, name: string, verb: Map<string, any>): void {
+    const store = this.store;
+    const builder = writer(store, schema, target);
+    if (!schema.properties.has(name)) { // a pattern's spec, in place of what it held
+      builder._working.spec = verb.get("set").get("value").map((item: Map<string, any>) => new Map(item));
+    } else {
+      const prop = schema.properties.get(name);
+      Plain._set(builder, name, verb.has("set") ? Plain._decode(prop.schema, verb.get("set").get("value"), [], store) : null);
+    }
+    builder.update();
+  }
+
+  insert(target: any, schema: any, name: string, links: Map<string, any>, values: Map<string, unknown>): void {
+    const store = this.store;
+    const adjacency = schema.adjacencies.get(name);
+    const properties = adjacency.relation.entry.properties;
+    const decoded = new Map([...values].map(([prop, plain]) =>
+      [prop, Plain._decode(properties.get(prop).schema, plain as Plain.PlainData, [], store)] as const));
+    const fill = (added: any): any => {
+      for (const [link, held] of links) added[link](held);
+      for (const [prop, value] of decoded) Plain._set(added, prop, value);
+      return added;
+    };
+    const builder = writer(store, schema, target);
+    const member = builder[name];
+    // one entry at most: the one held is replaced, but where a removal from the relation removed nothing, so that the
+    // entry inserted beside it is refused at the commit (CAP-293)
+    if (Proxies._single(adjacency.relation, adjacency.me) && !Proxies._missed(store, adjacency.relation)) {
+      member((held: any) => held.remove((old: any) => old));
+    }
+    member((held: any) => held.insert(fill));
+    builder.update();
+  }
+
+  remove(target: any, schema: any, name: string, positions: number[]): void {
+    const store = this.store;
+    if (positions.length === 0) { // a removal that removed nothing: what a writer whose view was stale sends (CAP-293)
+      Proxies._note_missed(store, schema.adjacencies.get(name).relation);
+      return;
+    }
+    const builder = writer(store, schema, target); // its builder removes the entries it holds at those positions
+    const member = builder[name];
+    const written = [...member];
+    for (const index of positions) member.remove(written[index]);
+    builder.update();
+  }
+
+  create(schema: any, values: Map<string, Map<string, any>>, within: [any, string] | null = null): any {
+    const store = this.store;
+    const builder = within === null ? writer(store, schema) : defining(store, within[0], within[1], schema);
+    for (const [name, verb] of values) {
+      Plain._set(builder, name, Plain._decode(schema.properties.get(name).schema, verb.get("set").get("value"), [], store));
+    }
+    return Proxies._durable(builder.create());
+  }
+
+  upserted(index: string, made: any = null): any {
+    if (made !== null) {
+      this.store._upserted.set(index, new WeakRef(made));
+      return made;
+    }
+    return this.store._upserted.get(index)?.deref() ?? null;
+  }
+
+  // --- Its transaction ---
+
+  savepoint<T>(body: () => T, journal: (() => string) | null = null, changed: unknown[] = []): T {
+    const store = this.store;
+    if (journal === null) return store._joined(body);
+    return store._proposing(body, (proposals: Proposals.OfStore) => {
+      changed.push(Changes._gather(store, proposals, journal()));
+    });
+  }
+
+  uid(): string {
+    return _transaction_uid(this.store);
+  }
+
+  override get cache(): boolean {
+    return this.store._below !== null;
+  }
+
+  override get life(): unknown {
+    return this.store._life;
+  }
+
+  override knows(target: any): boolean {
+    return this.store._knows(target);
+  }
+
+  // --- Its stream, and a cache layer's ---
+
+  /** `txn.exec` (`Interpreter.exec`); `remainder` may be a callback building a transaction, built as an expression is,
+   * outside the transaction (94). A scope's transaction takes the first expression its `exec` is given as its own: its
+   * record's, and its uid (`Provenance`). */
+  override exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
+    const store = this.store;
+    const transaction = Proxies._isFunction(remainder) // built as an expression is, outside the transaction (94)
+      ? Changes._as_committed(store, () => store._expressed(remainder)) : Proxies._durable(remainder);
+    const given = _remainder(store, transaction);
+    const proposals = store._proposals === null ? null : outermost(store._proposals);
+    if (proposals !== null && proposals.expression === null && proposals.uid === null) {
+      proposals.expression = given.transaction; // a scope's: its record's, and its uid (Provenance)
+    }
+    return this._exec(txn, frame, given, allow_write);
+  }
+
+  /** A cache layer's, writing: an install, the layer below's first, executed there as it reaches this layer, then this
+   * layer's, as one with no layer below; else its frames, interpreted here as far as it can know, each sent below
+   * (`_cached`). */
+  override _extended(remainder: Remainder, frame: Map<string, any>, write: boolean, named: Map<string, string[]>,
+    scope: string, made: Frame[]): Frame[] {
+    const store = this.store;
+    if (!write || store._lower === null || store._installing > 0) {
+      return super._extended(remainder, frame, write, named, scope, made);
+    }
+    if (!_writesSchemas(store, remainder.transaction)) return this._cached(remainder, frame, named, scope);
+    store._lower.run(new Remainder(store._lower.copy(remainder.transaction), remainder.at), frame);
+    store._installing += 1;
+    try {
+      return super._extended(remainder, frame, write, named, scope, made);
+    } finally {
+      store._installing -= 1;
+    }
+  }
+
+  /** The frames given back (`Interpreter._givenBack`), once the owners the store gives are settled, so that each object
+   * has its path. */
+  override _givenBack(frames: Frame[], named: Map<string, string[]>, scope: string | null = null): Frame[] {
+    if (this.store._unowned.length > 0) this.store._settle_owners();
+    return super._givenBack(frames, named, scope);
+  }
+
+  /** A cache layer's: the rest of the branch executed by the layer below's transaction, what comes back taken here;
+   * else the loopback (`Interpreter._below`). */
+  override _below(state: Run, partial: Frame): Frame[] {
+    const store = this.store;
+    if (store._lower === null || store._installing > 0) return super._below(state, partial);
+    const scope = partial.scope = `${state.scope}/${state.sent.count}`;
+    state.sent.count += 1;
+    const joined: Frame[] = [];
+    const [given] = this._givenBack([partial], state.named, scope);
+    for (const item of this._fromBelow(given!, partial.remainder!, state.named, scope)) {
+      if (item.errors.length > 0) state.failed.push(item);
+      else joined.push(this._taken(item, partial.remainder!, true));
+    }
+    return joined;
+  }
+
+  /** The frames a cache layer gives of one input frame, writing ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): it interprets it read-only
+   * over what it holds, as far as it can know (`_bind`, `knows`); each frame that halts, with its remainder, and each it
+   * completes, with nothing left to execute, goes to the layer below's transaction, which executes it, writing; and each
+   * that comes back is given (`_fromBelow`). A frame annotated with an error here is given as it is. */
+  _cached(remainder: Remainder, given: Map<string, any>, named: Map<string, string[]>, scope: string): Frame[] {
+    const made = this._one(remainder, given, false, named, scope);
+    const frames: Frame[] = [];
+    for (const local of this._givenBack(made, named, scope)) {
+      if (local.errors.length > 0) {
+        frames.push(local);
+        continue;
+      }
+      const rest = local.remainder ?? new Remainder(remainder.transaction, []); // complete: down too, for the layer below
+      local.remainder = null;
+      frames.push(...this._fromBelow(local, rest, named, scope));
+    }
+    return frames;
+  }
+
+  /** What the layer below's transaction gives back of a frame a cache layer sends it with the rest of the expression to
+   * execute, writing: each frame annotated with an error, as it is; each complete, its journal applied to what the
+   * cache layer holds; each partial, executed again by the cache layer, writing, its writes sent below as it makes them
+   * (`Builders.Store._forward`); a completion marker's journal applied. Its frames carry no journal: the cache layer
+   * gives one of what it changed, in its own terms. */
+  _fromBelow(local: Frame, rest: Remainder, named: Map<string, string[]>, scope: string): Frame[] {
+    const store = this.store;
+    const frames: Frame[] = [];
+    for (const item of store._lower.forward(local, rest) as Item[]) {
+      if (!(item instanceof Frame)) {
+        if (item.has("journal")) this._applyJournal(item.get("journal"));
+        continue;
+      }
+      const journal = item.journal;
+      item.journal = null;
+      if (item.errors.length > 0) {
+        frames.push(item);
+        continue;
+      }
+      if (journal !== null) this._applyJournal(journal);
+      if (item.remainder === null) {
+        frames.push(item);
+        continue;
+      }
+      const made = store._proposing(() => this._one(item.remainder!, item, true, named, scope), // partial: executed
+        (proposals: Proposals.OfStore) => store._forward(proposals)); // again here, writing, its writes sent below
+      frames.push(...this._givenBack(made, named, scope));
+    }
+    return frames;
+  }
+
+  /** Applies a journal a layer below gave back, a value of the cache layer's, to what the cache layer holds, as it
+   * applies what the layer below's follow gives it (`Builders.Store._apply`). */
+  _applyJournal(journal: unknown): void {
+    for (const transaction of Changes._transactions(journal)) this.store._apply(transaction, true);
+  }
 }
 
 /** The layer below's transaction, which a cache layer's transaction holds for its whole duration
@@ -1532,11 +2354,12 @@ export class _Lower {
     this.run(Changes._expression(this.below, copied));
   }
 
-  /** Executes a transaction of the layer below's in its transaction, writing: an install, the layer below's before the
-   * cache layer's, or a cache layer's own write; throws the first error a frame of it is annotated with, as the layer
-   * below's interpreter annotated it. */
-  run(transaction: unknown): void {
-    _raised(collected(this.txn.exec(new Frame(), transaction, true)).filter((item) => item instanceof Frame) as Frame[]);
+  /** Executes a transaction of the layer below's in its transaction, writing, over `frame`, one of the cache layer's,
+   * else one empty: an install, the layer below's before the cache layer's, or a cache layer's own write; throws the
+   * first error a frame of it is annotated with, as the layer below's interpreter annotated it. */
+  run(transaction: unknown, frame: Map<string, any> | null = null): void {
+    const given = this.down(frame instanceof Frame ? frame : new Frame(frame));
+    _raised(collected(this.txn.exec(given, transaction, true)).filter((item) => item instanceof Frame) as Frame[]);
   }
 
   /** A frame of the cache layer's as the layer below's: each object by its reference, a schema object by its path. What
@@ -1604,428 +2427,4 @@ function carriedValue(source: any, target: any, value: any, holder: any, name: s
   return value;
 }
 
-/** The frames binding a pattern's symbols that `frame` does not, each to every object of its schema whose members its
- * spec gives hold: a singleton's to the singleton (77). A symbol given a reference binds what it designates, and no frame
- * where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a symbol,
- * and writes its spec where it does not hold; a counted object it created before from the same frame, for the same
- * symbol and key, it finds again (63), and finds none otherwise (102). Read-only, a map gives to `halted`, rather than
- * dropping, each frame as bound so far where nothing the store holds binds a symbol. */
-function bind(store: any, pattern: any, frame: Bound, upsert: boolean, key: unknown = null,
-  halted: Bound[] | null = null): Bound[] {
-  const members = membersOf(pattern);
-  let frames: Bound[] = [new Map(frame)];
-  const cache = halted !== null && store._below !== null; // a cache layer's, read-only: what it can know alone
-  for (const [name, symbol] of pattern.symbols) {
-    if (frame.has(name)) continue;
-    const reference = _givenReference(symbol);
-    if (reference !== null) { // what it designates, or no frame where the store holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided))
-      const target = Proxies._durable(References._designated(store, reference));
-      if (target === null && halted !== null) halted.push(...frames);
-      frames = target === null ? [] : frames.map((partial) => new Map([...partial, [name, target]]));
-      continue;
-    }
-    const schema = symbol.schema;
-    if (cache && schema.singleton === null) { // it cannot know it holds every object of a schema: below
-      halted!.push(...frames);
-      return [];
-    }
-    const grown: Bound[] = [];
-    for (const partial of frames) {
-      if (schema.singleton !== null) {
-        grown.push(new Map([...partial, [name, store._singleton_of(schema.singleton)]]));
-        continue;
-      }
-      if (upsert && Proxies._counted_schema(schema) && !meta(store, schema)) { // found only by what made it (102)
-        const index = _upsert_index(store, key, name, frame);
-        let made = store._upserted.get(index)?.deref();
-        if (made === undefined) {
-          made = Proxies._durable(writer(store, schema).create());
-          store._upserted.set(index, new WeakRef(made));
-        }
-        grown.push(new Map([...partial, [name, made]]));
-        continue;
-      }
-      const own = members.get(name) ?? [];
-      const identifying = own.filter((member) => identifies(store, schema, member));
-      const located = identifying.length > 0 ? null : locate(store, pattern, members, name, schema, partial);
-      let found: any[];
-      if (located !== null) { // placed by its owner's entries, which a symbol bound before it gives (60)
-        found = located;
-      } else if (identifying.length > 0 && meta(store, schema)) { // a schema object by its name, the store's own included (86)
-        found = registeredAs(store, schema, identifying[0]!);
-      } else {
-        const finding = identifying.length > 0 ? identifying : own;
-        found = extent(store, schema).filter((target: unknown) => holds(store, target, schema, finding, partial, partial));
-      }
-      if (found.length === 0 && halted !== null && !upsert) halted.push(partial);
-      if (found.length > 0 || !upsert) {
-        for (const target of found) grown.push(new Map([...partial, [name, target]]));
-        continue;
-      }
-      grown.push(new Map([...partial, [name, created(store, schema, identifying)]]));
-    }
-    frames = grown;
-  }
-  if (upsert) {
-    for (const bound of frames) writeSpec(store, pattern, bound);
-    return frames;
-  }
-  const kept: Bound[] = [];
-  for (const bound of frames) {
-    if (cache && ![...members.keys()].every((name) => store._knows(bound.get(name)))) {
-      halted!.push(bound); // what its spec reads, it does not hold all of: below
-    } else if ([...members].every(([name, items]) =>
-      holds(store, bound.get(name), schemaIn(store, pattern, name, bound), items, bound, null))) {
-      kept.push(bound);
-    }
-  }
-  return kept;
-}
-
-/** The schema of the object a pattern's symbol binds in `frame`: its own, or, given a reference, the bound object's. */
-function schemaIn(store: any, pattern: any, name: string, frame: Bound): any {
-  const schema = pattern.symbols.get(name).schema;
-  return schema === null ? reader(store, frame.get(name)).as_schema() : schema;
-}
-
-/** What tells apart a counted object an upsert makes (63): the upsert's key, the symbol, and the objects of the frame
- * that reached it, each as it is told apart in memory. */
-/** The uid of the transaction open, as `Provenance` records it and its journal gives it: an upsert that gives no key is
- * keyed by it, so that a counted object it makes is found again where the same transaction is replayed, and by no other
- * transaction (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
-export function _transaction_uid(store: any): string {
-  return Provenance._uid(store, outermost(store._proposals));
-}
-
-/** The proposals of the transaction open, those of a savepoint within it given: the outermost. */
-function outermost(proposals: Proposals.OfStore): Proposals.OfStore {
-  while (proposals.base instanceof Proposals.OfStore) proposals = proposals.base; // a savepoint's: the outermost
-  return proposals;
-}
-
-function _upsert_index(store: any, key: unknown, name: string, frame: Bound): string {
-  return JSON.stringify([key, name, sortedStrings([...frame.keys()])
-    .map((bound) => [bound, Proxies._key_of(reader(store, frame.get(bound)))])]);
-}
-
-/** The schema object registered under the name a spec gives, where it is of the meta-schema `schema`, a module by its
- * path, the root module where it gives none: none otherwise. */
-function registeredAs(store: any, schema: any, member: Map<string, any>): any[] {
-  const [, body] = only(member);
-  const name = given(body.get("mutations")[0])[1] as string | null;
-  if (schema === store.registered("Schemas.OfModule")) {
-    const module = store._modules.get(name ?? "");
-    return module === undefined ? [] : [module];
-  }
-  let held: any;
-  try {
-    held = store.registered(name);
-  } catch { // registered throws only LookupError
-    return [];
-  }
-  return reader(store, held).as_schema() === schema ? [held] : [];
-}
-
-/** An object an upsert makes where it finds none: a schema object made with the name it was looked up by, so that what
- * links it before its spec is written links a named schema (86). */
-function created(store: any, schema: any, identifying: Members): any {
-  const builder = writer(store, schema);
-  for (const member of identifying) {
-    const [kind, body] = only(member);
-    if (kind === "as_property") {
-      const prop = schema.properties.get(body.get("name"));
-      Plain._set(builder, body.get("name"), Plain._decode(prop.schema, body.get("mutations")[0].get("set").get("value"), [], store));
-    }
-  }
-  return Proxies._durable(builder.create());
-}
-
-/** Where a symbol's object is owned through an adjacency it has no name for, the entry that places it in a symbol's spec
- * bound before it (object identity 60 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)): the objects linked by each of the owner's entries agreeing with the properties it
- * gives, one where they give its keys, every one where they leave them open, none where none agrees; null where no spec
- * gives such an entry. */
-function locate(store: any, pattern: any, members: Map<string, Members>, name: string, schema: any,
-  frame: Bound): unknown[] | null {
-  const owning = [...schema.adjacencies.values(), ...schema.anonymous].filter((a: any) => a.owner);
-  for (const [other, items] of members) {
-    if (!frame.has(other) || owning.length === 0) continue;
-    for (const item of items) {
-      const [kind, body] = only(item);
-      if (kind !== "as_adjacency") continue;
-      const relation = schemaIn(store, pattern, other, frame).adjacencies.get(body.get("name")).relation;
-      for (const entry of verbsOf(body).filter(([verb]) => verb === "insert").flatMap(([, entries]) => entries)) {
-        const parts: Map<string, any>[] = entry.get("mutations");
-        const link = parts.find((part) => part.has("as_link")
-          && part.get("as_link").get("mutations")[0].get("set").get("reference")?.get("symbol") === name)?.get("as_link").get("name");
-        if (link === undefined || !owning.some((a: any) => a.relation === relation && a.me === link)) continue;
-        const properties = parts.filter((part) => part.has("as_property")).map((part) => part.get("as_property"));
-        return [...reader(store, frame.get(other))[body.get("name")]]
-          .filter((held: any) => properties.every((p) => agree(plainOf(store, held[p.get("name")],
-            relation.entry.properties.get(p.get("name"))), given(p.get("mutations")[0]))))
-          .map((held: any) => linked(held[link]));
-      }
-    }
-  }
-  return null;
-}
-
-/** Whether a spec's member gives its object's identity, by which an upsert finds it: a schema object's name (86), an
- * owned object's owning entry (60). */
-function identifies(store: any, schema: any, member: Map<string, any>): boolean {
-  const [kind, body] = only(member);
-  if (kind === "as_property") return body.get("name") === "name" && meta(store, schema);
-  return kind === "as_adjacency" && schema.adjacencies.get(body.get("name")).owner
-    && verbsOf(body).some(([verb]) => verb === "insert");
-}
-
-/** A pattern's spec, by symbol: the members of each, its items in order. */
-function membersOf(pattern: any): Map<string, Members> {
-  const members = new Map<string, Members>();
-  for (const item of pattern.spec as Map<string, Members>[]) {
-    for (const [name, written] of item) {
-      if (!members.has(name)) members.set(name, []);
-      (members.get(name) as Members).push(...written);
-    }
-  }
-  return members;
-}
-
-/** A spec item's one member: its kind and its body. */
-function only(item: Map<string, any>): [string, any] {
-  return [...item][0] as [string, any];
-}
-
-/** Whether what a spec gives of an object holds of `target`: its properties' values, the entries it inserts held, and
- * those it removes absent, none where it clears the adjacency. Finding the object of a symbol (`partial`, the frame as
- * bound so far), an entry linking a symbol not yet bound is left out. */
-function holds(store: any, target: any, schema: any, members: Members, frame: Bound, partial: Bound | null): boolean {
-  const visitor = reader(store, target);
-  for (const member of members) {
-    const [kind, body] = only(member);
-    if (kind === "spec") {
-      if (Json.dumps(visitor._working.spec) !== Json.dumps(body.get("items"))) return false;
-      continue;
-    }
-    const name = body.get("name");
-    if (kind === "as_property") {
-      if (!agree(plainOf(store, visitor[name], schema.properties.get(name)), given(body.get("mutations")[0]))) return false;
-      continue;
-    }
-    const relation = schema.adjacencies.get(name).relation;
-    const held = [...visitor[name]];
-    const unmatched = [...held];
-    for (const [verb, entries] of verbsOf(body)) {
-      if (verb === "clear" && held.length > 0) return false;
-      for (const entry of entries) {
-        if (partial !== null && symbolRefs(entry).some((ref) => !partial.has(ref.get("symbol")))) continue;
-        if (verb === "insert" && match(store, relation, unmatched, entry, frame) === null) return false;
-        if (verb === "remove" && removedOf(store, relation, held, [entry], frame).length > 0) return false;
-      }
-    }
-  }
-  return true;
-}
-
-/** The references to symbols an entry gives, its own and those of the objects it defines. */
-function symbolRefs(entry: Map<string, any>): Map<string, any>[] {
-  const found: Map<string, any>[] = [];
-  for (const item of entry.get("mutations")) {
-    const [kind, body] = only(item);
-    if (kind === "as_link") {
-      const held = body.get("mutations")[0].get("set");
-      if (held.has("reference") && held.get("reference").has("symbol")) {
-        found.push(held.get("reference"));
-      } else if (held.has("def")) {
-        for (const member of held.get("def").get("mutations")) {
-          const [memberKind, memberBody] = only(member);
-          if (memberKind === "as_adjacency") {
-            for (const [, nested] of verbsOf(memberBody)) for (const given of nested) found.push(...symbolRefs(given));
-          }
-        }
-      }
-    }
-  }
-  return found;
-}
-
-/** A property's value, read, as a spec gives it: `[present, plain]`. */
-function plainOf(store: any, read: any, prop: any): [boolean, unknown] {
-  return Plain._value(read, prop.schema, Plain._names(store));
-}
-
-/** A spec's property verb as `[present, plain]`. */
-function given(verb: Map<string, any>): [boolean, unknown] {
-  return verb.has("set") ? [true, verb.get("set").get("value")] : [false, null];
-}
-
-function agree([present, plain]: [boolean, unknown], [wanted, value]: [boolean, unknown]): boolean {
-  return present === wanted && (!present || Plain._symbol(plain) === Plain._symbol(value));
-}
-
-/** Whether an entry held, read, is one a spec gives: the objects it links, and its properties' values. */
-function matches(store: any, relation: any, held: any, entry: Map<string, any>, frame: Bound): boolean {
-  for (const item of entry.get("mutations")) {
-    const [kind, body] = only(item);
-    const name = body.get("name");
-    if (kind === "as_property") {
-      if (!agree(plainOf(store, held[name], relation.entry.properties.get(name)), given(body.get("mutations")[0]))) return false;
-      continue;
-    }
-    const wanted = body.get("mutations")[0].get("set");
-    const state = Proxies._innerOf(held);
-    const mine = state instanceof Proxies._internals._Entry ? state._links.get(name) : null;
-    if (Proxies._is_parameter(mine) || Plain._is_marked(wanted.get("reference"))) { // by the parameter's name (CAP-312)
-      if (!wanted.has("reference") || mine === null || JSON.stringify(Proxies._link_key(mine))
-        !== JSON.stringify(Proxies._link_key(resolve(store, wanted.get("reference"), frame)))) return false;
-      continue;
-    }
-    const target = linked(held[name]);
-    if (wanted.has("def")) {
-      const definition = wanted.get("def");
-      const schema = store.registered(definition.get("schema"));
-      if (reader(store, target).as_schema() !== schema
-        || !holds(store, target, schema, definition.get("mutations"), frame, null)) return false;
-    } else if (target !== resolve(store, wanted.get("reference"), frame)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/** The object a spec's reference names: the one a symbol binds, or the one at a path; or the parameter reference
- * standing in its place (CAP-312). */
-function resolve(store: any, ref: Map<string, any>, frame: Bound): any {
-  if (Plain._is_marked(ref)) return Proxies._durable(Plain._unmarked(store, ref));
-  if (ref.has("symbol")) return Proxies._durable(frame.get(ref.get("symbol")));
-  const found = Proxies._durable(Plain._by_path(store, ref.get("path"), []));
-  if (found === null || found === undefined) throw new LookupError("no object of the store has the path a spec refers to");
-  return found;
-}
-
-/** Writes a pattern's spec over a frame where it does not hold (object identity 76 in [CAP-137: patterns of symbols, variables and specs](mbse:mbse-basis/docs/capabilities/CAP-137.md#decided)). */
-function writeSpec(store: any, pattern: any, frame: Bound): void {
-  for (const [name, members] of membersOf(pattern)) write(store, frame.get(name), schemaIn(store, pattern, name, frame), members, frame);
-}
-
-/** Writes what a spec gives of an object where it does not hold: a property's value, an entry, its links resolved and the
- * objects it defines made, and a pattern's spec, as recorded. */
-function write(store: any, target: any, schema: any, members: Members, frame: Bound): void {
-  for (const member of members) {
-    const [kind, body] = only(member);
-    if (kind === "spec") {
-      if (!holds(store, target, schema, [member], frame, null)) {
-        const builder = writer(store, schema, target);
-        builder._working.spec = body.get("items").map((item: Map<string, any>) => new Map(item)); // in place of what it held
-        builder.update();
-      }
-      continue;
-    }
-    const name = body.get("name");
-    if (kind === "as_property") {
-      const prop = schema.properties.get(name);
-      const verb = body.get("mutations")[0];
-      if (agree(plainOf(store, reader(store, target)[name], prop), given(verb))) continue;
-      const builder = writer(store, schema, target);
-      Plain._set(builder, name, verb.has("set") ? Plain._decode(prop.schema, verb.get("set").get("value"), [], store) : null);
-      builder.update();
-      continue;
-    }
-    const adjacency = schema.adjacencies.get(name);
-    for (const [verb, entries] of verbsOf(body)) {
-      const held = [...reader(store, target)[name]];
-      if (verb !== "insert") {
-        remove(store, target, schema, name, verb === "clear" ? null : entries, held, frame);
-        continue;
-      }
-      for (const entry of entries) {
-        if (match(store, adjacency.relation, held, entry, frame) === null) {
-          insert(store, target, schema, name, adjacency, entry, frame);
-        }
-      }
-    }
-  }
-}
-
-/** The positions of the entries `held` that agree with one of the entries a spec removes. */
-function removedOf(store: any, relation: any, held: any[], entries: Map<string, any>[], frame: Bound): number[] {
-  return held.flatMap((candidate, index) =>
-    (entries.some((entry) => matches(store, relation, candidate, entry, frame)) ? [index] : []));
-}
-
-/** Removes from an object's adjacency, `held` as read, each entry that agrees with one of `entries`, a spec's removal,
- * or every entry where it gives null (`clear`); through the object's builder, which removes the entries it holds at
- * those positions, so that removing an owning entry deletes what it owned (object identity 48 in [CAP-121: owned objects deleted in cascade](mbse:mbse-basis/docs/capabilities/CAP-121.md#decided)). */
-function remove(store: any, target: any, schema: any, name: string, entries: Map<string, any>[] | null, held: any[],
-  frame: Bound): void {
-  const relation = schema.adjacencies.get(name).relation;
-  const removed = entries === null ? held.map((_, index) => index) : removedOf(store, relation, held, entries, frame);
-  if (removed.length === 0) {
-    if (entries !== null) Proxies._note_missed(store, relation); // a removal that removed nothing: a stale view (CAP-293)
-    return;
-  }
-  const builder = writer(store, schema, target);
-  const member = builder[name];
-  const written = [...member];
-  for (const index of removed) member.remove(written[index]);
-  builder.update();
-}
-
-/** The first of the entries `held` that agrees with an entry a spec gives, taken from them, so that the k-th equal entry a
- * spec gives is the k-th such entry held; null where none agrees. */
-function match(store: any, relation: any, held: any[], entry: Map<string, any>, frame: Bound): unknown {
-  const index = held.findIndex((candidate) => matches(store, relation, candidate, entry, frame));
-  return index < 0 ? null : held.splice(index, 1)[0];
-}
-
-/** A builder of an object a spec defines where an adjacency `name` of an object of `schema` links it: the one that
- * adjacency's member declares, where it builds `defined`'s kind (a pattern's `requires`, a constraint, whose result is
- * the store's `Schemas.OfBool`), as a builder's member does; else `defined`'s own. */
-function defining(store: any, schema: any, name: string, defined: any): any {
-  const owner = store._meta_builder_class_of(schema);
-  const member = owner !== null ? owner._table.get(name) : undefined;
-  const builder: any = member instanceof Builders._Members && member.build !== null ? member._builderClass() : null;
-  if (builder !== null && store._meta[builder._meta] === defined) return new builder(null, true, store);
-  return writer(store, defined);
-}
-
-/** Adds an entry a spec gives to an object's adjacency, replacing the one it holds where it holds one at most. */
-function insert(store: any, target: any, schema: any, name: string, adjacency: any, entry: Map<string, any>,
-  frame: Bound): void {
-  const links = new Map<string, unknown>();
-  const values = new Map<string, unknown>();
-  for (const item of entry.get("mutations")) {
-    const [kind, body] = only(item);
-    if (kind === "as_property") {
-      const verb = body.get("mutations")[0];
-      if (verb.has("set")) { // a property cleared: the entry is inserted without it
-        const prop = adjacency.relation.entry.properties.get(body.get("name"));
-        values.set(body.get("name"), Plain._decode(prop.schema, verb.get("set").get("value"), [], store));
-      }
-      continue;
-    }
-    const target = body.get("mutations")[0].get("set");
-    if (target.has("def")) {
-      const definition = target.get("def");
-      const defined = store.registered(definition.get("schema"));
-      const made = Proxies._durable(defining(store, schema, name, defined).create());
-      write(store, made, defined, definition.get("mutations"), frame);
-      links.set(body.get("name"), made);
-    } else {
-      links.set(body.get("name"), resolve(store, target.get("reference"), frame));
-    }
-  }
-  const fill = (added: any): any => {
-    for (const [link, linked] of links) added[link](linked);
-    for (const [prop, value] of values) Plain._set(added, prop, value);
-    return added;
-  };
-  const builder = writer(store, schema, target);
-  const member = builder[name];
-  // one entry at most: the one held is replaced, but where a removal from the relation removed nothing, so that the
-  // entry inserted beside it is refused at the commit (CAP-293)
-  if (Proxies._single(adjacency.relation, adjacency.me) && !Proxies._missed(store, adjacency.relation)) {
-    member((held: any) => held.remove((old: any) => old));
-  }
-  member((held: any) => held.insert(fill));
-  builder.update();
-}
+Proxies._interpreters((store) => new InMemory(store)); // a store in memory's interpreter, made as it is first asked for

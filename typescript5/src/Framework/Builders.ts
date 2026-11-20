@@ -2256,18 +2256,11 @@ export class Store extends Proxies.OfStore {
     try {
       this._scope((open) => {
         this._proposals!.expression = transaction; // what its record gives (Provenance)
-        const install = this._lower !== null && Transactions._writesSchemas(this, transaction) ? 1 : 0;
-        if (install) this._lower!.run(this._lower!.copy(transaction)); // an install: the layer below's first, then
-        this._installing += install; // this store's, as one with no layer below
         let failure: { error: unknown } | null = null;
-        try {
-          open.exec(new Transactions.Frame(), transaction, true).subscribe({
-            next: (item) => { if (item instanceof Transactions.Frame) frames.push(item); },
-            error: (error) => { failure = { error }; },
-          });
-        } finally {
-          this._installing -= install;
-        }
+        open.exec(new Transactions.Frame(), transaction, true).subscribe({
+          next: (item) => { if (item instanceof Transactions.Frame) frames.push(item); },
+          error: (error) => { failure = { error }; },
+        });
         if (failure !== null) throw (failure as { error: unknown }).error;
       });
     } catch (error) {
@@ -2282,7 +2275,7 @@ export class Store extends Proxies.OfStore {
    * `exec` gave is annotated with an error, it commits nothing, throwing the first error annotated (CAP-309). */
   _scope<T>(body: (txn: Transactions.Transaction) => T): T {
     return this._transacting(() => {
-      const txn = new Transactions.Transaction(this, this._life!);
+      const txn = new Transactions.Transaction(this._interpreter(), this._life!);
       const result = body(txn);
       txn._raise();
       return result;

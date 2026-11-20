@@ -156,6 +156,18 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   same changes elsewhere, each once; a cache layer applies those the layer below gives back to what it holds.
   - Python: [EXE-08: A frame's journal](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-08) · TypeScript: [EXE-08: A frame's journal](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-08)
   - Python: [BLW-09: The completeness rule](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-09) · TypeScript: [BLW-09: The completeness rule](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-09)
+- **A layer of your own interprets with a class of its own.** A store kept elsewhere than in memory, a database's, is
+  a layer whose interpreter derives from `Transactions.Interpreter`, the base class that holds what every layer
+  interprets alike: the walk of the terms, binding symbols, frames and their errors, unique clauses checked at the
+  layer's commit (`_check_uniques`), and the stream `txn.exec` gives. The class gives what only its layer knows, which
+  the interpreter drives, reading and writing the layer directly, not through the Store interface: its reads
+  (`candidates`, `named`, `designated`, `schema_of`, `key`, `value`, `entries`, `link`, `linking`, `part`, `shown`,
+  `given`), its writes (`assign`, `insert`, `remove`, `create`, `upserted`), its transaction's `savepoint` and `uid`,
+  and, where it is a cache layer, `cache` and `knows`. `Transactions.Transaction(interpreter, life)` is its
+  transaction open, whose `exec` the interpreter runs. A store in memory's is `Transactions.InMemory`
+  ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)).
+  - Python: [LAY-01: The base class and a layer's](mbse:mbse-schemas/python3/tests/40_Layers.ipynb#LAY-01) · TypeScript: [LAY-01: The base class and a layer's](mbse:mbse-schemas/typescript5/tests/40_Layers.ipynb#LAY-01)
+  - Python: [LAY-02: A layer not built on proxies interprets as a store in memory does](mbse:mbse-schemas/python3/tests/40_Layers.ipynb#LAY-02) · TypeScript: [LAY-02: A layer not built on proxies interprets as a store in memory does](mbse:mbse-schemas/typescript5/tests/40_Layers.ipynb#LAY-02)
 - **An error is annotated on its frame, in the stream**, not raised by `exec`; the scope then commits nothing, and
   raises the first error annotated, as `store.transaction` does. An error no one frame made, in the expression, ends
   the stream with it.

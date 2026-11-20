@@ -62,7 +62,7 @@ from typing import Any
 from . import Errors, Plain, Proxies
 from . import Schemas as S
 
-__all__ = ["Frame", "FrameError", "InMemory", "Interpreter", "Remainder", "Transaction"]
+__all__ = ["Frame", "FrameError", "InMemory", "Interpreter", "Refused", "Remainder", "Transaction", "single"]
 
 
 def _recorded(store: Any, symbols: Mapping[str, Any], spec: Any) -> dict[str, list[Any]]:
@@ -139,7 +139,7 @@ def _recorded_schema(store: Any, name: str, symbol: Any) -> Any:
     if target is not None:
         return _reader(store, target).as_schema()
     try:
-        return References._implied(store, path)
+        return References.implied(store, path)
     except LookupError as error:
         raise LookupError(f"symbol {name!r} is given a reference whose path {error}: a spec writes what its object's "
                           "schema declares") from None
@@ -597,7 +597,7 @@ class Frame(dict[str, Any]):
 
     def __getitem__(self, name: str) -> Any:
         found = super().__getitem__(name)
-        if isinstance(found, _Refused):
+        if isinstance(found, Refused):
             raise LookupError(f"symbol {name!r} of the frame: {found.message}")
         return found
 
@@ -605,10 +605,12 @@ class Frame(dict[str, Any]):
         return self[name] if name in self else default
 
 
-class _Refused:
-    """What a frame given back holds for a symbol that binds a counted object, which has no reference: its every use is
-    refused, saying why; but given again to `exec` within the transaction that gave it (`life`), the object it binds
-    (`target`), so that a frame halted there is resumed there."""
+class Refused:
+    """What a frame given back holds for a symbol that binds an object that has no reference, a counted object or one
+    the transaction deleted: its every use is refused, saying why, `message`; but given again to `exec` within the
+    transaction that gave it, `life`, the object it binds, `target`, so that a frame halted there is resumed there. A
+    layer's `Interpreter.given` gives one for such an object, `Refused(message, target, interpreter.life)`, or with no
+    `target` where nothing is to be resumed."""
 
     def __init__(self, message: str, target: Any = None, life: Any = None):
         self.message, self._target, self._life = message, target, life
@@ -652,6 +654,14 @@ def _execute(store: Any, transaction: Any) -> list[Frame]:
     if interpreter.store is not store:
         interpreter = InMemory(store)
     return interpreter._execute(transaction)
+
+
+def _expression(store: Any, given: Any) -> Any:
+    """What `txn.exec` is given to execute, as an expression: a callback building one, built as an expression is,
+    outside the transaction (94), given the store's schemas by name (`Builders.Store.expressed`); else as it is."""
+    from . import Builders
+
+    return store.expressed(given) if Builders._is_function(given) else Proxies._durable(given)
 
 
 def _remainder(store: Any, transaction: Any) -> Remainder:
@@ -970,13 +980,20 @@ def _given(verb: Any) -> Any:
 # --- The interpreter: what every layer interprets alike ---
 
 
+def single(relation: Any, me: str) -> bool:
+    """Whether an object holds one entry of `relation` at most from its link `me`: a `unique` clause makes `me` determine
+    every other link and property. What a layer's `Interpreter.insert` checks before it inserts an entry through an
+    adjacency of link `me`, to replace the one held, but where a removal from the relation removed nothing (CAP-293)."""
+    return Proxies._single(relation, me)
+
+
 class Interpreter(abc.ABC):
     """A layer's transaction interpreter, the base class of each kind of layer's: what every layer interprets alike
     ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)), so
     that each refuses what every layer refuses. It drives the walk of a transaction's terms (map, upsert, update,
     reduce, partition, then), binding symbols; the frames, each annotated with what failed as a term processed it
     ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)); unique clauses, which a layer checks at its commit
-    (`_check_uniques`); and the stream `txn.exec` gives, each frame carrying its scope and, where it halted, its
+    (`check_uniques`); and the stream `txn.exec` gives, each frame carrying its scope and, where it halted, its
     remainder, each input frame's frames ending with its completion marker, the first carrying its journal.
 
     Each kind of layer's class, coupled with the layer, gives what only that layer knows, as the hooks below: its
@@ -1052,7 +1069,7 @@ class Interpreter(abc.ABC):
     def given(self, target: Any, names: Iterable[str]) -> tuple[Any, dict[str, Any]]:
         """What a frame given back binds for an object, and assigns of it ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its
         reference, a `References.OfObject`, a value that outlives the transaction (a schema object as itself), or a
-        `_Refused` where it has none; and the values it holds of its properties `names`, as data."""
+        `Refused` where it has none; and the values it holds of its properties `names`, as data."""
 
     # --- What a layer gives: its writes, which the interpreter makes only writing (`_written`) ---
 
@@ -1103,7 +1120,7 @@ class Interpreter(abc.ABC):
     holds all of, halting a frame elsewhere for the layer below (a cache layer's completeness rule)."""
 
     life: Any = None
-    """The life of the layer's transaction open, given to a frame's `_Refused` so that it is resumed within it."""
+    """The life of the layer's transaction open, given to a frame's `Refused` so that it is resumed within it."""
 
     def knows(self, target: Any) -> bool:
         """Whether the layer holds all of an object, so that its interpreter may read it: a layer with no layer below
@@ -1113,9 +1130,10 @@ class Interpreter(abc.ABC):
     # --- The stream ---
 
     def exec(self, txn: Transaction, frame: Any, remainder: Any, allow_write: bool) -> Iterator[Any]:
-        """`txn.exec`: the stream of the frames `remainder`, a `Remainder` or a whole transaction's expression, makes
-        of `frame`, a frame or a stream of them, within `txn`."""
-        return self._exec(txn, frame, _remainder(self.store, Proxies._durable(remainder)), allow_write)
+        """`txn.exec`: the stream of the frames `remainder`, a `Remainder`, a whole transaction's expression or a
+        callback building one (`Builders.Store.expressed`), makes of `frame`, a frame or a stream of them, within
+        `txn`."""
+        return self._exec(txn, frame, _remainder(self.store, _expression(self.store, remainder)), allow_write)
 
     def _exec(self, txn: Transaction, given: Any, remainder: Remainder, write: bool) -> Iterator[Any]:
         """`txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds: each input frame, as it
@@ -1244,7 +1262,7 @@ class Interpreter(abc.ABC):
 
     def _bound(self, name: str, value: Any) -> Any:
         """What a symbol of an input frame binds: the object its reference designates, else what it holds."""
-        if isinstance(value, _Refused):
+        if isinstance(value, Refused):
             if value._life is self.life and value._target is not None:  # given back within this transaction
                 return value._target
             raise LookupError(f"symbol {name!r} of the frame: {value.message}")
@@ -1656,11 +1674,12 @@ class Interpreter(abc.ABC):
 
     # --- Unique clauses, which a layer checks at its commit ---
 
-    def _check_uniques(self, relation: Any, inserted: list[Any]) -> None:
+    def check_uniques(self, relation: Any, inserted: list[Any]) -> None:
         """Raises `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
         `unique` clauses, the clause's complement, every link and property outside it, and so differs on the clause
         ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)): what a layer checks at its commit, once a transaction's
-        writes are all made (CAP-124), each entry it inserted against those its result holds. The entries that could
+        writes are all made (CAP-124), each entry it inserted, as its hooks give it, and still holds, against those its
+        result holds, a layer calling it once for each relation with a unique clause. The entries that could
         agree with one are those held by the object it links through a link of the key, all of them (`linking`), and
         the others inserted. Where the key holds no link that links an object present, those are the ones held by
         every object it links and the others inserted."""
@@ -1832,10 +1851,10 @@ class InMemory(Interpreter):
         if not isinstance(target, Proxies._ObjectData):
             return target, {}  # a schema object, as itself
         if Proxies._counted(target):
-            return _Refused(f"a counted {target._schema_name!r} has no reference: nothing names it (make it a "
+            return Refused(f"a counted {target._schema_name!r} has no reference: nothing names it (make it a "
                             "singleton's or an owner's)", target, store._life), {}
         if Proxies._deleted(target):
-            return _Refused(f"a {target._schema_name!r} the transaction deleted has no reference: nothing designates "
+            return Refused(f"a {target._schema_name!r} the transaction deleted has no reference: nothing designates "
                             "it"), {}
         reference = References.of(store, target)
         values = store.values(target)
@@ -1870,7 +1889,7 @@ class InMemory(Interpreter):
         member = getattr(builder, name)
         # one entry at most: the one held is replaced, but where a removal from the relation removed nothing, so that the
         # entry inserted beside it is refused at the commit (CAP-293)
-        if Proxies._single(adjacency.relation, adjacency.me) and not Proxies._missed(store, adjacency.relation):
+        if single(adjacency.relation, adjacency.me) and not Proxies._missed(store, adjacency.relation):
             member(lambda held: held.remove(lambda old: old))
         member(lambda held: held.insert(fill))
         builder.update()
@@ -1936,14 +1955,8 @@ class InMemory(Interpreter):
         """`txn.exec` (`Interpreter.exec`); `remainder` may be a callback building a transaction, built as an expression
         is, outside the transaction (94). A scope's transaction takes the first expression its `exec` is given as its
         own: its record's, and its uid (`Provenance`)."""
-        from . import Builders, Changes
-
         store = self.store
-        transaction = remainder
-        if Builders._is_function(remainder):  # built as an expression is, outside the transaction (94)
-            with Changes._as_committed(store):
-                transaction = store._expressed(remainder)
-        remainder = _remainder(store, Proxies._durable(transaction))
+        remainder = _remainder(store, _expression(store, remainder))
         proposals = _outermost(store._proposals) if store._proposals is not None else None
         if proposals is not None and proposals.expression is None and proposals.uid is None:
             proposals.expression = remainder.transaction  # a scope's: its record's, and its uid (Provenance)
@@ -2129,7 +2142,7 @@ class _Lower:
             try:
                 bound[name] = _carried(self.below, self.store, value)
             except LookupError as error:
-                bound[name] = _Refused(str(error))
+                bound[name] = Refused(str(error))
         assigns = {name: {key: _carried_value(self.below, self.store, value, bound[name], key)
                           for key, value in values.items()} for name, values in frame.assigns.items()}
         remainder = None if frame.remainder is None else Remainder(self.originals[id(frame.remainder.transaction)],
@@ -2148,7 +2161,7 @@ def _carried(source: Any, target: Any, value: Any) -> Any:
     refused, `LookupError`, where it cannot be: a counted object, or a schema object `target` does not hold."""
     from . import Paths
 
-    if isinstance(value, _Refused):
+    if isinstance(value, Refused):
         raise LookupError(value.message)
     held = Proxies._deref(value)
     if isinstance(held, Proxies._RecordData) and held._schema is source.registered("References.OfObject"):
@@ -2169,6 +2182,6 @@ def _carried_value(source: Any, target: Any, value: Any, holder: Any, name: str)
 
     if isinstance(value, (Proxies._RecordData, Proxies._ContainerData)):
         path = Plain.ToPlain(target)(holder.as_schema(), holder)["path"]
-        schema = References._implied(target, path).properties[name].schema
+        schema = References.implied(target, path).properties[name].schema
         return Plain.FromPlain(target)(schema, Plain.ToPlain(source)(value._schema, value))
     return value

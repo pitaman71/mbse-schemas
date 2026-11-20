@@ -60,7 +60,7 @@ from . import Paths, Plain, Proxies
 from . import Schemas as S
 from .Builders import _builder_for
 
-__all__ = ["install", "of", "validate", "validate_schema"]
+__all__ = ["implied", "install", "of", "validate", "validate_schema"]
 
 
 def install(txn: Any) -> Any:
@@ -155,12 +155,14 @@ def _schema(store: Any, reference: Any) -> Any:
     return None if path is None else store.held(path)
 
 
-def _implied(store: Any, path_plain: Any) -> Any:
+def implied(store: Any, path_plain: Any) -> Any:
     """The schema of the object a path designates, as the store's schemas imply it, reading no data (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)): the
     one schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`,
     marked owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds
     what a link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the
-    schema lacks, a link no one schema fills; or a schema object's path, where the store does not hold it."""
+    schema lacks, a link no one schema fills; or a schema object's path, where the store does not hold it. `path_plain`
+    is a `References.OfObject`'s path, as plain data; `store` holds the schemas, whatever layer holds the data: a journal
+    names an object held before by its reference alone where this is its schema (`Changes.gather`)."""
     singleton, steps = Plain._steps(path_plain, ())
     if singleton == Plain.ROOT:
         raise LookupError("names a schema object the store does not hold")
@@ -189,7 +191,7 @@ def _object(store: Any, obj: Any) -> Any:
     from . import Transactions
 
     target = Proxies._deref(obj)
-    if isinstance(target, Transactions._Refused):
+    if isinstance(target, Transactions.Refused):
         raise LookupError(target.message)
     if isinstance(target, Proxies._RecordData) and target._schema is store.registered("References.OfObject"):
         held = Proxies._read(target, "path")

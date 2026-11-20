@@ -147,7 +147,7 @@ export function _recordedSchema(store: any, name: string, symbol: any): any {
   const target = References._designated(store, reference);
   if (target != null) return reader(store, target).as_schema();
   try {
-    return References._implied(store, path);
+    return References.implied(store, path);
   } catch (error) {
     throw new LookupError(`symbol ${repr(name)} is given a reference whose path ${(error as Error).message}: a spec writes `
       + "what its object's schema declares");
@@ -673,14 +673,16 @@ export class Frame extends Map<string, any> {
 
   override get(name: string): any {
     const found = super.get(name);
-    if (found instanceof _Refused) throw new LookupError(`symbol ${repr(name)} of the frame: ${found.message}`);
+    if (found instanceof Refused) throw new LookupError(`symbol ${repr(name)} of the frame: ${found.message}`);
     return found;
   }
 }
 
-/** What a frame given back holds for a symbol that binds a counted object, which has no reference: refused, saying
- * why. */
-export class _Refused {
+/** What a frame given back holds for a symbol that binds an object that has no reference, a counted object or one the
+ * transaction deleted: its every use is refused, saying why, `message`. A layer's `Interpreter.given` gives one for
+ * such an object, `new Refused(message, target, interpreter.life)`, or with no `target` where nothing is to be
+ * resumed. */
+export class Refused {
   /** `target`, the object it binds, given again to `exec` within the transaction that gave it, whose life is `life`, so
    * that a frame halted there is resumed there. */
   constructor(readonly message: string, readonly target: unknown = null, readonly life: unknown = null) {}
@@ -789,6 +791,12 @@ export function _execute(store: any, transaction: any): Frame[] {
 
 /** What `txn.exec` is given to execute: a remainder as it is, or a whole transaction's expression, from its root term;
  * at `[]` where it has none. */
+/** What `txn.exec` is given to execute, as an expression: a callback building one, built as an expression is, outside
+ * the transaction (94), given the store's schemas by name (`Builders.Store.expressed`); else as it is. */
+function expression(store: any, given: unknown): any {
+  return Proxies._isFunction(given) ? store.expressed(given) : Proxies._durable(given);
+}
+
 export function _remainder(store: any, transaction: any): Remainder {
   if (transaction instanceof Remainder) return transaction;
   const root = next(transaction, "mutations");
@@ -1130,11 +1138,18 @@ function agree([present, plain]: [boolean, unknown], [wanted, value]: [boolean, 
 
 // --- The interpreter: what every layer interprets alike ---
 
+/** Whether an object holds one entry of `relation` at most from its link `me`: a `unique` clause makes `me` determine
+ * every other link and property. What a layer's `Interpreter.insert` checks before it inserts an entry through an
+ * adjacency of link `me`, to replace the one held, but where a removal from the relation removed nothing (CAP-293). */
+export function single(relation: any, me: string): boolean {
+  return Proxies._single(relation, me);
+}
+
 /** A layer's transaction interpreter, the base class of each kind of layer's: what every layer interprets alike
  * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)), so that each refuses what every layer refuses. It drives the
  * walk of a transaction's terms (map, upsert, update, reduce, partition, then), binding symbols; the frames, each
  * annotated with what failed as a term processed it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)); unique clauses, which a layer checks at its
- * commit (`_check_uniques`); and the stream `txn.exec` gives, each frame carrying its scope and, where it halted, its
+ * commit (`check_uniques`); and the stream `txn.exec` gives, each frame carrying its scope and, where it halted, its
  * remainder, each input frame's frames ending with its completion marker, the first carrying its journal.
  *
  * Each kind of layer's class, coupled with the layer, gives what only that layer knows, as the hooks below: its reads of
@@ -1196,7 +1211,7 @@ export abstract class Interpreter {
   abstract shown(entry: any, names: string[]): string;
 
   /** What a frame given back binds for an object, and assigns of it ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its reference, a
-   * `References.OfObject`, a value that outlives the transaction (a schema object as itself), or a `_Refused` where it
+   * `References.OfObject`, a value that outlives the transaction (a schema object as itself), or a `Refused` where it
    * has none; and the values it holds of its properties `names`, as data. */
   abstract given(target: any, names: readonly string[]): [any, Map<string, unknown>];
 
@@ -1243,7 +1258,7 @@ export abstract class Interpreter {
     return false;
   }
 
-  /** The life of the layer's transaction open, given to a frame's `_Refused` so that it is resumed within it. */
+  /** The life of the layer's transaction open, given to a frame's `Refused` so that it is resumed within it. */
   get life(): unknown {
     return null;
   }
@@ -1256,10 +1271,10 @@ export abstract class Interpreter {
 
   // --- The stream ---
 
-  /** `txn.exec`: the stream of the frames `remainder`, a `Remainder` or a whole transaction's expression, makes of
-   * `frame`, a frame or a stream of them, within `txn`. */
+  /** `txn.exec`: the stream of the frames `remainder`, a `Remainder`, a whole transaction's expression or a callback
+   * building one (`Builders.Store.expressed`), makes of `frame`, a frame or a stream of them, within `txn`. */
   exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
-    return this._exec(txn, frame, _remainder(this.store, Proxies._durable(remainder)), allow_write);
+    return this._exec(txn, frame, _remainder(this.store, expression(this.store, remainder)), allow_write);
   }
 
   /** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
@@ -1410,7 +1425,7 @@ export abstract class Interpreter {
 
   /** What a symbol of an input frame binds: the object its reference designates, else what it holds. */
   _bound(name: string, value: unknown): any {
-    if (value instanceof _Refused) {
+    if (value instanceof Refused) {
       if (value.life === this.life && value.target !== null) return value.target; // given back within this transaction
       throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
     }
@@ -1876,11 +1891,12 @@ export abstract class Interpreter {
   /** Throws `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
    * `unique` clauses, the clause's complement, every link and property outside it, and so differs on the clause
    * ([CAP-155: `unique` clauses on relation schemas govern relation cardinality](mbse:mbse-basis/docs/capabilities/CAP-155.md)): what a layer checks at its commit, once a transaction's writes are all
-   * made (CAP-124), each entry it inserted against those its result holds. The entries that could agree with one are
+   * made (CAP-124), each entry it inserted, as its hooks give it, and still holds, against those its result holds, a
+   * layer calling it once for each relation with a unique clause. The entries that could agree with one are
    * those held by the object it links through a link of the key, all of them (`linking`), and the others inserted. Where
    * the key holds no link that links an object present, those are the ones held by every object it links and the others
    * inserted. */
-  _check_uniques(relation: any, inserted: any[]): void {
+  check_uniques(relation: any, inserted: any[]): void {
     const names: string[] = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
     const part = (entry: any, name: string): unknown => {
       const target = this.link(entry, name);
@@ -2064,11 +2080,11 @@ export class InMemory extends Interpreter {
     if (!Proxies._isObjectData(target)) return [target, new Map()]; // a schema object, as itself
     const state = Proxies._stateOf(target);
     if (Proxies._counted(target)) {
-      return [new _Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make it a `
+      return [new Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make it a `
         + "singleton's or an owner's)", target, store._life), new Map()];
     }
     if (Proxies._deleted(target)) {
-      return [new _Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: nothing designates `
+      return [new Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: nothing designates `
         + "it"), new Map()];
     }
     const reference = References.of(store, target);
@@ -2106,7 +2122,7 @@ export class InMemory extends Interpreter {
     const member = builder[name];
     // one entry at most: the one held is replaced, but where a removal from the relation removed nothing, so that the
     // entry inserted beside it is refused at the commit (CAP-293)
-    if (Proxies._single(adjacency.relation, adjacency.me) && !Proxies._missed(store, adjacency.relation)) {
+    if (single(adjacency.relation, adjacency.me) && !Proxies._missed(store, adjacency.relation)) {
       member((held: any) => held.remove((old: any) => old));
     }
     member((held: any) => held.insert(fill));
@@ -2176,9 +2192,7 @@ export class InMemory extends Interpreter {
    * record's, and its uid (`Provenance`). */
   override exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
     const store = this.store;
-    const transaction = Proxies._isFunction(remainder) // built as an expression is, outside the transaction (94)
-      ? Changes._as_committed(store, () => store._expressed(remainder)) : Proxies._durable(remainder);
-    const given = _remainder(store, transaction);
+    const given = _remainder(store, expression(store, remainder));
     const proposals = store._proposals === null ? null : outermost(store._proposals);
     if (proposals !== null && proposals.expression === null && proposals.uid === null) {
       proposals.expression = given.transaction; // a scope's: its record's, and its uid (Provenance)
@@ -2379,7 +2393,7 @@ export class _Lower {
       try {
         bound.push([name, carried(this.below, this.store, value)]);
       } catch (error) {
-        bound.push([name, new _Refused((error as Error).message)]);
+        bound.push([name, new Refused((error as Error).message)]);
       }
     }
     const holders = new Map(bound);
@@ -2401,7 +2415,7 @@ export class _Lower {
 /** What a frame binds, of `source`'s, as `target`'s: an object's reference by its path, a schema object by its path;
  * refused, `LookupError`, where it cannot be: a counted object, or a schema object `target` does not hold. */
 function carried(source: any, target: any, value: any): any {
-  if (value instanceof _Refused) throw new LookupError(value.message);
+  if (value instanceof Refused) throw new LookupError(value.message);
   const held = Proxies._deref(value);
   const inner = Proxies._innerOf(held);
   if (inner instanceof Proxies._internals._RecordData && inner._schema === source.registered("References.OfObject")) {
@@ -2421,7 +2435,7 @@ function carriedValue(source: any, target: any, value: any, holder: any, name: s
   const inner = Proxies._innerOf(value);
   if (inner instanceof Proxies._internals._RecordData || inner instanceof Proxies._internals._ContainerData) {
     const path = (Plain.ToPlain(target)(holder.as_schema(), holder) as Map<string, unknown>).get("path");
-    const schema = References._implied(target, path).properties.get(name).schema;
+    const schema = References.implied(target, path).properties.get(name).schema;
     return Plain.FromPlain(target)(schema, Plain.ToPlain(source)(inner._schema, value) as Plain.PlainData);
   }
   return value;

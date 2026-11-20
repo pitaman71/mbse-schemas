@@ -751,7 +751,7 @@ def _check_uniques(proposals: Any) -> None:
                 if key not in old and entry._relation.uniques:
                     inserted.setdefault(relation_id, (entry._relation, {}))[1].setdefault(key, entry)
     for relation, entries in inserted.values():  # by the clauses' rule, which every layer's interpreter holds alike
-        proposals.store._interpreter()._check_uniques(relation, list(entries.values()))
+        proposals.store._interpreter().check_uniques(relation, list(entries.values()))
 
 
 def _shown_parts(entry: _Entry, names: list[str]) -> str:

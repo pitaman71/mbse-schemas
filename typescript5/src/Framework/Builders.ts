@@ -2251,7 +2251,7 @@ export class Store extends Proxies.OfStore {
    * gave is annotated with an error, the scope commits nothing, and throws the first error annotated. */
   transaction(spec: unknown): any {
     if (Proxies._isFunction(spec) && spec.length === 0) return this._scope(spec as (txn: unknown) => unknown); // (98)
-    const transaction = this._expressed(spec);
+    const transaction = this.expressed(spec);
     const frames: Transactions.Frame[] = [];
     try {
       this._scope((open) => {
@@ -2282,11 +2282,14 @@ export class Store extends Proxies.OfStore {
     });
   }
 
-  /** A transaction's expression: one given, or the one a callback builds, given the store's schemas by name besides
-   * (78). */
-  _expressed(spec: unknown): any {
+  /** A transaction's expression: one given, as it is; or the one a callback builds, given the store's schemas by name
+   * besides (78), as `store.transaction(callback)` gives them, so that what takes them, `Changes.apply` or an install,
+   * is given them by any layer. One built is built outside the transaction open, as any expression is (94). What a
+   * layer's interpreter, or its store, builds a callback with (`Transactions.Interpreter`). */
+  expressed(spec: unknown): any {
     const transaction = Proxies._isFunction(spec) // a callback building one, given the store's schemas by name besides (78)
-      ? this.Mutations.OfTransaction((t: any) => (spec as (txn: unknown) => unknown)(makeTransaction(this, t))) : spec;
+      ? Changes._as_committed(this, () => this.Mutations.OfTransaction((t: any) =>
+        (spec as (txn: unknown) => unknown)(makeTransaction(this, t)))) : spec;
     return Proxies._durable(transaction);
   }
 

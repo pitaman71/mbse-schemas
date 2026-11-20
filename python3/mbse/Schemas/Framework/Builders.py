@@ -2044,7 +2044,7 @@ class Store(Proxies.OfStore):
 
         if spec is None:
             return self._scope()
-        transaction = self._expressed(spec)
+        transaction = self.expressed(spec)
         frames: list[Any] = []
         try:
             with self._scope() as txn:
@@ -2057,13 +2057,19 @@ class Store(Proxies.OfStore):
             raise
         return frames
 
-    def _expressed(self, spec: Any) -> Any:
-        """A transaction's expression: one given, or the one a callback builds, given the store's schemas by name
-        besides (78), or a builder's callback builds."""
-        if _is_function(spec):  # a callback building one, given the store's schemas by name besides (78)
-            transaction = self.Mutations.OfTransaction(lambda t: spec(_Transaction(self, t)))
-        else:
-            transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
+    def expressed(self, spec: Any) -> Any:
+        """A transaction's expression: one given, as it is; or the one a callback builds, given the store's schemas by
+        name besides (78), as `store.transaction(callback)` gives them, so that what takes them, `Changes.apply` or an
+        install, is given them by any layer; or the one a builder's callback builds. One built is built outside the
+        transaction open, as any expression is (94). What a layer's interpreter, or its store, builds a callback with
+        (`Transactions.Interpreter`)."""
+        from . import Changes
+
+        with Changes._as_committed(self):
+            if _is_function(spec):  # a callback building one, given the store's schemas by name besides (78)
+                transaction = self.Mutations.OfTransaction(lambda t: spec(_Transaction(self, t)))
+            else:
+                transaction = self.Mutations.OfTransaction(spec) if callable(spec) else spec
         return Proxies._durable(transaction)
 
     @contextlib.contextmanager

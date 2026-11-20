@@ -60,8 +60,9 @@ object that it names inline, one symbol for each value, whose spec writes its ch
 
 The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records it and
 its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an object
-was before is read from what the store holds as committed. `_gather` builds them as a `Changes.Transaction`, through
-its builders, a value that outlives the transaction. A savepoint's changes are gathered alike, relative to the
+was before is read from what the store holds as committed. `gather` builds them as a `Changes.Transaction`, from what
+a layer changed, net, read through its interpreter's hooks, a value that outlives the transaction: a store in
+memory's (`_gather`) and any other layer's alike. A savepoint's changes are gathered alike, relative to the
 transaction it is within: what interpreting an input frame changed, which the frame given carries as a journal
 (`Transactions.Frame.journal`). An expression's terms, and the entries linking schema objects, are no data, and are left
 out.
@@ -80,7 +81,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterable, Iterator
 from typing import Any
 
 from . import Paths, Plain, Proxies, References
@@ -88,7 +89,7 @@ from . import Schemas as S
 from .Builders import _transaction_of
 from .Plain import PlainData
 
-__all__ = ["install", "observe", "apply"]
+__all__ = ["install", "observe", "apply", "gather"]
 
 
 def install(txn: Any) -> Any:
@@ -415,15 +416,12 @@ def _data(store: Any, entry: Any) -> bool:
                for x in entry._links.values())
 
 
-def _at(schema: Any) -> Callable[[Any], Any]:
-    """A schema object's reference (`References.OfSchema`) to `schema`, as a Spec."""
-    return lambda r: r.path(Paths.of(schema))
-
-
 def _gather(store: Any, proposals: Any, uid: str) -> Any:
     """What the transaction whose proposals these are changed, gathered just before it commits, as a
-    `Changes.Transaction` of id `uid`, built through the builders, a value that outlives the transaction; None where
-    it changed nothing."""
+    `Changes.Transaction` of id `uid`, a value that outlives the transaction; None where it changed nothing: a store in
+    memory's, its net changes read from its proposals, then gathered by `gather`, as every layer's are."""
+    from . import Transactions
+
     base = proposals.base
     removed: dict[Any, Any] = {}
     inserted: dict[Any, Any] = {}
@@ -436,22 +434,74 @@ def _gather(store: Any, proposals: Any, uid: str) -> Any:
             inserted.update({(relation, key): entry for key, entry in table.items() if key not in old and _data(store, entry)})
             removed.update({(relation, key): entry for key, entry in old.items() if key not in table and _data(store, entry)})
     made = {id(x): x for x in proposals.created.values() if isinstance(x, Proxies._ObjectData)}
-    deleted = {id(x) for entry in removed.values() for x in entry._links.values()
-                      if isinstance(x, Proxies._ObjectData) and id(x) not in made
-                      and Proxies._owner_adjacencies(_schema(x)) and not Proxies._owner_entries(x)}
-    changed: list[tuple[Any, str, Any]] = []
+    deleted = {id(x): x for entry in removed.values() for x in entry._links.values()
+               if isinstance(x, Proxies._ObjectData) and id(x) not in made
+               and Proxies._owner_adjacencies(_schema(x)) and not Proxies._owner_entries(x)}
+    changed: list[tuple[Any, str]] = []
     for holder, values in proposals.values_.values():
         if not isinstance(holder, Proxies._ObjectData) or id(holder) in deleted or store.framework(_schema(holder)):
             continue  # a value object's, read with the object that holds it; a deleted object's, which goes; a term's
         names = list(dict.fromkeys([*base.values(holder), *values]))
-        after = {name: _value(store, holder, name) for name in names}
+        after = {name: _value(store, holder, name)[0] for name in names}
         with _before(store, proposals):
             before = {name: None if id(holder) in made else _value(store, holder, name)[0] for name in names}
-        changed += [(holder, name, after[name][1]) for name in names if before[name] != after[name][0]]
+        changed += [(holder, name) for name in names if before[name] != after[name]]
+
+    def held(x: Any) -> PlainData:
+        with _before(store, proposals):
+            return _path(store, References.of(store, x))
+
+    return gather(Transactions.InMemory(store), uid, made.values(), deleted.values(),
+                  [(entry._relation, entry) for entry in removed.values()],
+                  [(entry._relation, entry) for entry in inserted.values()], changed, held)
+
+
+def gather(interpreter: Any, uid: str, made: Iterable[Any], deleted: Iterable[Any], removed: Iterable[tuple[Any, Any]],
+           inserted: Iterable[tuple[Any, Any]], changed: Iterable[tuple[Any, str]],
+           held: Callable[[Any], PlainData]) -> Any:
+    """What a transaction, or a savepoint of it, changed, as a `Changes.Transaction` of id `uid`, a value of the store
+    whose schemas `interpreter` reads by (`interpreter.store`), that outlives the transaction; None where it changed
+    nothing. Every layer's journal is gathered by it, a store in memory's (`Transactions.InMemory`) and any other's, the
+    layer giving what it changed, net, of its own objects and entries, as its interpreter's hooks give them, and read
+    through them alone (`schema_of`, `value`, `link`, `linking`):
+
+    - `made`: the objects it created that are held after it;
+    - `deleted`: the objects held before it that it deleted;
+    - `removed`, `inserted`: the entries held before it that it removed, and those it inserted that are held after it,
+      each with its relation, `(relation, entry)`; an entry linking a schema object, or an expression's term, is no
+      data, and is left out by the layer;
+    - `changed`: the properties whose values it changed, each `(holder, name)`, of an object held after it; the value
+      after is read through the interpreter;
+    - `held(x)`: the path of an object held before it, as it was then, as plain data.
+
+    Its symbols: each object it names that was held before, by its reference as it was, its schema too where its path
+    does not imply it (`References.implied`), and each object it made, by its schema, after its owner's. Its changes:
+    for each object deleted, the entry that owned it, removed by its owner's key for it; the entries it removed, then
+    those it inserted, each written on the adjacency of an object it links, one held before and not counted where one
+    can; then the properties it changed, each set to its value or cleared. A counted object is named by its value, a
+    parameter reference in an object's place as itself (CAP-312)."""
+    store = interpreter.store
+    made_ids = {id(x) for x in made}
+    deleted_ids = {id(x) for x in deleted}
+    removed, inserted, changed = list(removed), list(inserted), list(changed)
     if not (removed or inserted or changed):
         return None
-    symbols: dict[str, Callable[[Any], Any]] = {}  # each a `Changes.Symbol`'s Spec, in the order first named
+    symbols: dict[str, PlainData] = {}  # each a `Changes.Symbol`, as plain data, in the order first named
     named: dict[Any, str] = {}  # by the object
+
+    def schema_reference(schema: Any) -> PlainData:
+        path = Paths.of(schema)
+        return {"path": Plain.ToPlain(store)(path.as_schema(), path)}
+
+    def owners(x: Any, schema: Any) -> list[Any]:
+        """The objects that own `x`, through each entry that owns it."""
+        found = []
+        for adjacency in Proxies._owner_adjacencies(schema):
+            for entry in interpreter.linking(x, adjacency.relation):
+                if interpreter.link(entry, adjacency.me) is x:
+                    found += [other for link in adjacency.relation.entry.links if link != adjacency.me
+                              and (other := interpreter.link(entry, link)) is not None]
+        return found
 
     def symbol(x: Any) -> str:
         """The symbol of an object the transaction changed, declared where first needed: a created owned object's after
@@ -459,107 +509,116 @@ def _gather(store: Any, proposals: Any, uid: str) -> Any:
         found = named.get(Proxies._link_key(x))
         if found is not None:
             return found
-        if id(x) in made:
-            for entry in Proxies._owner_entries(x):
-                for owner in entry._links.values():
-                    if owner is not x:
-                        symbol(owner)
-            spec = lambda s, schema=_schema(x): s.schema(_at(schema))
+        schema = interpreter.schema_of(x)
+        if id(x) in made_ids:
+            for owner in owners(x, schema):
+                symbol(owner)
+            spec: PlainData = {"schema": schema_reference(schema)}
         else:
-            with _before(store, proposals):
-                spec = _held_symbol(store, x, References.of(store, x))
+            path = held(x)
+            spec = {"reference": {"path": path}}
+            try:
+                implied = References.implied(store, path)
+            except LookupError:
+                implied = None
+            if schema is not implied:
+                spec["schema"] = schema_reference(schema)
         name = named[Proxies._link_key(x)] = f"o{len(named)}"
         symbols[name] = spec
         return name
 
-    def link(x: Any) -> Callable[[Any], Any]:
-        """What an entry change names an object by, a `Changes.OfLink`'s Spec: a parameter reference, as itself
-        (CAP-312); a counted object, by its value, which it never changes; else its symbol."""
+    def values(holder: Any, schema: Any) -> dict[str, PlainData]:
+        """The values a holder, an object or an entry, holds of the properties `schema` declares, as plain data."""
+        return {name: plain for name in schema.properties
+                for present, plain in [interpreter.value(holder, schema, name)] if present}
+
+    def link(x: Any) -> PlainData:
+        """What an entry change names an object by, a `Changes.OfLink`: a parameter reference, as itself (CAP-312); a
+        counted object, by its value, which it never changes; else its symbol."""
         if Proxies._is_parameter(x):
-            return lambda link_: link_.parameter(x)
-        if Proxies._counted(x):
-            values = {n: v for n in _schema(x).properties if (v := _value(store, x, n)[1]) is not None}
-            return lambda link_, schema=_schema(x): link_.counted(lambda c: c.schema(_at(schema)).properties(values))
-        name = symbol(x)
-        return lambda link_: link_.symbol(name)
+            x = Proxies._durable(x)
+            return {"parameter": Plain.ToPlain(store)(x.as_schema(), x)}
+        schema = interpreter.schema_of(x)
+        if Proxies._counted_schema(schema):
+            return {"counted": {"schema": schema_reference(schema), "properties": values(x, schema)}}
+        return {"symbol": symbol(x)}
 
-    changes: list[Callable[[Any], Any]] = []
+    changes: list[PlainData] = []
 
-    def entry_change(verb: str, holder: Callable[[Any], Any], adjacency: str, links: dict[str, Any],
-                     properties: dict[str, Any]) -> None:
-        def body(b: Any) -> Any:
-            b = b.holder(holder).adjacency(adjacency)
-            b = b.links(links) if links else b
-            return b.properties(properties) if properties else b
+    def entry_change(verb: str, holder: PlainData, adjacency: str, links: dict[str, PlainData],
+                     properties: dict[str, PlainData]) -> None:
+        body: dict[str, Any] = {"holder": holder, "adjacency": adjacency}
+        if links:
+            body["links"] = links
+        if properties:
+            body["properties"] = properties
+        changes.append({"entry": {verb: body}})
 
-        changes.append(lambda c: c.entry(lambda e: getattr(e, verb)(body)))
+    def linked(relation: Any, entry: Any) -> dict[str, Any]:
+        return {name: interpreter.link(entry, name) for name in relation.entry.links}
 
-    for entry in removed.values():  # a deleted object's: its owning entry, by its key; the rest follows from that
-        lost = [link_ for link_, x in entry._links.items() if id(x) in deleted]
-        if not lost:
-            continue
-        owned = _owning(entry, lost, store)
+    for relation, entry in removed:  # a deleted object's: its owning entry, by its key; the rest follows from that
+        links = linked(relation, entry)
+        lost = [name for name, x in links.items() if id(x) in deleted_ids]
+        owned = _owning(interpreter, relation, links, lost)
         if owned is not None:
-            owner, me = owned
-            keys = {k: entry._properties[k] for k in Proxies._key_names(entry._relation, me, lost[0])}
-            entry_change("remove", link(entry._links[me]), owner, {}, keys)
-    for verb, entries in (("remove", [e for e in removed.values() if not any(id(x) in deleted
-                                                                           for x in e._links.values())]),
-                          ("insert", inserted.values())):
-        for entry in entries:
-            writer, adjacency = _writer(entry, made)
-            others = {other: link(x) for other, x in entry._links.items() if other != writer}
-            entry_change(verb, link(entry._links[writer]), adjacency, others, dict(entry._properties))
-    for holder, name, value in changed:
-        if Proxies._counted(holder):  # found by its value, which it never changes
+            adjacency, me = owned
+            keys = values(entry, relation.entry)
+            entry_change("remove", link(links[me]), adjacency, {},
+                         {k: keys[k] for k in Proxies._key_names(relation, me, lost[0]) if k in keys})
+    for verb, entries in (("remove", [(r, e) for r, e in removed
+                                      if not any(id(x) in deleted_ids for x in linked(r, e).values())]),
+                          ("insert", inserted)):
+        for relation, entry in entries:
+            links = linked(relation, entry)
+            writer, adjacency = _writer(interpreter, relation, links, made_ids)
+            others = {other: link(x) for other, x in links.items() if other != writer}
+            entry_change(verb, link(links[writer]), adjacency, others, values(entry, relation.entry))
+    for holder, name in changed:
+        schema = interpreter.schema_of(holder)
+        if Proxies._counted_schema(schema):  # found by its value, which it never changes
             continue
         s = symbol(holder)
-        changes.append(lambda c, s=s, n=name, v=value: c.property(
-            lambda p: p.clear(lambda b: b.holder(s).name(n)) if v is None else p.set(
-                lambda b: b.holder(s).name(n).value(v))))
-    return store.Changes.Transaction(lambda t: t.id(uid).symbols(symbols).changes(changes))
+        present, value = interpreter.value(holder, schema, name)
+        changes.append({"property": {"set": {"holder": s, "name": name, "value": value}} if present
+                        else {"clear": {"holder": s, "name": name}}})
+    plain = {"id": uid, "symbols": symbols, "changes": changes}
+    return Plain.FromPlain(store)(store.registered("Changes.Transaction"), plain)
 
 
-def _held_symbol(store: Any, x: Any, reference: Any) -> Callable[[Any], Any]:
-    """The `Changes.Symbol` of an object held before, a Spec: its reference, and its schema too where its path does not
-    imply it, as where objects of several schemas are owned through one relation, so that a reader never guesses it."""
-    try:
-        implied = References._implied(store, _path(store, reference))
-    except LookupError:
-        implied = None
-    if _schema(x) is implied:
-        return lambda s: s.reference(reference)
-    return lambda s: s.reference(reference).schema(_at(_schema(x)))
-
-
-def _writer(entry: Any, made: dict[int, Any]) -> tuple[str, str]:
+def _writer(interpreter: Any, relation: Any, links: dict[str, Any], made: set[int]) -> tuple[str, str]:
     """The link, and its object's adjacency by name, that writes an entry: preferably an object held before, not
     counted, so that what the entry links is found through it."""
-    choices = [(Proxies._counted(x) or id(x) in made, link, name)
-               for link, x in entry._links.items() if not Proxies._is_parameter(x)
-               for name, adjacency in _schema(x).adjacencies.items()
-               if adjacency.relation is entry._relation and adjacency.me == link]
+    choices = []
+    for link, x in links.items():
+        if Proxies._is_parameter(x):
+            continue
+        schema = interpreter.schema_of(x)
+        choices += [(Proxies._counted_schema(schema) or id(x) in made, link, name)
+                    for name, adjacency in schema.adjacencies.items()
+                    if adjacency.relation is relation and adjacency.me == link]
     if not choices:
-        raise ValueError(f"no object an entry of {entry._relation.name!r} links has an adjacency to it by name, so "
+        raise ValueError(f"no object an entry of {relation.name!r} links has an adjacency to it by name, so "
                          "that its change cannot be written: name one")
     _, link, name = min(choices, key=lambda choice: choice[0])
     return link, name
 
 
-def _owning(entry: Any, lost: list[str], store: Any) -> tuple[str, str] | None:
-    """Where `entry` owns the one deleted object it links, through `lost`, and its owner survives: the owner's
-    adjacency by name that writes it, and the owner's link; else None."""
+def _owning(interpreter: Any, relation: Any, links: dict[str, Any], lost: list[str]) -> tuple[str, str] | None:
+    """Where an entry of `relation` linking `links` owns the one deleted object it links, through `lost`, and its owner
+    survives: the owner's adjacency by name that writes it, and the owner's link; else None."""
     if len(lost) != 1:
         return None
-    x = entry._links[lost[0]]
-    owns = any(a.relation is entry._relation and a.me == lost[0] for a in Proxies._owner_adjacencies(_schema(x)))
+    x = links[lost[0]]
+    owns = any(a.relation is relation and a.me == lost[0]
+               for a in Proxies._owner_adjacencies(interpreter.schema_of(x)))
     if not owns:
         return None
-    (me,) = [link for link in entry._links if link != lost[0]]
-    names = [name for name, a in _schema(entry._links[me]).adjacencies.items()
-             if a.relation is entry._relation and a.me == me]
+    (me,) = [link for link in links if link != lost[0]]
+    names = [name for name, a in interpreter.schema_of(links[me]).adjacencies.items()
+             if a.relation is relation and a.me == me]
     if not names:
-        raise ValueError(f"no owner of an entry of {entry._relation.name!r} has an adjacency to it by name, so that "
+        raise ValueError(f"no owner of an entry of {relation.name!r} has an adjacency to it by name, so that "
                          "its change cannot remove what the entry owned: name one")
     return names[0], me
 
@@ -716,7 +775,7 @@ class _Symbols(_At):
         bound = self.symbols[symbol]
         if "schema" in bound:
             return Plain._by_path(self.store, bound["schema"]["path"], ())
-        return References._implied(self.store, bound["reference"]["path"])
+        return References.implied(self.store, bound["reference"]["path"])
 
     def linked(self, link: PlainData) -> Any:
         """The schema of the object an entry change names: a symbol's, an object's held by its reference, as the store
@@ -727,7 +786,7 @@ class _Symbols(_At):
         if kind == "counted":
             return Plain._by_path(self.store, given["schema"]["path"], ())
         held = self.store._present(given["path"])
-        return _schema(held) if isinstance(held, Proxies._ObjectData) else References._implied(self.store, given["path"])
+        return _schema(held) if isinstance(held, Proxies._ObjectData) else References.implied(self.store, given["path"])
 
     def member(self, schema: str, member: str, siblings: dict[str, PlainData]) -> Any:
         if schema in _UNIONS or (schema in _ENTRIES and member in ("holder", "links")):

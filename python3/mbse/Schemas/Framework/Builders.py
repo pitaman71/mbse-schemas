@@ -2049,15 +2049,8 @@ class Store(Proxies.OfStore):
         try:
             with self._scope() as txn:
                 self._proposals.expression = transaction  # what its record gives (Provenance)
-                install = self._lower is not None and Transactions._writes_schemas(self, transaction)
-                if install:  # an install: the layer below's first, then this store's, as one with no layer below
-                    self._lower.run(self._lower.copy(transaction))
-                self._installing += install
-                try:
-                    frames += [item for item in txn.exec(Transactions.Frame(), transaction, True)
-                               if isinstance(item, Transactions.Frame)]
-                finally:
-                    self._installing -= install
+                frames += [item for item in txn.exec(Transactions.Frame(), transaction, True)
+                           if isinstance(item, Transactions.Frame)]
         except Exception as error:
             if not hasattr(error, "frames"):  # one at the commit, which no frame made: every frame given
                 error.frames = frames  # type: ignore[attr-defined]
@@ -2080,7 +2073,7 @@ class Store(Proxies.OfStore):
         from . import Transactions
 
         with self._transacting():
-            txn = Transactions.Transaction(self, self._life)
+            txn = Transactions.Transaction(self._interpreter(), self._life)
             yield txn
             txn._raise()
 
@@ -2090,7 +2083,7 @@ class Store(Proxies.OfStore):
         proposals = self._proposals
         if proposals is None or not self._existed(builder._original, proposals):
             return False
-        self._written()  # halted, where the store interprets read-only
+        self._written()
         self._link(builder._original, builder._working)
         proposals.deferred[id(builder._original)] = builder  # its last: each began from what the one before made
         return True

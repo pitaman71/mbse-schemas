@@ -74,12 +74,6 @@ _SERIALS = itertools.count(1)  # proxies' serial numbers, in the order made
 _get = object.__getattribute__
 
 
-class _Halt(BaseException):  # noqa: N818 - no error: what a read-only interpretation does where a term would write
-    """A write attempted while a store interprets a transaction read-only (`txn.exec`, `allow_write` false): the frame
-    halts where it is, and is given carrying the remainder of the expression. Raised by the write itself, before it
-    writes; a `BaseException`, so that nothing between the write and the interpreter takes it for a failure."""
-
-
 # --- Lifetimes: a visitor lives within the transaction that made it (CAP-315) ---
 
 
@@ -248,7 +242,7 @@ class OfStore(Stores.Catalog):
         self._orphaned: list[_ObjectData] = []  # owned objects an owning entry of which was removed since
         self._keys: dict[tuple[int, int, str], int] = {}  # the last number a key's pattern gave, by relation, owner, key
         self._expressing = 0  # how deep in building an expression, or in making the store, a write is (`_written`)
-        self._read_only = 0  # how deep in interpreting read-only a write is (`txn.exec`), halted (`_written`)
+        self._interpreting: Any = None  # the transaction interpreter coupled with it (`_interpreter`)
         self._proposals: Any = None  # the proposals of the transaction open on it, and its savepoints', if any
         self._framework_entries: dict[int, dict[Hashable, dict[Hashable, Any]]] = {}  # entries linking its own schemas
         self._committed = _Committed(self)  # what it holds as committed
@@ -311,10 +305,7 @@ class OfStore(Stores.Catalog):
 
     def _written(self) -> None:
         """Refuses a write outside a transaction of this store (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided)), but while a
-        transaction's expression is built (94), the store is made, or a transaction commits. Within a read-only
-        interpretation (`txn.exec`, `allow_write` false), it halts the frame instead, writing nothing (`_Halt`)."""
-        if self._read_only:
-            raise _Halt()
+        transaction's expression is built (94), the store is made, or a transaction commits."""
         if self._proposals is None and not self._expressing:
             raise ValueError("a store is written only within a transaction (store.transaction)")
 
@@ -328,16 +319,6 @@ class OfStore(Stores.Catalog):
             return
         with self._proposing():  # a savepoint: its writes all or nothing within the transaction
             yield
-
-    @contextlib.contextmanager
-    def _reading_only(self) -> Iterator[None]:
-        """A read-only interpretation of a term over a frame (`txn.exec`, `allow_write` false): a write attempted
-        within it halts the frame (`_written`)."""
-        self._read_only += 1
-        try:
-            yield
-        finally:
-            self._read_only -= 1
 
     @contextlib.contextmanager
     def _expression(self) -> Iterator[None]:
@@ -486,6 +467,15 @@ class OfStore(Stores.Catalog):
         """The singleton named `name`, a visitor of the transaction open, refused where none is open: every read of a
         store's data is made within a transaction ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided))."""
         return _wrap(self._singleton_of(name), self._reading())
+
+    def _interpreter(self) -> Any:
+        """The transaction interpreter coupled with this store, made once: a store in memory's
+        (`Transactions.InMemory`), which reads and writes it directly, and holds what every layer interprets alike."""
+        if self._interpreting is None:
+            from . import Transactions
+
+            self._interpreting = Transactions.InMemory(self)
+        return self._interpreting
 
     def _singleton_of(self, name: str) -> Any:
         """The durable singleton named `name`, read by the store itself."""
@@ -760,46 +750,8 @@ def _check_uniques(proposals: Any) -> None:
             for key, entry in table.items():
                 if key not in old and entry._relation.uniques:
                     inserted.setdefault(relation_id, (entry._relation, {}))[1].setdefault(key, entry)
-    for relation, entries in inserted.values():
-        _check_keys(relation, list(entries.values()), proposals.store)
-
-
-def _check_keys(relation: RelationSchema, inserted: list[_Entry], store: Any) -> None:
-    """Raises `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
-    `unique` clauses. The entries that could agree with one are those held by the object it links through a link of
-    the key, all of them, and the others inserted. Where the key holds no link that links an object present, those are
-    the ones held by every object it links and the others inserted: the store keeps no index of a relation's entries
-    apart from the objects they link."""
-    names = [*relation.entry.links, *relation.entry.properties]
-
-    def part(entry: _Entry, name: str) -> Hashable:
-        target = entry._links.get(name)
-        if target is not None:
-            return ("link", _link_key(target))
-        value = entry._properties.get(name)
-        return ("value", None if value is None else _scalar_key(value))
-
-    for clause in relation.uniques:
-        key = [name for name in names if name not in clause]
-        held: dict[Hashable, dict[Hashable, _Entry]] = {}  # the entries that could agree, by their key's values
-        scanned: set[int] = set()
-        for entry in inserted:
-            held.setdefault(tuple(part(entry, n) for n in key), {}).setdefault(entry._key(), entry)
-            anchors = [entry._links[name] for name in key if name in entry._links and not _end(entry._links[name])]
-            for target in anchors[:1] or [t for t in entry._links.values() if not _end(t)]:
-                if id(target) not in scanned:
-                    scanned.add(id(target))
-                    for other in _table(target, id(relation), store).values():
-                        held.setdefault(tuple(part(other, n) for n in key), {}).setdefault(other._key(), other)
-        for entry in inserted:
-            agreeing = held.get(tuple(part(entry, n) for n in key), {})
-            other = next((e for k, e in agreeing.items() if k != entry._key()), None)
-            if other is not None:
-                raise ValueError(
-                    f"an entry of {relation.name!r} breaks unique({', '.join(sorted(clause))}): two entries agree on "
-                    f"its key, the links and properties outside it, {_shown_parts(entry, key)}, and differ on it, "
-                    f"{_shown_parts(other, sorted(clause))} and {_shown_parts(entry, sorted(clause))}; an entry is "
-                    "refused, not replaced: remove the one held to write the other")
+    for relation, entries in inserted.values():  # by the clauses' rule, which every layer's interpreter holds alike
+        proposals.store._interpreter()._check_uniques(relation, list(entries.values()))
 
 
 def _shown_parts(entry: _Entry, names: list[str]) -> str:

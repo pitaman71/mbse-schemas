@@ -107,6 +107,15 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - A frame's reference carries the errors annotated on it (`References.OfError`), so that a response reports what
   failed with the frames; resolved, the frame has them again.
   - Python: [REF-10: A frame annotated with errors](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-10) · TypeScript: [REF-10: A frame annotated with errors](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-10)
+- **A frame stream is schema data**, so that the built-in serialization carries it to another process, a layer of a
+  stack below another, with no format of its own ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)). `References.of(store, frame)` writes a frame
+  `txn.exec` gave with its `scope`, its `remainder` where it halted, written as an error's subterm is, a position in
+  the expression the receiver already holds, and its `journal`, a `Changes.Transaction`; and a completion marker,
+  `{"end": scope}`, as a `References.OfEnd`, its scope unset where it ends the whole stream. `References.OfItem` holds
+  either one. A `References.OfFrame` written without these parts reads as it did.
+  - Python: [REF-21: A frame's scope, remainder and journal](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-21) · TypeScript: [REF-21: A frame's scope, remainder and journal](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-21)
+  - Python: [REF-23: End markers, and `References.OfItem`](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-23) · TypeScript: [REF-23: End markers, and `References.OfItem`](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-23)
+  - Python: [REF-24: A `References.OfFrame` written before still reads](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-24) · TypeScript: [REF-24: A `References.OfFrame` written before still reads](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-24)
 - A frame can act as a *witness*, carrying the property values an object holds and the relation entries that make it
   hold, each object given by its reference. The executor's frames carry the values their specs name, `assigns`,
   which `References.of(store, frame)` writes; a service writes the rest

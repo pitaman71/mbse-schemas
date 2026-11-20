@@ -31,6 +31,11 @@
  *   `holder` and `name`. A change within a property's value is
  *   [CAP-272: surgical mutations of a property's value](mbse:mbse-basis/docs/capabilities/README.md#CAP-272)'s.
  *
+ * `install` also extends `References.OfFrame` with a frame stream's parts, `scope`, `remainder` and `journal`, a
+ * `Changes.Transaction`, and defines `References.OfEnd`, the stream's completion marker, and `References.OfItem`, an
+ * item of the stream, a frame or an end ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318),
+ * stage 1): `References.install` runs before the journal language is defined, and a frame's journal is one.
+ *
  * Every `Changes` schema is a value object. A value, a property's in a change, an entry's or a counted object's, is a
  * payload (`Mutations.Payload`), written by the schema of the property it is the value of, and marked with its schema
  * only where that schema cannot tell it ([PRI-025: never guess the schema](mbse:mbse-basis/docs/PRINCIPLES.md#PRI-025)):
@@ -98,7 +103,8 @@ export function install(txn: any): any {
   return txn.uid("mbse.Schemas.Changes/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
     .symbols({ Journal: S.OfContainer, Transaction: S.OfObject, Symbol: S.OfObject, Change: S.OfUnion,
       OfEntry: S.OfUnion, Insert: S.OfObject, Remove: S.OfObject, OfProperty: S.OfUnion,
-      Set: S.OfObject, Clear: S.OfObject, OfLink: S.OfUnion, Counted: S.OfObject })
+      Set: S.OfObject, Clear: S.OfObject, OfLink: S.OfUnion, Counted: S.OfObject,
+      OfFrame: S.OfObject, OfEnd: S.OfObject, OfItem: S.OfUnion })
     .spec([
       (_: any) => _.Journal.name("Changes.Journal").index([S.OfInt]).element([_.Transaction]), // in order
       (_: any) => _.Transaction.name("Changes.Transaction").properties({
@@ -143,6 +149,20 @@ export function install(txn: any): any {
         schema: R.OfSchema,
         properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([txn.Mutations.Payload])),
       }),
+      // --- A frame stream's items as schema data, for a layer across a process boundary (CAP-318, stage 1) ---
+      (_: any) => _.OfFrame.name("References.OfFrame").properties({
+        scope: S.OfStr, // the id of the input frame it descends from, as `Transactions.Frame.scope`
+        remainder: S.OfStr, // where the rest begins, as `References.OfError`'s subterm; unset where complete
+        journal: _.Transaction, // the changes made interpreting its input frame (CAP-321)
+      }),
+      (_: any) => _.OfEnd.name("References.OfEnd").properties({ // the completion marker, `{"end": scope}`
+        scope: S.OfStr, // a branch's or an input frame's; unset where it ends the whole stream
+        journal: _.Transaction, // set only where the input frame gave no frame
+      }),
+      (_: any) => _.OfItem.name("References.OfItem").branches([ // an item of a frame stream
+        (t: any) => t.name("frame").schema([_.OfFrame]),
+        (t: any) => t.name("end").schema([_.OfEnd]),
+      ]),
     ])]))]);
 }
 

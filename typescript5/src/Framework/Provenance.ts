@@ -11,18 +11,20 @@
  * it, `Provenance.ModifiedBy` to the latest that wrote it after, replaced by each later one: the tail, not a history.
  *
  * `extend(txn, schemas)` gives each reference object schema named anonymous adjacencies to `CreatedBy` and `ModifiedBy`
- * through `object`: the app decides which of its schemas have a history. The executor records, at commit and within
- * the same transaction, every transaction that creates or writes an object, where the store had `Provenance` installed
- * when it began (`_record`): from what its expression gives (`Mutations.OfTransaction`'s `when`, `session` and
- * `where`), so that replaying a journal makes the same records, found again by `uid`; an imperative scope's with
- * placeholder data.
+ * through `object`: the app decides which of its schemas have a history. The executor records, at commit and within the
+ * same transaction, every transaction that creates or writes an object, where the store had `Provenance` installed when
+ * it began (`_record`), as the lowest layer of any stack records it, through its interpreter (`record`): from what its
+ * expression gives (`Mutations.OfTransaction`'s `when`, `session` and `where`), so that replaying a journal makes the
+ * same records, found again by `uid`; an imperative scope's with placeholder data.
  */
 
 import { LookupError, ValueError } from "./Errors.js";
+import * as Plain from "./Plain.js";
 import type * as Proposals from "./Proposals.js";
 import * as Proxies from "./Proxies.js";
 import { repr } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
+import * as Transactions from "./Transactions.js";
 
 /** The placeholder of a transaction that names no session, or no identity: its session's `id`, its identity's `name`
  * (provenance 3 in [CAP-134: transactions recorded with provenance](mbse:mbse-basis/docs/capabilities/CAP-134.md#decided); tech debt). */
@@ -157,67 +159,97 @@ function extended(store: any, schema: any): boolean {
   return schema.anonymous.some((a: any) => a.relation === createdBy && a.me === "object");
 }
 
-/** The link of a directory's relation that is not the directory's. */
-function other(relation: any): string {
-  return [...relation.entry.links.keys()].find((link: string) => link !== "directory") as string;
-}
-
-/** The object a directory singleton holds under the key `value`, through its entries of `relation`; null where it
- * holds none. */
-function held(store: any, relation: string, directory: string, key: string, value: string): any {
-  const schema = store.registered(relation);
-  const found = Proxies._linking(schema, "directory", store._singleton_of(directory), store)
-    .find((entry: any) => Proxies._innerOf(entry)._properties.get(key) === value);
-  return found === undefined ? null : (found as any)[other(schema)];
-}
-
-/** Adds an entry of the relation registered as `relation`. */
-function link(store: any, relation: string, links: [string, unknown][], properties: [string, unknown][] = []): void {
-  const schema = store.registered(relation);
-  Proxies._add_entry(schema, Proxies._make_entry(schema, new Map(links), new Map(properties)), store);
-}
-
-/** Gives an object its entry in a directory singleton, keyed by `value`. */
-function place(store: any, made: unknown, relation: string, directory: string, key: string, value: string): any {
-  link(store, relation, [["directory", store._singleton_of(directory)], [other(store.registered(relation)), made]],
-    [[key, value]]);
-  return made;
-}
-
-/** A property of a value object an expression gives (its `session`, its `where`); null where either is absent. */
-function given(store: any, value: unknown, name: string): any {
-  return value === null || value === undefined ? null : store.member(value, name) ?? null;
-}
-
 /** Records the transaction whose proposals these are, at its commit, within it, where the store had `Provenance`
- * installed when it began and the transaction created or wrote an object through its builder: the transaction's
- * record, found by its `uid`, else made, with its `when` and `where`; where made, its session, found by its `id`, else
- * made with its `started`, `locale` and `device`, and its identity through `Who`, found by its name, else made; and
- * `InSession`. Each object of a schema `extend` extended is linked by `CreatedBy` where the transaction created it,
- * else by `ModifiedBy`, the one it held replaced. An imperative scope has no expression: its record has placeholder
- * data (provenance 3 in [CAP-134: transactions recorded with provenance](mbse:mbse-basis/docs/capabilities/CAP-134.md#decided)), a `uid` the store makes, `when` at commit, the session and identity `unknown`. */
+ * installed when it began: a store in memory's, by `record`, as every layer's is, the objects it created and those it
+ * wrote through their builders given it. An imperative scope has no expression: its record has placeholder data
+ * (provenance 3 in [CAP-134: transactions recorded with provenance](mbse:mbse-basis/docs/capabilities/CAP-134.md#decided)), a `uid` the store makes, `when` at commit, the session and identity `unknown`. */
 export function _record(store: any, proposals: Proposals.OfStore): void {
   if (!proposals.saved.get(store._schemas)!.some(([name]) => name === "Provenance.OfTransaction")) return;
   const created = [...proposals.created];
   const written = [...proposals.written].filter((target) => !proposals.created.has(target));
-  if (created.length === 0 && written.length === 0) return;
-  const expression = proposals.expression;
-  const uid = _uid(store, proposals);
-  const record = held(store, "Provenance.InTransactions", "Provenance.Transactions", "uid", uid)
-    ?? madeRecord(store, expression, uid);
-  for (const target of created) {
-    if (extended(store, (target as any).as_schema())) {
-      link(store, "Provenance.CreatedBy", [["object", target], ["transaction", record]]);
+  record(new Transactions.InMemory(store), proposals.expression, created, written);
+}
+
+/** Records the transaction open in the layer `interpreter` interprets, within it, at its commit, where its store has
+ * `Provenance` installed, and the transaction created an object, one of `created`, or wrote one, one of `written`, each
+ * as the interpreter's hooks give it: the lowest layer of a stack records each transaction, once, through its
+ * interpreter's reads and writes alone, a store in memory's (`Transactions.InMemory`) and any other's alike.
+ * `expression`, the transaction's first, a `Mutations.OfTransaction`, gives its `when`, `session` and `where`; null, an
+ * imperative scope's, gives placeholders. Its uid is the interpreter's (`uid`).
+ *
+ * The record is found by its uid in `Provenance.Transactions`, else made, with its `when` and `where`; where made, its
+ * session, found by its `id`, else made with its `started`, `locale` and `device`, and its identity through `Who`,
+ * found by its name, else made; and `InSession`. Each object of a schema `extend` extended is linked by `CreatedBy` where
+ * the transaction created it, else by `ModifiedBy`, the one it held replaced. */
+export function record(interpreter: any, expression: unknown, created: Iterable<unknown>, written: Iterable<unknown>): void {
+  const store = interpreter.store;
+  let records: any;
+  try {
+    records = store.registered("Provenance.OfTransaction");
+  } catch { // registered throws only LookupError: not installed
+    return;
+  }
+  const [making, writing] = [[...created], [...written]];
+  if (making.length === 0 && writing.length === 0) return;
+  const uid = interpreter.uid();
+  const made = directed(interpreter, "Provenance.Transactions", "transactions", "uid", uid)
+    ?? madeRecord(interpreter, expression, uid);
+  for (const target of making) {
+    if (extended(store, interpreter.schema_of(target))) {
+      interpreter.insert(made, records, "created", new Map([["object", target]]), new Map());
     }
   }
   const modifiedBy = store.registered("Provenance.ModifiedBy");
-  for (const target of written) {
-    if (!extended(store, (target as any).as_schema())) continue;
-    const holding = Proxies._linking(modifiedBy, "object", target, store);
-    if (holding.length === 1 && (holding[0] as any).transaction === record) continue;
-    Proxies._discard(modifiedBy, holding, store); // the tail: the one it held, replaced
-    link(store, "Provenance.ModifiedBy", [["object", target], ["transaction", record]]);
+  for (const target of writing) {
+    if (!extended(store, interpreter.schema_of(target))) continue;
+    const holding = interpreter.linking(target, modifiedBy).filter((entry: unknown) =>
+      interpreter.link(entry, "object") === target);
+    if (holding.length === 1 && interpreter.link(holding[0], "transaction") === made) continue;
+    for (const entry of holding) { // the tail: the one it held, replaced
+      const old = interpreter.link(entry, "transaction");
+      interpreter.remove(old, records, "modified", interpreter.entries(old, records, "modified")
+        .map((other: unknown, index: number) => [other, index] as const)
+        .filter(([other]: readonly [unknown, number]) => interpreter.link(other, "object") === target)
+        .map(([, index]: readonly [unknown, number]) => index));
+    }
+    interpreter.insert(made, records, "modified", new Map([["object", target]]), new Map());
   }
+}
+
+/** A directory singleton, its schema, and the link by which its adjacency's entries link what it holds. */
+function directory(interpreter: any, singleton: string, adjacency: string): [any, any, string] {
+  const found = interpreter.designated(new Map<string, unknown>([["singleton", singleton],
+    ["next", new Map([["target", new Map()]])]]));
+  const schema = interpreter.schema_of(found);
+  const member = schema.adjacencies.get(adjacency);
+  const link = [...member.relation.entry.links.keys()].find((name: string) => name !== member.me) as string;
+  return [found, schema, link];
+}
+
+/** What a directory singleton holds under the key `value`, through its adjacency; null where it holds none. */
+function directed(interpreter: any, singleton: string, adjacency: string, key: string, value: string): any {
+  const [found, schema, link] = directory(interpreter, singleton, adjacency);
+  const entry = schema.adjacencies.get(adjacency).relation.entry;
+  const held = interpreter.entries(found, schema, adjacency).find((candidate: unknown) => {
+    const [present, plain] = interpreter.value(candidate, entry, key);
+    return present && plain === value;
+  });
+  return held === undefined ? null : interpreter.link(held, link);
+}
+
+/** Gives an object its entry in a directory singleton, keyed by `value`. */
+function filed(interpreter: any, singleton: string, adjacency: string, key: string, value: string, made: unknown): any {
+  const [found, schema, link] = directory(interpreter, singleton, adjacency);
+  interpreter.insert(found, schema, adjacency, new Map([[link, made]]), new Map([[key, value]]));
+  return made;
+}
+
+/** A member of a value an expression gives (its `when`, its `session`, its `where`), as plain data; null where either is
+ * absent. */
+function given(store: any, value: unknown, name: string): any {
+  const held = value === null || value === undefined ? null : store.member(value, name) ?? null;
+  if (held === null) return null;
+  return Plain.ToPlain(store)((Proxies._durable(value) as any).as_schema().properties.get(name).schema, held);
 }
 
 /** The uid of the transaction whose proposals these are: its expression's, where it gives one, else one the store makes,
@@ -232,36 +264,38 @@ export function _uid(store: any, proposals: Proposals.OfStore): string {
 }
 
 /** A transaction's record, made, with its session, found or made, and the session's identity. */
-function madeRecord(store: any, expression: unknown, uid: string): any {
-  const member = (name: string): any => (expression === null ? null : store.member(expression, name) ?? null);
-  const [when, where, session] = [member("when") ?? now(), member("where"), member("session")];
-  if (session !== null && given(store, session, "id") === null) {
+function madeRecord(interpreter: any, expression: unknown, uid: string): any {
+  const store = interpreter.store;
+  const set = (value: unknown): Map<string, unknown> => new Map([["set", new Map([["value", value]])]]);
+  const when = given(store, expression, "when") ?? now();
+  const where = given(store, expression, "where");
+  const session: Map<string, unknown> = given(store, expression, "session") ?? new Map();
+  if (given(store, expression, "session") !== null && (session.get("id") ?? null) === null) {
     throw new ValueError("a transaction's session has no id: a service gives it, and who, before executing it");
   }
-  const [latitude, longitude] = [given(store, where, "latitude"), given(store, where, "longitude")];
-  const builder = store.builder("Provenance.OfTransaction").when(when);
-  if (where !== null) builder.where((w: any) => w.latitude(latitude).longitude(longitude));
-  const record = place(store, builder.create(), "Provenance.InTransactions", "Provenance.Transactions", "uid", uid);
-  const [sid, who] = [given(store, session, "id") ?? UNKNOWN, given(store, session, "who") ?? UNKNOWN];
-  let found = held(store, "Provenance.InSessions", "Provenance.Sessions", "id", sid);
-  let identity = held(store, "Provenance.InIdentities", "Provenance.Identities", "name", who);
+  const values = new Map([["when", set(when)]]);
+  if (where !== null) values.set("where", set(where));
+  const records = store.registered("Provenance.OfTransaction");
+  const record = filed(interpreter, "Provenance.Transactions", "transactions", "uid", uid,
+    interpreter.create(records, values));
+  const [sid, who] = [(session.get("id") ?? UNKNOWN) as string, (session.get("who") ?? UNKNOWN) as string];
+  let found = directed(interpreter, "Provenance.Sessions", "sessions", "id", sid);
+  let identity = directed(interpreter, "Provenance.Identities", "identities", "name", who);
+  const sessions = store.registered("Provenance.OfSession");
   if (found === null) {
-    const [locale, device] = [given(store, session, "locale"), given(store, session, "device")];
-    const made = store.builder("Provenance.OfSession").started(when);
-    if (locale !== null) made.locale(locale);
-    if (device !== null) made.device(device);
-    found = place(store, made.create(), "Provenance.InSessions", "Provenance.Sessions", "id", sid);
-    identity ??= place(store, store.builder("Provenance.OfIdentity").create(), "Provenance.InIdentities",
-      "Provenance.Identities", "name", who);
-    link(store, "Provenance.Who", [["session", found], ["identity", identity]]);
+    const started = new Map([["started", set(when)]]);
+    for (const name of ["locale", "device"]) if ((session.get(name) ?? null) !== null) started.set(name, set(session.get(name)));
+    found = filed(interpreter, "Provenance.Sessions", "sessions", "id", sid, interpreter.create(sessions, started));
+    identity ??= filed(interpreter, "Provenance.Identities", "identities", "name", who,
+      interpreter.create(store.registered("Provenance.OfIdentity"), new Map()));
+    interpreter.insert(found, sessions, "who", new Map([["identity", identity]]), new Map());
   } else {
-    const whose = Proxies._linking(store.registered("Provenance.Who"), "session", found, store)
-      .map((entry: any) => entry.identity);
+    const whose = interpreter.entries(found, sessions, "who").map((entry: unknown) => interpreter.link(entry, "identity"));
     if (whose.length !== 1 || whose[0] !== identity) {
       throw new ValueError(`session ${repr(sid)} is another identity's, not ${repr(who)}'s: a session has one identity `
         + "(Provenance.Who)");
     }
   }
-  link(store, "Provenance.InSession", [["transaction", record], ["session", found]]);
+  interpreter.insert(record, records, "session", new Map([["session", found]]), new Map());
   return record;
 }

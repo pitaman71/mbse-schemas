@@ -127,7 +127,7 @@ type Callback = (visitor: any) => any;
 /** A `References.OfObject`'s callback: an object's path; refused for a counted object, which nothing names. */
 function object(store: any, obj: unknown): Callback {
   const target = Proxies._deref(obj);
-  if (target instanceof Transactions._Refused) throw new LookupError(target.message);
+  if (target instanceof Transactions.Refused) throw new LookupError(target.message);
   const inner = Proxies._innerOf(target);
   if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {
     const held = Proxies._read(target, "path"); // a reference a frame given back holds
@@ -248,8 +248,10 @@ export function _schema(store: any, reference: any): unknown {
  * schema that declares its singleton, then, for each step, the one schema that declares the adjacency `o`, marked
  * owner(), on another link of the relation that the current schema's adjacency `i` is to (as `_filled` finds what a
  * link links). `LookupError`, saying where the path cannot be followed: an unknown singleton, an adjacency the schema
- * lacks, a link no one schema fills; or a schema object's path, where the store does not hold it. */
-export function _implied(store: any, pathPlain: unknown): any {
+ * lacks, a link no one schema fills; or a schema object's path, where the store does not hold it. `pathPlain` is a
+ * `References.OfObject`'s path, as plain data; `store` holds the schemas, whatever layer holds the data: a journal names
+ * an object held before by its reference alone where this is its schema (`Changes.gather`). */
+export function implied(store: any, pathPlain: unknown): any {
   const [singleton, steps] = Plain._steps(pathPlain, []);
   if (singleton === Plain.ROOT) throw new LookupError("names a schema object the store does not hold");
   const schemas = ([...store._schemas] as [string, any][]).filter(([, schema]) => schema instanceof S.OfObject.Data);

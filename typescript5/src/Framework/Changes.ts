@@ -61,8 +61,9 @@
  *
  * The changes are gathered from the transaction's proposals just before it commits, after `Provenance` records it and
  * its ownership is settled, so that what it deleted in cascade, and every entry linking it, is among them; what an object
- * was before is read from what the store holds as committed. `_gather` builds them as a `Changes.Transaction`, through
- * its builders, a value that outlives the transaction. A savepoint's changes are gathered alike, relative to the
+ * was before is read from what the store holds as committed. `gather` builds them as a `Changes.Transaction`, from what
+ * a layer changed, net, read through its interpreter's hooks, a value that outlives the transaction: a store in
+ * memory's (`_gather`) and any other layer's alike. A savepoint's changes are gathered alike, relative to the
  * transaction it is within: what interpreting an input frame changed, which the frame given carries as a journal
  * (`Transactions.Frame.journal`). An expression's terms, and the entries linking schema objects, are no data, and are left
  * out.
@@ -86,6 +87,7 @@ import * as Proxies from "./Proxies.js";
 import * as References from "./References.js";
 import { compareStrings } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
+import * as Transactions from "./Transactions.js";
 
 /** The journal language's schemas, defined in the store a transaction writes: `store.transaction(Changes.install)`. A
  * store is made by it, after `References.install` and `Mutations.install`, read by the bootstrap (`Builders`); run
@@ -423,13 +425,9 @@ function data(store: any, entry: unknown): boolean {
     (Proxies._isObjectData(x) && !store.framework(schemaOf(x))) || Proxies._is_parameter(x));
 }
 
-/** A schema object's reference (`References.OfSchema`) to `schema`, as a Spec. */
-function at(schema: any): Spec {
-  return (r: any) => r.path(Paths.of(schema));
-}
-
 /** What the transaction whose proposals these are changed, gathered just before it commits, as a `Changes.Transaction`
- * of id `uid`, built through the builders, a value that outlives the transaction; null where it changed nothing. */
+ * of id `uid`, a value that outlives the transaction; null where it changed nothing: a store in memory's, its net
+ * changes read from its proposals, then gathered by `gather`, as every layer's are. */
 export function _gather(store: any, proposals: Proposals.OfStore, uid: string): any {
   const base = proposals.base;
   const removed = new Map<string, any>();
@@ -448,155 +446,212 @@ export function _gather(store: any, proposals: Proposals.OfStore, uid: string): 
       for (const [k, entry] of old) if (!table.has(k) && data(store, entry)) removed.set(`${id(relation)}:${String(k)}`, entry);
     }
   }
-  const made = new Set([...proposals.created].filter((x) => Proxies._isObjectData(x)).map((x) => Proxies._innerOf(x)));
-  const deleted = new Set<unknown>(); // each object's state
+  const made = [...proposals.created].filter((x) => Proxies._isObjectData(x));
+  const madeStates = new Set(made.map((x) => Proxies._innerOf(x)));
+  const deleted = new Map<unknown, unknown>(); // each object, by its state
   for (const entry of removed.values()) {
     for (const x of (Proxies._innerOf(entry) as any)._links.values() as Iterable<unknown>) {
-      if ((Proxies._isObjectData(x) && !made.has(Proxies._innerOf(x))
-          && Proxies._owner_adjacencies(schemaOf(x)).length > 0 && Proxies._owner_entries(x).length === 0)) deleted.add(held(x));
+      if ((Proxies._isObjectData(x) && !madeStates.has(Proxies._innerOf(x))
+          && Proxies._owner_adjacencies(schemaOf(x)).length > 0 && Proxies._owner_entries(x).length === 0)) {
+        deleted.set(held(x), x);
+      }
     }
   }
-  const changed: [unknown, string, unknown][] = [];
+  const changed: [unknown, string][] = [];
   for (const [state, values] of proposals.values_) {
     // a value object's, read with the object holding it; or a deleted object's, which goes
     if (!(state instanceof Proxies._internals._ObjectData) || deleted.has(state) || store.framework((state as any)._schema)) continue;
     const holder = (state as any)._proxy; // proposals hold an object's data: read it through its proxy
     const names = [...new Set([...(base.values(state) as Map<string, unknown>).keys(), ...(values as Map<string, unknown>).keys()])];
-    const after = new Map(names.map((name) => [name, value(store, holder, name)]));
+    const after = new Map(names.map((name) => [name, value(store, holder, name)[0]]));
     const before = _before(store, proposals, () => new Map(names.map((name) =>
-      [name, made.has(state) ? null : value(store, holder, name)[0]])));
-    for (const name of names) if (!same(before.get(name), after.get(name)![0])) changed.push([holder, name, after.get(name)![1]]);
+      [name, madeStates.has(state) ? null : value(store, holder, name)[0]])));
+    for (const name of names) if (!same(before.get(name), after.get(name))) changed.push([holder, name]);
   }
-  if (removed.size === 0 && inserted.size === 0 && changed.length === 0) return null;
-  const symbols = new Map<string, Spec>(); // each a `Changes.Symbol`'s Spec, in the order first named
+  const relationOf = (entry: unknown): [any, unknown] => [(Proxies._innerOf(entry) as any)._relation, entry];
+  return gather(new Transactions.InMemory(store), uid, made, [...deleted.values()], [...removed.values()].map(relationOf),
+    [...inserted.values()].map(relationOf), changed,
+    (x) => _before(store, proposals, () => pathOf(store, References.of(store, x))));
+}
+
+/** What a transaction, or a savepoint of it, changed, as a `Changes.Transaction` of id `uid`, a value of the store whose
+ * schemas `interpreter` reads by (`interpreter.store`), that outlives the transaction; null where it changed nothing.
+ * Every layer's journal is gathered by it, a store in memory's (`Transactions.InMemory`) and any other's, the layer
+ * giving what it changed, net, of its own objects and entries, as its interpreter's hooks give them, and read through
+ * them alone (`schema_of`, `value`, `link`, `linking`):
+ *
+ * - `made`: the objects it created that are held after it;
+ * - `deleted`: the objects held before it that it deleted;
+ * - `removed`, `inserted`: the entries held before it that it removed, and those it inserted that are held after it,
+ *   each with its relation, `[relation, entry]`; an entry linking a schema object, or an expression's term, is no data,
+ *   and is left out by the layer;
+ * - `changed`: the properties whose values it changed, each `[holder, name]`, of an object held after it; the value
+ *   after is read through the interpreter;
+ * - `held(x)`: the path of an object held before it, as it was then, as plain data.
+ *
+ * Its symbols: each object it names that was held before, by its reference as it was, its schema too where its path does
+ * not imply it (`References.implied`), and each object it made, by its schema, after its owner's. Its changes: for each
+ * object deleted, the entry that owned it, removed by its owner's key for it; the entries it removed, then those it
+ * inserted, each written on the adjacency of an object it links, one held before and not counted where one can; then
+ * the properties it changed, each set to its value or cleared. A counted object is named by its value, a parameter
+ * reference in an object's place as itself (CAP-312). */
+export function gather(interpreter: any, uid: string, made: Iterable<unknown>, deleted: Iterable<unknown>,
+  removed: Iterable<[any, unknown]>, inserted: Iterable<[any, unknown]>, changed: Iterable<[unknown, string]>,
+  held: (x: unknown) => Plain.PlainData): any {
+  const store = interpreter.store;
+  const keyOf = (x: unknown): string => JSON.stringify(Proxies._link_key(x));
+  const madeKeys = new Set([...made].map(keyOf));
+  const deletedKeys = new Set([...deleted].map(keyOf));
+  const [removing, inserting, changing] = [[...removed], [...inserted], [...changed]];
+  if (removing.length === 0 && inserting.length === 0 && changing.length === 0) return null;
+  const symbols = new Map<string, unknown>(); // each a `Changes.Symbol`, as plain data, in the order first named
   const named = new Map<string, string>(); // by the object
+  const schemaReference = (schema: any): PlainMap => {
+    const path: any = Paths.of(schema);
+    return new Map([["path", Plain.ToPlain(store)(path.as_schema(), path)]]);
+  };
+  /** The objects that own `x`, through each entry that owns it. */
+  const owners = (x: unknown, schema: any): unknown[] => {
+    const found: unknown[] = [];
+    for (const adjacency of Proxies._owner_adjacencies(schema) as any[]) {
+      for (const entry of interpreter.linking(x, adjacency.relation)) {
+        if (interpreter.link(entry, adjacency.me) !== x) continue;
+        for (const link of adjacency.relation.entry.links.keys()) {
+          const other = link === adjacency.me ? null : interpreter.link(entry, link);
+          if (other !== null) found.push(other);
+        }
+      }
+    }
+    return found;
+  };
   /** The symbol of an object the transaction changed, declared where first needed: a created owned object's after its
    * owner's. */
   const symbol = (x: unknown): string => {
-    const found = named.get(JSON.stringify(Proxies._link_key(x)));
+    const found = named.get(keyOf(x));
     if (found !== undefined) return found;
-    let spec: Spec;
-    if (made.has(Proxies._innerOf(x))) {
-      for (const entry of Proxies._owner_entries(x)) {
-        for (const owner of (Proxies._innerOf(entry) as any)._links.values()) {
-          if (Proxies._innerOf(owner) !== Proxies._innerOf(x)) symbol(owner);
-        }
-      }
-      const schema = schemaOf(x);
-      spec = (s: any) => s.schema(at(schema));
+    const schema = interpreter.schema_of(x);
+    let spec: PlainMap;
+    if (madeKeys.has(keyOf(x))) {
+      for (const owner of owners(x, schema)) symbol(owner);
+      spec = new Map([["schema", schemaReference(schema)]]);
     } else {
-      spec = _before(store, proposals, () => heldSymbol(store, x, References.of(store, x)));
+      const path = held(x);
+      spec = new Map([["reference", new Map([["path", path]])]]);
+      let implied: unknown = null;
+      try {
+        implied = References.implied(store, path);
+      } catch { // a path no one schema is implied by: a LookupError
+        implied = null;
+      }
+      if (schema !== implied) spec.set("schema", schemaReference(schema));
     }
     const name = `o${named.size}`;
-    named.set(JSON.stringify(Proxies._link_key(x)), name);
+    named.set(keyOf(x), name);
     symbols.set(name, spec);
     return name;
   };
-  /** What an entry change names an object by, a `Changes.OfLink`'s Spec: a parameter reference, as itself (CAP-312); a
-   * counted object, by its value, which it never changes; else its symbol. */
-  const link = (x: unknown): Spec => {
-    if (Proxies._is_parameter(x)) return (l: any) => l.parameter(x);
-    if (Proxies._counted(x)) {
-      const schema = schemaOf(x);
-      const values: Record<string, unknown> = {};
-      for (const n of (schema.properties as Map<string, any>).keys()) {
-        const v = value(store, x, n)[1];
-        if (v !== null) values[n] = v;
-      }
-      return (l: any) => l.counted((c: any) => c.schema(at(schema)).properties(values));
+  /** The values a holder, an object or an entry, holds of the properties `schema` declares, as plain data. */
+  const values = (holder: unknown, schema: any): PlainMap => {
+    const found: PlainMap = new Map();
+    for (const name of schema.properties.keys()) {
+      const [present, plain] = interpreter.value(holder, schema, name);
+      if (present) found.set(name, plain);
     }
-    const name = symbol(x);
-    return (l: any) => l.symbol(name);
+    return found;
   };
-  const changes: Spec[] = [];
-  const entryChange = (verb: string, holder: Spec, adjacency: string, links: Map<string, Spec>,
-    properties: Map<string, unknown>): void => {
-    const body = (b: any): any => {
-      let written = b.holder(holder).adjacency(adjacency);
-      if (links.size > 0) written = written.links(Object.fromEntries(links));
-      return properties.size > 0 ? written.properties(Object.fromEntries(properties)) : written;
-    };
-    changes.push((c: any) => c.entry((e: any) => e[verb](body)));
+  /** What an entry change names an object by, a `Changes.OfLink`: a parameter reference, as itself (CAP-312); a counted
+   * object, by its value, which it never changes; else its symbol. */
+  const link = (x: unknown): PlainMap => {
+    if (Proxies._is_parameter(x)) {
+      const durable = Proxies._durable(x);
+      return new Map([["parameter", Plain.ToPlain(store)(durable.as_schema(), durable)]]);
+    }
+    const schema = interpreter.schema_of(x);
+    if (Proxies._counted_schema(schema)) {
+      return new Map([["counted", new Map<string, unknown>([["schema", schemaReference(schema)],
+        ["properties", values(x, schema)]])]]);
+    }
+    return new Map([["symbol", symbol(x)]]);
   };
-  const lostOf = (state: any): string[] => [...state._links as Map<string, unknown>]
-    .filter(([, x]) => deleted.has(held(x))).map(([name]) => name);
-  for (const entry of removed.values()) { // a deleted object's: its owning entry, by its key; the rest follows from that
-    const state = Proxies._innerOf(entry) as any;
-    const lost = lostOf(state);
-    if (lost.length === 0) continue;
-    const owned = owning(state, lost, store);
+  const changes: PlainMap[] = [];
+  const entryChange = (verb: string, holder: PlainMap, adjacency: string, links: PlainMap, properties: PlainMap): void => {
+    const body: PlainMap = new Map<string, unknown>([["holder", holder], ["adjacency", adjacency]]);
+    if (links.size > 0) body.set("links", links);
+    if (properties.size > 0) body.set("properties", properties);
+    changes.push(new Map([["entry", new Map([[verb, body]])]]));
+  };
+  const linked = (relation: any, entry: unknown): Map<string, unknown> =>
+    new Map([...relation.entry.links.keys()].map((name: string) => [name, interpreter.link(entry, name)]));
+  for (const [relation, entry] of removing) { // a deleted object's: its owning entry, by its key; the rest follows from that
+    const links = linked(relation, entry);
+    const lost = [...links].filter(([, x]) => deletedKeys.has(keyOf(x))).map(([name]) => name);
+    const owned = owning(interpreter, relation, links, lost);
     if (owned !== null) {
-      const [owner, me] = owned;
-      const keys = new Map(Proxies._key_names(state._relation, me, lost[0]!)
-        .map((k) => [k, state._properties.get(k)] as [string, unknown]));
-      entryChange("remove", link(state._links.get(me)), owner, new Map(), keys);
+      const [adjacency, me] = owned;
+      const keys = values(entry, relation.entry);
+      entryChange("remove", link(links.get(me)), adjacency, new Map(), new Map(Proxies._key_names(relation, me, lost[0]!)
+        .filter((k: string) => keys.has(k)).map((k: string) => [k, keys.get(k)] as [string, unknown])));
     }
   }
-  const kept = [...removed.values()].filter((entry) => lostOf(Proxies._innerOf(entry)).length === 0);
-  for (const [verb, entries] of [["remove", kept], ["insert", [...inserted.values()]]] as const) {
-    for (const entry of entries) {
-      const state = Proxies._innerOf(entry) as any;
-      const [writes, adjacency] = writer(state, made);
-      const others = new Map<string, Spec>();
-      for (const [other, x] of state._links as Map<string, unknown>) if (other !== writes) others.set(other, link(x));
-      entryChange(verb, link(state._links.get(writes)), adjacency, others, new Map(state._properties));
+  const kept = removing.filter(([relation, entry]) => ![...linked(relation, entry).values()]
+    .some((x) => deletedKeys.has(keyOf(x))));
+  for (const [verb, entries] of [["remove", kept], ["insert", inserting]] as const) {
+    for (const [relation, entry] of entries) {
+      const links = linked(relation, entry);
+      const [writes, adjacency] = writer(interpreter, relation, links, madeKeys);
+      const others: PlainMap = new Map();
+      for (const [other, x] of links) if (other !== writes) others.set(other, link(x));
+      entryChange(verb, link(links.get(writes)), adjacency, others, values(entry, relation.entry));
     }
   }
-  for (const [holder, name, v] of changed) {
-    if (Proxies._counted(holder)) continue; // found by its value, which it never changes
+  for (const [holder, name] of changing) {
+    const schema = interpreter.schema_of(holder);
+    if (Proxies._counted_schema(schema)) continue; // found by its value, which it never changes
     const s = symbol(holder);
-    changes.push((c: any) => c.property((p: any) => (v === null ? p.clear((b: any) => b.holder(s).name(name))
-      : p.set((b: any) => b.holder(s).name(name).value(v)))));
+    const [present, plain] = interpreter.value(holder, schema, name);
+    changes.push(new Map([["property", present
+      ? new Map([["set", new Map<string, unknown>([["holder", s], ["name", name], ["value", plain]])]])
+      : new Map([["clear", new Map([["holder", s], ["name", name]])]])]]));
   }
-  return store.Changes.Transaction((t: any) => t.id(uid).symbols(Object.fromEntries(symbols)).changes(changes));
-}
-
-/** The `Changes.Symbol` of an object held before, a Spec: its reference, and its schema too where its path does not
- * imply it, as where objects of several schemas are owned through one relation, so that a reader never guesses it. */
-function heldSymbol(store: any, x: unknown, reference: any): Spec {
-  let implied: unknown = null;
-  try {
-    implied = References._implied(store, pathOf(store, reference));
-  } catch { // a path no one schema is implied by: a LookupError
-    implied = null;
-  }
-  const schema = schemaOf(x);
-  if (schema === implied) return (s: any) => s.reference(reference);
-  return (s: any) => s.reference(reference).schema(at(schema));
+  const plain = new Map<string, unknown>([["id", uid], ["symbols", symbols], ["changes", changes]]);
+  return Plain.FromPlain(store)(store.registered("Changes.Transaction"), plain as Plain.PlainData);
 }
 
 /** The link, and its object's adjacency by name, that writes an entry: preferably an object held before, not counted,
  * so that what the entry links is found through it. */
-function writer(state: any, made: Set<unknown>): [string, string] {
+function writer(interpreter: any, relation: any, links: Map<string, unknown>, made: Set<string>): [string, string] {
   const choices: [number, string, string][] = []; // ranked: held before, counted or made
-  for (const [link, x] of state._links as Map<string, unknown>) {
+  for (const [link, x] of links) {
     if (Proxies._is_parameter(x)) continue;
-    for (const [name, adjacency] of schemaOf(x).adjacencies as Map<string, any>) {
-      if (adjacency.relation === state._relation && adjacency.me === link) {
-        choices.push([Proxies._counted(x) || made.has(Proxies._innerOf(x)) ? 1 : 0, link, name]);
+    const schema = interpreter.schema_of(x);
+    for (const [name, adjacency] of schema.adjacencies as Map<string, any>) {
+      if (adjacency.relation === relation && adjacency.me === link) {
+        choices.push([Proxies._counted_schema(schema) || made.has(JSON.stringify(Proxies._link_key(x))) ? 1 : 0, link,
+          name]);
       }
     }
   }
   if (choices.length === 0) {
-    throw new ValueError(`no object an entry of '${state._relation.name}' links has an adjacency to it by name, so that `
+    throw new ValueError(`no object an entry of '${relation.name}' links has an adjacency to it by name, so that `
       + "its change cannot be written: name one");
   }
   const [, link, name] = choices.reduce((best, choice) => (choice[0] < best[0] ? choice : best));
   return [link, name];
 }
 
-/** Where an entry owns the one deleted object it links, through `lost`, and its owner survives: the owner's adjacency
- * by name that writes it, and the owner's link; else null. */
-function owning(state: any, lost: string[], store: any): [string, string] | null {
+/** Where an entry of `relation` linking `links` owns the one deleted object it links, through `lost`, and its owner
+ * survives: the owner's adjacency by name that writes it, and the owner's link; else null. */
+function owning(interpreter: any, relation: any, links: Map<string, unknown>, lost: string[]): [string, string] | null {
   if (lost.length !== 1) return null;
-  const x = state._links.get(lost[0]);
-  const owns = Proxies._owner_adjacencies(schemaOf(x)).some((a: any) => a.relation === state._relation && a.me === lost[0]);
+  const x = links.get(lost[0]!);
+  const owns = Proxies._owner_adjacencies(interpreter.schema_of(x)).some((a: any) => a.relation === relation
+    && a.me === lost[0]);
   if (!owns) return null;
-  const [me] = [...(state._links as Map<string, unknown>).keys()].filter((link) => link !== lost[0]) as [string];
-  const names = [...(schemaOf(state._links.get(me)).adjacencies as Map<string, any>)]
-    .filter(([, a]) => a.relation === state._relation && a.me === me).map(([name]) => name);
+  const [me] = [...links.keys()].filter((link) => link !== lost[0]) as [string];
+  const names = [...(interpreter.schema_of(links.get(me)).adjacencies as Map<string, any>)]
+    .filter(([, a]) => a.relation === relation && a.me === me).map(([name]) => name);
   if (names.length === 0) {
-    throw new ValueError(`no owner of an entry of '${state._relation.name}' has an adjacency to it by name, so that `
+    throw new ValueError(`no owner of an entry of '${relation.name}' has an adjacency to it by name, so that `
       + "its change cannot remove what the entry owned: name one");
   }
   return [names[0]!, me];
@@ -754,7 +809,7 @@ class Symbols extends At {
   schema(symbol: string): any {
     const bound = this.symbols.get(symbol);
     if (bound.has("schema")) return Plain._by_path(this.store, bound.get("schema").get("path"), []);
-    return References._implied(this.store, bound.get("reference").get("path"));
+    return References.implied(this.store, bound.get("reference").get("path"));
   }
 
   /** The schema of the object an entry change names: a symbol's, an object's held by its reference, as the store holds
@@ -764,7 +819,7 @@ class Symbols extends At {
     if (kind === "symbol") return this.schema(given);
     if (kind === "counted") return Plain._by_path(this.store, given.get("schema").get("path"), []);
     const found = this.store._present(given.get("path"));
-    return Proxies._isObjectData(found) ? schemaOf(found) : References._implied(this.store, given.get("path"));
+    return Proxies._isObjectData(found) ? schemaOf(found) : References.implied(this.store, given.get("path"));
   }
 
   member(schema: string, member: string, siblings: PlainMap): any {

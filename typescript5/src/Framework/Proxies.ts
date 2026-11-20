@@ -985,7 +985,7 @@ function checkUniques(proposals: any): void {
     }
   }
   for (const [relation, entries] of inserted) { // by the clauses' rule, which every layer's interpreter holds alike
-    proposals.store._interpreter()._check_uniques(relation, [...entries.values()]);
+    proposals.store._interpreter().check_uniques(relation, [...entries.values()]);
   }
 }
 

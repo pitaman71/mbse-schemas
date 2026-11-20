@@ -305,10 +305,14 @@ abstract class Shelled implements Shellable {
 
 // --- Stores ---
 
-/** A write attempted while a store interprets a transaction read-only (`txn.exec`, `allow_write` false): the frame
- * halts where it is, and is given carrying the remainder of the expression. Thrown by the write itself, before it
- * writes: no error, the interpreter catches it. */
-export class _Halt {}
+/** What makes a store's transaction interpreter, `Transactions.InMemory`'s constructor, which `Transactions` gives
+ * as it loads (`_interpreters`), so that this module, which it imports, imports it not. */
+let interpreterOf: ((store: unknown) => unknown) | null = null;
+
+/** Gives `make`, what makes a store's transaction interpreter (`interpreterOf`). */
+export function _interpreters(make: (store: unknown) => unknown): void {
+  interpreterOf = make;
+}
 
 /** A store of proxies: schemas by name, and the instance of each singleton schema registered, created with it.
  * `store.builder(name, instance)` gives a builder of an object of a registered schema. */
@@ -323,8 +327,8 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
 
   /** How deep in building an expression, or in making the store, a write is (`_written`). */
   _expressing = 0;
-  /** How deep in interpreting read-only a write is (`txn.exec`), halted (`_written`). */
-  _read_only = 0;
+  /** The transaction interpreter coupled with it (`_interpreter`). */
+  _interpreting: any = null;
   /** The proposals of the transaction open on it, and its savepoints', if any. */
   _proposals: Proposals.OfStore | null = null;
   /** The entries linking the schemas it was made holding, by schema. */
@@ -357,30 +361,24 @@ export abstract class OfStore extends Stores.Catalog implements Visitors.OfStore
   }
 
   /** Refuses a write outside a transaction of this store (object identity 44 in [CAP-124: writes all-or-nothing in transactions](mbse:mbse-basis/docs/capabilities/CAP-124.md#decided)), but while a transaction's
-   * expression is built (94), the store is made, or a transaction commits. Within a read-only interpretation
-   * (`txn.exec`, `allow_write` false), it halts the frame instead, writing nothing (`_Halt`). */
+   * expression is built (94), the store is made, or a transaction commits. */
   _written(): void {
-    if (this._read_only > 0) throw new _Halt();
     if (this._proposals === null && this._expressing === 0) {
       throw new ValueError("a store is written only within a transaction (store.transaction)");
     }
+  }
+
+  /** The transaction interpreter coupled with this store, made once: a store in memory's (`Transactions.InMemory`),
+   * which reads and writes it directly, and holds what every layer interprets alike. */
+  _interpreter(): any {
+    if (this._interpreting === null) this._interpreting = interpreterOf!(this);
+    return this._interpreting;
   }
 
   /** The library's own writes (a decoder's, an adapter's): within the transaction of this store open, else one of their
    * own. */
   _joined<T>(write: () => T): T {
     return this._proposals === null ? this._transacting(write) : this._proposing(write); // within one, a savepoint
-  }
-
-  /** A read-only interpretation of a term over a frame (`txn.exec`, `allow_write` false): a write attempted within it
-   * halts the frame (`_written`). */
-  _readingOnly<T>(read: () => T): T {
-    this._read_only += 1;
-    try {
-      return read();
-    } finally {
-      this._read_only -= 1;
-    }
   }
 
   /** Building a transaction's expression, the one write allowed outside a transaction (object identity 94 in [CAP-138: mutation expressions over frame streams](mbse:mbse-basis/docs/capabilities/CAP-138.md#decided)); making the store; and
@@ -986,54 +984,8 @@ function checkUniques(proposals: any): void {
       }
     }
   }
-  for (const [relation, entries] of inserted) checkKeys(relation, [...entries.values()], proposals.store);
-}
-
-/** Throws `ValueError` where an entry `inserted` agrees with another entry of `relation` on the key of one of its
- * `unique` clauses. The entries that could agree with one are those held by the object it links through a link of
- * the key, all of them, and the others inserted. Where the key holds no link that links an object present, those are
- * the ones held by every object it links and the others inserted: the store keeps no index of a relation's entries
- * apart from the objects they link. */
-function checkKeys(relation: RelationSchema, inserted: _Entry[], store: unknown): void {
-  const names = [...relation.entry.links.keys(), ...relation.entry.properties.keys()];
-  const part = (entry: _Entry, name: string): unknown => {
-    const target = entry._links.get(name);
-    if (target !== undefined && target !== null) return ["link", linkKey(target)];
-    const value = entry._properties.get(name);
-    return ["value", value === undefined || value === null ? null : scalarKey(value)];
-  };
-  for (const clause of relation.uniques) {
-    const key = names.filter((name) => !clause.has(name));
-    const of = (entry: _Entry): string => JSON.stringify(key.map((name) => part(entry, name)));
-    const held = new Map<string, Map<string, _Entry>>(); // the entries that could agree, by their key's values
-    const hold = (entry: _Entry): void => {
-      let agreeing = held.get(of(entry));
-      if (agreeing === undefined) held.set(of(entry), (agreeing = new Map()));
-      if (!agreeing.has(entry._key())) agreeing.set(entry._key(), entry);
-    };
-    const scanned = new Set<number>();
-    for (const entry of inserted) {
-      hold(entry);
-      const anchors = key.filter((name) => entry._links.has(name) && !isEnd(entry._links.get(name)))
-        .map((name) => entry._links.get(name));
-      const linked = [...entry._links.values()].filter((target) => !isEnd(target));
-      for (const target of anchors.length > 0 ? anchors.slice(0, 1) : linked) {
-        if (scanned.has(identityOf(target))) continue;
-        scanned.add(identityOf(target));
-        for (const other of table(target, relation, store).values()) hold(innerOf(other) as _Entry);
-      }
-    }
-    for (const entry of inserted) {
-      const agreeing = held.get(of(entry))!;
-      const other = [...agreeing].find(([k]) => k !== entry._key())?.[1];
-      if (other !== undefined) {
-        const own = sortedStrings([...clause]);
-        throw new ValueError(`an entry of ${repr(relation.name)} breaks unique(${own.join(", ")}): two entries agree on `
-          + `its key, the links and properties outside it, ${shownParts(entry, key)}, and differ on it, `
-          + `${shownParts(other, own)} and ${shownParts(entry, own)}; an entry is refused, not replaced: remove the `
-          + "one held to write the other");
-      }
-    }
+  for (const [relation, entries] of inserted) { // by the clauses' rule, which every layer's interpreter holds alike
+    proposals.store._interpreter()._check_uniques(relation, [...entries.values()]);
   }
 }
 
@@ -3715,6 +3667,7 @@ export { shell as _shell, Shelled as _Shelled, Dunders as _Dunders, makeEmpty as
   addEntry as _add_entry, sameStore as _same_store, discard as _discard, makeEntry as _make_entry, tablesOf as _entries_of, single as _single, noteMissed as _note_missed, missed as _missed,
   built as _built, ownerEntries as _owner_entries, ownedLinks as _owned_links, ownerAdjacencies as _owner_adjacencies,
   keyNames as _key_names, makeObjectData as _makeObjectData, linkKey as _link_key, table as _table, read as _read, isEnd as _end,
+  shownParts as _shown_parts,
   standalone as _standalone };
 
 /** Internal classes, exposed for protocol conformance tests. */

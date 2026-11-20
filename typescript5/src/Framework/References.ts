@@ -291,9 +291,5 @@ export function of(store: any, x: unknown): any {
 /** The object a `References.OfObject` designates in `store`, or null where the store holds none: what a pattern's symbol
  * given the reference binds, within the transaction that runs it (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). */
 export function _designated(store: any, reference: any): unknown {
-  try {
-    return Plain._by_path(store, (Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, any>).get("path"), []) ?? null;
-  } catch { // a schema object's path whose steps name no entries: nothing has it (only DecodeError is thrown)
-    return null;
-  }
+  return store._interpreter().designated((Plain.ToPlain(store)(reference.as_schema(), reference) as Map<string, any>).get("path"));
 }

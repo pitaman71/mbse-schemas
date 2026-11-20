@@ -39,6 +39,12 @@ a frame halted in is executed by the loopback, within the transaction. All of it
 
 A symbol of a meta-schema (`store.Schemas.OfObject`, ...) binds schema objects: a module's `install(txn)` upserts its
 schemas, each found by its name, so that a transaction defines and extends schemas (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)).
+
+Each layer of a stack interprets with an interpreter of its own, coupled with it ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)):
+`Interpreter`, the base class, holds what every layer interprets alike, the walk of the terms, binding symbols, frames
+and their errors, unique clauses checked at commit and the stream, and drives the layer's reads and writes of its own
+storage through the hooks a layer's class gives; `InMemory` is a store in memory's, `Builders.Store`'s, which reads its
+proxies and writes through its builders, and keeps a cache layer's forwarding to the layer below.
 """
 
 from __future__ import annotations
@@ -1666,8 +1672,8 @@ class Interpreter(abc.ABC):
                 return ("link", Proxies._link_key(target))
             return ("value", self.part(entry, name))
 
-        def identity(entry: Any) -> Any:  # what an entry is held by: itself in an open relation, else its value
-            return ("entry", id(entry)) if relation.open else tuple(part(entry, name) for name in names)
+        def identity(entry: Any) -> Any:  # what an entry is held by: its value, its relation, with a unique clause, not open
+            return tuple(part(entry, name) for name in names)
 
         def objects(entry: Any, among: Iterable[str]) -> list[Any]:
             return [target for target in (self.link(entry, name) for name in among)

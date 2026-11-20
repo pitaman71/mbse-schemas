@@ -159,7 +159,7 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - **A layer of your own interprets with a class of its own.** A store kept elsewhere than in memory, a database's, is
   a layer whose interpreter derives from `Transactions.Interpreter`, the base class that holds what every layer
   interprets alike: the walk of the terms, binding symbols, frames and their errors, unique clauses checked at the
-  layer's commit (`_check_uniques`), and the stream `txn.exec` gives. The class gives what only its layer knows, which
+  layer's commit (`check_uniques`), and the stream `txn.exec` gives. The class gives what only its layer knows, which
   the interpreter drives, reading and writing the layer directly, not through the Store interface: its reads
   (`candidates`, `named`, `designated`, `schema_of`, `key`, `value`, `entries`, `link`, `linking`, `part`, `shown`,
   `given`), its writes (`assign`, `insert`, `remove`, `create`, `upserted`), its transaction's `savepoint` and `uid`,
@@ -168,6 +168,15 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#stacking-by-mutation-transactions)).
   - Python: [LAY-01: The base class and a layer's](mbse:mbse-schemas/python3/tests/40_Layers.ipynb#LAY-01) · TypeScript: [LAY-01: The base class and a layer's](mbse:mbse-schemas/typescript5/tests/40_Layers.ipynb#LAY-01)
   - Python: [LAY-02: A layer not built on proxies interprets as a store in memory does](mbse:mbse-schemas/python3/tests/40_Layers.ipynb#LAY-02) · TypeScript: [LAY-02: A layer not built on proxies interprets as a store in memory does](mbse:mbse-schemas/typescript5/tests/40_Layers.ipynb#LAY-02)
+- **What your layer needs is public, one copy every layer shares**, each taking what the layer gives through its
+  hooks: its `given` refuses an object with no reference with `Transactions.Refused(message, target, life)`; its
+  `insert` replaces the one entry held where `Transactions.single(relation, me)`; its commit checks each relation it
+  inserted into with `check_uniques(relation, inserted)`, and records the transaction with
+  `Provenance.record(interpreter, expression, created, written)`; its `savepoint(journal)` gives what it changed,
+  net, as `Changes.gather(interpreter, uid, made, deleted, removed, inserted, changed, held)`; the schema a path
+  implies is `References.implied(store, path)`; and a callback is built into an expression by `store.expressed(spec)`,
+  as `txn.exec` builds one, so that `Changes.apply` works within it in any layer.
+  - Python: [LAY-05: What every layer shares, public](mbse:mbse-schemas/python3/tests/40_Layers.ipynb#LAY-05) · TypeScript: [LAY-05: What every layer shares, public](mbse:mbse-schemas/typescript5/tests/40_Layers.ipynb#LAY-05)
 - **An error is annotated on its frame, in the stream**, not raised by `exec`; the scope then commits nothing, and
   raises the first error annotated, as `store.transaction` does. An error no one frame made, in the expression, ends
   the stream with it.

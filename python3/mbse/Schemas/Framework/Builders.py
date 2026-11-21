@@ -444,15 +444,39 @@ class _AdjacencyMember(_Unassignable):
         self._builder._written.append(self._members)
 
     def _replace(self, index: int, referent: Any) -> None:
+        if isinstance(self._members, _Extension):  # an entry relinked keeps its properties
+            entries = self._entries()
+            entries[index] = (referent, entries[index][1])
+            self._put(entries)
+            return
         referents = self._held()
         referents[index] = referent
         self._store(referents)
+
+    def _entries(self) -> list[tuple[Any, dict[str, Any]]]:
+        """An extension's entries, each what it links and its properties' values (`_Extension.entries`)."""
+        return self._members.entries(self._builder._working)  # type: ignore[attr-defined]
+
+    def _put(self, entries: list[tuple[Any, dict[str, Any]]]) -> None:
+        self._members.put(self._builder._working, entries)  # type: ignore[attr-defined]
+        self._builder._written.append(self._members)
+
+    def _add(self, referent: Any, values: dict[str, Any]) -> None:
+        """Adds an extension's entry, linking `referent`, with its properties' `values`: elided where one held links it
+        with equal values, as a relation holding a set elides it (CAP-117)."""
+        values = Proxies._finalized(values)
+        entries = self._entries()
+        if not any(held is referent and _same_values(held_values, values) for held, held_values in entries):
+            self._put([*entries, (referent, values)])
 
     def as_schema(self) -> Any:
         meta = self._builder.as_schema()
         return None if meta is None else meta.adjacencies.get(self._members.name)
 
     def __iter__(self) -> Iterator[_Entry]:
+        if isinstance(self._members, _Extension):
+            return iter([_Entry(self, index, referent, values)
+                         for index, (referent, values) in enumerate(self._entries())])
         return iter([_Entry(self, index, referent) for index, referent in enumerate(self._held())])
 
     def as_iterable(self, cb: Any) -> _AdjacencyMember:
@@ -461,13 +485,14 @@ class _AdjacencyMember(_Unassignable):
 
     def insert(self, spec: Any) -> _AdjacencyMember:
         """Adds an entry, linking a referent: given to the entry's link, or built through it; an entry linking a
-        referent held is elided. Where the adjacency holds at most one entry, it must be removed before another."""
+        referent held is elided, an extension's where its properties are equal too (CAP-117). Where the adjacency holds
+        at most one entry, it must be removed before another."""
         self._builder._check()
         entry = _Entry(self)
         if _is_function(spec):
             _visit(spec, entry)
         elif isinstance(spec, _Entry):
-            entry._referent, entry._name = spec._referent, spec._name
+            entry._referent, entry._name, entry._values = spec._referent, spec._name, dict(spec._values)
         else:
             raise TypeError(f"an entry, or a callback taking one, is expected; got {spec!r}")
         if isinstance(self._members, _Records):  # a record may lack its schema: validation reports it
@@ -476,6 +501,9 @@ class _AdjacencyMember(_Unassignable):
             return self
         if entry._referent is None:
             raise ValueError(f"link {self._members.link!r} is not set")
+        if isinstance(self._members, _Extension):
+            self._add(entry._referent, entry._values)
+            return self
         if self._members.keyed and entry._name is not None:
             self._members.rename(self._builder._working, entry._referent, entry._name)
         held = self._held()
@@ -497,6 +525,10 @@ class _AdjacencyMember(_Unassignable):
             template = spec
         else:
             raise TypeError(f"an entry, or a callback taking one, is expected; got {spec!r}")
+        if isinstance(self._members, _Extension):
+            self._put([(referent, values) for referent, values in self._entries()
+                       if not template._agrees(referent, values)])
+            return self
         self._store([referent for referent in self._held() if not template._agrees(referent)])
         return self
 
@@ -523,13 +555,15 @@ class _AdjacencyMember(_Unassignable):
         self._builder._check()
         for item in spec:
             item = Proxies._deref(item)
+            values: dict[str, Any] = {}  # an extension's entry's properties (CAP-117)
             if isinstance(item, _Entry):
-                referent, name = item._referent, item._name
+                referent, name, values = item._referent, item._name, item._values
             else:  # every relation between schema objects has two links: the peer shorthand
                 if _is_function(item):
                     them = _Them(self)
                     _visit(item, them)
                     referent, name = them._result()
+                    values = them._entry._values
                 elif self._members.accepts(item):
                     referent, name = item, None
                 else:
@@ -540,6 +574,9 @@ class _AdjacencyMember(_Unassignable):
                     self._store([*self._held(), referent])
                 continue
             _check_held(self._builder, self._members.link, referent)
+            if isinstance(self._members, _Extension):
+                self._add(referent, values)
+                continue
             if self._members.keyed and name is not None:
                 self._members.rename(self._builder._working, referent, name)
             held = self._held()
@@ -587,14 +624,17 @@ class _AdjacencyMember(_Unassignable):
 
 
 class _Entry(_Unassignable):
-    """`Visitors.OfEntry`: one entry of an adjacency. Its link to the referent is a member (`e.property`); the link to
-    the schema object being built is filled by the adjacency."""
+    """`Visitors.OfEntry`: one entry of an adjacency. Its link to the referent is a member (`e.property`), and so is each
+    property of an extension's relation's entries (`e.after`, [CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md)); the link to the schema
+    object being built is filled by the adjacency."""
 
-    def __init__(self, adjacency: _AdjacencyMember, index: int | None = None, referent: Any = None):
+    def __init__(self, adjacency: _AdjacencyMember, index: int | None = None, referent: Any = None,
+                 values: dict[str, Any] | None = None):
         members = adjacency._members
         if referent is None and isinstance(members, _Records):
             referent = members.record()  # a record of nothing yet, written in place until it is inserted
         self._adjacency, self._index, self._referent = adjacency, index, referent
+        self._values: dict[str, Any] = dict(values or {})  # an extension's entry's properties' values (CAP-117)
         self._template: list[Any] | None = None  # what the callback that built the referent wrote
         self._name: str | None = None  # the name written (`env.name`), where the entries are keyed
         self._fields: set[str] = set()  # the fields of a record written, and its link, as `link`
@@ -616,10 +656,31 @@ class _Entry(_Unassignable):
             raise AttributeError(name)
         if name == self._adjacency._members.link:
             return _Link(self)
+        prop = self._property(name)
+        if prop is not None:
+            return self._extension_property(name, prop)
         records = self._records()
         if (name == "name" and self._adjacency._members.keyed) or (records is not None and name in records.fields):
             return _EntryField(self, name)
         return _Empty(f"{name!r} is not a link this entry can set, nor a property of the relation")
+
+    def _property(self, name: str) -> Any:
+        """A property of an extension's relation's entries, by name; None where there is none."""
+        members = self._adjacency._members
+        return members.relation.entry.properties.get(name) if isinstance(members, _Extension) else None
+
+    def _extension_property(self, name: str, prop: Any) -> Proxies._Property:
+        """`Visitors.OfProperty` over a property of an extension's entry, as a proxy's entry builder has it: of an entry
+        held, through a writable builder, the values the builder's working copy holds, so that a write is the builder's
+        (CAP-117)."""
+        adjacency = self._adjacency
+        builder = adjacency._builder
+        if self._index is not None and builder._writable:
+            entries = adjacency._entries()
+            adjacency._members.put(builder._working, entries)  # type: ignore[attr-defined]
+            self._values = entries[self._index][1]
+        written = (lambda: builder._written.append(adjacency._members)) if self._index is not None else None
+        return Proxies._Property(self._values, name, prop, builder._store, self, builder._writable, written)
 
     def _named(self) -> str | None:
         """The entry's name: the one written, else its referent's."""
@@ -668,7 +729,11 @@ class _Entry(_Unassignable):
         if self._index is not None:  # an entry held: the adjacency links the referent in its place
             self._adjacency._replace(self._index, referent)
 
-    def _agrees(self, referent: Any) -> bool:
+    def _agrees(self, referent: Any, values: dict[str, Any] | None = None) -> bool:
+        if isinstance(self._adjacency._members, _Extension):  # what it links, if set, and each property written agree
+            return ((self._referent is None or referent is self._referent)
+                    and all(name in values and Proxies._scalar_key(values[name]) == Proxies._scalar_key(value)
+                            for name, value in Proxies._finalized(self._values).items()))  # type: ignore[operator]
         if self._records() is not None:  # each field written, and the schema linked, agree; an entry held, itself
             if self._index is not None:
                 return referent is self._referent
@@ -759,7 +824,7 @@ class _Them(_Unassignable):
         if name.startswith("_"):
             raise AttributeError(name)
         members = self._entry._adjacency._members
-        if (name == members.link or (name == "name" and members.keyed)
+        if (name == members.link or (name == "name" and members.keyed) or self._entry._property(name) is not None
                 or (isinstance(members, _Records) and name in members.fields)):
             return _Chained(getattr(self._entry, name), self, name == members.link)
         return _Chained(getattr(self._builder(), name), self, False)
@@ -916,8 +981,8 @@ class _Builder(_Unassignable, Generic[D]):
         for member in self._members_.values():  # the members an extension added, which no field holds
             if isinstance(member, _Prop) and member.extension:
                 member.put(target, S._copy(member.get(source)))
-            elif isinstance(member, _Members) and member.extension is not None:
-                member.store(target, member.items(source, self._store))
+            elif isinstance(member, _Extension):  # each entry's properties its own, which a write changes in place
+                member.put(target, [(referent, dict(values)) for referent, values in member.entries(source, self._store)])
         return changed
 
     def _finalize(self, target: D) -> D:
@@ -1078,12 +1143,13 @@ class _ValueProp(_Prop):
 
 def _extension_other(adjacency: S.OfAdjacency.Data) -> str:
     """The link an extension's adjacency reaches through, the one of its relation's two that is not `me`; refused where
-    the relation has other than two links, or properties."""
+    the relation has other than two links, which [CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md) leaves open. Its
+    entries may have properties (CAP-117)."""
     relation = adjacency.relation
     links = list(relation.entry.links)
-    if len(links) != 2 or relation.entry.properties:
-        raise TypeError(f"an extension's adjacency {adjacency.name!r} is to a relation of two links and no properties, "
-                        f"got {relation.name!r}")
+    if len(links) != 2:
+        raise TypeError(f"an extension's adjacency {adjacency.name!r} is to a relation of two links, got {relation.name!r} "
+                        f"of {len(links)}")
     return next(link for link in links if link != adjacency.me)
 
 
@@ -1097,28 +1163,41 @@ def _check_extensions(store: Store, before: dict[int, set[str]]) -> None:
                     _extension_other(adjacency)
 
 
-def _extension_adjacency(adjacency: S.OfAdjacency.Data) -> _Members:
-    """An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
-    are, each held in the index of every object it links (Proxies' `_add_entry`). A builder writes the objects it links
-    to its working copy; finalized, the schema object's entries are made to agree with them."""
-    relation, me, name = adjacency.relation, adjacency.me, adjacency.name
-    other = _extension_other(adjacency)
+def _same_values(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Whether two entries' properties are equal: the same names, each value equal by its schema (CAP-111)."""
+    return a.keys() == b.keys() and all(Proxies._scalar_key(a[name]) == Proxies._scalar_key(b[name]) for name in a)
 
-    def items(data: Any, store: Any = None) -> list[Any]:  # a framework schema's entries are its store's
+
+class _Extension(_Members):
+    """An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
+    are, each held in the index of every object it links (Proxies' `_add_entry`), so that both ends see one entry. Its
+    relation has two links, the schema object's (`me`) and the other, and may have properties
+    ([CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md)): an entry is what it links and its properties' values (`entries`). A builder writes
+    them to its working copy (`put`); finalized, the schema object's entries are made to agree with them
+    (`_settle_pending`)."""
+
+    def __init__(self, adjacency: S.OfAdjacency.Data):
+        other = _extension_other(adjacency)
+        super().__init__(other, items=lambda data, store=None: [referent for referent, _ in self.entries(data, store)],
+                         store=lambda data, referents: self.put(data, [(referent, {}) for referent in referents]),
+                         accepts=lambda value: True, extensible=True)
+        self.relation, self.me = adjacency.relation, adjacency.me
+        self.extension = (adjacency.relation, adjacency.me, other)
+
+    def entries(self, data: Any, store: Any = None) -> list[tuple[Any, dict[str, Any]]]:
+        """Its entries, each what it links and its properties' values: those its builder wrote, else those held, in the
+        store given, else the one holding it (a framework schema's entries are its store's)."""
         pending = data.__dict__.get("_pending", {})
-        if name in pending:
-            return list(pending[name])
+        if self.name in pending:
+            return list(pending[self.name])
         store = store if store is not None else data.__dict__.get("_held_by")
         if store is None:  # a schema object no store holds yet, which links nothing
             return []
-        return [entry._links[other] for entry in Proxies._linking(relation, me, data, store)]
+        return [(entry._links[self.link], dict(entry._properties))
+                for entry in Proxies._linking(self.relation, self.me, data, store)]
 
-    def store(data: Any, referents: list[Any]) -> None:
-        data.__dict__.setdefault("_pending", {})[name] = list(referents)
-
-    member = _Members(other, items=items, store=store, accepts=lambda value: True, extensible=True)
-    member.extension = (relation, me, other)
-    return member
+    def put(self, data: Any, entries: list[tuple[Any, dict[str, Any]]]) -> None:
+        data.__dict__.setdefault("_pending", {})[self.name] = list(entries)
 
 
 def _settle_extended(data: Any, store: Any) -> Any:
@@ -1128,19 +1207,23 @@ def _settle_extended(data: Any, store: Any) -> Any:
     return data
 
 
-def _settle_pending(data: Any, pending: dict[str, list[Any]] | None, store: Any) -> None:
+def _settle_pending(data: Any, pending: dict[str, list[tuple[Any, dict[str, Any]]]] | None, store: Any) -> None:
     """Makes a schema object's entries in the relations an extension added agree with `pending`, what a builder wrote
-    to them, by adjacency."""
+    to them, by adjacency: each an entry's other end and its properties' values. An entry held that agrees with none is
+    removed, and one written that none held agrees with added (CAP-117)."""
     if not pending:
         return
     added = store._added.get(_builder_for(data), {})
-    for name, referents in pending.items():
+    for name, entries in pending.items():
         relation, me, other = added[name].extension
+        wanted = [Proxies._Entry(relation, {me: data, other: referent}, values) for referent, values in entries]
+        values = {entry._value() for entry in wanted}
         held = Proxies._linking(relation, me, data, store)
-        Proxies._discard(id(relation), [e for e in held if all(e._links[other] is not r for r in referents)], store)
-        for referent in referents:
-            if all(e._links[other] is not referent for e in held):
-                Proxies._add_entry(relation, Proxies._Entry(relation, {me: data, other: referent}, {}), store)
+        Proxies._discard(id(relation), [entry for entry in held if entry._value() not in values], store)
+        kept = {entry._value() for entry in held}
+        for entry in wanted:
+            if entry._value() not in kept:
+                Proxies._add_entry(relation, entry, store)
 
 
 def _extend_builders(store: Store, before: dict[int, tuple[set[str], set[str]]]) -> None:
@@ -1152,7 +1235,7 @@ def _extend_builders(store: Store, before: dict[int, tuple[set[str], set[str]]])
         added = store._added.setdefault(builder_class, {})
         members: dict[str, Any] = {name: _extension_property(prop) for name, prop in meta.properties.items()
                                    if name not in properties and name not in builder_class._members_}
-        members.update({name: _extension_adjacency(adjacency) for name, adjacency in meta.adjacencies.items()
+        members.update({name: _Extension(adjacency) for name, adjacency in meta.adjacencies.items()
                         if name not in adjacencies and name not in builder_class._members_})
         for name, member in members.items():
             member.__set_name__(builder_class, name)

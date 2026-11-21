@@ -34,7 +34,7 @@
 
 import { _admits, _innerOf, _internals, _key_of, _parameter_in } from "./Proxies.js";
 import type * as Readers from "./Readers.js";
-import { compareStrings, tokenName, typeName } from "./Repr.js";
+import { compareStrings, tokenName, TYPE_NAME, typeName } from "./Repr.js";
 import * as Schemas from "./Schemas.js";
 import type { Scalar } from "./Visitors.js";
 
@@ -233,10 +233,18 @@ function entries(adjacency: Schemas.OfAdjacency.Data, a: any, b: any): Result {
   return allEqual([...links, ...values]);
 }
 
+/** What a link read through a builder's entry links, a schema builder's (`Builders`' `_Link`), which an extension's
+ * relation's entries have ([CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md)): its target; any other, as it is. */
+function linked(link: any): any {
+  const inner = link === null || link === undefined ? null : _innerOf(link);
+  return inner !== null && inner[TYPE_NAME] === "_Link" ? inner._target() : link;
+}
+
 /** Links compare by their targets' identities, each unique within its schema: a link targets a reference object, never
  * a value object. A parameter reference in the place of either halts the comparison (CAP-312). */
 function compareLinks(a: any, b: any): Result {
   if (_parameter_in(a) !== null || _parameter_in(b) !== null) return null;
+  [a, b] = [linked(a), linked(b)];
   const x = a === null || a === undefined ? null : _key_of(a);
   const y = b === null || b === undefined ? null : _key_of(b);
   if (x === null || y === null) return x === null && y === null ? 0 : null;

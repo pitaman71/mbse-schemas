@@ -204,6 +204,16 @@ schemas from anything a program holds; the builders make a new version beside a 
   members from an extension, in any transaction, but none of theirs changes or goes; a store's own schemas change
   freely.
   - Python: [EXT-02: A schema the store was made holding only gains members, each under a name it neither has nor a refinement of it declares](mbse:mbse-schemas/python3/tests/28_Extensions.ipynb#EXT-02) · TypeScript: [EXT-02: A schema the store was made holding only gains members, each under a name it neither has nor a refinement of it declares](mbse:mbse-schemas/typescript5/tests/28_Extensions.ipynb#EXT-02)
+- **Relate a meta-schema to data through an extension's adjacency.** An extension may give a meta-schema
+  (`Schemas.OfObject`, ...) an adjacency to a relation of two links, the schema object's and the other, its entries
+  with properties or without: each schema's builder then holds that adjacency's entries as a proxy's adjacency does
+  (an entry inserted with its properties, one held rewritten, the peer shorthand, a mapping where the relation has one
+  property), and the data at the other end sees the same entry. Snapshots, comparison and validation
+  carry the entries' properties; a journal leaves out every entry linking a schema object. A relation of more than two
+  links is refused.
+  [CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md).
+  - Python: [EXT-05: An extension's relation links schema objects and data](mbse:mbse-schemas/python3/tests/28_Extensions.ipynb#EXT-05) · TypeScript: [EXT-05: An extension's relation links schema objects and data](mbse:mbse-schemas/typescript5/tests/28_Extensions.ipynb#EXT-05)
+  - Python: [EXT-06: An extension's adjacency may be to a relation with properties](mbse:mbse-schemas/python3/tests/28_Extensions.ipynb#EXT-06) · TypeScript: [EXT-06: An extension's adjacency may be to a relation with properties](mbse:mbse-schemas/typescript5/tests/28_Extensions.ipynb#EXT-06)
 - **Validate when you are done.** Building never validates, so a schema may be incomplete between steps;
   `schema.validate()` lists its problems.
   - Python: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/python3/tutorials/01_A_Contact_Card.ipynb#T01.2) · TypeScript: [T01.2: Checking the schema, when you ask](mbse:mbse-schemas/typescript5/tutorials/01_A_Contact_Card.ipynb#T01.2)

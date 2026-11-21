@@ -333,6 +333,19 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    CAP-142. A frame given back carries none of the entries its specs matched.
 4. **CAP-318 is in no initiative.** [Initiatives](https://github.com/pitaman71/mbse-basis/blob/main/proposals/PRIORITIES.md) lists none that holds it, so that this proposal is headed by
    none.
+5. **A callback in a spec that reads a property is recorded, never evaluated against each candidate, and silently
+   matches nothing.** Measured on 0.35.0, in a map over three union schemas, `flat` set true, set false and never set:
+   `_.s.flat(lambda x: x.get() is not True)` matches none of them, where `_.s.flat(False)` matches the two not flat
+   (`flat` never set reads as false) and `_.s.flat(True)` the one. `store.transaction` takes a callback that builds an
+   expression, and the expression is built as data before it runs: a spec's callbacks run once, against the recording
+   visitors (`Transactions._Frame`, `_Recorder`, `_RecordedProperty`), and what they set is recorded
+   (`Mutations.OfPattern`); `x.get()` read the recording's own value, `None`, once, and `Proxies._visit` drops a
+   callback's return value. It type-checks, since `Specs.Callback` is `Union[object, Callable[[V], V]]`, and nothing
+   refuses it. In the user's terms, a predicate evaluated against each candidate as the store executes is coupled code
+   (the transducer mutation kind, not undertaken now); as data, it is an expression
+   ([CAP-142: expressions evaluated in queries](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/CAP-142.md)). Until then, what is to be fixed is that it is silent: a callback in a spec
+   that returns other than the visitor it is given, or reads a value it did not set, could be refused when the spec is
+   built. Found by mbse-codegen-python's port, stage 1.
 
 ---
 

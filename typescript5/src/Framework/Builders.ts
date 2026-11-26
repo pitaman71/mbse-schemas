@@ -563,9 +563,35 @@ class AdjacencyMember extends Shelled {
   }
 
   _replace(index: number, referent: unknown): void {
+    if (this._members instanceof Extension) { // an entry relinked keeps its properties
+      const entries = this._entries();
+      entries[index] = [referent, (entries[index] as Held)[1]];
+      this._put(entries);
+      return;
+    }
     const referents = this._held();
     referents[index] = referent;
     this._store(referents);
+  }
+
+  /** An extension's entries, each what it links and its properties' values (`Extension.entries`). */
+  _entries(): Held[] {
+    return (this._members as Extension).entries(this._builder._working);
+  }
+
+  _put(entries: Held[]): void {
+    (this._members as Extension).put(this._builder._working, entries);
+    this._builder._written.push(this._members);
+  }
+
+  /** Adds an extension's entry, linking `referent`, with its properties' `values`: elided where one held links it with
+   * equal values, as a relation holding a set elides it (CAP-117). */
+  _add(referent: unknown, values: Map<string, unknown>): void {
+    const finalized: Map<string, unknown> = Proxies._finalized(values);
+    const entries = this._entries();
+    if (!entries.some(([held, heldValues]) => held === referent && sameValues(heldValues, finalized))) {
+      this._put([...entries, [referent, finalized]]);
+    }
   }
 
   as_schema(): any {
@@ -574,6 +600,9 @@ class AdjacencyMember extends Shelled {
   }
 
   [Symbol.iterator](): Iterator<any> {
+    if (this._members instanceof Extension) {
+      return this._entries().map(([referent, values], index) => makeEntry(this, index, referent, values))[Symbol.iterator]();
+    }
     return this._held().map((referent, index) => makeEntry(this, index, referent))[Symbol.iterator]();
   }
 
@@ -583,7 +612,8 @@ class AdjacencyMember extends Shelled {
   }
 
   /** Adds an entry, linking a referent: given to the entry's link, or built through it; an entry linking a referent
-   * held is elided. Where the adjacency holds at most one entry, it must be removed before another. */
+   * held is elided, an extension's where its properties are equal too (CAP-117). Where the adjacency holds at most one
+   * entry, it must be removed before another. */
   insert(spec: unknown): any {
     this._builder._check();
     const proxy = makeEntry(this, null, null);
@@ -593,6 +623,7 @@ class AdjacencyMember extends Shelled {
     } else if (innerOf(spec) instanceof Entry) {
       entry._referent = innerOf(spec)._referent;
       entry._name = innerOf(spec)._name;
+      entry._values = new Map(innerOf(spec)._values);
     } else {
       throw new TypeError(`an entry, or a callback taking one, is expected; got ${repr(spec)}`);
     }
@@ -601,6 +632,10 @@ class AdjacencyMember extends Shelled {
       return this._proxy;
     }
     if (entry._referent === null) throw new ValueError(`link ${repr(this._members.link)} is not set`);
+    if (this._members instanceof Extension) {
+      this._add(entry._referent, entry._values);
+      return this._proxy;
+    }
     if (this._members.keyed && entry._name !== null) this._members.rename(this._builder._working, entry._referent, entry._name);
     const held = this._held();
     if (held.some((referent) => referent === entry._referent)) return this._proxy;
@@ -624,6 +659,10 @@ class AdjacencyMember extends Shelled {
       template = innerOf(spec);
     } else {
       throw new TypeError(`an entry, or a callback taking one, is expected; got ${repr(spec)}`);
+    }
+    if (this._members instanceof Extension) {
+      this._put(this._entries().filter(([referent, values]) => !template._agrees(referent, values)));
+      return this._proxy;
     }
     this._store(this._held().filter((referent) => !template._agrees(referent)));
     return this._proxy;
@@ -656,12 +695,14 @@ class AdjacencyMember extends Shelled {
       item = Proxies._deref(item);
       let referent: any;
       let name: string | null;
+      let values = new Map<string, unknown>(); // an extension's entry's properties (CAP-117)
       if (innerOf(item) instanceof Entry) {
-        [referent, name] = [innerOf(item)._referent, innerOf(item)._name];
+        [referent, name, values] = [innerOf(item)._referent, innerOf(item)._name, innerOf(item)._values];
       } else if (isFunction(item)) { // every relation between schema objects has two links: the peer shorthand
         const them = new Them(this);
         visit(item, shell(them));
         [referent, name] = them._result();
+        values = them._entry._values;
       } else if (this._members.accepts(item)) {
         [referent, name] = [item, null];
       } else {
@@ -673,6 +714,10 @@ class AdjacencyMember extends Shelled {
         continue;
       }
       checkHeld(this._builder, this._members.link, referent);
+      if (this._members instanceof Extension) {
+        this._add(referent, values);
+        continue;
+      }
       if (this._members.keyed && name !== null) this._members.rename(this._builder._working, referent, name);
       const held = this._held();
       if (held.some((other) => other === referent)) continue;
@@ -717,8 +762,9 @@ class AdjacencyMember extends Shelled {
   }
 }
 
-/** `Visitors.OfEntry`: one entry of an adjacency. Its link to the referent is a member (`e.property`); the link to the
- * schema object being built is filled by the adjacency. */
+/** `Visitors.OfEntry`: one entry of an adjacency. Its link to the referent is a member (`e.property`), and so is each
+ * property of an extension's relation's entries (`e.after`, [CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md)); the link to the schema
+ * object being built is filled by the adjacency. */
 class Entry extends Shelled {
   readonly [TYPE_NAME] = "_Entry";
   /** What the callback that built the referent wrote. */
@@ -727,9 +773,13 @@ class Entry extends Shelled {
   _name: string | null = null;
   /** The fields of a record written, and its link, as `link`. */
   readonly _fields = new Set<string>();
+  /** An extension's entry's properties' values (CAP-117). */
+  _values: Map<string, unknown>;
 
-  constructor(readonly _adjacency: AdjacencyMember, readonly _index: number | null, public _referent: any) {
+  constructor(readonly _adjacency: AdjacencyMember, readonly _index: number | null, public _referent: any,
+    values: Map<string, unknown> | null = null) {
     super();
+    this._values = new Map(values ?? []);
     const members = _adjacency._members;
     if (_referent === null && members instanceof Records) {
       this._referent = new members.record(); // a record of nothing yet, written in place until it is inserted
@@ -754,11 +804,36 @@ class Entry extends Shelled {
   override _member(name: string): unknown {
     const members = this._adjacency._members;
     if (name === members.link) return callable(new Link(this));
+    const prop = this._property(name);
+    if (prop !== null) return this._extensionProperty(name, prop);
     const records = this._records();
     if ((name === "name" && members.keyed) || (records !== null && records.fields.includes(name))) {
       return callable(new EntryField(this, name));
     }
     return makeEmpty(`${repr(name)} is not a link this entry can set, nor a property of the relation`);
+  }
+
+  /** A property of an extension's relation's entries, by name; null where there is none. */
+  _property(name: string): any {
+    const members = this._adjacency._members;
+    return members instanceof Extension ? members.relation.entry.properties.get(name) ?? null : null;
+  }
+
+  /** `Visitors.OfProperty` over a property of an extension's entry, as a proxy's entry builder has it: of an entry held,
+   * through a writable builder, the values the builder's working copy holds, so that a write is the builder's
+   * (CAP-117). */
+  _extensionProperty(name: string, prop: any): unknown {
+    const adjacency = this._adjacency;
+    const builder = adjacency._builder;
+    if (this._index !== null && builder._writable) {
+      const entries = adjacency._entries();
+      (adjacency._members as Extension).put(builder._working, entries);
+      this._values = (entries[this._index] as Held)[1];
+    }
+    const written = this._index === null ? null : () => {
+      builder._written.push(adjacency._members);
+    };
+    return Proxies._makeProperty(this._values, name, prop, builder._store, this._proxy, builder._writable, written);
   }
 
   /** A property of the entry: its name, or a field of its record. */
@@ -816,7 +891,13 @@ class Entry extends Shelled {
     if (this._index !== null) this._adjacency._replace(this._index, referent); // an entry held: linked in its place
   }
 
-  _agrees(referent: any): boolean {
+  _agrees(referent: any, values: Map<string, unknown> | null = null): boolean {
+    if (this._adjacency._members instanceof Extension) { // what it links, if set, and each property written agree
+      const held = values as Map<string, unknown>;
+      return (this._referent === null || referent === this._referent)
+        && [...(Proxies._finalized(this._values) as Map<string, unknown>)].every(([name, value]) =>
+          held.has(name) && Proxies.scalarKey(held.get(name)) === Proxies.scalarKey(value));
+    }
     if (this._records() !== null) { // each field written, and the schema linked, agree; an entry held, itself
       if (this._index !== null) return referent === this._referent;
       const link = this._adjacency._members.link;
@@ -839,8 +920,9 @@ function sameItems(held: readonly unknown[], wanted: readonly unknown[]): boolea
   return held.length === wanted.length && held.every((item, i) => same(item, wanted[i]));
 }
 
-function makeEntry(adjacency: AdjacencyMember, index: number | null, referent: unknown): any {
-  return shell(new Entry(adjacency, index, referent));
+function makeEntry(adjacency: AdjacencyMember, index: number | null, referent: unknown,
+  values: Map<string, unknown> | null = null): any {
+  return shell(new Entry(adjacency, index, referent, values));
 }
 
 /** `Visitors.OfProperty` over a property of an entry: its name, the one property of a keyed adjacency's entries, or a
@@ -926,7 +1008,7 @@ class Them extends Shelled {
 
   override _member(name: string): unknown {
     const members = this._entry._adjacency._members;
-    if (name === members.link || (name === "name" && members.keyed)
+    if (name === members.link || (name === "name" && members.keyed) || this._entry._property(name) !== null
       || (members instanceof Records && members.fields.includes(name))) {
       return callable(new Chained(this._entry._proxy[name], this, name === members.link));
     }
@@ -1114,13 +1196,14 @@ class ValueProp extends Prop {
 }
 
 /** The link an extension's adjacency reaches through, the one of its relation's two that is not `me`; refused where
- * the relation has other than two links, or properties. */
+ * the relation has other than two links, which [CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md) leaves open. Its
+ * entries may have properties (CAP-117). */
 function extensionOther(adjacency: S.OfAdjacency.Data): string {
   const relation = adjacency.relation as S.OfRelation.Data;
   const links = [...relation.entry.links.keys()];
-  if (links.length !== 2 || relation.entry.properties.size > 0) {
-    throw new TypeError(`an extension's adjacency ${repr(adjacency.name as string)} is to a relation of two links and no `
-      + `properties, got ${repr(relation.name)}`);
+  if (links.length !== 2) {
+    throw new TypeError(`an extension's adjacency ${repr(adjacency.name as string)} is to a relation of two links, got `
+      + `${repr(relation.name)} of ${links.length}`);
   }
   return links.find((link) => link !== adjacency.me) as string;
 }
@@ -1136,36 +1219,57 @@ function checkExtensions(store: Store, before: Map<unknown, Set<string>>): void 
   }
 }
 
+/** An extension's entry: what it links at its other end, and its properties' values. */
+type Held = [any, Map<string, unknown>];
+
+/** Whether two entries' properties are equal: the same names, each value equal by its schema (CAP-111). */
+function sameValues(a: Map<string, unknown>, b: Map<string, unknown>): boolean {
+  return a.size === b.size && [...a].every(([name, value]) => b.has(name)
+    && Proxies.scalarKey(b.get(name)) === Proxies.scalarKey(value));
+}
+
 /** An adjacency an extension added to a meta-schema: its entries are shared with the objects they link, as a proxy's
- * are, each held in the index of every object it links (Proxies' `addEntry`). A builder writes the objects it links to
- * its working copy; finalized, the schema object's entries are made to agree with them. */
-function extensionAdjacency(adjacency: S.OfAdjacency.Data): Members {
-  const relation = adjacency.relation as S.OfRelation.Data;
-  const me = adjacency.me as string;
-  const name = adjacency.name as string;
-  const other = extensionOther(adjacency);
-  const member = new Members(other, {
-    accepts: () => true,
-    extensible: true,
-    items: (data, store: unknown = null) => { // a framework schema's entries are its store's
-      const pending: Map<string, any[]> | undefined = data._pending;
-      if (pending?.has(name)) return [...(pending.get(name) as any[])];
-      const holder = store ?? _heldBy(data) ?? null;
-      if (holder === null) return []; // a schema object no store holds yet, which links nothing
-      return Proxies._linking(relation, me, data, holder).map((entry: any) => innerOf(entry)._links.get(other));
-    },
-    store: (data, referents) => {
-      hidden(data, "_pending").set(name, [...referents]);
-    },
-  });
-  member.extension = [relation, me, other];
-  return member;
+ * are, each held in the index of every object it links (Proxies' `addEntry`), so that both ends see one entry. Its
+ * relation has two links, the schema object's (`me`) and the other, and may have properties
+ * ([CAP-117: extension adjacencies to any relation](mbse:mbse-basis/docs/capabilities/CAP-117.md)): an entry is what it links and its properties' values (`entries`). A builder writes them
+ * to its working copy (`put`); finalized, the schema object's entries are made to agree with them (`settlePending`). */
+class Extension extends Members {
+  readonly relation: S.OfRelation.Data;
+  readonly me: string;
+
+  constructor(adjacency: S.OfAdjacency.Data) {
+    const other = extensionOther(adjacency);
+    super(other, {
+      accepts: () => true,
+      extensible: true,
+      items: (data, store: unknown = null) => this.entries(data, store).map(([referent]) => referent),
+      store: (data, referents) => this.put(data, referents.map((referent): Held => [referent, new Map()])),
+    });
+    this.relation = adjacency.relation as S.OfRelation.Data;
+    this.me = adjacency.me as string;
+    this.extension = [this.relation, this.me, other];
+  }
+
+  /** Its entries, each what it links and its properties' values: those its builder wrote, else those held, in the store
+   * given, else the one holding it (a framework schema's entries are its store's). */
+  entries(data: any, store: unknown = null): Held[] {
+    const pending: Map<string, Held[]> | undefined = data._pending;
+    if (pending?.has(this.name)) return [...(pending.get(this.name) as Held[])];
+    const holder = store ?? _heldBy(data) ?? null;
+    if (holder === null) return []; // a schema object no store holds yet, which links nothing
+    return Proxies._linking(this.relation, this.me, data, holder).map((entry: any): Held =>
+      [innerOf(entry)._links.get(this.link), new Map(innerOf(entry)._properties)]);
+  }
+
+  put(data: any, entries: Held[]): void {
+    hidden(data, "_pending").set(this.name, [...entries]);
+  }
 }
 
 /** Makes a schema object's entries in the relations an extension added agree with what its builder wrote, in its
  * builder's store. */
 function settleExtended(data: any, store: unknown): any {
-  const pending: Map<string, any[]> | undefined = data._pending;
+  const pending: Map<string, Held[]> | undefined = data._pending;
   if (pending === undefined) return data;
   settlePending(data, pending, store);
   pending.clear();
@@ -1173,19 +1277,22 @@ function settleExtended(data: any, store: unknown): any {
 }
 
 /** Makes a schema object's entries in the relations an extension added agree with `pending`, what a builder wrote to
- * them, by adjacency. */
-function settlePending(data: any, pending: Map<string, any[]> | undefined, store: unknown): void {
+ * them, by adjacency: each an entry's other end and its properties' values. An entry held that agrees with none is
+ * removed, and one written that none held agrees with added (CAP-117). */
+function settlePending(data: any, pending: Map<string, Held[]> | undefined, store: unknown): void {
   if (pending === undefined) return;
   const added = (store as Store)._added.get(builderFor(data) as unknown as typeof Builder) as Table;
-  for (const [name, referents] of pending) {
+  for (const [name, entries] of pending) {
     const [relation, me, other] = (added.get(name) as Members).extension as [S.OfRelation.Data, string, string];
+    const wanted = entries.map(([referent, values]) =>
+      Proxies._make_entry(relation, new Map([[me, data], [other, referent]]), values));
+    const value = (entry: any): string => innerOf(entry)._value();
+    const values = new Set(wanted.map(value));
     const held = Proxies._linking(relation, me, data, store);
-    const linked = (entry: any) => innerOf(entry)._links.get(other);
-    Proxies._discard(relation, held.filter((entry: any) => referents.every((referent) => linked(entry) !== referent)), store);
-    for (const referent of referents) {
-      if (held.every((entry: any) => linked(entry) !== referent)) {
-        Proxies._add_entry(relation, Proxies._make_entry(relation, new Map([[me, data], [other, referent]]), new Map()), store);
-      }
+    Proxies._discard(relation, held.filter((entry: any) => !values.has(value(entry))), store);
+    const kept = new Set(held.map(value));
+    for (const entry of wanted) {
+      if (!kept.has(value(entry))) Proxies._add_entry(relation, entry, store);
     }
   }
 }
@@ -1203,7 +1310,7 @@ function extendBuilders(store: Store, before: Map<unknown, [Set<string>, Set<str
       if (!properties.has(name) && !builderClass._table.has(name)) members.push([name, extensionProperty(prop)]);
     }
     for (const [name, adjacency] of meta.adjacencies) {
-      if (!adjacencies.has(name) && !builderClass._table.has(name)) members.push([name, extensionAdjacency(adjacency)]);
+      if (!adjacencies.has(name) && !builderClass._table.has(name)) members.push([name, new Extension(adjacency)]);
     }
     for (const [name, member] of members) {
       member._bind(name);
@@ -1264,7 +1371,9 @@ abstract class Builder extends Shelled {
     for (const [name, value] of Object.entries(source)) target[name] = copied(value);
     for (const member of this._table().values()) { // the members an extension added, which no field holds
       if (member instanceof Prop && member.extension) member.put(target, copied(member.get(source)));
-      else if (member instanceof Members && member.extension !== null) member.store(target, member.items(source, this._store));
+      else if (member instanceof Extension) { // each entry's properties its own, which a write changes in place
+        member.put(target, member.entries(source, this._store).map(([referent, values]): Held => [referent, new Map(values)]));
+      }
     }
   }
 

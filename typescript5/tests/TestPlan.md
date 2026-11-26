@@ -65,7 +65,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `25_Builders.ipynb` | BLD | 13 | as in Python; builders, their members and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; a name starting with `_` reads as `undefined` on a visitor, and throws `AttributeError` on the store and its paths, whose protocol probes read as `undefined`; a path's `as_schema()` gives the schema it names; a map is given as a `Map` or a record; a schema object in a message is `<ScalarData object>`; a few assertions cover TypeScript's branches (a clause of one name beside a clause of several, removing by a template of container properties, a meta-schema missing, a link given a link, a term of a dialect, a refinement's own index, an argument for an undeclared parameter, an unnamed relation of three links, a visitor's default `repr`) |
 | `26_Mutations.ipynb` | MUT | 6 | as in Python; a link's `def` is spelt `.def`, which Python reaches through `getattr`; plain mappings are `Map`s, ints `bigint`s, and `Mutations.SCHEMAS` is an array |
 | `27_Snapshots.ipynb` | SNP | 5 | as in Python; builders and the store's paths are `Proxy` objects typed loosely, so callbacks are annotated `(t: any)`; plain mappings are `Map`s, ints `bigint`s; a snapshot written again is compared as its JSON text, `unique` clauses as sorted lists |
-| `28_Extensions.ipynb` | EXT | 5 | as in Python |
+| `28_Extensions.ipynb` | EXT | 6 | as in Python |
 | `29_Identity.ipynb` | IDN | 8 | as in Python |
 | `30_Patterns.ipynb` | PAT | 4 | as in Python; schema data compares by `.equals()` |
 | `31_Transactions.ipynb` | TXN | 23 | as in Python; a mapping is a `Map` or a record, ints `bigint`s; a frame a `Transactions.Frame`, a `Map`, its error raised carrying it in `frames`; TXN-03 checks that the store holds a term's pattern, but not that it goes with its transaction, since a test cannot force a collection (the store holds such objects in a `WeakSet`); TXN-15 cannot force a collection either, nor reuse an object's memory: it checks that every schema object the transaction made is changed at once, which this store has always done, numbering what it holds |
@@ -79,7 +79,7 @@ use fast-check with a fixed seed and 200 runs per property (Hypothesis in Python
 | `39_Contexts.ipynb` | CTX | 4 | as in Python |
 | `40_Layers.ipynb` | LAY | 5 | as in Python; the base class is an abstract class whose constructor refuses being called for it, and its hooks are absent from its prototype and present on `InMemory`'s (LAY-01), where Python's is an `abc.ABC` whose `__abstractmethods__` are the hooks; the test layer's `savepoint(body, journal, changed)` a function, its transaction `layer.transaction((txn) => ...)` |
 
-Total: 367 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
+Total: 368 cases, the sum of the rows above, with the same IDs in the same order as the Python suites, SKL-02 retired. Python's DC suite tests its dataclasses
 adapter, which has no TypeScript counterpart (see `docs/EQUIVALENCE.md`).
 
 ## Language differences

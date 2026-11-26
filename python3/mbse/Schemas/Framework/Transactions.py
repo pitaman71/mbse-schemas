@@ -31,7 +31,9 @@ transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object
 `txn.exec(frame, remainder, allow_write)`, giving a stream of frames, a generator, and opening and committing no
 transaction of its own ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): each frame
 carries the id of its input frame, `scope`, and each input frame's frames end with its completion marker,
-`{"end": scope}`. Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
+`{"end": scope}`, which carries what the input frame changed. Each frame given back is its journal, a
+`Changes.Transaction`: its bindings, each object by its reference, and the state its path's clauses reference, read or
+written ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), `Frame`). Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
 empty frame. Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a
 symbol, or a term would write, the frame halts, given as bound so far, carrying its `remainder`; the same transaction
 completes it, writing, as the loopback of a store with no layer below. A partition keeps its join: the rest of a branch
@@ -570,30 +572,31 @@ class Frame(dict[str, Any]):
     """A frame: the objects its symbols bind, by symbol; and its `errors`, each what failed as a term processed it
     ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
 
-    One `store.transaction` or `txn.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every
-    read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a
-    value that outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by
-    symbol, the values the transaction left in the properties its terms' specs name for it, as data, harvested within
-    it. A counted object has no reference: the frame refuses it, its symbol read raising `LookupError`, and assigns
-    nothing of it.
+    One `store.transaction` or `txn.exec` gives back is its `journal` ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318),
+    as the user decided: "frames contained journals which contained changes"): a `Changes.Transaction`, a value that
+    outlives the transaction, whose `symbols` are the frame's bindings, each a `Changes.Symbol`, an object by its
+    reference, a schema object by its reference from the root module (`References.OfSchema`'s path), and whose `changes`
+    are the state its path's clauses reference, read or written alike: each property a clause of the term that made it,
+    or of an ancestor of that term, names of an object a symbol binds, set to the value it holds, or cleared where it
+    holds none; and each relation entry such a clause names that is held, inserted, with its properties. Nothing else:
+    the schema is not consulted for more, and a sibling branch's clauses are not on its path. Its id is the
+    transaction's uid and the frame's position in the stream (`uid#n`). Its bindings, by symbol, are read from its
+    journal, each symbol's reference, as data (`frame["ada"]`), holding no visitor ([CAP-315: every read within a
+    transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). A counted object, or one the transaction deleted, has no reference: it is left out of
+    the journal, and the frame refuses it, its symbol read raising `LookupError`, `References.of` writing it as an
+    error annotated on the frame.
 
     One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
     unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); None where it
-    is complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one.
-
-    And its `journal`: the changes made in interpreting its input frame, as a `Changes.Journal` of one transaction,
-    whose symbols are its own, its id the transaction's uid and the frame's position in the stream (`uid#n`), carried
-    by the first frame the input frame gives, so that applying each frame's journal by `Changes.apply` applies each
-    change once, the counted objects of each frame apart; None where it carries none
-    ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below))."""
+    is complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one. A frame the interpreter makes as it
+    walks the terms binds the objects themselves, and carries no journal."""
 
     def __init__(self, bound: Mapping[str, Any] | None = None, errors: Iterable[FrameError] = (),
-                 assigns: Mapping[str, Mapping[str, Any]] | None = None, remainder: Remainder | None = None,
-                 scope: str | None = None, journal: Any = None):
+                 remainder: Remainder | None = None, scope: str | None = None, journal: Any = None):
         super().__init__(bound or {})
         self.errors: list[FrameError] = list(errors)
-        self.assigns: dict[str, dict[str, Any]] = {name: dict(values) for name, values in (assigns or {}).items()}
         self.remainder, self.scope, self.journal = remainder, scope, journal
+        self._trail: tuple[Any, ...] = ()  # the terms that made it, in order, within the layer that walks them
 
     def __getitem__(self, name: str) -> Any:
         found = super().__getitem__(name)
@@ -687,6 +690,53 @@ def _term_at(transaction: Any, at: tuple[str | int, ...]) -> Any:
     return term
 
 
+def _ancestors(transaction: Any, at: tuple[str | int, ...]) -> tuple[Any, ...]:
+    """The terms before the term at `at` on its path in a transaction's expression, from its root: what a frame given
+    with a remainder at `at` went through, derived from the expression and the remainder's position alone, so that
+    nothing more is carried with a frame (CAP-318)."""
+    terms: list[Any] = []
+    term, step = transaction, 0
+    while step < len(at):
+        if at[step] == "branches":
+            term = list(term.branches)[at[step + 1]].branch
+            step += 2
+        else:
+            term = _next(term, str(at[step]))
+            step += 3
+        terms.append(term)
+    return tuple(terms[:-1])
+
+
+def _chain(term: Any) -> tuple[Any, ...]:
+    """A term and those after it through `then`, to the end of its chain: what the rest of a branch executed below went
+    through, a partition within it as itself."""
+    terms: list[Any] = []
+    while term is not None:
+        terms.append(term)
+        term = _next(term, "then")
+    return tuple(terms)
+
+
+def _on(frames: list[Frame], origin: Frame, term: Any = None) -> list[Frame]:
+    """`frames`, made of `origin` by `term`, each with `origin`'s path and, where given, `term` after it."""
+    trail = origin._trail if term is None else (*origin._trail, term)
+    for frame in frames:
+        frame._trail = trail
+    return frames
+
+
+def _is_reference(store: Any, value: Any) -> bool:
+    """Whether a value is an object's reference of `store`'s: a `References.OfObject`, or a schema object's,
+    `References.OfSchema`, which refines it."""
+    return isinstance(value, Proxies._RecordData) and S.is_a(value._schema, store.registered("References.OfObject"))
+
+
+def _identified(store: Any, journal: Any, uid: str) -> Any:
+    """A frame's journal, a `Changes.Transaction`, with its id `uid`."""
+    schema = store.registered("Changes.Transaction")
+    return Plain.FromPlain(store)(schema, {**Plain.ToPlain(store)(schema, journal), "id": uid})
+
+
 class Transaction:
     """The transaction open on a layer, an object of its own, which `with store.transaction() as txn:` gives: a first
     piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md), holding the transaction, and executing expressions within it
@@ -697,6 +747,7 @@ class Transaction:
     def __init__(self, interpreter: Interpreter, life: Any):
         self._interpreter, self._life = interpreter, life
         self._given: list[Frame] = []  # every frame its `exec` gave, in order
+        self._count = 0  # how many items its `exec` gave, frames and markers: the next one's position
 
     def exec(self, frame: Any, remainder: Any, allow_write: bool) -> Iterator[Any]:
         """Executes the suffix of a transaction's expression over input frames, within this transaction, giving a
@@ -733,18 +784,17 @@ class Transaction:
 class _Run:
     """What executing a transaction over one input frame keeps: whether it writes (`write`), else interprets read-only,
     halting; the frames a term failed to process (`failed`) and those that halted (`halted`), each carrying its
-    remainder; the properties the specs name, by symbol (`named`); the input frame's id (`scope`); and how many
-    branches it sent below (`sent`), each a scope of its own."""
+    remainder; the input frame's id (`scope`); and how many branches it sent below (`sent`), each a scope of its own."""
 
-    def __init__(self, transaction: Any, write: bool, named: dict[str, list[str]], scope: str | None, sent: Any = None):
-        self.transaction, self.write, self.named, self.scope = transaction, write, named, scope
+    def __init__(self, transaction: Any, write: bool, scope: str | None, sent: Any = None):
+        self.transaction, self.write, self.scope = transaction, write, scope
         self.sent = itertools.count() if sent is None else sent
         self.failed: list[Frame] = []
         self.halted: list[Frame] = []
 
     def arm(self) -> _Run:
         """The run of a branch of a partition: its own halted frames, which the partition joins; the rest shared."""
-        run = _Run(self.transaction, self.write, self.named, self.scope, self.sent)
+        run = _Run(self.transaction, self.write, self.scope, self.sent)
         run.failed = self.failed
         return run
 
@@ -884,33 +934,6 @@ def _meta(store: Any, schema: Any) -> bool:
     """Whether `schema` is a meta-schema: its objects are schema objects (`Schemas.OfObject`, ...), written by their
     builders (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided))."""
     return store._meta_builder(store.name_of(schema)) is not None
-
-
-def _named(store: Any, transaction: Any) -> dict[str, list[str]]:
-    """The properties a transaction's specs name, by symbol, in order, through every term: what the frames it gives
-    assign, wherever in it a frame is executed, so that the frames a layer below gives back of the rest of an
-    expression assign what the whole expression names."""
-    named: dict[str, list[str]] = {}
-    terms = [_next(transaction, "mutations")]
-    while terms:
-        term = terms.pop(0)
-        if term is None:
-            continue
-        kind = _kind(store, term)
-        if kind in ("map", "upsert", "update"):
-            for pattern in (entry.pattern for entry in getattr(term, {"map": "symbols", "upsert": "exists",
-                                                                     "update": "apply"}[kind])):
-                for symbol, items in _members(pattern).items():
-                    names = named.setdefault(symbol, [])
-                    names += [body["name"] for item in items for kind_, body in item.items()
-                              if kind_ == "as_property" and body["name"] not in names]
-        elif kind == "partition":
-            terms += [entry.branch for entry in term.branches] + [_next(term, "none")]
-        elif kind == "branch":
-            terms.append(_next(term, "then"))
-            continue
-        terms.append(_next(term, "then"))
-    return named
 
 
 def _writes_schemas(store: Any, transaction: Any) -> bool:
@@ -1066,10 +1089,11 @@ class Interpreter(abc.ABC):
         """An entry's links and properties `names`, as a message shows them."""
 
     @abc.abstractmethod
-    def given(self, target: Any, names: Iterable[str]) -> tuple[Any, dict[str, Any]]:
-        """What a frame given back binds for an object, and assigns of it ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its
+    def given(self, target: Any) -> Any:
+        """What a frame given back binds for an object ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its
         reference, a `References.OfObject`, a value that outlives the transaction (a schema object as itself), or a
-        `Refused` where it has none; and the values it holds of its properties `names`, as data."""
+        `Refused` where it has none. Its journal's state is read through the hooks that read (`value`, `entries`,
+        `link`, `schema_of`), and written in the journal language (`Changes.state`)."""
 
     # --- What a layer gives: its writes, which the interpreter makes only writing (`_written`) ---
 
@@ -1138,44 +1162,43 @@ class Interpreter(abc.ABC):
     def _exec(self, txn: Transaction, given: Any, remainder: Remainder, write: bool) -> Iterator[Any]:
         """`txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds: each input frame, as it
         arrives, extended through `remainder`, its frames given as they are made of it, then `{"end": scope}`, `scope` its
-        id. Each given back holds references and assignments (CAP-315), carries its input frame's id, `scope`, and, where
-        it halted read-only, its `remainder`. An error a term meets processing a frame is annotated on it (CAP-309). An
-        error of no one frame is raised, its `frames` every frame the transaction gave, and those made of the input frame
-        it arose processing. What each input frame changed, a savepoint's, is carried by its first frame, else by its
-        completion marker, as a one-transaction journal whose id is the transaction's uid and the frame's position."""
-        from . import Changes
-
+        id. Each given back is its journal (CAP-318, `_given_back`), whose id is the transaction's uid and the frame's
+        position in the stream, carries its input frame's id, `scope`, and, where it halted read-only, its `remainder`.
+        An error a term meets processing a frame is annotated on it (CAP-309). An error of no one frame is raised, its
+        `frames` every frame the transaction gave, and those made of the input frame it arose processing. What each
+        input frame changed, a savepoint's, is carried by its completion marker, where it changed anything, as a
+        `Changes.Transaction` whose id is the transaction's uid and the marker's position: what a frame's journal does
+        not hold, a removal, or a write to a frame that a later term dropped, among it."""
         inputs = [given] if isinstance(given, Mapping) else given  # a frame, or a stream of them, consumed as it arrives
         made: list[Frame] = []
         try:
-            named = _named(self.store, remainder.transaction)
             for index, frame in enumerate(inputs):
                 txn._open()
                 scope = str(index) if getattr(frame, "scope", None) is None else frame.scope
-                with self.savepoint(lambda: f"{self.uid()}#{len(txn._given)}") as changed:
-                    given_back = self._extended(remainder, frame, write, named, scope, made)
+                ahead: list[Frame] = []  # the frames given back, ahead of the marker in the stream
+                with self.savepoint(lambda: f"{self.uid()}#{txn._count + len(ahead)}") as changed:
+                    ahead += self._extended(remainder, frame, write, scope, made)
                 made = []
-                marker: dict[str, Any] = {"end": scope}
-                if changed and changed[0] is not None:  # carried by its first frame, else by its completion marker
-                    journal = Changes._journal(self.store, [changed[0]])
-                    if given_back:
-                        given_back[0].journal = journal
-                    else:
-                        marker["journal"] = journal
-                for item in given_back:
+                for item in ahead:
+                    item.journal = _identified(self.store, item.journal, f"{self.uid()}#{txn._count}")
+                    txn._count += 1
                     txn._given.append(item)
                     yield item
+                marker: dict[str, Any] = {"end": scope}
+                if changed and changed[0] is not None:
+                    marker["journal"] = changed[0]
+                txn._count += 1
                 yield marker
         except Exception as error:
             error.frames = txn._given + made  # type: ignore[attr-defined]
             raise
 
-    def _extended(self, remainder: Remainder, frame: Mapping[str, Any], write: bool, named: dict[str, list[str]],
-                  scope: str, made: list[Frame]) -> list[Frame]:
+    def _extended(self, remainder: Remainder, frame: Mapping[str, Any], write: bool, scope: str,
+                  made: list[Frame]) -> list[Frame]:
         """The frames given back of one input frame, extended through `remainder`; `made` gathers them as made, for an
         error raised after."""
-        made += self._one(remainder, frame, write, named, scope)
-        return self._given_back(made, named, scope)
+        made += self._one(remainder, frame, write, scope)
+        return self._given_back(made, scope)
 
     def _execute(self, transaction: Any) -> list[Frame]:
         """Executes a transaction's expression over the layer, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its
@@ -1197,7 +1220,7 @@ class Interpreter(abc.ABC):
             if root is not None:
                 _check(self.store, root, set())
             with self.savepoint():
-                run = _Run(transaction, True, {}, None)
+                run = _Run(transaction, True, None)
                 made = [Frame()] if root is None else self._run(root, [Frame()], ("mutations", 0, _kind(self.store, root)),
                                                                 run)
                 made += run.failed
@@ -1210,24 +1233,62 @@ class Interpreter(abc.ABC):
             raise
         return made
 
-    def _given_back(self, frames: list[Frame], named: dict[str, list[str]], scope: str | None = None) -> list[Frame]:
-        """The frames a transaction gives back, made within it: each symbol's object by its reference, and what it
-        assigns, as data (CAP-315, `given`); each carrying `scope`, and its remainder where it halted."""
+    def _given_back(self, frames: list[Frame], scope: str | None = None) -> list[Frame]:
+        """The frames a transaction gives back, made within it, each its journal (CAP-318, `Frame`): its symbols, each
+        bound object by its reference (CAP-315, `given`), a counted one left out and refused; and the state its path's
+        clauses reference (`_referenced`), read through the layer's hooks and written in the journal language
+        (`Changes.state`). Its bindings are read from its journal; each carries `scope`, and its remainder where it
+        halted."""
+        from . import Changes
+
         given = []
         for frame in frames:
-            bound: dict[str, Any] = {}
-            assigns = {name: dict(values) for name, values in frame.assigns.items()}  # a layer below's, where it gave them
-            for symbol, target in dict.items(frame):
-                bound[symbol], held = self.given(target, named.get(symbol, ()))
-                if held:
-                    assigns.setdefault(symbol, {}).update(held)
-            given.append(Frame(bound, frame.errors, assigns, frame.remainder, scope))
+            references = {symbol: self.given(target) for symbol, target in dict.items(frame)}
+            properties, entries = self._referenced(frame, references)
+            journal = Changes.state(self, {symbol: (dict.__getitem__(frame, symbol), reference)
+                                           for symbol, reference in references.items()}, properties, entries)
+            bound = Changes._bindings(journal)
+            given.append(Frame({symbol: bound.get(symbol, reference) for symbol, reference in references.items()},
+                               frame.errors, frame.remainder, scope, journal))
         return given
+
+    def _referenced(self, frame: Frame, references: dict[str, Any]) -> tuple[list[tuple[str, str]],
+                                                                               list[tuple[str, str, Any]]]:
+        """The state a frame's path's clauses reference (CAP-318): of each term that made it, and each ancestor of that
+        term (`_trail`), each a map, an upsert or an update, the properties each clause names of an object a symbol
+        binds that has a reference, `(symbol, name)`, and the relation entries it names on an adjacency of one that are
+        held, `(symbol, adjacency, entry)`, an entry's that links a symbol the frame does not bind, or one refused, left
+        out. The schema is not consulted for more."""
+        properties: dict[tuple[str, str], None] = {}
+        entries: list[tuple[str, str, Any]] = []
+        data = {symbol for symbol, reference in references.items()
+                if _is_reference(self.store, reference) and reference is not dict.__getitem__(frame, symbol)}
+        for term in frame._trail:
+            kind = _kind(self.store, term)
+            if kind not in ("map", "upsert", "update"):
+                continue
+            pattern = _pattern(term, {"map": "symbols", "upsert": "exists", "update": "apply"}[kind], kind)
+            for symbol, items in _members(pattern).items():
+                if symbol not in data:
+                    continue
+                target = dict.__getitem__(frame, symbol)
+                schema = self.schema_of(target)
+                properties.update(dict.fromkeys((symbol, body["name"]) for item in items
+                                                for kind_, body in item.items() if kind_ == "as_property"))
+                for body in (body for item in items for kind_, body in item.items() if kind_ == "as_adjacency"):
+                    relation = schema.adjacencies[body["name"]].relation
+                    held = self.entries(target, schema, body["name"])
+                    for _, specs in _verbs(body):
+                        for spec in specs:
+                            if any(ref["symbol"] not in data for ref in _symbol_refs(spec)):
+                                continue
+                            entries += [(symbol, body["name"], entry) for entry in held
+                                         if self._matches(relation, entry, spec, frame)]
+        return list(properties), entries
 
     # --- The walk of the terms ---
 
-    def _one(self, remainder: Remainder, given: Mapping[str, Any], write: bool, named: dict[str, list[str]],
-             scope: str) -> list[Frame]:
+    def _one(self, remainder: Remainder, given: Mapping[str, Any], write: bool, scope: str) -> list[Frame]:
         """The frames one input frame gives, within the transaction open: those the remainder's chain ends with, then
         those that halted read-only, then those annotated with an error. A frame given annotated is given back as it
         is, executed no further; one whose reference designates nothing is annotated so, but where a cache layer
@@ -1238,15 +1299,17 @@ class Interpreter(abc.ABC):
             return [frame]
         term = _term_at(remainder.transaction, remainder.at)
         _check(self.store, term, set(frame))
-        run = _Run(remainder.transaction, write, named, scope)
+        run = _Run(remainder.transaction, write, scope)
         made = self._run(term, [frame], remainder.at, run)
         return made + run.halted + run.failed
 
     def _taken(self, given: Mapping[str, Any], remainder: Remainder, keep: bool = False) -> Frame:
         """An input frame, as the interpreter binds: each symbol's object by what its reference designates, a schema
         object or a layer's object as itself; annotated where one designates nothing, or is refused (CAP-309); `keep`,
-        a reference that designates nothing the layer holds kept as it is, unresolved (`_unresolved`)."""
-        frame = Frame(errors=getattr(given, "errors", ()), assigns=getattr(given, "assigns", None))
+        a reference that designates nothing the layer holds kept as it is, unresolved (`_unresolved`). Its path, the
+        terms before the remainder's, is derived from the expression and the remainder's position (`_ancestors`)."""
+        frame = Frame(errors=getattr(given, "errors", ()))
+        frame._trail = _ancestors(remainder.transaction, remainder.at)
         for name, value in given.items():  # a frame's as it holds them, a refused one's among them
             try:
                 frame[name] = self._bound(name, value)
@@ -1267,7 +1330,7 @@ class Interpreter(abc.ABC):
                 return value._target
             raise LookupError(f"symbol {name!r} of the frame: {value.message}")
         target = Proxies._deref(value)
-        if isinstance(target, Proxies._RecordData) and target._schema is self.store.registered("References.OfObject"):
+        if _is_reference(self.store, target):
             found = self.designated(Plain.ToPlain(self.store)(target._schema, target)["path"])
             if found is None:
                 raise _Absent()
@@ -1277,8 +1340,7 @@ class Interpreter(abc.ABC):
     def _unresolved(self, frame: Mapping[str, Any]) -> bool:
         """Whether a frame holds a reference that designates nothing the layer holds, which a cache layer's
         interpretation read-only kept (`_taken`): it halts at the next term, for the layer below to resolve."""
-        reference = self.store.registered("References.OfObject")
-        return any(isinstance(value, Proxies._RecordData) and value._schema is reference for value in dict.values(frame))
+        return any(_is_reference(self.store, value) for value in dict.values(frame))
 
     @contextlib.contextmanager
     def _read_only(self) -> Iterator[None]:
@@ -1299,8 +1361,8 @@ class Interpreter(abc.ABC):
     def _run(self, term: Any, frames: list[Frame], at: tuple[str | int, ...], run: _Run) -> list[Frame]:
         """The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those
         its chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added
-        to `run.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). `run.named` gathers, by symbol, the properties
-        the specs name, in order: what the frames given back assign.
+        to `run.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Each frame a term makes has that term on its
+        path (`Frame._trail`), after the terms of the frame it was made of: what its journal's state is read for.
 
         Read-only (`run.write` false), a term is interpreted over each frame within a savepoint, and where it would
         write, or a map finds nothing the layer holds to bind a symbol, the frame halts, added to `run.halted` with its
@@ -1311,16 +1373,12 @@ class Interpreter(abc.ABC):
         kind = _kind(store, term)
         if kind in ("map", "upsert", "update"):
             pattern = _pattern(term, {"map": "symbols", "upsert": "exists", "update": "apply"}[kind], kind)
-            for symbol, items in _members(pattern).items():
-                names = run.named.setdefault(symbol, [])
-                names += [body["name"] for item in items for kind_, body in item.items()
-                          if kind_ == "as_property" and body["name"] not in names]
             key = (store.member(term, "key") or self.uid()) if kind == "upsert" else None
             made: list[Frame] = []
             for frame in frames:
                 try:
                     if run.write:
-                        made += self._term(kind, pattern, frame, key, None)
+                        made += _on(self._term(kind, pattern, frame, key, None), frame, term)
                         continue
                     if self.cache and (kind != "map" or self._unresolved(frame)):
                         run.halt(frame, at)  # a cache layer's: what writes, or what it cannot resolve, the layer below
@@ -1328,12 +1386,12 @@ class Interpreter(abc.ABC):
                     halted: list[dict[str, Any]] = []
                     try:
                         with self.savepoint(), self._read_only():  # a savepoint: what a halted term began, dropped
-                            made += self._term(kind, pattern, frame, key, halted)
+                            made += _on(self._term(kind, pattern, frame, key, halted), frame, term)
                     except _Halt:  # it would write: the frame halts at the term, as it was given to it
                         run.halt(frame, at)
                         continue
                     for partial in halted:  # a symbol nothing the layer holds binds: the frame halts within the term
-                        run.halt(Frame(partial), at)
+                        run.halt(_on([Frame(partial)], frame)[0], at)
                 except Exception as error:
                     frame.errors.append(FrameError(Errors.path(*at), type(error).__name__, str(error), error))
                     run.failed.append(frame)
@@ -1346,7 +1404,7 @@ class Interpreter(abc.ABC):
                     run.halt(frame, at)  # a cache layer's: it cannot tell what it does not hold apart
                 frames = [frame for frame in frames if frame.remainder is None]
             for frame in frames:
-                kept = Frame({name: target for name, target in frame.items() if name not in dropped})
+                (kept,) = _on([Frame({name: target for name, target in frame.items() if name not in dropped})], frame, term)
                 unique.setdefault(tuple((name, self.key(target)) for name, target in kept.items()), kept)
             frames = list(unique.values())
         elif kind == "partition":
@@ -1360,7 +1418,7 @@ class Interpreter(abc.ABC):
             joined: list[Frame] = []
             for arm_at, arm in arms:
                 branch = run.arm()
-                joined += self._run(arm, [Frame(frame) for frame in frames], arm_at, branch)
+                joined += self._run(arm, [_on([Frame(frame)], frame, term)[0] for frame in frames], arm_at, branch)
                 for partial in branch.halted:  # the layer that split keeps the join
                     joined += self._below(run, partial)
             frames = joined
@@ -1394,7 +1452,7 @@ class Interpreter(abc.ABC):
         """What a layer with no layer below gives back for a frame sent below with its remainder: the frame executed
         again by the same layer, writing, within the transaction open; its frames, each carrying the frame's scope, then
         the completion marker, `{"end": scope}`."""
-        for made in self._one(frame.remainder, frame, True, run.named, frame.scope):
+        for made in self._one(frame.remainder, frame, True, frame.scope):
             made.scope = frame.scope
             yield made
         yield {"end": frame.scope}
@@ -1844,21 +1902,19 @@ class InMemory(Interpreter):
     def shown(self, entry: Any, names: list[str]) -> str:
         return Proxies._shown_parts(entry, names)
 
-    def given(self, target: Any, names: Iterable[str]) -> tuple[Any, dict[str, Any]]:
+    def given(self, target: Any) -> Any:
         from . import References
 
         store = self.store
         if not isinstance(target, Proxies._ObjectData):
-            return target, {}  # a schema object, as itself
+            return target  # a schema object, as itself
         if Proxies._counted(target):
             return Refused(f"a counted {target._schema_name!r} has no reference: nothing names it (make it a "
-                            "singleton's or an owner's)", target, store._life), {}
+                           "singleton's or an owner's)", target, store._life)
         if Proxies._deleted(target):
             return Refused(f"a {target._schema_name!r} the transaction deleted has no reference: nothing designates "
-                            "it"), {}
-        reference = References.of(store, target)
-        values = store.values(target)
-        return reference, {name: Proxies._copied(values[name]) for name in names if name in values}
+                           "it")
+        return References.of(store, target)
 
     # --- Its writes, through its builders ---
 
@@ -1962,68 +2018,80 @@ class InMemory(Interpreter):
             proposals.expression = remainder.transaction  # a scope's: its record's, and its uid (Provenance)
         return self._exec(txn, frame, remainder, allow_write)
 
-    def _extended(self, remainder: Remainder, frame: Mapping[str, Any], write: bool, named: dict[str, list[str]],
-                  scope: str, made: list[Frame]) -> list[Frame]:
+    def _extended(self, remainder: Remainder, frame: Mapping[str, Any], write: bool, scope: str,
+                  made: list[Frame]) -> list[Frame]:
         """A cache layer's, writing: an install, the layer below's first, executed there as it reaches this layer,
         then this layer's, as one with no layer below; else its frames, interpreted here as far as it can know, each
         sent below (`_cached`)."""
         store = self.store
         if not write or store._lower is None or store._installing:
-            return super()._extended(remainder, frame, write, named, scope, made)
+            return super()._extended(remainder, frame, write, scope, made)
         if not _writes_schemas(store, remainder.transaction):
-            return self._cached(remainder, frame, named, scope)
+            return self._cached(remainder, frame, scope)
         store._lower.run(Remainder(store._lower.copy(remainder.transaction), remainder.at), frame)
         store._installing += 1
         try:
-            return super()._extended(remainder, frame, write, named, scope, made)
+            return super()._extended(remainder, frame, write, scope, made)
         finally:
             store._installing -= 1
 
-    def _given_back(self, frames: list[Frame], named: dict[str, list[str]], scope: str | None = None) -> list[Frame]:
+    def _given_back(self, frames: list[Frame], scope: str | None = None) -> list[Frame]:
         """The frames given back (`Interpreter._given_back`), once the owners the store gives are settled, so that each
         object has its path."""
         if self.store._unowned:
             self.store._settle_owners()
-        return super()._given_back(frames, named, scope)
+        return super()._given_back(frames, scope)
 
     def _below(self, run: _Run, partial: Frame) -> list[Frame]:
         """A cache layer's: the rest of the branch executed by the layer below's transaction, what comes back taken
-        here; else the loopback (`Interpreter._below`)."""
+        here, its path the partial frame's and the rest of the branch's chain; else the loopback
+        (`Interpreter._below`)."""
         store = self.store
         if store._lower is None or store._installing:
             return super()._below(run, partial)
         scope = partial.scope = f"{run.scope}/{next(run.sent)}"
+        rest = partial.remainder
+        trail = (*partial._trail, *_chain(_term_at(rest.transaction, rest.at)))
         joined: list[Frame] = []
-        (given,) = self._given_back([partial], run.named, scope)
-        for item in self._from_below(given, partial.remainder, run.named, scope):
-            (run.failed if item.errors else joined).append(item if item.errors else self._taken(item, partial.remainder,
-                                                                                                True))
+        (given,) = self._given_back([partial], scope)
+        for item in self._from_below(given, rest, scope):
+            if item.errors:
+                run.failed.append(item)
+                continue
+            taken = self._taken(item, rest, True)
+            taken._trail = trail
+            joined.append(taken)
         return joined
 
-    def _cached(self, remainder: Remainder, given: Mapping[str, Any], named: dict[str, list[str]],
-                scope: str) -> list[Frame]:
+    def _cached(self, remainder: Remainder, given: Mapping[str, Any], scope: str) -> list[Frame]:
         """The frames a cache layer gives of one input frame, writing ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): it interprets it
         read-only over what it holds, as far as it can know (`_bind`, `knows`); each frame that halts, with its
         remainder, and each it completes, with nothing left to execute, goes to the layer below's transaction, which
         executes it, writing; and each that comes back is given (`_from_below`). A frame annotated with an error here is
-        given as it is."""
-        made = self._one(remainder, given, False, named, scope)
+        given as it is. One it completed is given with its own journal, the layer below having executed nothing of
+        it."""
+        made = self._one(remainder, given, False, scope)
         frames: list[Frame] = []
-        for local in self._given_back(made, named, scope):
+        for local in self._given_back(made, scope):
             if local.errors:
                 frames.append(local)
                 continue
+            complete = local.remainder is None
             rest = local.remainder or Remainder(remainder.transaction, ())  # complete: down too, for the layer below
             local.remainder = None
-            frames += self._from_below(local, rest, named, scope)
+            for item in self._from_below(local, rest, scope):
+                if complete and not item.errors:
+                    item.journal = local.journal
+                frames.append(item)
         return frames
 
-    def _from_below(self, local: Frame, rest: Remainder, named: dict[str, list[str]], scope: str) -> list[Frame]:
+    def _from_below(self, local: Frame, rest: Remainder, scope: str) -> list[Frame]:
         """What the layer below's transaction gives back of a frame a cache layer sends it with the rest of the
-        expression to execute, writing: each frame annotated with an error, as it is; each complete, its journal
-        applied to what the cache layer holds; each partial, executed again by the cache layer, writing, its writes sent
-        below as it makes them (`Builders.Store._forward`); a completion marker's journal applied. Its frames carry no
-        journal: the cache layer gives one of what it changed, in its own terms."""
+        expression to execute, writing: each frame annotated with an error, as it is; each complete, its journal, the
+        state its path references, applied to what the cache layer holds, and given as it is; each partial, executed
+        again by the cache layer, writing, its writes sent below as it makes them (`Builders.Store._forward`); a
+        completion marker's journal, what the input frame changed, applied. Applying a journal the cache layer holds
+        already changes nothing."""
         store = self.store
         frames: list[Frame] = []
         for item in store._lower.forward(local, rest):
@@ -2031,27 +2099,22 @@ class InMemory(Interpreter):
                 if "journal" in item:
                     self._apply_journal(item["journal"])
                 continue
-            journal, item.journal = item.journal, None
             if item.errors:
                 frames.append(item)
                 continue
-            if journal is not None:
-                self._apply_journal(journal)
+            self._apply_journal(item.journal)
             if item.remainder is None:
                 frames.append(item)
                 continue
             with store._proposing(store._forward):  # partial: executed again here, writing, its writes sent below
-                made = self._one(item.remainder, item, True, named, scope)
-            frames += self._given_back(made, named, scope)
+                made = self._one(item.remainder, item, True, scope)
+            frames += self._given_back(made, scope)
         return frames
 
     def _apply_journal(self, journal: Any) -> None:
-        """Applies a journal a layer below gave back, a value of the cache layer's, to what the cache layer holds, as
-        it applies what the layer below's follow gives it (`Builders.Store._apply`)."""
-        from . import Changes
-
-        for transaction in Changes._transactions(journal):
-            self.store._apply(transaction, joined=True)
+        """Applies a journal a layer below gave back, a `Changes.Transaction` of the cache layer's, to what the cache
+        layer holds, as it applies what the layer below's follow gives it (`Builders.Store._apply`)."""
+        self.store._apply(journal, joined=True)
 
 
 class _Lower:
@@ -2135,53 +2198,36 @@ class _Lower:
         return Frame(bound, frame.errors, scope=frame.scope)
 
     def up(self, frame: Frame) -> Frame:
-        """A frame the layer below gave back, as the cache layer's: its bindings, what it assigns, its remainder in the
-        cache layer's expression, and its journal."""
+        """A frame the layer below gave back, as the cache layer's: its journal, its bindings read from it, a refused
+        one as refused, and its remainder in the cache layer's expression."""
+        from . import Changes
+
+        journal = None if frame.journal is None else self.journal(frame.journal)
+        held = {} if journal is None else Changes._bindings(journal)
         bound: dict[str, Any] = {}
         for name, value in dict.items(frame):
+            if name in held:
+                bound[name] = held[name]
+                continue
             try:
                 bound[name] = _carried(self.below, self.store, value)
             except LookupError as error:
                 bound[name] = Refused(str(error))
-        assigns = {name: {key: _carried_value(self.below, self.store, value, bound[name], key)
-                          for key, value in values.items()} for name, values in frame.assigns.items()}
         remainder = None if frame.remainder is None else Remainder(self.originals[id(frame.remainder.transaction)],
                                                                    frame.remainder.at)
-        journal = None if frame.journal is None else self.journal(frame.journal)
-        return Frame(bound, frame.errors, assigns, remainder, frame.scope, journal)
+        return Frame(bound, frame.errors, remainder, frame.scope, journal)
 
     def journal(self, journal: Any) -> Any:
-        """A journal the layer below gave, as the cache layer's."""
-        return Plain.FromPlain(self.store)(self.store.registered("Changes.Journal"), Plain.ToPlain(self.below)(
-            self.below.registered("Changes.Journal"), journal))
+        """A journal the layer below gave, a `Changes.Transaction`, as the cache layer's."""
+        return Plain.FromPlain(self.store)(self.store.registered("Changes.Transaction"), Plain.ToPlain(self.below)(
+            self.below.registered("Changes.Transaction"), journal))
 
 
 def _carried(source: Any, target: Any, value: Any) -> Any:
-    """What a frame binds, of `source`'s, as `target`'s: an object's reference by its path, a schema object by its path;
-    refused, `LookupError`, where it cannot be: a counted object, or a schema object `target` does not hold."""
-    from . import Paths
-
-    if isinstance(value, Refused):
-        raise LookupError(value.message)
-    held = Proxies._deref(value)
-    if isinstance(held, Proxies._RecordData) and held._schema is source.registered("References.OfObject"):
-        return Plain.FromPlain(target)(target.registered("References.OfObject"),
-                                       Plain.ToPlain(source)(held._schema, held))
-    path = Paths.of(held)
-    found = target.held(Plain.ToPlain(source)(path.as_schema(), path))
-    if found is None:
-        raise LookupError("a schema object the layer it goes to does not hold")
-    return found
-
-
-def _carried_value(source: Any, target: Any, value: Any, holder: Any, name: str) -> Any:
-    """A value a frame assigns to the property `name` of `holder`, the object a symbol binds, by its reference, a value
-    of `target`'s: a value object of `source`'s by its plain form, read by the schema `target` gives the property, that
-    of the object's schema its path implies; any other as it is."""
+    """What a frame binds, of `source`'s, as `target`'s: an object's reference, by its path, a schema object's among
+    them; refused, `LookupError`, where it has none: a counted object."""
     from . import References
 
-    if isinstance(value, (Proxies._RecordData, Proxies._ContainerData)):
-        path = Plain.ToPlain(target)(holder.as_schema(), holder)["path"]
-        schema = References.implied(target, path).properties[name].schema
-        return Plain.FromPlain(target)(schema, Plain.ToPlain(source)(value._schema, value))
-    return value
+    reference = References.of(source, value)
+    return Plain.FromPlain(target)(target.registered("References.OfObject"),
+                                   Plain.ToPlain(source)(reference.as_schema(), reference))

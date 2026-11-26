@@ -287,6 +287,19 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    The user: "yeah (a) not sure why (b) or (c) would even be functional". Binding such an object by its schema instead
    would make a new object, which written back is another object than the one the frame bound; and a copy made from
    the original's snapshot is not decoupled code's.
+2. **A frame is its journal** (questions 1, 3 and 6), as the user decided (2026-11-26, recorded on
+   [CAP-318: support for decoupled code](https://github.com/pitaman71/mbse-basis/blob/main/docs/capabilities/README.md#CAP-318)): "The core concept of a `Frame` is an image of state that is consumed or
+   produced by intepretation of mutation+query terms. In the course of interpreting a path through a mutation+query
+   expression, the Frame should capture precisely the information explicitly refefernced by the current term and
+   ancestors of it." "The schema is not consulted in order build some kind of 'closure' of properties and relation
+   entries/adjacencies to be included in the Frame. Only those touched by reference." "at some point it seems like we
+   diverged from the original design where frames contained journals which contained changes. `assigns` is
+   unnecessary". "the symbol bindings belong in the journal language too". Built in 0.38.0: `References.OfFrame` is
+   its `journal`, a `Changes.Transaction`, its `scope`, `remainder` and `errors`; `binds`, `variables`, `assigns`,
+   `entries` and `References.OfProperties` are removed, breaking (question 6, (a)). The journal's symbols are the
+   frame's bindings, and its changes the state its path's clauses reference, read or written (question 3, a
+   refinement of (a)); what an input frame changed, which no frame's state need hold, its completion marker carries
+   (question 1, so resolved). `state` in this proposal is that `journal`.
 
 ## Questions for the user
 

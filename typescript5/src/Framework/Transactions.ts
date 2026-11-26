@@ -33,7 +33,9 @@
  * input frames with `txn.exec(frame, remainder, allow_write)`, giving a stream of frames, an observable of the
  * framework's own (`Observable`), and opening and committing no transaction of its own ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)):
  * each frame carries the id of its input frame, `scope`, and each input frame's frames end with its completion marker,
- * `{"end": scope}`. Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
+ * `{"end": scope}`, which carries what the input frame changed. Each frame given back is its journal, a
+ * `Changes.Transaction`: its bindings, each object by its reference, and the state its path's clauses reference, read
+ * or written ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), `Frame`). Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
  * empty frame. Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a
  * symbol, or a term would write, the frame halts, given as bound so far, carrying its `remainder`; the same transaction
  * completes it, writing, as the loopback of a store with no layer below. A partition keeps its join: the rest of a
@@ -638,34 +640,37 @@ export class Remainder {
 /** A frame: the objects its symbols bind, by symbol, a `Map`; and its `errors`, each what failed as a term processed
  * it ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)), none where none did.
  *
- * One `store.transaction` or `txn.exec` gives back holds bindings and assignments, not visitors ([CAP-315: every read
- * within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): each symbol's object by its reference, a `References.OfObject`, a value that
- * outlives the transaction (a schema object, which the rule does not cover, as itself); and `assigns`, by symbol, the
- * values the transaction left in the properties its terms' specs name for it, as data, harvested within it. A counted
- * object has no reference: the frame refuses it, its symbol read throwing `LookupError`, and assigns nothing of it.
+ * One `store.transaction` or `txn.exec` gives back is its `journal` ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), as the
+ * user decided: "frames contained journals which contained changes"): a `Changes.Transaction`, a value that outlives
+ * the transaction, whose `symbols` are the frame's bindings, each a `Changes.Symbol`, an object by its reference, a
+ * schema object by its reference from the root module (`References.OfSchema`'s path), and whose `changes` are the state
+ * its path's clauses reference, read or written alike: each property a clause of the term that made it, or of an
+ * ancestor of that term, names of an object a symbol binds, set to the value it holds, or cleared where it holds none;
+ * and each relation entry such a clause names that is held, inserted, with its properties. Nothing else: the schema is
+ * not consulted for more, and a sibling branch's clauses are not on its path. Its id is the transaction's uid and the
+ * frame's position in the stream (`uid#n`). Its bindings, by symbol, are read from its journal, each symbol's
+ * reference, as data (`frame.get("ada")`), holding no visitor ([CAP-315: every read within a transaction or through a
+ * follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)). A counted object, or one the transaction deleted, has no reference: it is left out of the journal,
+ * and the frame refuses it, its symbol read throwing `LookupError`, `References.of` writing it as an error annotated
+ * on the frame.
  *
  * One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
  * unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); null where it is
- * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one.
- *
- * And its `journal`: the changes made in interpreting its input frame, as a `Changes.Journal` of one transaction, whose
- * symbols are its own, its id the transaction's uid and the frame's position in the stream (`uid#n`), carried by the
- * first frame the input frame gives, so that applying each frame's journal by `Changes.apply` applies each change once,
- * the counted objects of each frame apart; null where it carries none
- * ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)). */
+ * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one. A frame the interpreter makes as it
+ * walks the terms binds the objects themselves, and carries no journal. */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
-  readonly assigns: Map<string, Map<string, unknown>>;
   remainder: Remainder | null;
   scope: string | null;
   journal: any;
+  /** The terms that made it, in order, within the layer that walks them: not shown, nor carried. */
+  declare _trail: readonly any[];
 
   constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = [],
-    assigns: Iterable<readonly [string, Map<string, unknown>]> = [], remainder: Remainder | null = null,
-    scope: string | null = null, journal: any = null) {
+    remainder: Remainder | null = null, scope: string | null = null, journal: any = null) {
     super(bound);
+    Object.defineProperty(this, "_trail", { value: [], writable: true, enumerable: false });
     this.errors = [...errors];
-    this.assigns = new Map([...assigns].map(([name, values]) => [name, new Map(values)]));
     this.remainder = remainder;
     this.scope = scope;
     this.journal = journal;
@@ -693,7 +698,7 @@ export class Refused {
 }
 
 /** An item of `txn.exec`'s stream: a frame, or the completion marker of the input frame or branch whose id is its
- * `end`, `{"end": scope}`, a `Map`, carrying the journal of an input frame that gave no frame, `journal`. */
+ * `end`, `{"end": scope}`, a `Map`, carrying what the input frame changed, where it changed anything, `journal`. */
 export type Item = Frame | Map<string, any>;
 
 /** Who is given a stream's items: its subscription by `start`, before any item, then each item by `next`, then
@@ -820,6 +825,58 @@ function termAt(transaction: any, at: readonly (string | number)[]): any {
   return term;
 }
 
+/** The terms before the term at `at` on its path in a transaction's expression, from its root: what a frame given with
+ * a remainder at `at` went through, derived from the expression and the remainder's position alone, so that nothing
+ * more is carried with a frame (CAP-318). */
+function ancestors(transaction: any, at: readonly (string | number)[]): any[] {
+  const terms: any[] = [];
+  let term = transaction;
+  let step = 0;
+  while (step < at.length) {
+    if (at[step] === "branches") {
+      term = [...term.branches][at[step + 1] as number].branch;
+      step += 2;
+    } else {
+      term = next(term, at[step] as string);
+      step += 3;
+    }
+    terms.push(term);
+  }
+  return terms.slice(0, -1);
+}
+
+/** A term and those after it through `then`, to the end of its chain: what the rest of a branch executed below went
+ * through, a partition within it as itself. */
+function chain(term: any): any[] {
+  const terms: any[] = [];
+  while (term !== null) {
+    terms.push(term);
+    term = next(term, "then");
+  }
+  return terms;
+}
+
+/** `frames`, made of `origin` by `term`, each with `origin`'s path and, where given, `term` after it. */
+function on(frames: Frame[], origin: Frame, term: any = null): Frame[] {
+  const trail = term === null ? origin._trail : [...origin._trail, term];
+  for (const frame of frames) frame._trail = trail;
+  return frames;
+}
+
+/** Whether a value is an object's reference of `store`'s: a `References.OfObject`, or a schema object's,
+ * `References.OfSchema`, which refines it. */
+export function _isReference(store: any, value: unknown): boolean {
+  const inner = Proxies._innerOf(Proxies._deref(value));
+  return inner instanceof Proxies._internals._RecordData && S.is_a(inner._schema, store.registered("References.OfObject"));
+}
+
+/** A frame's journal, a `Changes.Transaction`, with its id `uid`. */
+function identified(store: any, journal: any, uid: string): any {
+  const schema = store.registered("Changes.Transaction");
+  const plain = Plain.ToPlain(store)(schema, journal) as Plain.PlainMap;
+  return Plain.FromPlain(store)(schema, new Map([...plain, ["id", uid]]));
+}
+
 /** The transaction open on a layer, an object of its own, which the imperative scope gives its function,
  * `store.transaction((txn: any = null) => { ... })`: a first piece of [the transaction-object proposal](mbse:mbse-schemas/docs/proposals/transaction-object/README.md), holding the
  * transaction, and executing expressions within it (`exec`) by its layer's interpreter (`Interpreter`). Its writes
@@ -829,6 +886,8 @@ function termAt(transaction: any, at: readonly (string | number)[]): any {
 export class Transaction {
   /** Every frame its `exec` gave, in order. */
   readonly _given: Frame[] = [];
+  /** How many items its `exec` gave, frames and markers: the next one's position. */
+  _count = 0;
 
   constructor(readonly _interpreter: Interpreter, readonly _life: { readonly ended: boolean }) {}
 
@@ -868,18 +927,17 @@ export class Transaction {
 
 /** What executing a transaction over one input frame keeps: whether it writes (`write`), else interprets read-only,
  * halting; the frames a term failed to process (`failed`) and those that halted (`halted`), each carrying its
- * remainder; the properties the specs name, by symbol (`named`); the input frame's id (`scope`); and how many branches
- * it sent below (`sent`), each a scope of its own. */
+ * remainder; the input frame's id (`scope`); and how many branches it sent below (`sent`), each a scope of its own. */
 class Run {
   failed: Frame[] = [];
   readonly halted: Frame[] = [];
 
-  constructor(readonly transaction: any, readonly write: boolean, readonly named: Map<string, string[]>,
-    readonly scope: string | null, readonly sent: { count: number } = { count: 0 }) {}
+  constructor(readonly transaction: any, readonly write: boolean, readonly scope: string | null,
+    readonly sent: { count: number } = { count: 0 }) {}
 
   /** The run of a branch of a partition: its own halted frames, which the partition joins; the rest shared. */
   arm(): Run {
-    const branch = new Run(this.transaction, this.write, this.named, this.scope, this.sent);
+    const branch = new Run(this.transaction, this.write, this.scope, this.sent);
     branch.failed = this.failed;
     return branch;
   }
@@ -1025,35 +1083,6 @@ function symbols(store: any, pattern: any): void {
  * (object identity 86 in [CAP-115: schemas defined by idempotent installs](mbse:mbse-basis/docs/capabilities/CAP-115.md#decided)). */
 function meta(store: any, schema: any): boolean {
   return store._meta_builder(store.name_of(schema)) !== null;
-}
-
-/** The properties a transaction's specs name, by symbol, in order, through every term: what the frames it gives assign,
- * wherever in it a frame is executed, so that the frames a layer below gives back of the rest of an expression assign
- * what the whole expression names. */
-function namedIn(store: any, transaction: any): Map<string, string[]> {
-  const named = new Map<string, string[]>();
-  const terms: any[] = [next(transaction, "mutations")];
-  while (terms.length > 0) {
-    const term = terms.shift();
-    if (term === null) continue;
-    const kind = kindOf(store, term);
-    if (kind === "map" || kind === "upsert" || kind === "update") {
-      for (const entry of term[kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply"]) {
-        for (const [symbol, items] of membersOf(entry.pattern)) {
-          if (!named.has(symbol)) named.set(symbol, []);
-          const names = named.get(symbol)!;
-          for (const item of items) {
-            const body = item.get("as_property");
-            if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
-          }
-        }
-      }
-    } else if (kind === "partition") {
-      terms.push(...[...term.branches].map((entry: any) => entry.branch), next(term, "none"));
-    }
-    terms.push(next(term, "then"));
-  }
-  return named;
 }
 
 /** Whether an expression writes schemas: an upsert or an update of it binds a symbol of a meta-schema. A cache layer
@@ -1210,10 +1239,11 @@ export abstract class Interpreter {
   /** An entry's links and properties `names`, as a message shows them. */
   abstract shown(entry: any, names: string[]): string;
 
-  /** What a frame given back binds for an object, and assigns of it ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its reference, a
+  /** What a frame given back binds for an object ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md#decided)): its reference, a
    * `References.OfObject`, a value that outlives the transaction (a schema object as itself), or a `Refused` where it
-   * has none; and the values it holds of its properties `names`, as data. */
-  abstract given(target: any, names: readonly string[]): [any, Map<string, unknown>];
+   * has none. Its journal's state is read through the hooks that read (`value`, `entries`, `link`, `schema_of`), and
+   * written in the journal language (`Changes.state`). */
+  abstract given(target: any): any;
 
   // --- What a layer gives: its writes, which the interpreter makes only writing (`_written`) ---
 
@@ -1279,12 +1309,13 @@ export abstract class Interpreter {
 
   /** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
    * subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are made of it,
-   * then `{"end": scope}`, `scope` its id. Each given back holds references and assignments (CAP-315), carries its input
-   * frame's id, `scope`, and, where it halted read-only, its `remainder`. An error a term meets processing a frame is
-   * annotated on it (CAP-309). An error of no one frame is the stream's error, its `frames` every frame the transaction
-   * gave, and those made of the input frame it arose processing. What each input frame changed, a savepoint's, is
-   * carried by its first frame, else by its completion marker, as a one-transaction journal whose id is the
-   * transaction's uid and the frame's position. */
+   * then `{"end": scope}`, `scope` its id. Each given back is its journal (CAP-318, `_givenBack`), whose id is the
+   * transaction's uid and the frame's position in the stream, carries its input frame's id, `scope`, and, where it
+   * halted read-only, its `remainder`. An error a term meets processing a frame is annotated on it (CAP-309). An error
+   * of no one frame is the stream's error, its `frames` every frame the transaction gave, and those made of the input
+   * frame it arose processing. What each input frame changed, a savepoint's, is carried by its completion marker, where
+   * it changed anything, as a `Changes.Transaction` whose id is the transaction's uid and the marker's position: what a
+   * frame's journal does not hold, a removal, or a write to a frame that a later term dropped, among it. */
   _exec(txn: Transaction, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
     return new Observable<Item>((observer) => {
       const made: Frame[] = [];
@@ -1293,7 +1324,6 @@ export abstract class Interpreter {
         if (observer.closed) throw new Unsubscribed();
       };
       try {
-        const named = namedIn(this.store, remainder.transaction);
         let index = 0;
         // a frame, or a stream of them, consumed as it arrives
         for (const frame of (given instanceof Map ? [given] : given as Iterable<Map<string, any>>)) {
@@ -1301,19 +1331,19 @@ export abstract class Interpreter {
           const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
           index += 1;
           const changed: unknown[] = [];
-          const back = this.savepoint(() => this._extended(remainder, frame, write, named, scope, made),
-            () => `${this.uid()}#${txn._given.length}`, changed);
+          const ahead: Frame[] = []; // the frames given back, ahead of the marker in the stream
+          this.savepoint(() => ahead.push(...this._extended(remainder, frame, write, scope, made)),
+            () => `${this.uid()}#${txn._count + ahead.length}`, changed);
           made.length = 0;
-          const marker: Map<string, any> = new Map([["end", scope]]);
-          if (changed.length > 0 && changed[0] !== null) { // carried by its first frame, else by its completion marker
-            const journal = Changes._journal(this.store, [changed[0]]);
-            if (back.length > 0) back[0]!.journal = journal;
-            else marker.set("journal", journal);
-          }
-          for (const item of back) {
+          for (const item of ahead) {
+            item.journal = identified(this.store, item.journal, `${this.uid()}#${txn._count}`);
+            txn._count += 1;
             txn._given.push(item);
             emit(item);
           }
+          const marker: Map<string, any> = new Map([["end", scope]]);
+          if (changed.length > 0 && changed[0] !== null) marker.set("journal", changed[0]);
+          txn._count += 1;
           emit(marker);
         }
       } catch (error) {
@@ -1328,10 +1358,9 @@ export abstract class Interpreter {
 
   /** The frames given back of one input frame, extended through `remainder`; `made` gathers them as made, for an error
    * thrown after. */
-  _extended(remainder: Remainder, frame: Map<string, any>, write: boolean, named: Map<string, string[]>, scope: string,
-    made: Frame[]): Frame[] {
-    made.push(...this._one(remainder, frame, write, named, scope));
-    return this._givenBack(made, named, scope);
+  _extended(remainder: Remainder, frame: Map<string, any>, write: boolean, scope: string, made: Frame[]): Frame[] {
+    made.push(...this._one(remainder, frame, write, scope));
+    return this._givenBack(made, scope);
   }
 
   /** Executes a transaction's expression over the layer, sequentially (object identity 85 to 89 in [FEA-030: clean mutation-based transactional API](mbse:mbse-basis/docs/features/FEA-030.md)): its stream
@@ -1352,7 +1381,7 @@ export abstract class Interpreter {
     const root = next(transaction, "mutations");
     let made: Frame[] = [];
     const write = (): void => {
-      const state = new Run(transaction, true, new Map(), null);
+      const state = new Run(transaction, true, null);
       made = root === null ? [new Frame()]
         : this._run(root, [new Frame()], ["mutations", 0, kindOf(this.store, root)], state);
       made.push(...state.failed);
@@ -1369,19 +1398,61 @@ export abstract class Interpreter {
     return made;
   }
 
-  /** The frames a transaction gives back, made within it: each symbol's object by its reference, and what it assigns,
-   * as data (CAP-315, `given`); each carrying `scope`, and its remainder where it halted. */
-  _givenBack(frames: Frame[], named: Map<string, string[]>, scope: string | null = null): Frame[] {
+  /** The frames a transaction gives back, made within it, each its journal (CAP-318, `Frame`): its symbols, each bound
+   * object by its reference (CAP-315, `given`), a counted one left out and refused; and the state its path's clauses
+   * reference (`_referenced`), read through the layer's hooks and written in the journal language (`Changes.state`).
+   * Its bindings are read from its journal; each carries `scope`, and its remainder where it halted. */
+  _givenBack(frames: Frame[], scope: string | null = null): Frame[] {
     return frames.map((frame) => {
-      const bound: [string, any][] = [];
-      const assigns = new Map([...frame.assigns].map(([name, values]) => [name, new Map(values)])); // a layer below's
-      for (const [symbol, target] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
-        const [reference, held] = this.given(target, named.get(symbol) ?? []);
-        bound.push([symbol, reference]);
-        if (held.size > 0) assigns.set(symbol, new Map([...assigns.get(symbol) ?? [], ...held]));
-      }
-      return new Frame(bound, frame.errors, assigns, frame.remainder, scope);
+      const entries = [...Map.prototype.entries.call(frame) as IterableIterator<[string, any]>];
+      const references = new Map(entries.map(([symbol, target]) => [symbol, this.given(target)]));
+      const [properties, held] = this._referenced(frame, references);
+      const journal = Changes.state(this, new Map(entries.map(([symbol, target]) => [symbol, [target,
+        references.get(symbol)]] as [string, [any, any]])), properties, held);
+      const bound = Changes._bindings(journal);
+      return new Frame([...references].map(([symbol, reference]) => [symbol, bound.has(symbol) ? bound.get(symbol)
+        : reference] as [string, any]), frame.errors, frame.remainder, scope, journal);
     });
+  }
+
+  /** The state a frame's path's clauses reference (CAP-318): of each term that made it, and each ancestor of that term
+   * (`_trail`), each a map, an upsert or an update, the properties each clause names of an object a symbol binds that
+   * has a reference, `[symbol, name]`, and the relation entries it names on an adjacency of one that are held,
+   * `[symbol, adjacency, entry]`, an entry's that links a symbol the frame does not bind, or one refused, left out. The
+   * schema is not consulted for more. */
+  _referenced(frame: Frame, references: Map<string, any>): [[string, string][], [string, string, any][]] {
+    const properties = new Map<string, [string, string]>();
+    const entries: [string, string, any][] = [];
+    const bound = (symbol: string): any => Map.prototype.get.call(frame, symbol);
+    const data = new Set([...references].filter(([symbol, reference]) => _isReference(this.store, reference)
+      && reference !== bound(symbol)).map(([symbol]) => symbol));
+    for (const term of frame._trail) {
+      const kind = kindOf(this.store, term);
+      if (kind !== "map" && kind !== "upsert" && kind !== "update") continue;
+      const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
+      for (const [symbol, items] of membersOf(pattern)) {
+        if (!data.has(symbol)) continue;
+        const target = bound(symbol);
+        const schema = this.schema_of(target);
+        const of = (kind_: string): any[] => items.filter((item) => item.has(kind_)).map((item) => item.get(kind_));
+        for (const body of of("as_property")) {
+          const key = JSON.stringify([symbol, body.get("name")]);
+          if (!properties.has(key)) properties.set(key, [symbol, body.get("name")]);
+        }
+        for (const body of of("as_adjacency")) {
+          const relation = schema.adjacencies.get(body.get("name")).relation;
+          const held = this.entries(target, schema, body.get("name"));
+          for (const [, specs] of verbsOf(body)) {
+            for (const spec of specs) {
+              if (symbolRefs(spec).some((ref) => !data.has(ref.get("symbol")))) continue;
+              entries.push(...held.filter((entry) => this._matches(relation, entry, spec, frame))
+                .map((entry) => [symbol, body.get("name"), entry] as [string, string, any]));
+            }
+          }
+        }
+      }
+    }
+    return [[...properties.values()], entries];
   }
 
   // --- The walk of the terms ---
@@ -1391,21 +1462,23 @@ export abstract class Interpreter {
    * no further; one whose reference designates nothing is annotated so, but where a cache layer interprets read-only,
    * where it holds the reference, unresolved, and halts. An error in the expression, as the frame's symbols leave it, is
    * thrown. */
-  _one(remainder: Remainder, given: Map<string, any>, write: boolean, named: Map<string, string[]>, scope: string): Frame[] {
+  _one(remainder: Remainder, given: Map<string, any>, write: boolean, scope: string): Frame[] {
     const frame = this._taken(given, remainder, !write && this.cache);
     if (frame.errors.length > 0 || remainder.at.length === 0) return [frame];
     const term = termAt(remainder.transaction, remainder.at);
     check(this.store, term, new Set(frame.keys()));
-    const state = new Run(remainder.transaction, write, named, scope);
+    const state = new Run(remainder.transaction, write, scope);
     const made = this._run(term, [frame], [...remainder.at], state);
     return [...made, ...state.halted, ...state.failed];
   }
 
   /** An input frame, as the interpreter binds: each symbol's object by what its reference designates, a schema object or
    * a layer's object as itself; annotated where one designates nothing, or is refused (CAP-309); `keep`, a reference that
-   * designates nothing the layer holds kept as it is, unresolved (`_unresolved`). */
+   * designates nothing the layer holds kept as it is, unresolved (`_unresolved`). Its path, the terms before the
+   * remainder's, is derived from the expression and the remainder's position (`ancestors`). */
   _taken(given: Map<string, any>, remainder: Remainder, keep = false): Frame {
-    const frame = new Frame(null, given instanceof Frame ? given.errors : [], given instanceof Frame ? given.assigns : []);
+    const frame = new Frame(null, given instanceof Frame ? given.errors : []);
+    frame._trail = ancestors(remainder.transaction, remainder.at);
     for (const [name, value] of Map.prototype.entries.call(given) as IterableIterator<[string, any]>) {
       try {
         frame.set(name, this._bound(name, value));
@@ -1430,9 +1503,9 @@ export abstract class Interpreter {
       throw new LookupError(`symbol ${repr(name)} of the frame: ${value.message}`);
     }
     const target = Proxies._deref(value);
-    const inner = Proxies._innerOf(target);
-    if (inner instanceof Proxies._internals._RecordData && inner._schema === this.store.registered("References.OfObject")) {
-      const found = this.designated((Plain.ToPlain(this.store)(inner._schema, target) as Map<string, unknown>).get("path"));
+    if (_isReference(this.store, target)) {
+      const found = this.designated((Plain.ToPlain(this.store)(Proxies._innerOf(target)._schema, target) as
+        Map<string, unknown>).get("path"));
       if (found === null || found === undefined) throw new Absent();
       return Proxies._durable(found);
     }
@@ -1442,11 +1515,7 @@ export abstract class Interpreter {
   /** Whether a frame holds a reference that designates nothing the layer holds, which a cache layer's interpretation
    * read-only kept (`_taken`): it halts at the next term, for the layer below to resolve. */
   _unresolved(frame: Map<string, any>): boolean {
-    const reference = this.store.registered("References.OfObject");
-    return [...Map.prototype.values.call(frame) as IterableIterator<unknown>].some((value) => {
-      const inner = Proxies._innerOf(value);
-      return inner instanceof Proxies._internals._RecordData && inner._schema === reference;
-    });
+    return [...Map.prototype.values.call(frame) as IterableIterator<unknown>].some((value) => _isReference(this.store, value));
   }
 
   /** A read-only interpretation of a term over a frame (`txn.exec`, `allow_write` false): a write it would make halts
@@ -1468,8 +1537,8 @@ export abstract class Interpreter {
 
   /** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
    * chain ends with. A frame a term fails to process is annotated with the error, as bound as it was, and added to
-   * `state.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). `state.named` gathers, by symbol, the properties the specs
-   * name, in order: what the frames given back assign.
+   * `state.failed`, the others going on ([CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)). Each frame a term makes has that term on its
+   * path (`Frame._trail`), after the terms of the frame it was made of: what its journal's state is read for.
    *
    * Read-only (`state.write` false), a term is interpreted over each frame within a savepoint, and where it would write,
    * or a map finds nothing the layer holds to bind a symbol, the frame halts, added to `state.halted` with its
@@ -1481,20 +1550,12 @@ export abstract class Interpreter {
     const kind = kindOf(store, term);
     if (kind === "map" || kind === "upsert" || kind === "update") {
       const pattern = patternOf(term, kind === "map" ? "symbols" : kind === "upsert" ? "exists" : "apply", kind);
-      for (const [symbol, items] of membersOf(pattern)) { // the properties the specs name: what the frames given back assign
-        if (!state.named.has(symbol)) state.named.set(symbol, []);
-        const names = state.named.get(symbol)!;
-        for (const item of items) {
-          const body = item.get("as_property");
-          if (body !== undefined && !names.includes(body.get("name"))) names.push(body.get("name"));
-        }
-      }
       const key = kind === "upsert" ? (store.member(term, "key") || this.uid()) : null;
       const made: Frame[] = [];
       for (const frame of frames) {
         try {
           if (state.write) {
-            made.push(...this._term(kind, pattern, frame, key, null));
+            made.push(...on(this._term(kind, pattern, frame, key, null), frame, term));
             continue;
           }
           if (this.cache && (kind !== "map" || this._unresolved(frame))) {
@@ -1503,13 +1564,14 @@ export abstract class Interpreter {
           }
           const halted: Bound[] = [];
           try { // a savepoint: what a halted term began, dropped
-            made.push(...this.savepoint(() => this._readOnly(() => this._term(kind, pattern, frame, key, halted))));
+            made.push(...on(this.savepoint(() => this._readOnly(() => this._term(kind, pattern, frame, key, halted))),
+              frame, term));
           } catch (error) {
             if (!(error instanceof Halt)) throw error;
             state.halt(frame, at); // it would write: the frame halts at the term, as it was given to it
             continue;
           }
-          for (const partial of halted) state.halt(new Frame(partial), at); // a symbol nothing the layer holds binds
+          for (const partial of halted) state.halt(on([new Frame(partial)], frame)[0]!, at); // a symbol nothing binds
         } catch (error) {
           frame.errors.push(new FrameError(plainPath(...at), (error as Error).name, (error as Error).message, error));
           state.failed.push(frame);
@@ -1526,7 +1588,7 @@ export abstract class Interpreter {
         frames = frames.filter((frame) => frame.remainder === null);
       }
       for (const frame of frames) {
-        const kept = new Frame([...frame].filter(([name]) => !dropped.includes(name)));
+        const [kept] = on([new Frame([...frame].filter(([name]) => !dropped.includes(name)))], frame, term) as [Frame];
         const identity = JSON.stringify([...kept].map(([name, target]) => [name, this.key(target)]));
         if (!unique.has(identity)) unique.set(identity, kept);
       }
@@ -1543,7 +1605,7 @@ export abstract class Interpreter {
       const joined: Frame[] = [];
       for (const [armAt, arm] of arms) {
         const branch = state.arm();
-        joined.push(...this._run(arm, frames.map((frame) => new Frame(frame)), armAt, branch));
+        joined.push(...this._run(arm, frames.map((frame) => on([new Frame(frame)], frame, term)[0]!), armAt, branch));
         for (const partial of branch.halted) joined.push(...this._below(state, partial)); // the layer that split keeps the join
       }
       frames = joined;
@@ -1583,7 +1645,7 @@ export abstract class Interpreter {
    * the same layer, writing, within the transaction open; its frames, each carrying the frame's scope, then the
    * completion marker, `{"end": scope}`. */
   *_loopback(state: Run, frame: Frame): Generator<Item> {
-    for (const made of this._one(frame.remainder!, frame, true, state.named, frame.scope!)) {
+    for (const made of this._one(frame.remainder!, frame, true, frame.scope!)) {
       made.scope = frame.scope;
       yield made;
     }
@@ -2075,22 +2137,19 @@ export class InMemory extends Interpreter {
     return Proxies._shown_parts(entryOf(entry), names);
   }
 
-  given(target: any, names: readonly string[]): [any, Map<string, unknown>] {
+  given(target: any): any {
     const store = this.store;
-    if (!Proxies._isObjectData(target)) return [target, new Map()]; // a schema object, as itself
+    if (!Proxies._isObjectData(target)) return target; // a schema object, as itself
     const state = Proxies._stateOf(target);
     if (Proxies._counted(target)) {
-      return [new Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make it a `
-        + "singleton's or an owner's)", target, store._life), new Map()];
+      return new Refused(`a counted ${repr(state._schemaName)} has no reference: nothing names it (make it a `
+        + "singleton's or an owner's)", target, store._life);
     }
     if (Proxies._deleted(target)) {
-      return [new Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: nothing designates `
-        + "it"), new Map()];
+      return new Refused(`a ${repr(state._schemaName)} the transaction deleted has no reference: nothing designates `
+        + "it");
     }
-    const reference = References.of(store, target);
-    const values: Map<string, unknown> = store.values(state);
-    return [reference, new Map(names.filter((name) => values.has(name))
-      .map((name) => [name, Proxies._copied(values.get(name))] as const))];
+    return References.of(store, target);
   }
 
   // --- Its writes, through its builders ---
@@ -2203,17 +2262,14 @@ export class InMemory extends Interpreter {
   /** A cache layer's, writing: an install, the layer below's first, executed there as it reaches this layer, then this
    * layer's, as one with no layer below; else its frames, interpreted here as far as it can know, each sent below
    * (`_cached`). */
-  override _extended(remainder: Remainder, frame: Map<string, any>, write: boolean, named: Map<string, string[]>,
-    scope: string, made: Frame[]): Frame[] {
+  override _extended(remainder: Remainder, frame: Map<string, any>, write: boolean, scope: string, made: Frame[]): Frame[] {
     const store = this.store;
-    if (!write || store._lower === null || store._installing > 0) {
-      return super._extended(remainder, frame, write, named, scope, made);
-    }
-    if (!_writesSchemas(store, remainder.transaction)) return this._cached(remainder, frame, named, scope);
+    if (!write || store._lower === null || store._installing > 0) return super._extended(remainder, frame, write, scope, made);
+    if (!_writesSchemas(store, remainder.transaction)) return this._cached(remainder, frame, scope);
     store._lower.run(new Remainder(store._lower.copy(remainder.transaction), remainder.at), frame);
     store._installing += 1;
     try {
-      return super._extended(remainder, frame, write, named, scope, made);
+      return super._extended(remainder, frame, write, scope, made);
     } finally {
       store._installing -= 1;
     }
@@ -2221,23 +2277,30 @@ export class InMemory extends Interpreter {
 
   /** The frames given back (`Interpreter._givenBack`), once the owners the store gives are settled, so that each object
    * has its path. */
-  override _givenBack(frames: Frame[], named: Map<string, string[]>, scope: string | null = null): Frame[] {
+  override _givenBack(frames: Frame[], scope: string | null = null): Frame[] {
     if (this.store._unowned.length > 0) this.store._settle_owners();
-    return super._givenBack(frames, named, scope);
+    return super._givenBack(frames, scope);
   }
 
-  /** A cache layer's: the rest of the branch executed by the layer below's transaction, what comes back taken here;
-   * else the loopback (`Interpreter._below`). */
+  /** A cache layer's: the rest of the branch executed by the layer below's transaction, what comes back taken here, its
+   * path the partial frame's and the rest of the branch's chain; else the loopback (`Interpreter._below`). */
   override _below(state: Run, partial: Frame): Frame[] {
     const store = this.store;
     if (store._lower === null || store._installing > 0) return super._below(state, partial);
     const scope = partial.scope = `${state.scope}/${state.sent.count}`;
     state.sent.count += 1;
+    const rest = partial.remainder!;
+    const trail = [...partial._trail, ...chain(termAt(rest.transaction, rest.at))];
     const joined: Frame[] = [];
-    const [given] = this._givenBack([partial], state.named, scope);
-    for (const item of this._fromBelow(given!, partial.remainder!, state.named, scope)) {
-      if (item.errors.length > 0) state.failed.push(item);
-      else joined.push(this._taken(item, partial.remainder!, true));
+    const [given] = this._givenBack([partial], scope);
+    for (const item of this._fromBelow(given!, rest, scope)) {
+      if (item.errors.length > 0) {
+        state.failed.push(item);
+        continue;
+      }
+      const taken = this._taken(item, rest, true);
+      taken._trail = trail;
+      joined.push(taken);
     }
     return joined;
   }
@@ -2245,28 +2308,33 @@ export class InMemory extends Interpreter {
   /** The frames a cache layer gives of one input frame, writing ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)): it interprets it read-only
    * over what it holds, as far as it can know (`_bind`, `knows`); each frame that halts, with its remainder, and each it
    * completes, with nothing left to execute, goes to the layer below's transaction, which executes it, writing; and each
-   * that comes back is given (`_fromBelow`). A frame annotated with an error here is given as it is. */
-  _cached(remainder: Remainder, given: Map<string, any>, named: Map<string, string[]>, scope: string): Frame[] {
-    const made = this._one(remainder, given, false, named, scope);
+   * that comes back is given (`_fromBelow`). A frame annotated with an error here is given as it is. One it completed is
+   * given with its own journal, the layer below having executed nothing of it. */
+  _cached(remainder: Remainder, given: Map<string, any>, scope: string): Frame[] {
+    const made = this._one(remainder, given, false, scope);
     const frames: Frame[] = [];
-    for (const local of this._givenBack(made, named, scope)) {
+    for (const local of this._givenBack(made, scope)) {
       if (local.errors.length > 0) {
         frames.push(local);
         continue;
       }
+      const complete = local.remainder === null;
       const rest = local.remainder ?? new Remainder(remainder.transaction, []); // complete: down too, for the layer below
       local.remainder = null;
-      frames.push(...this._fromBelow(local, rest, named, scope));
+      for (const item of this._fromBelow(local, rest, scope)) {
+        if (complete && item.errors.length === 0) item.journal = local.journal;
+        frames.push(item);
+      }
     }
     return frames;
   }
 
   /** What the layer below's transaction gives back of a frame a cache layer sends it with the rest of the expression to
-   * execute, writing: each frame annotated with an error, as it is; each complete, its journal applied to what the
-   * cache layer holds; each partial, executed again by the cache layer, writing, its writes sent below as it makes them
-   * (`Builders.Store._forward`); a completion marker's journal applied. Its frames carry no journal: the cache layer
-   * gives one of what it changed, in its own terms. */
-  _fromBelow(local: Frame, rest: Remainder, named: Map<string, string[]>, scope: string): Frame[] {
+   * execute, writing: each frame annotated with an error, as it is; each complete, its journal, the state its path
+   * references, applied to what the cache layer holds, and given as it is; each partial, executed again by the cache
+   * layer, writing, its writes sent below as it makes them (`Builders.Store._forward`); a completion marker's journal,
+   * what the input frame changed, applied. Applying a journal the cache layer holds already changes nothing. */
+  _fromBelow(local: Frame, rest: Remainder, scope: string): Frame[] {
     const store = this.store;
     const frames: Frame[] = [];
     for (const item of store._lower.forward(local, rest) as Item[]) {
@@ -2274,28 +2342,26 @@ export class InMemory extends Interpreter {
         if (item.has("journal")) this._applyJournal(item.get("journal"));
         continue;
       }
-      const journal = item.journal;
-      item.journal = null;
       if (item.errors.length > 0) {
         frames.push(item);
         continue;
       }
-      if (journal !== null) this._applyJournal(journal);
+      this._applyJournal(item.journal);
       if (item.remainder === null) {
         frames.push(item);
         continue;
       }
-      const made = store._proposing(() => this._one(item.remainder!, item, true, named, scope), // partial: executed
+      const made = store._proposing(() => this._one(item.remainder!, item, true, scope), // partial: executed
         (proposals: Proposals.OfStore) => store._forward(proposals)); // again here, writing, its writes sent below
-      frames.push(...this._givenBack(made, named, scope));
+      frames.push(...this._givenBack(made, scope));
     }
     return frames;
   }
 
-  /** Applies a journal a layer below gave back, a value of the cache layer's, to what the cache layer holds, as it
-   * applies what the layer below's follow gives it (`Builders.Store._apply`). */
+  /** Applies a journal a layer below gave back, a `Changes.Transaction` of the cache layer's, to what the cache layer
+   * holds, as it applies what the layer below's follow gives it (`Builders.Store._apply`). */
   _applyJournal(journal: unknown): void {
-    for (const transaction of Changes._transactions(journal)) this.store._apply(transaction, true);
+    this.store._apply(journal, true);
   }
 }
 
@@ -2382,63 +2448,44 @@ export class _Lower {
   down(frame: Frame): Frame {
     const bound = [...Map.prototype.entries.call(frame) as IterableIterator<[string, any]>]
       .map(([name, value]) => [name, carried(this.store, this.below, value)] as [string, any]);
-    return new Frame(bound, frame.errors, [], null, frame.scope);
+    return new Frame(bound, frame.errors, null, frame.scope);
   }
 
-  /** A frame the layer below gave back, as the cache layer's: its bindings, what it assigns, its remainder in the cache
-   * layer's expression, and its journal. */
+  /** A frame the layer below gave back, as the cache layer's: its journal, its bindings read from it, a refused one as
+   * refused, and its remainder in the cache layer's expression. */
   up(frame: Frame): Frame {
+    const journal = this.journal(frame.journal); // every frame given back is its journal
+    const held: Map<string, any> = Changes._bindings(journal);
     const bound: [string, any][] = [];
     for (const [name, value] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
+      if (held.has(name)) {
+        bound.push([name, held.get(name)]);
+        continue;
+      }
       try {
         bound.push([name, carried(this.below, this.store, value)]);
       } catch (error) {
         bound.push([name, new Refused((error as Error).message)]);
       }
     }
-    const holders = new Map(bound);
-    const assigns = [...frame.assigns].map(([name, values]) => [name, new Map([...values].map(([key, value]) =>
-      [key, carriedValue(this.below, this.store, value, holders.get(name), key)]))] as [string, Map<string, unknown>]);
     const remainder = frame.remainder === null ? null
       : new Remainder(this.originals.get(frame.remainder.transaction), frame.remainder.at);
-    return new Frame(bound, frame.errors, assigns, remainder, frame.scope,
-      frame.journal === null ? null : this.journal(frame.journal));
+    return new Frame(bound, frame.errors, remainder, frame.scope, journal);
   }
 
-  /** A journal the layer below gave, as the cache layer's. */
+  /** A journal the layer below gave, a `Changes.Transaction`, as the cache layer's. */
   journal(journal: unknown): unknown {
-    return Plain.FromPlain(this.store)(this.store.registered("Changes.Journal"),
-      Plain.ToPlain(this.below)(this.below.registered("Changes.Journal"), journal) as Plain.PlainData);
+    return Plain.FromPlain(this.store)(this.store.registered("Changes.Transaction"),
+      Plain.ToPlain(this.below)(this.below.registered("Changes.Transaction"), journal) as Plain.PlainData);
   }
 }
 
-/** What a frame binds, of `source`'s, as `target`'s: an object's reference by its path, a schema object by its path;
- * refused, `LookupError`, where it cannot be: a counted object, or a schema object `target` does not hold. */
+/** What a frame binds, of `source`'s, as `target`'s: an object's reference, by its path, a schema object's among them;
+ * refused, `LookupError`, where it has none: a counted object. */
 function carried(source: any, target: any, value: any): any {
-  if (value instanceof Refused) throw new LookupError(value.message);
-  const held = Proxies._deref(value);
-  const inner = Proxies._innerOf(held);
-  if (inner instanceof Proxies._internals._RecordData && inner._schema === source.registered("References.OfObject")) {
-    return Plain.FromPlain(target)(target.registered("References.OfObject"),
-      Plain.ToPlain(source)(inner._schema, held) as Plain.PlainData);
-  }
-  const path = Paths.of(held) as any;
-  const found = target.held(Plain.ToPlain(source)(path.as_schema(), path));
-  if (found === null) throw new LookupError("a schema object the layer it goes to does not hold");
-  return found;
-}
-
-/** A value a frame assigns to the property `name` of `holder`, the object a symbol binds, by its reference, a value of
- * `target`'s: a value object of `source`'s by its plain form, read by the schema `target` gives the property, that of the
- * object's schema its path implies; any other as it is. */
-function carriedValue(source: any, target: any, value: any, holder: any, name: string): unknown {
-  const inner = Proxies._innerOf(value);
-  if (inner instanceof Proxies._internals._RecordData || inner instanceof Proxies._internals._ContainerData) {
-    const path = (Plain.ToPlain(target)(holder.as_schema(), holder) as Map<string, unknown>).get("path");
-    const schema = References.implied(target, path).properties.get(name).schema;
-    return Plain.FromPlain(target)(schema, Plain.ToPlain(source)(inner._schema, value) as Plain.PlainData);
-  }
-  return value;
+  const reference = References.of(source, value);
+  return Plain.FromPlain(target)(target.registered("References.OfObject"),
+    Plain.ToPlain(source)(reference.as_schema(), reference) as Plain.PlainData);
 }
 
 Proxies._interpreters((store) => new InMemory(store)); // a store in memory's interpreter, made as it is first asked for

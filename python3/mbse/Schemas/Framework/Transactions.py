@@ -2202,8 +2202,8 @@ class _Lower:
         one as refused, and its remainder in the cache layer's expression."""
         from . import Changes
 
-        journal = None if frame.journal is None else self.journal(frame.journal)
-        held = {} if journal is None else Changes._bindings(journal)
+        journal = self.journal(frame.journal)  # every frame given back is its journal
+        held = Changes._bindings(journal)
         bound: dict[str, Any] = {}
         for name, value in dict.items(frame):
             if name in held:

@@ -6,24 +6,23 @@
  *
  * - `References.OfObject`, a singleton or other non-counted reference object: a value object whose one property, `path`, is a
  *   singleton's, an owned object's or a schema object's path (`Paths.OfRoot`);
- * - `References.OfFrame`, a frame: `binds`, each of its symbols bound to a `References.OfObject`, and `variables`, each
- *   of its variables' values; and what it witnesses: `assigns`, objects' property values (`References.OfProperties`),
- *   and `entries`, relation entries (`References.OfEntry`); and its `errors`, what failed as a term processed it
- *   (`References.OfError`, [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)).
- *   As an item of a frame stream (`txn.exec`), `Changes.install` gives it its `scope`, the id of the input frame it
- *   descends from; its `remainder`, where the rest of the expression begins, written as an error's `subterm` is, unset
- *   on a complete frame; and its `journal`, the changes made interpreting its input frame, a `Changes.Transaction`
- *   ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), [the decoupled-code
- *   proposal](mbse:mbse-schemas/docs/proposals/decoupled-code/README.md#stages), stage 1);
+ * - `References.OfFrame`, a frame: its `errors`, what failed as a term processed it (`References.OfError`,
+ *   [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)); and, which `Changes.install` gives it, its `journal`, a
+ *   `Changes.Transaction`, which the frame is ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), as the user
+ *   decided: "frames contained journals which contained changes"): its symbols the frame's bindings, each an object by
+ *   its `References.OfObject`, a schema object by its `References.OfSchema`, and its changes the state its path's
+ *   clauses reference, each property set, each relation entry inserted; and, as an item of a frame stream (`txn.exec`),
+ *   its `scope`, the id of the input frame it descends from, and its `remainder`, where the rest of the expression
+ *   begins, written as an error's `subterm` is, unset on a complete frame. It has no bindings, values or entries of its
+ *   own beside its journal;
  * - `References.OfEnd`, a frame stream's completion marker, `{"end": scope}`: its `scope`, a branch's or an input
- *   frame's, unset where it ends the whole stream, and its `journal`, where the input frame gave no frame; and
+ *   frame's, unset where it ends the whole stream, and its `journal`, what the input frame changed, where it changed
+ *   anything; and
  *   `References.OfItem`, an item of a frame stream, the union of a `frame` and an `end`. `Changes.install` defines both,
  *   after the `Changes` schemas their journals are, so that the built-in serialization carries a stream to another
  *   process as it carries any value;
  * - `References.OfError`, an error annotated on a frame: its `subterm`, where in the transaction's expression it arose,
  *   its `kind`, the name of its class, and its `message`;
- * - `References.OfProperties`, property values an object is witnessed to hold: its `object`, a `References.OfObject`,
- *   and its `properties`, each its value;
  * - `References.OfEntry`, a relation entry: its `relation`, by the relation's path, its `links`, each a
  *   `References.OfObject`, and its `properties`, each its value. Entries compare by value, so that designates one;
  * - `References.OfSchema`, a schema object's reference, which refines `References.OfObject`: its `path` is a schema
@@ -39,11 +38,12 @@
  *   reads ([CAP-312: a parameter reference in place of anything with a schema](mbse:mbse-basis/docs/capabilities/CAP-312.md#decided)).
  *
  * `of(store, x)` gives the reference of an object, an entry, or a frame `store.transaction` or `txn.exec` gave back,
- * its errors, scope, remainder and journal included, and the `References.OfEnd` of a completion marker `txn.exec` gave. A reference is resolved within a transaction, as every read of a store's data is: a pattern's symbol given
+ * its journal, errors, scope and remainder included, a symbol it binds that has no reference annotated as an error,
+ * and the `References.OfEnd` of a completion marker `txn.exec` gave. A reference is resolved within a transaction, as every read of a store's data is: a pattern's symbol given
  * an object's reference binds what it designates, and no function resolves one from outside the transaction
  * ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)). An entry's reference is matched by a pattern over the objects it links,
- * and a frame's by a pattern whose symbols are given the references it binds. A counted object has no reference, nor a
- * frame that binds one: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
+ * and a frame's by a pattern whose symbols are given the references its journal binds. A counted object has no
+ * reference, and a frame that binds one leaves it out of its journal: nothing names it (object identity 40 and 55 in [CAP-118: singletons, owned and counted objects](mbse:mbse-basis/docs/capabilities/CAP-118.md#decided)).
  *
  * The extension: `install` gives `Schemas.OfSymbol` its `reference`, a `References.OfObject`, so that a pattern's symbol
  * binds the one object a reference designates, given in place of a schema (`.symbols({ ada: reference })`);
@@ -53,7 +53,6 @@
  */
 
 import * as Builders from "./Builders.js";
-import * as Changes from "./Changes.js";
 import { LookupError, ValueError } from "./Errors.js";
 import * as Paths from "./Paths.js";
 import * as Plain from "./Plain.js";
@@ -68,22 +67,14 @@ import * as Transactions from "./Transactions.js";
 export function install(txn: any): any {
   const S = txn.Schemas; // the store's meta-schemas and basic scalars (78)
   return txn.uid("mbse.Schemas.References/1").mutations([(mu: any) => mu.upsert((u: any) => u.exists([(p: any) => p
-    .symbols({OfObject: S.OfObject, OfFrame: S.OfObject, OfProperties: S.OfObject, OfEntry: S.OfObject,
+    .symbols({OfObject: S.OfObject, OfFrame: S.OfObject, OfEntry: S.OfObject,
       OfError: S.OfObject, OfSymbol: S.OfObject, OfParameter: S.OfObject, OfSchema: S.OfObject, OfValue: S.OfObject})
     .spec([
       (_: any) => _.OfObject.name("References.OfObject").properties({
         path: txn.Paths.OfRoot, // a singleton's, an owned object's or a schema object's
       }),
-      (_: any) => _.OfFrame.name("References.OfFrame").properties({
-        binds: S.OfContainer((c: any) => c.index([S.OfStr]).element([_.OfObject])),
-        variables: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfAny((a: any) => a)])),
-        assigns: S.OfContainer((c: any) => c.index([S.OfInt]).element([_.OfProperties])), // witnessed values
-        entries: S.OfContainer((c: any) => c.index([S.OfInt]).element([_.OfEntry])), // witnessed entries
+      (_: any) => _.OfFrame.name("References.OfFrame").properties({ // its journal, `Changes.install`'s (CAP-318)
         errors: S.OfContainer((c: any) => c.index([S.OfInt]).element([_.OfError])), // what failed (CAP-309)
-      }),
-      (_: any) => _.OfProperties.name("References.OfProperties").properties({
-        object: _.OfObject,
-        properties: S.OfContainer((c: any) => c.index([S.OfStr]).element([S.OfAny((a: any) => a)])),
       }),
       (_: any) => _.OfEntry.name("References.OfEntry").properties({
         relation: txn.Paths.OfRoot, // the relation's path
@@ -124,12 +115,12 @@ export function validate(pattern: unknown): string[] {
 
 type Callback = (visitor: any) => any;
 
-/** A `References.OfObject`'s callback: an object's path; refused for a counted object, which nothing names. */
+/** A `References.OfObject`'s callback: an object's path, or that of a reference a frame given back holds, a schema
+ * object's among them; refused for a counted object, which nothing names. */
 function object(store: any, obj: unknown): Callback {
   const target = Proxies._deref(obj);
   if (target instanceof Transactions.Refused) throw new LookupError(target.message);
-  const inner = Proxies._innerOf(target);
-  if (inner instanceof Proxies._internals._RecordData && inner._schema === store.registered("References.OfObject")) {
+  if (Transactions._isReference(store, target)) {
     const held = Proxies._read(target, "path"); // a reference a frame given back holds
     return (o: any) => o.path(held);
   }
@@ -146,52 +137,63 @@ function object(store: any, obj: unknown): Callback {
   return (o: any) => o.path(path);
 }
 
-/** A `References.OfFrame`'s callback: each symbol's object's reference, refused where one binds a counted object;
- * and, where it is a frame the executor gave back (`Transactions.Frame`), the errors annotated on it, its `scope`, its
- * `remainder`'s subterm where it halted, and its `journal`'s one transaction where it carries one (CAP-318). */
+/** A `References.OfFrame`'s callback: its journal (CAP-318), the one a frame the executor gave back is
+ * (`Transactions.Frame`), else one of its bindings alone, each symbol's object by its reference, a schema object's a
+ * `References.OfSchema`; a symbol that binds an object with no reference, a counted one, left out of it and written as an
+ * error annotated on the frame, at `$`; and the errors annotated on it, its `scope`, and its `remainder`'s subterm where
+ * it halted. */
 function frameOf(store: any, frame: Map<string, unknown>): Callback {
-  const binds = new Map<string, Callback>();
-  for (const [name, target] of frame) {
+  const errors: [string, string, string][] = (frame instanceof Transactions.Frame ? frame.errors : [])
+    .map((error) => [error.subterm, error.kind, error.message]);
+  const symbols: Plain.PlainMap = new Map();
+  for (const [name, target] of Map.prototype.entries.call(frame) as IterableIterator<[string, unknown]>) {
     try {
-      binds.set(name, object(store, target));
+      symbols.set(name, symbolOf(store, target));
     } catch (error) {
       if (!(error instanceof LookupError)) throw error;
-      throw new LookupError(`symbol ${repr(name)} of the frame: ${error.message}`);
+      errors.push(["$", error.name, `symbol ${repr(name)} of the frame: ${error.message}`]);
     }
   }
-  const errors = (frame instanceof Transactions.Frame ? frame.errors : []).map((error) => (x: any) =>
-    x.as_object((r: any) => r.subterm(error.subterm).kind(error.kind).message(error.message)));
-  const assigns = [...(frame instanceof Transactions.Frame ? frame.assigns : [])].map(([name, values]) => (x: any) =>
-    x.as_object((p: any) => p.object(binds.get(name)).properties(values))); // what it witnesses (CAP-131)
-  const [scope, remainder, journal] = frame instanceof Transactions.Frame
-    ? [frame.scope, frame.remainder, journaled(frame.journal)] : [null, null, null];
+  const given = frame instanceof Transactions.Frame ? frame.journal : null;
+  const journal = given ?? Plain.FromPlain(store)(store.registered("Changes.Transaction"),
+    new Map([["symbols", symbols]]));
+  const [scope, remainder] = frame instanceof Transactions.Frame ? [frame.scope, frame.remainder] : [null, null];
   return (f: any) => {
-    f.binds(binds);
-    if (assigns.length > 0) f.assigns(assigns);
-    if (errors.length > 0) f.errors(errors);
+    f.journal(journal);
+    if (errors.length > 0) {
+      f.errors(errors.map(([subterm, kind, message]) => (x: any) =>
+        x.as_object((r: any) => r.subterm(subterm).kind(kind).message(message))));
+    }
     if (scope !== null) f.scope(scope);
     if (remainder !== null) f.remainder(remainder.subterm); // where it halted: a position, not a copy of the expression
-    return journal === null ? f : f.journal(journal); // none of these: written as before them
+    return f;
   };
 }
 
+/** A frame's binding as a `Changes.Symbol`, as plain data: its object's reference, a schema object's a
+ * `References.OfSchema`; `LookupError` where it has none. */
+function symbolOf(store: any, target: unknown): Plain.PlainMap {
+  const reference = store.References.OfObject(object(store, target));
+  const plain = Plain.ToPlain(store)(reference.as_schema(), reference) as Plain.PlainMap;
+  const inner = Proxies._innerOf(Proxies._deref(target));
+  if (inner instanceof Proxies._internals._RecordData && inner._schema !== store.registered("References.OfObject")) {
+    plain.set("$schema", store.name_of(inner._schema)); // a schema object's reference, as it was given
+  } else if (!(inner instanceof Proxies._internals._RecordData) && !Proxies._isObjectData(Proxies._deref(target))) {
+    plain.set("$schema", "References.OfSchema"); // a schema object
+  }
+  return new Map([["reference", plain]]);
+}
+
 /** A `References.OfEnd`'s callback: a completion marker's scope, unset where it ends the whole stream
- * (`{"end": null}`), and its journal's one transaction, where the input frame gave no frame (CAP-318). */
+ * (`{"end": null}`), and its journal, a `Changes.Transaction`, what the input frame changed, where it changed anything
+ * (CAP-318). */
 function endOf(marker: Map<string, unknown>): Callback {
   const scope = marker.get("end") as string | null;
-  const journal = journaled(marker.get("journal") ?? null);
+  const journal = marker.get("journal") ?? null;
   return (e: any) => {
     if (scope !== null) e.scope(scope);
     return journal === null ? e : e.journal(journal);
   };
-}
-
-/** The one transaction of a journal the executor gave a frame or a completion marker (`Changes.Journal`), a
- * `Changes.Transaction`; null where it gave none. */
-function journaled(journal: unknown): unknown {
-  if (journal === null) return null;
-  const [transaction] = Changes._transactions(journal); // a frame's journal holds one transaction, its own
-  return transaction;
 }
 
 /** Whether a map is a completion marker of a frame stream, `{"end": scope}` with its `journal` where it carries one:
@@ -276,8 +278,8 @@ export function implied(store: any, pathPlain: unknown): any {
 
 /** The reference of `x`, a value of the store's: of an object (`References.OfObject`), its path, refused for a counted
  * object; of a relation entry (`References.OfEntry`); of a frame `store.transaction` or `txn.exec` gave back, a map of
- * symbols to objects (`References.OfFrame`), refused where it binds a counted object, with its scope, remainder and
- * journal where it carries them; of a completion marker `txn.exec` gave, `{"end": scope}` (`References.OfEnd`). It
+ * symbols to objects (`References.OfFrame`), its journal, or one of its bindings, a symbol that binds a counted object
+ * left out of it and annotated as an error, with its errors, scope and remainder where it carries them; of a completion marker `txn.exec` gave, `{"end": scope}` (`References.OfEnd`). It
  * gives no `References.OfParameter`, since
  * a parameter is not an object that a store holds: a parameter reference is built by its name,
  * `store.References.OfParameter((p: any) => p.name(...))`. */

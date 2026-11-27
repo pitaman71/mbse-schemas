@@ -44,10 +44,12 @@ one empty frame; where nothing matches, none. A frame given back holds no object
 only within its transaction ([CAP-315: every read within a transaction or through a follow](mbse:mbse-basis/docs/capabilities/CAP-315.md)): a frame is its
 `journal`, a `Changes.Transaction` in the journal language, a value that outlives the transaction
 ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)). Its symbols are the frame's bindings, each object by its reference, a
-schema object by its `References.OfSchema`, which the frame gives by symbol; its changes are the state its path's
-clauses reference, those of the term that made it and of the terms before it, not a sibling branch's: each property a
-clause names set to the value it holds, or cleared where it holds none, and each relation entry it names that is held,
-inserted with its properties, read or written alike. The schema is not consulted for more. A symbol that binds a
+schema object by its `References.OfSchema`, which the frame gives by symbol; its changes are what its path's clauses
+referenced or changed, those of the term that made it and of the terms before it, not a sibling branch's, in
+`Changes`' verbs: each property a clause names set to the value it holds, or cleared where it holds none, each relation
+entry it names that is held inserted with its properties, and each one it removes, or a map finds absent, removed,
+read or written alike. The schema is not consulted for more. A frame's journal is not what commits: a transaction's
+writes accumulate in its layer's own transaction, which commits them. A symbol that binds a
 counted object is refused (`LookupError`) and left out of the journal, though the frame still lists it. To read more
 of an object, read the store within a transaction: from a singleton, or by giving its reference to a symbol. A
 transaction can be built first, with `store.Mutations.OfTransaction(...)`, then run, or written out as a journal's entry
@@ -116,11 +118,12 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - **A frame stream is schema data**, so that the built-in serialization carries it to another process, a layer of a
   stack below another, with no format of its own ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)). `References.of(store, frame)` writes a frame
   `txn.exec` gave with its `journal`, its `scope`, and its `remainder` where it halted, written as an error's subterm
-  is, a position in the expression the receiver already holds; and a completion marker, `{"end": scope}`, as a
-  `References.OfEnd`, its scope unset where it ends the whole stream, its `journal` what the input frame changed.
+  is, a position in the expression the receiver already holds, and `terminal` where it is one; and a completion marker,
+  `{"end": scope}`, as a `References.OfEnd`, its scope unset where it ends the whole stream, which marks an end and
+  carries nothing else.
   `References.OfItem` holds either one. A `References.OfFrame` written before a frame was its journal, with `binds`
   and `assigns`, is refused where it is read.
-  - Python: [REF-21: A frame's scope, remainder and journal](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-21) · TypeScript: [REF-21: A frame's scope, remainder and journal](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-21)
+  - Python: [REF-21: A frame's scope, remainder, journal and terminal mark](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-21) · TypeScript: [REF-21: A frame's scope, remainder, journal and terminal mark](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-21)
   - Python: [REF-23: End markers, and `References.OfItem`](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-23) · TypeScript: [REF-23: End markers, and `References.OfItem`](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-23)
   - Python: [REF-24: A `References.OfFrame` written before a frame was its journal is refused](mbse:mbse-schemas/python3/tests/33_References.ipynb#REF-24) · TypeScript: [REF-24: A `References.OfFrame` written before a frame was its journal is refused](mbse:mbse-schemas/typescript5/tests/33_References.ipynb#REF-24)
 - A frame's journal is a *witness*, carrying the property values its objects hold and the relation entries that make it
@@ -156,12 +159,16 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
   ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)).
   - Python: [EXE-02: Read-only: a frame halts where a term would write, or nothing held binds a symbol](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-02) · TypeScript: [EXE-02: Read-only: a frame halts where a term would write, or nothing held binds a symbol](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-02)
   - Python: [EXE-04: Split-join through the loopback](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-04) · TypeScript: [EXE-04: Split-join through the loopback](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-04)
-- **A completion marker carries what its input frame changed**, `{"end": scope, "journal": ...}`, a
-  `Changes.Transaction` whose id is the transaction's uid and the marker's position in the stream (`uid#n`), where it
-  changed anything; each frame's journal has the id of its own position. Applying each marker's journal by
-  `Changes.apply` makes the same changes elsewhere, each once; a cache layer applies those the layer below gives back,
-  and each frame's journal, to what it holds.
-  - Python: [EXE-08: What an input frame changed](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-08) · TypeScript: [EXE-08: What an input frame changed](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-08)
+- **A completion marker marks an end, and nothing else**: what an input frame changed is in the transaction open, which
+  commits it, and what a transaction commits is gathered there, as a journal (`Changes.observe`, the follow). A
+  frame's journal has the id of its position in the stream (`uid#n`).
+  - Python: [EXE-08: A completion marker marks an end](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-08) · TypeScript: [EXE-08: A completion marker marks an end](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-08)
+- **A frame a term drops whose path changed something is terminal** (`frame.terminal`), a routing mark: every later
+  term and every layer below passes it through, uninterpreted, down to the layer that commits; no stream gives it to
+  the caller, but `txn.exec(frame, remainder, allow_write, terminal)` with `terminal` true, as a layer above asks, and
+  `store.transaction` does not return it. Its writes are in the committing layer's transaction already. A frame
+  dropped whose path changed nothing is dropped.
+  - Python: [EXE-10: A terminal frame](mbse:mbse-schemas/python3/tests/38_Exec.ipynb#EXE-10) · TypeScript: [EXE-10: A terminal frame](mbse:mbse-schemas/typescript5/tests/38_Exec.ipynb#EXE-10)
   - Python: [BLW-09: The completeness rule](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-09) · TypeScript: [BLW-09: The completeness rule](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-09)
 - **A layer of your own interprets with a class of its own.** A store kept elsewhere than in memory, a database's, is
   a layer whose interpreter derives from `Transactions.Interpreter`, the base class that holds what every layer
@@ -178,10 +185,10 @@ and its items apply in order ([CAP-143: specs declarative, no read-modify-write]
 - **What your layer needs is public, one copy every layer shares**, each taking what the layer gives through its
   hooks: its `given` refuses an object with no reference with `Transactions.Refused(message, target, life)`; its
   `insert` replaces the one entry held where `Transactions.single(relation, me)`; its commit checks each relation it
-  inserted into with `check_uniques(relation, inserted)`, and records the transaction with
-  `Provenance.record(interpreter, expression, created, written)`; its `savepoint(journal)` gives what it changed,
-  net, as `Changes.gather(interpreter, uid, made, deleted, removed, inserted, changed, held)`; the schema a path
-  implies is `References.implied(store, path)`; and a callback is built into an expression by `store.expressed(spec)`,
+  inserted into with `check_uniques(relation, inserted)`, records the transaction with
+  `Provenance.record(interpreter, expression, created, written)`, and gathers what it commits, net, from its own
+  transaction, as `Changes.gather(interpreter, uid, made, deleted, removed, inserted, changed, held)`; the schema a
+  path implies is `References.implied(store, path)`; and a callback is built into an expression by `store.expressed(spec)`,
   as `txn.exec` builds one, so that `Changes.apply` works within it in any layer.
   - Python: [LAY-05: What every layer shares, public](mbse:mbse-schemas/python3/tests/40_Layers.ipynb#LAY-05) · TypeScript: [LAY-05: What every layer shares, public](mbse:mbse-schemas/typescript5/tests/40_Layers.ipynb#LAY-05)
 - **An error is annotated on its frame, in the stream**, not raised by `exec`; the scope then commits nothing, and

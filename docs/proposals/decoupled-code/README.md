@@ -297,9 +297,21 @@ passing both gates at 100%. `Store.exec` (0.31.0) has landed.
    unnecessary". "the symbol bindings belong in the journal language too". Built in 0.38.0: `References.OfFrame` is
    its `journal`, a `Changes.Transaction`, its `scope`, `remainder` and `errors`; `binds`, `variables`, `assigns`,
    `entries` and `References.OfProperties` are removed, breaking (question 6, (a)). The journal's symbols are the
-   frame's bindings, and its changes the state its path's clauses reference, read or written (question 3, a
-   refinement of (a)); what an input frame changed, which no frame's state need hold, its completion marker carries
-   (question 1, so resolved). `state` in this proposal is that `journal`.
+   frame's bindings, and its changes what its path's clauses referenced or changed, read or written (question 3, a
+   refinement of (a)). `state` in this proposal is that `journal`.
+3. **Frames are not the record of what commits** (question 1), as the user decided (2026-11-27, recorded on mbse-basis
+   #226): "if we aren't going down the Frames-only path already, let's not start." A transaction's writes accumulate
+   in its layer's own transaction (its proposals, or the layer's write log) and commit from there; a completion
+   marker marks an end and carries no journal. A frame's journal holds everything its path's clauses referenced or
+   changed, in `Changes`' verbs: `Set` and `Clear` for properties, `Insert` and `Remove` for entries, removals
+   included. A frame a term drops (a map whose spec fails, a reduce or a partition discarding it) whose path changed
+   anything is `terminal`, on `Transactions.Frame` and `References.OfFrame` (a bool, unset where false), a routing
+   mark only ("The latter for now"): every later term and every layer below passes it through, uninterpreted, down to
+   the layer that commits; the outermost stream does not give it to the caller, nor does `store.transaction` return
+   it; one whose path changed nothing is dropped. A cache layer drops no frame of its own judgment, forwarding one
+   whose spec fails on what it holds, for the layer below to decide; its copy follows what is committed, applying
+   the journals of the frames that come back, terminal ones among them, and the layer below's commit, which it
+   follows. Built in 0.38.0.
 
 ## Questions for the user
 

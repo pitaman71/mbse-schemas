@@ -221,8 +221,10 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    below first, however it reaches the store, by `store.transaction` or a layer above's `txn.exec`; write and query with transactions (`store.transaction(spec)`, `txn.exec`). Its transaction holds one
    transaction of the layer below open, which commits first, a refusal there refusing both. It reads what it holds
    alone, loading nothing: a frame it cannot bind, as far as it can know what it holds is all there is, goes below with
-   the rest of the expression, and the frames that come back are given, each its journal, the state its path
-   references, applied to what it holds with what their input frames changed; a
+   the rest of the expression, and the frames that come back are given, each its journal, what its path referenced or
+   changed, applied to what it holds, a terminal one's too, which is given to no caller; it drops no frame of its own
+   judgment, the layer below deciding; and the layer below's commit, which it follows, brings what was written on a
+   dropped path; a
    builder's write goes through as it is made. What others commit below reaches it by the layer below's follow, which
    gives each transaction as a journal (practice 16), applied to the objects it holds alone. Read the frames it gives,
    not its visitors, for data it did not make.
@@ -237,6 +239,7 @@ repositories exist, and this one's part: [Why the mbse repositories exist](mbse:
    - Python: [BLW-09: The completeness rule: a cache layer interpreting read-only binds and reads only what it can know it holds all of; elsewhere the frame halts, and the layer below binds it. A symbol of a schema halts, the cache layer holding no whole extent; a singleton binds, but its spec halts, the cache layer holding not all of it; a reference binds where the cache layer holds its object, and its spec is read there where it holds all of it, halting where it holds not all of it, or none; an update or an upsert halts. Whatever halts, a cache layer gives the frames a store with no layer below holding the same gives, never fewer](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-09) · TypeScript: [BLW-09: The completeness rule: a cache layer interpreting read-only binds and reads only what it can know it holds all of; elsewhere the frame halts, and the layer below binds it. A symbol of a schema halts, the cache layer holding no whole extent; a singleton binds, but its spec halts, the cache layer holding not all of it; a reference binds where the cache layer holds its object, and its spec is read there where it holds all of it, halting where it holds not all of it, or none; an update or an upsert halts. Whatever halts, a cache layer gives the frames a store with no layer below holding the same gives, never fewer](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-09)
    - Python: [BLW-15: An install reaches each layer however it reaches it](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-15) · TypeScript: [BLW-15: An install reaches each layer however it reaches it](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-15)
    - Python: [BLW-16: A cache layer applies the frames that come back](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-16) · TypeScript: [BLW-16: A cache layer applies the frames that come back](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-16)
+   - Python: [BLW-17: A terminal frame through layers](mbse:mbse-schemas/python3/tests/36_Below.ipynb#BLW-17) · TypeScript: [BLW-17: A terminal frame through layers](mbse:mbse-schemas/typescript5/tests/36_Below.ipynb#BLW-17)
 16. **Follow what a store changes, as a journal.** *Why*: a viewer, a replica or a journal needs exactly what each
    transaction changed, resolved, not the expression that changed it, which reads like a query. *When*: mirroring,
    recording, streaming or reacting to a store's changes. *How*: `Changes.observe(store, observer)` gives the observer

@@ -9,14 +9,14 @@ Value schemas, which every store holds, its own, as it holds `Paths`:
   [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)); and, which `Changes.install` gives it, its `journal`, a
   `Changes.Transaction`, which the frame is ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), as the user
   decided: "frames contained journals which contained changes"): its symbols the frame's bindings, each an object by
-  its `References.OfObject`, a schema object by its `References.OfSchema`, and its changes the state its path's
-  clauses reference, each property set, each relation entry inserted; and, as an item of a frame stream (`txn.exec`),
-  its `scope`, the id of the input frame it descends from, and its `remainder`, where the rest of the expression
-  begins, written as an error's `subterm` is, unset on a complete frame. It has no bindings, values or entries of its
-  own beside its journal;
+  its `References.OfObject`, a schema object by its `References.OfSchema`, and its changes what its path's clauses
+  referenced or changed, each property set or cleared, each relation entry inserted or removed; and, as an item of a
+  frame stream (`txn.exec`), its `scope`, the id of the input frame it descends from, its `remainder`, where the rest
+  of the expression begins, written as an error's `subterm` is, unset on a complete frame, and `terminal`, true where
+  a term dropped it and its path changed something, a routing mark, unset where false. It has no bindings, values or
+  entries of its own beside its journal;
 - `References.OfEnd`, a frame stream's completion marker, `{"end": scope}`: its `scope`, a branch's or an input
-  frame's, unset where it ends the whole stream, and its `journal`, what the input frame changed, where it changed
-  anything; and
+  frame's, unset where it ends the whole stream; it marks an end, and carries nothing else; and
   `References.OfItem`, an item of a frame stream, the union of a `frame` and an `end`. `Changes.install` defines both,
   after the `Changes` schemas their journals are, so that the built-in serialization carries a stream to another
   process as it carries any value;
@@ -216,6 +216,7 @@ def _frame(store: Any, frame: Mapping[str, Any]) -> Any:
     if journal is None:
         journal = Plain.FromPlain(store)(store.registered("Changes.Transaction"), {"symbols": symbols})
     scope, remainder = getattr(frame, "scope", None), getattr(frame, "remainder", None)
+    terminal = getattr(frame, "terminal", False)
 
     def written(f: Any) -> Any:
         f.journal(journal)
@@ -226,7 +227,7 @@ def _frame(store: Any, frame: Mapping[str, Any]) -> Any:
             f.scope(scope)
         if remainder is not None:  # where it halted: a position in the expression the receiver holds, not a copy
             f.remainder(remainder.subterm)
-        return f
+        return f.terminal(True) if terminal else f  # a routing mark, unset where false
     return written
 
 
@@ -245,23 +246,17 @@ def _symbol(store: Any, target: Any) -> dict[str, Any]:
 
 def _end(store: Any, marker: Mapping[str, Any]) -> Any:
     """A `References.OfEnd`'s callback: a completion marker's scope, unset where it ends the whole stream
-    (`{"end": None}`), and its journal, a `Changes.Transaction`, what the input frame changed, where it changed
-    anything (CAP-318)."""
-    scope, journal = marker["end"], marker.get("journal")
-
-    def written(e: Any) -> Any:
-        if scope is not None:
-            e.scope(scope)
-        return e if journal is None else e.journal(journal)
-    return written
+    (`{"end": None}`). It marks an end, and carries nothing else."""
+    scope = marker["end"]
+    return lambda e: e if scope is None else e.scope(scope)
 
 
 def _is_end(x: Mapping[str, Any]) -> bool:
-    """Whether a mapping is a completion marker of a frame stream, `{"end": scope}` with its `journal` where it carries
-    one: not a frame, which binds objects, never a scope, by its symbols."""
+    """Whether a mapping is a completion marker of a frame stream, `{"end": scope}`: not a frame, which binds objects,
+    never a scope, by its symbols."""
     from . import Transactions
 
-    return (not isinstance(x, Transactions.Frame) and "end" in x and set(x) <= {"end", "journal"}
+    return (not isinstance(x, Transactions.Frame) and set(x) == {"end"}
             and (x["end"] is None or isinstance(x["end"], str)))
 
 

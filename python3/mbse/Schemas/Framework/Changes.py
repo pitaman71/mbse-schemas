@@ -63,17 +63,17 @@ its ownership is settled, so that what it deleted in cascade, and every entry li
 was before is read from what the store holds as committed. `gather` builds them as a `Changes.Transaction`, from what
 a layer changed, net, read through its interpreter's hooks, a value that outlives the transaction: a store in
 memory's (`_gather`) and any other layer's alike. A savepoint's changes are gathered alike, relative to the
-transaction it is within: what interpreting an input frame changed, which its completion marker carries as a journal
-(`{"end": scope, "journal": ...}`). An expression's terms, and the entries linking schema objects, are no data, and are
-left out.
+transaction it is within. An expression's terms, and the entries linking schema objects, are no data, and are left
+out. What a transaction commits is what its layer's transaction holds, gathered at its commit: a frame's journal is
+not what commits.
 
 `state` writes a frame given back as its journal ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)), read
 through the same hooks: its symbols the frame's bindings, by its own names, and its changes the state its path's
-clauses reference, each property set, or cleared where it holds none, each relation entry held inserted with its
-properties, read or written alike (`Transactions.Frame`).
+clauses referenced or changed, each property set, or cleared where it holds none, each relation entry held inserted
+with its properties, each one removed, or found absent, removed, read or written alike (`Transactions.Frame`).
 
 A cache layer, a store given a layer below, applies to what it holds the journals that the frames the layer below gives
-back are, and those that their completion markers carry, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
+back are, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
 objects present in it alone. `_present_only` reads the layer below's `Changes.Transaction` through the visitors, and
 builds the one that changes those objects alone, making an object created under one present, and leaving out an entry
 that names one not present. What the cache layer writes itself, by builders, it sends below as the
@@ -166,11 +166,11 @@ def install(txn: Any) -> Any:
             lambda _: _.OfFrame.name("References.OfFrame").properties({
                 "scope": S.OfStr,  # the id of the input frame it descends from, as `Transactions.Frame.scope`
                 "remainder": S.OfStr,  # where the rest begins, as `References.OfError`'s subterm; unset where complete
-                "journal": _.Transaction,  # the frame itself: its bindings, and the state its path references (CAP-318)
+                "journal": _.Transaction,  # the frame itself: its bindings, and what its path referenced or changed (CAP-318)
+                "terminal": S.OfBool,  # dropped where its path changed something: a routing mark; unset where false
             }),
             lambda _: _.OfEnd.name("References.OfEnd").properties({  # the completion marker, `{"end": scope}`
                 "scope": S.OfStr,  # a branch's or an input frame's; unset where it ends the whole stream
-                "journal": _.Transaction,  # what the input frame changed, where it changed anything
             }),
             lambda _: _.OfItem.name("References.OfItem").branches([  # an item of a frame stream
                 lambda t: t.name("frame").schema([_.OfFrame]),
@@ -592,7 +592,8 @@ def gather(interpreter: Any, uid: str, made: Iterable[Any], deleted: Iterable[An
 
 
 def state(interpreter: Any, bound: dict[str, tuple[Any, Any]], properties: Iterable[tuple[str, str]],
-          entries: Iterable[tuple[str, str, Any]]) -> Any:
+          entries: Iterable[tuple[str, str, Any]],
+          removed: Iterable[tuple[str, str, dict[str, Any], dict[str, Any]]]) -> Any:
     """A frame's journal ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)): a `Changes.Transaction`, a value of
     the store whose schemas `interpreter` reads by, with no id, of the state a frame's path's clauses reference, read
     through the interpreter's hooks (`schema_of`, `value`, `link`, `given`), as `gather` reads what changed:
@@ -602,11 +603,14 @@ def state(interpreter: Any, bound: dict[str, tuple[Any, Any]], properties: Itera
       or one deleted, which has no reference and is left out. A reference the layer holds nothing for, kept unresolved,
       is its own target;
     - `properties`: `(symbol, name)`, each property a clause names of an object a symbol binds;
-    - `entries`: `(symbol, adjacency, entry)`, each entry held that a clause names on an adjacency of one.
+    - `entries`: `(symbol, adjacency, entry)`, each entry held that a clause names on an adjacency of one;
+    - `removed`: `(symbol, adjacency, links, properties)`, each entry a clause removes, or finds absent, that is not
+      held, its links each a `Changes.OfLink` as plain data and its properties' values, all of an adjacency none.
 
     Its symbols are the frame's own, by its names, each a `Changes.Symbol`: an object by its reference, its schema too
     where its path does not imply it, as `gather` writes one; a schema object by its reference from the root module, a
-    `References.OfSchema`. Its changes: each entry inserted, written on its holder's adjacency, the holder by its symbol,
+    `References.OfSchema`. Its changes: each entry removed, written on its holder's adjacency, by the links and
+    properties the clause gave, then each entry inserted, written on its holder's adjacency, the holder by its symbol,
     its other links each by the symbol that binds it, else by its reference, a schema object's a `References.OfSchema`,
     a counted object by its value, a parameter reference as itself (CAP-312), with every property it holds; each the
     same entry once. Then each property, set to the value it holds, or cleared where it holds
@@ -662,6 +666,11 @@ def state(interpreter: Any, bound: dict[str, tuple[Any, Any]], properties: Itera
         return {"reference": written(interpreter.given(x))}
 
     changes: list[PlainData] = []
+    for symbol, adjacency, named_links, given in removed:
+        body: dict[str, Any] = {"holder": {"symbol": symbol}, "adjacency": adjacency, "links": named_links}
+        if given:
+            body["properties"] = given
+        changes.append({"entry": {"remove": body}})
     seen: set[Any] = set()
     for symbol, adjacency, entry in entries:
         schema = interpreter.schema_of(bound[symbol][0])
@@ -675,7 +684,7 @@ def state(interpreter: Any, bound: dict[str, tuple[Any, Any]], properties: Itera
         if key in seen:
             continue
         seen.add(key)
-        body: dict[str, Any] = {"holder": {"symbol": symbol}, "adjacency": adjacency, "links": others}
+        body = {"holder": {"symbol": symbol}, "adjacency": adjacency, "links": others}
         if held:
             body["properties"] = held
         changes.append({"entry": {"insert": body}})

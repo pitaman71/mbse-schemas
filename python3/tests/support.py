@@ -8,7 +8,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-from mbse.Schemas.Framework import Builders
+from mbse.Schemas.Framework import Builders, Plain
 
 
 @contextmanager
@@ -45,6 +45,22 @@ def entries(schema: Any, obj: Any, adjacency: str) -> list[dict[str, Any]]:
                 row[name] = value
         rows.append(row)
     return rows
+
+
+def journal(store: Any, frame: Any) -> dict[str, Any]:
+    """A frame's journal, a `Changes.Transaction`, as plain data (CAP-318)."""
+    return Plain.ToPlain(store)(store.registered("Changes.Transaction"), frame.journal)
+
+
+def properties_of(store: Any, frame: Any) -> dict[str, dict[str, Any]]:
+    """The properties a frame's journal sets, by symbol, each its value as plain data: what the state its path's
+    clauses reference holds of the objects its symbols bind (CAP-318)."""
+    found: dict[str, dict[str, Any]] = {}
+    for change in journal(store, frame).get("changes", []):
+        body = change.get("property", {}).get("set")
+        if body is not None:
+            found.setdefault(body["holder"], {})[body["name"]] = body["value"]
+    return found
 
 
 def value_of(read: Any) -> Any:

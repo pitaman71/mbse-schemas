@@ -49,6 +49,24 @@ export function equal(a: unknown, b: unknown): boolean {
   return a === b;
 }
 
+/** A frame's journal, a `Changes.Transaction`, as plain data (CAP-318). */
+export function journal(store: any, frame: any): PlainMap {
+  return ToPlain(store)(store.registered("Changes.Transaction"), frame.journal) as PlainMap;
+}
+
+/** The properties a frame's journal sets, by symbol, each its value as plain data: what the state its path's clauses
+ * reference holds of the objects its symbols bind (CAP-318). */
+export function properties_of(store: any, frame: any): Map<string, Map<string, PlainData>> {
+  const found = new Map<string, Map<string, PlainData>>();
+  for (const change of (journal(store, frame).get("changes") ?? []) as PlainMap[]) {
+    const body = (change.get("property") as PlainMap | undefined)?.get("set") as PlainMap | undefined;
+    if (body === undefined) continue;
+    if (!found.has(body.get("holder") as string)) found.set(body.get("holder") as string, new Map());
+    found.get(body.get("holder") as string)!.set(body.get("name") as string, body.get("value")!);
+  }
+  return found;
+}
+
 /** Map literal from an object literal, recursively (keys stay in literal order). */
 export function map(value: unknown): any {
   if (Array.isArray(value)) return value.map(map);

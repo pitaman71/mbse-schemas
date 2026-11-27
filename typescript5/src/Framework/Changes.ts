@@ -31,8 +31,8 @@
  *   `holder` and `name`. A change within a property's value is
  *   [CAP-272: surgical mutations of a property's value](mbse:mbse-basis/docs/capabilities/README.md#CAP-272)'s.
  *
- * `install` also extends `References.OfFrame` with a frame stream's parts, `scope`, `remainder` and `journal`, a
- * `Changes.Transaction`, and defines `References.OfEnd`, the stream's completion marker, and `References.OfItem`, an
+ * `install` also extends `References.OfFrame` with its `journal`, a `Changes.Transaction`, which a frame is, and a frame
+ * stream's parts, `scope` and `remainder`, and defines `References.OfEnd`, the stream's completion marker, and `References.OfItem`, an
  * item of the stream, a frame or an end ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318),
  * stage 1): `References.install` runs before the journal language is defined, and a frame's journal is one.
  *
@@ -64,12 +64,17 @@
  * was before is read from what the store holds as committed. `gather` builds them as a `Changes.Transaction`, from what
  * a layer changed, net, read through its interpreter's hooks, a value that outlives the transaction: a store in
  * memory's (`_gather`) and any other layer's alike. A savepoint's changes are gathered alike, relative to the
- * transaction it is within: what interpreting an input frame changed, which the frame given carries as a journal
- * (`Transactions.Frame.journal`). An expression's terms, and the entries linking schema objects, are no data, and are left
- * out.
+ * transaction it is within. An expression's terms, and the entries linking schema objects, are no data, and are left
+ * out. What a transaction commits is what its layer's transaction holds, gathered at its commit: a frame's journal is
+ * not what commits.
+ *
+ * `state` writes a frame given back as its journal ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)), read through
+ * the same hooks: its symbols the frame's bindings, by its own names, and its changes the state its path's clauses
+ * referenced or changed, each property set, or cleared where it holds none, each relation entry held inserted with its
+ * properties, each one removed, or found absent, removed, read or written alike (`Transactions.Frame`).
  *
  * A cache layer, a store given a layer below, applies to what it holds the journals that the frames the layer below gives
- * back carry, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
+ * back are, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
  * objects present in it alone. `_present_only` reads the layer below's `Changes.Transaction` through the visitors, and
  * builds the one that changes those objects alone, making an object created under one present, and leaving out an entry
  * that names one not present. What the cache layer writes itself, by builders, it sends below as the
@@ -155,11 +160,11 @@ export function install(txn: any): any {
       (_: any) => _.OfFrame.name("References.OfFrame").properties({
         scope: S.OfStr, // the id of the input frame it descends from, as `Transactions.Frame.scope`
         remainder: S.OfStr, // where the rest begins, as `References.OfError`'s subterm; unset where complete
-        journal: _.Transaction, // the changes made interpreting its input frame (CAP-321)
+        journal: _.Transaction, // the frame itself: its bindings, and what its path referenced or changed (CAP-318)
+        terminal: S.OfBool, // dropped where its path changed something: a routing mark; unset where false
       }),
       (_: any) => _.OfEnd.name("References.OfEnd").properties({ // the completion marker, `{"end": scope}`
         scope: S.OfStr, // a branch's or an input frame's; unset where it ends the whole stream
-        journal: _.Transaction, // set only where the input frame gave no frame
       }),
       (_: any) => _.OfItem.name("References.OfItem").branches([ // an item of a frame stream
         (t: any) => t.name("frame").schema([_.OfFrame]),
@@ -615,6 +620,124 @@ export function gather(interpreter: any, uid: string, made: Iterable<unknown>, d
   }
   const plain = new Map<string, unknown>([["id", uid], ["symbols", symbols], ["changes", changes]]);
   return Plain.FromPlain(store)(store.registered("Changes.Transaction"), plain as Plain.PlainData);
+}
+
+/** A frame's journal ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)): a `Changes.Transaction`, a value of the store
+ * whose schemas `interpreter` reads by, with no id, of the state a frame's path's clauses reference, read through the
+ * interpreter's hooks (`schema_of`, `value`, `link`, `given`), as `gather` reads what changed:
+ *
+ * - `bound`: each of the frame's symbols, `[target, reference]`, the object it binds and what `interpreter.given` gives
+ *   for it: a `References.OfObject`; a schema object as itself; or a `Transactions.Refused`, a counted object or one
+ *   deleted, which has no reference and is left out. A reference the layer holds nothing for, kept unresolved, is its
+ *   own target;
+ * - `properties`: `[symbol, name]`, each property a clause names of an object a symbol binds;
+ * - `entries`: `[symbol, adjacency, entry]`, each entry held that a clause names on an adjacency of one;
+ * - `removed`: `[symbol, adjacency, links, properties]`, each entry a clause removes, or finds absent, that is not held,
+ *   its links each a `Changes.OfLink` as plain data and its properties' values, all of an adjacency none.
+ *
+ * Its symbols are the frame's own, by its names, each a `Changes.Symbol`: an object by its reference, its schema too
+ * where its path does not imply it, as `gather` writes one; a schema object by its reference from the root module, a
+ * `References.OfSchema`. Its changes: each entry removed, written on its holder's adjacency, by the links and properties
+ * the clause gave, then each entry inserted, written on its holder's adjacency, the holder by its symbol,
+ * its other links each by the symbol that binds it, else by its reference, a schema object's a `References.OfSchema`, a
+ * counted object by its value, a parameter reference as itself (CAP-312), with every property it holds; each the same
+ * entry once. Then each property, set to the value it holds, or cleared where it holds
+ * none. */
+export function state(interpreter: any, bound: Map<string, [any, any]>, properties: Iterable<[string, string]>,
+  entries: Iterable<[string, string, any]>, removed: Iterable<[string, string, PlainMap, PlainMap]>): any {
+  const store = interpreter.store;
+  const keyOf = (x: unknown): string => JSON.stringify(Proxies._link_key(x));
+  const symbols: PlainMap = new Map();
+  const named = new Map<string, string>(); // the symbol that binds an object, by the object
+  const schemaReference = (schema: any): PlainMap => {
+    const path: any = Paths.of(schema);
+    return new Map([["path", Plain.ToPlain(store)(path.as_schema(), path)]]);
+  };
+  /** What `interpreter.given` gives for an object, as a `References.OfObject`'s plain form: a schema object by its
+   * reference from the root module, a `References.OfSchema`. */
+  const written = (reference: any): Plain.PlainData => Transactions._isReference(store, reference)
+    ? Plain.ToPlain(store)(reference.as_schema(), reference)
+    : new Map<string, Plain.PlainData>([["$schema", "References.OfSchema"], ...schemaReference(reference)]);
+  for (const [name, [target, reference]] of bound) {
+    if (reference instanceof Transactions.Refused) continue;
+    const symbol: PlainMap = new Map([["reference", written(reference)]]);
+    symbols.set(name, symbol);
+    // a schema object, no data; or a reference kept unresolved, what it designates the layer not holding
+    if (!Transactions._isReference(store, reference) || reference === target) continue;
+    const path = pathOf(store, reference);
+    if (!named.has(keyOf(target))) named.set(keyOf(target), name);
+    const schema = interpreter.schema_of(target);
+    let implied: unknown = null;
+    try {
+      implied = References.implied(store, path);
+    } catch { // a path no one schema is implied by: a LookupError
+      implied = null;
+    }
+    if (schema !== implied) symbol.set("schema", schemaReference(schema));
+  }
+  const values = (holder: unknown, schema: any): PlainMap => {
+    const found: PlainMap = new Map();
+    for (const name of schema.properties.keys()) {
+      const [present, plain] = interpreter.value(holder, schema, name);
+      if (present) found.set(name, plain);
+    }
+    return found;
+  };
+  /** What an entry names an object by, a `Changes.OfLink`. */
+  const link = (x: unknown): PlainMap => {
+    if (Proxies._is_parameter(x)) {
+      const durable = Proxies._durable(x);
+      return new Map([["parameter", Plain.ToPlain(store)(durable.as_schema(), durable)]]);
+    }
+    const symbol = named.get(keyOf(x));
+    if (symbol !== undefined) return new Map([["symbol", symbol]]);
+    const schema = interpreter.schema_of(x);
+    if (Proxies._counted_schema(schema)) {
+      return new Map([["counted", new Map<string, unknown>([["schema", schemaReference(schema)],
+        ["properties", values(x, schema)]])]]);
+    }
+    return new Map([["reference", written(interpreter.given(x))]]);
+  };
+  const changes: PlainMap[] = [];
+  for (const [symbol, adjacency, links, given] of removed) {
+    const body: PlainMap = new Map<string, unknown>([["holder", new Map([["symbol", symbol]])], ["adjacency", adjacency],
+      ["links", links]]);
+    if (given.size > 0) body.set("properties", given);
+    changes.push(new Map([["entry", new Map([["remove", body]])]]));
+  }
+  const seen = new Set<string>();
+  for (const [symbol, adjacency, entry] of entries) {
+    const holder = bound.get(symbol)![0];
+    const schema = interpreter.schema_of(holder);
+    const { relation, me } = schema.adjacencies.get(adjacency);
+    const links = new Map([...relation.entry.links.keys()].filter((name: string) => name !== me)
+      .map((name: string) => [name, interpreter.link(entry, name)] as [string, unknown]));
+    const others = new Map([...links].map(([name, x]) => [name, link(x)] as [string, PlainMap]));
+    const held = values(entry, relation.entry);
+    const key = JSON.stringify([relation.name, [...links, [me, holder]].map(([name, x]) => [name, keyOf(x)])
+      .sort((a, b) => compareStrings(a[0] as string, b[0] as string)), Json.dumps(canonical(held) as Plain.PlainData)]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const body: PlainMap = new Map<string, unknown>([["holder", new Map([["symbol", symbol]])], ["adjacency", adjacency],
+      ["links", others]]);
+    if (held.size > 0) body.set("properties", held);
+    changes.push(new Map([["entry", new Map([["insert", body]])]]));
+  }
+  for (const [symbol, name] of properties) {
+    const target = bound.get(symbol)![0];
+    const [present, plain] = interpreter.value(target, interpreter.schema_of(target), name);
+    changes.push(new Map([["property", present
+      ? new Map([["set", new Map<string, unknown>([["holder", symbol], ["name", name], ["value", plain]])]])
+      : new Map([["clear", new Map([["holder", symbol], ["name", name]])]])]]));
+  }
+  const plain = new Map<string, unknown>([["symbols", symbols], ["changes", changes]]);
+  return Plain.FromPlain(store)(store.registered("Changes.Transaction"), plain as Plain.PlainData);
+}
+
+/** A frame's bindings, read from its journal (CAP-318): each symbol's reference, by its name. */
+export function _bindings(transaction: any): Map<string, any> {
+  return new Map(items(transaction.symbols).map(([name, element]) =>
+    [name, Proxies._durable(object(object(element).reference))] as [string, any]));
 }
 
 /** The link, and its object's adjacency by name, that writes an entry: preferably an object held before, not counted,

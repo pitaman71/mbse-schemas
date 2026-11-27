@@ -2754,17 +2754,12 @@ function copy(record: unknown): unknown {
   return builder.build();
 }
 
-/** A copy of a held value: of a value object, or of a container and the value objects it holds. */
-/** A copy of a held value, data held by nothing (Transactions: what a frame given back assigns). */
-export function _copied(value: unknown): unknown {
-  return copyHeld(value);
-}
-
 /** The state behind a shell. */
 export function _stateOf(value: unknown): any {
   return innerOf(value);
 }
 
+/** A copy of a held value: of a value object, or of a container and the value objects it holds. */
 function copyHeld(value: unknown): unknown {
   if (isRecordData(value)) return copy(value);
   if (isContainerData(value)) {

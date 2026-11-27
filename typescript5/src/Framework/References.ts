@@ -10,14 +10,14 @@
  *   [CAP-309: errors annotated on frames](mbse:mbse-basis/docs/capabilities/README.md#CAP-309)); and, which `Changes.install` gives it, its `journal`, a
  *   `Changes.Transaction`, which the frame is ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), as the user
  *   decided: "frames contained journals which contained changes"): its symbols the frame's bindings, each an object by
- *   its `References.OfObject`, a schema object by its `References.OfSchema`, and its changes the state its path's
- *   clauses reference, each property set, each relation entry inserted; and, as an item of a frame stream (`txn.exec`),
- *   its `scope`, the id of the input frame it descends from, and its `remainder`, where the rest of the expression
- *   begins, written as an error's `subterm` is, unset on a complete frame. It has no bindings, values or entries of its
- *   own beside its journal;
+ *   its `References.OfObject`, a schema object by its `References.OfSchema`, and its changes what its path's clauses
+ *   referenced or changed, each property set or cleared, each relation entry inserted or removed; and, as an item of a
+ *   frame stream (`txn.exec`), its `scope`, the id of the input frame it descends from, its `remainder`, where the rest
+ *   of the expression begins, written as an error's `subterm` is, unset on a complete frame, and `terminal`, true where
+ *   a term dropped it and its path changed something, a routing mark, unset where false. It has no bindings, values or
+ *   entries of its own beside its journal;
  * - `References.OfEnd`, a frame stream's completion marker, `{"end": scope}`: its `scope`, a branch's or an input
- *   frame's, unset where it ends the whole stream, and its `journal`, what the input frame changed, where it changed
- *   anything; and
+ *   frame's, unset where it ends the whole stream; it marks an end, and carries nothing else; and
  *   `References.OfItem`, an item of a frame stream, the union of a `frame` and an `end`. `Changes.install` defines both,
  *   after the `Changes` schemas their journals are, so that the built-in serialization carries a stream to another
  *   process as it carries any value;
@@ -158,6 +158,7 @@ function frameOf(store: any, frame: Map<string, unknown>): Callback {
   const journal = given ?? Plain.FromPlain(store)(store.registered("Changes.Transaction"),
     new Map([["symbols", symbols]]));
   const [scope, remainder] = frame instanceof Transactions.Frame ? [frame.scope, frame.remainder] : [null, null];
+  const terminal = frame instanceof Transactions.Frame && frame.terminal;
   return (f: any) => {
     f.journal(journal);
     if (errors.length > 0) {
@@ -166,7 +167,7 @@ function frameOf(store: any, frame: Map<string, unknown>): Callback {
     }
     if (scope !== null) f.scope(scope);
     if (remainder !== null) f.remainder(remainder.subterm); // where it halted: a position, not a copy of the expression
-    return f;
+    return terminal ? f.terminal(true) : f; // a routing mark, unset where false
   };
 }
 
@@ -185,23 +186,17 @@ function symbolOf(store: any, target: unknown): Plain.PlainMap {
 }
 
 /** A `References.OfEnd`'s callback: a completion marker's scope, unset where it ends the whole stream
- * (`{"end": null}`), and its journal, a `Changes.Transaction`, what the input frame changed, where it changed anything
- * (CAP-318). */
+ * (`{"end": null}`). It marks an end, and carries nothing else. */
 function endOf(marker: Map<string, unknown>): Callback {
   const scope = marker.get("end") as string | null;
-  const journal = marker.get("journal") ?? null;
-  return (e: any) => {
-    if (scope !== null) e.scope(scope);
-    return journal === null ? e : e.journal(journal);
-  };
+  return (e: any) => scope === null ? e : e.scope(scope);
 }
 
-/** Whether a map is a completion marker of a frame stream, `{"end": scope}` with its `journal` where it carries one:
- * not a frame, which binds objects, never a scope, by its symbols. */
+/** Whether a map is a completion marker of a frame stream, `{"end": scope}`: not a frame, which binds objects, never a
+ * scope, by its symbols. */
 function isEnd(x: Map<string, unknown>): boolean {
   const end = x.get("end");
-  return !(x instanceof Transactions.Frame) && x.has("end") && [...x.keys()].every((key) => key === "end" || key === "journal")
-    && (end === null || typeof end === "string");
+  return !(x instanceof Transactions.Frame) && x.size === 1 && x.has("end") && (end === null || typeof end === "string");
 }
 
 /** A `References.OfEntry`'s callback: its relation's path, each link's object's reference and each property's value. */

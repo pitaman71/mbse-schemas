@@ -64,17 +64,17 @@
  * was before is read from what the store holds as committed. `gather` builds them as a `Changes.Transaction`, from what
  * a layer changed, net, read through its interpreter's hooks, a value that outlives the transaction: a store in
  * memory's (`_gather`) and any other layer's alike. A savepoint's changes are gathered alike, relative to the
- * transaction it is within: what interpreting an input frame changed, which its completion marker carries as a journal
- * (`{"end": scope, "journal": ...}`). An expression's terms, and the entries linking schema objects, are no data, and
- * are left out.
+ * transaction it is within. An expression's terms, and the entries linking schema objects, are no data, and are left
+ * out. What a transaction commits is what its layer's transaction holds, gathered at its commit: a frame's journal is
+ * not what commits.
  *
  * `state` writes a frame given back as its journal ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318)), read through
  * the same hooks: its symbols the frame's bindings, by its own names, and its changes the state its path's clauses
- * reference, each property set, or cleared where it holds none, each relation entry held inserted with its properties,
- * read or written alike (`Transactions.Frame`).
+ * referenced or changed, each property set, or cleared where it holds none, each relation entry held inserted with its
+ * properties, each one removed, or found absent, removed, read or written alike (`Transactions.Frame`).
  *
  * A cache layer, a store given a layer below, applies to what it holds the journals that the frames the layer below gives
- * back are, and those that their completion markers carry, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
+ * back are, and those that the layer below's follow gives, as a transaction of its own (`Builders.Store._apply`): to the
  * objects present in it alone. `_present_only` reads the layer below's `Changes.Transaction` through the visitors, and
  * builds the one that changes those objects alone, making an object created under one present, and leaving out an entry
  * that names one not present. What the cache layer writes itself, by builders, it sends below as the
@@ -160,11 +160,11 @@ export function install(txn: any): any {
       (_: any) => _.OfFrame.name("References.OfFrame").properties({
         scope: S.OfStr, // the id of the input frame it descends from, as `Transactions.Frame.scope`
         remainder: S.OfStr, // where the rest begins, as `References.OfError`'s subterm; unset where complete
-        journal: _.Transaction, // the frame itself: its bindings, and the state its path references (CAP-318)
+        journal: _.Transaction, // the frame itself: its bindings, and what its path referenced or changed (CAP-318)
+        terminal: S.OfBool, // dropped where its path changed something: a routing mark; unset where false
       }),
       (_: any) => _.OfEnd.name("References.OfEnd").properties({ // the completion marker, `{"end": scope}`
         scope: S.OfStr, // a branch's or an input frame's; unset where it ends the whole stream
-        journal: _.Transaction, // what the input frame changed, where it changed anything
       }),
       (_: any) => _.OfItem.name("References.OfItem").branches([ // an item of a frame stream
         (t: any) => t.name("frame").schema([_.OfFrame]),
@@ -631,17 +631,20 @@ export function gather(interpreter: any, uid: string, made: Iterable<unknown>, d
  *   deleted, which has no reference and is left out. A reference the layer holds nothing for, kept unresolved, is its
  *   own target;
  * - `properties`: `[symbol, name]`, each property a clause names of an object a symbol binds;
- * - `entries`: `[symbol, adjacency, entry]`, each entry held that a clause names on an adjacency of one.
+ * - `entries`: `[symbol, adjacency, entry]`, each entry held that a clause names on an adjacency of one;
+ * - `removed`: `[symbol, adjacency, links, properties]`, each entry a clause removes, or finds absent, that is not held,
+ *   its links each a `Changes.OfLink` as plain data and its properties' values, all of an adjacency none.
  *
  * Its symbols are the frame's own, by its names, each a `Changes.Symbol`: an object by its reference, its schema too
  * where its path does not imply it, as `gather` writes one; a schema object by its reference from the root module, a
- * `References.OfSchema`. Its changes: each entry inserted, written on its holder's adjacency, the holder by its symbol,
+ * `References.OfSchema`. Its changes: each entry removed, written on its holder's adjacency, by the links and properties
+ * the clause gave, then each entry inserted, written on its holder's adjacency, the holder by its symbol,
  * its other links each by the symbol that binds it, else by its reference, a schema object's a `References.OfSchema`, a
  * counted object by its value, a parameter reference as itself (CAP-312), with every property it holds; each the same
  * entry once. Then each property, set to the value it holds, or cleared where it holds
  * none. */
 export function state(interpreter: any, bound: Map<string, [any, any]>, properties: Iterable<[string, string]>,
-  entries: Iterable<[string, string, any]>): any {
+  entries: Iterable<[string, string, any]>, removed: Iterable<[string, string, PlainMap, PlainMap]>): any {
   const store = interpreter.store;
   const keyOf = (x: unknown): string => JSON.stringify(Proxies._link_key(x));
   const symbols: PlainMap = new Map();
@@ -696,6 +699,12 @@ export function state(interpreter: any, bound: Map<string, [any, any]>, properti
     return new Map([["reference", written(interpreter.given(x))]]);
   };
   const changes: PlainMap[] = [];
+  for (const [symbol, adjacency, links, given] of removed) {
+    const body: PlainMap = new Map<string, unknown>([["holder", new Map([["symbol", symbol]])], ["adjacency", adjacency],
+      ["links", links]]);
+    if (given.size > 0) body.set("properties", given);
+    changes.push(new Map([["entry", new Map([["remove", body]])]]));
+  }
   const seen = new Set<string>();
   for (const [symbol, adjacency, entry] of entries) {
     const holder = bound.get(symbol)![0];

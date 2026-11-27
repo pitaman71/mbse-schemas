@@ -33,7 +33,7 @@
  * input frames with `txn.exec(frame, remainder, allow_write)`, giving a stream of frames, an observable of the
  * framework's own (`Observable`), and opening and committing no transaction of its own ([CAP-308: stacking by mutation transactions, in one round trip](mbse:mbse-basis/docs/capabilities/README.md#CAP-308); [the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)):
  * each frame carries the id of its input frame, `scope`, and each input frame's frames end with its completion marker,
- * `{"end": scope}`, which carries what the input frame changed. Each frame given back is its journal, a
+ * `{"end": scope}`, which marks the end and nothing else. Each frame given back is its journal, a
  * `Changes.Transaction`: its bindings, each object by its reference, and the state its path's clauses reference, read
  * or written ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), `Frame`). Writing, it interprets the expression fully; `store.transaction(spec)` collects its stream over one
  * empty frame. Read-only, it interprets over what the store holds, writing nothing: where it holds nothing to bind a
@@ -643,10 +643,11 @@ export class Remainder {
  * One `store.transaction` or `txn.exec` gives back is its `journal` ([CAP-318: support for decoupled code](mbse:mbse-basis/docs/capabilities/README.md#CAP-318), as the
  * user decided: "frames contained journals which contained changes"): a `Changes.Transaction`, a value that outlives
  * the transaction, whose `symbols` are the frame's bindings, each a `Changes.Symbol`, an object by its reference, a
- * schema object by its reference from the root module (`References.OfSchema`'s path), and whose `changes` are the state
- * its path's clauses reference, read or written alike: each property a clause of the term that made it, or of an
+ * schema object by its reference from the root module (`References.OfSchema`'s path), and whose `changes` are what its
+ * path's clauses referenced or changed, read or written alike: each property a clause of the term that made it, or of an
  * ancestor of that term, names of an object a symbol binds, set to the value it holds, or cleared where it holds none;
- * and each relation entry such a clause names that is held, inserted, with its properties. Nothing else: the schema is
+ * each relation entry such a clause names that is held, inserted, with its properties; and each one it removes, or a
+ * map finds absent, that is not, removed (`Changes.OfEntry.Remove`). Nothing else: the schema is
  * not consulted for more, and a sibling branch's clauses are not on its path. Its id is the transaction's uid and the
  * frame's position in the stream (`uid#n`). Its bindings, by symbol, are read from its journal, each symbol's
  * reference, as data (`frame.get("ada")`), holding no visitor ([CAP-315: every read within a transaction or through a
@@ -657,23 +658,34 @@ export class Remainder {
  * One `txn.exec` gives also carries `scope`, the id of the input frame it descends from, and, where it halted
  * unfinished, its `remainder`, the suffix of the expression yet to be executed over it (`Remainder`); null where it is
  * complete. Given to `txn.exec`, a frame's `scope` is its id, where it has one. A frame the interpreter makes as it
- * walks the terms binds the objects themselves, and carries no journal. */
+ * walks the terms binds the objects themselves, and carries no journal.
+ *
+ * A frame a term drops (a map whose spec fails, a reduce or a partition discarding it) whose path changed anything is
+ * `terminal`, a routing mark: every later term and every layer below passes it through, uninterpreted, down to the
+ * layer that commits; no stream gives it to the caller, and `store.transaction` does not return it. Its writes are in
+ * the committing layer's transaction already, which commits them; its journal is not what commits. A frame dropped
+ * whose path changed nothing is dropped. */
 export class Frame extends Map<string, any> {
   readonly errors: FrameError[];
   remainder: Remainder | null;
   scope: string | null;
   journal: any;
+  terminal: boolean;
   /** The terms that made it, in order, within the layer that walks them: not shown, nor carried. */
   declare _trail: readonly any[];
+  /** Whether its path changed anything, within the layer that walks it: not shown, nor carried. */
+  declare _changed: boolean;
 
   constructor(bound: Iterable<readonly [string, any]> | null = null, errors: Iterable<FrameError> = [],
-    remainder: Remainder | null = null, scope: string | null = null, journal: any = null) {
+    remainder: Remainder | null = null, scope: string | null = null, journal: any = null, terminal = false) {
     super(bound);
     Object.defineProperty(this, "_trail", { value: [], writable: true, enumerable: false });
+    Object.defineProperty(this, "_changed", { value: false, writable: true, enumerable: false });
     this.errors = [...errors];
     this.remainder = remainder;
     this.scope = scope;
     this.journal = journal;
+    this.terminal = terminal;
   }
 
   override get(name: string): any {
@@ -856,11 +868,24 @@ function chain(term: any): any[] {
   return terms;
 }
 
-/** `frames`, made of `origin` by `term`, each with `origin`'s path and, where given, `term` after it. */
-function on(frames: Frame[], origin: Frame, term: any = null): Frame[] {
+/** `frames`, made of `origin` by `term`, each with `origin`'s path and, where given, `term` after it; each having
+ * changed something where `origin` had, or `term` changed something making them (`changed`). */
+function on(frames: Frame[], origin: Frame, term: any = null, changed = false): Frame[] {
   const trail = term === null ? origin._trail : [...origin._trail, term];
-  for (const frame of frames) frame._trail = trail;
+  for (const frame of frames) {
+    frame._trail = trail;
+    frame._changed = origin._changed || changed;
+  }
   return frames;
+}
+
+/** Of `frames`, which a term drops, those whose path changed anything, or that the term changed something processing
+ * (`changed`), marked terminal: passed through by every later term and layer, down to the layer that commits, and given
+ * to no caller. The rest are dropped. */
+function terminal(frames: Frame[], changed = false): Frame[] {
+  const kept = frames.filter((frame) => frame._changed || changed);
+  for (const frame of kept) frame.terminal = true;
+  return kept;
 }
 
 /** Whether a value is an object's reference of `store`'s: a `References.OfObject`, or a schema object's,
@@ -905,13 +930,15 @@ export class Transaction {
    * halts within one of its branches, the rest of that branch alone is executed below it, by the loopback, this store
    * having no layer below, writing within this transaction, and what each branch ends with is joined.
    *
-   * Each input frame gives the frames made of it, given back as references and assignments (CAP-315), each carrying its
-   * `scope`, the input frame's id (its own `scope`, else its position in the stream, `"0"`, `"1"`, ...), then the
-   * completion marker `{"end": scope}`, a `Map`; the stream ends where the observable completes. An error a term meets
-   * is annotated on the frame it processed (CAP-309); an error of no one frame is the observable's error. Unsubscribed
-   * from before it completes, it is given nothing more, and what it wrote is the transaction's. */
-  exec(frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
-    return this._interpreter.exec(this, frame, remainder, allow_write);
+   * Each input frame gives the frames made of it, each its journal (CAP-318), carrying its `scope`, the input frame's
+   * id (its own `scope`, else its position in the stream, `"0"`, `"1"`, ...), then the completion marker
+   * `{"end": scope}`, a `Map`; the stream ends where the observable completes. A terminal frame, dropped where its path
+   * changed something, is given only where `terminal` is true, as a layer above asks for it; one given is passed
+   * through, uninterpreted. An error a term meets is annotated on the frame it processed (CAP-309); an error of no one
+   * frame is the observable's error. Unsubscribed from before it completes, it is given nothing more, and what it wrote
+   * is the transaction's. */
+  exec(frame: unknown, remainder: unknown, allow_write: boolean, terminal = false): Observable<Item> {
+    return this._interpreter.exec(this, frame, remainder, allow_write, terminal);
   }
 
   /** Refuses a transaction that has ended. */
@@ -1133,6 +1160,27 @@ function identifies(store: any, schema: any, member: Map<string, any>): boolean 
     && verbsOf(body).some(([verb]) => verb === "insert");
 }
 
+/** An entry a spec removes, as a `Changes.OfEntry.Remove` names it: its links, each a `Changes.OfLink` as plain data, by
+ * the symbol or the path the spec gives, and the properties it gives values; null where it defines an object where it
+ * links it, or stands a parameter in one's place, which a removal cannot name. */
+function removal(entry: Map<string, any>): [Plain.PlainMap, Plain.PlainMap] | null {
+  const links: Plain.PlainMap = new Map();
+  const values: Plain.PlainMap = new Map();
+  for (const item of entry.get("mutations") as Map<string, any>[]) {
+    const [kind, body] = [...item][0] as [string, any];
+    const verb = body.get("mutations")[0];
+    if (kind === "as_property") {
+      if (verb.has("set")) values.set(body.get("name"), verb.get("set").get("value"));
+      continue;
+    }
+    const given = verb.get("set").get("reference");
+    if (given === undefined || Plain._is_marked(given)) return null;
+    links.set(body.get("name"), given.has("symbol") ? new Map([["symbol", given.get("symbol")]])
+      : new Map([["reference", new Map([["path", given.get("path")]])]]));
+  }
+  return [links, values];
+}
+
 /** The references to symbols an entry gives, its own and those of the objects it defines. */
 function symbolRefs(entry: Map<string, any>): Map<string, any>[] {
   const found: Map<string, any>[] = [];
@@ -1189,6 +1237,8 @@ export function single(relation: any, me: string): boolean {
 export abstract class Interpreter {
   /** How deep in interpreting a term read-only: a write halts the frame (`_written`). */
   _reading = 0;
+  /** How many writes it made: whether a term changed anything processing a frame. */
+  _writes = 0;
 
   constructor(readonly store: any) {
     if (new.target === Interpreter) throw new TypeError("Interpreter is abstract: a layer's class gives its hooks");
@@ -1272,9 +1322,8 @@ export abstract class Interpreter {
   // --- What a layer gives: its transaction ---
 
   /** `body`, within a savepoint of the layer's transaction open: its writes kept where it returns, dropped where it
-   * throws. Given `journal`, a function giving the id of the changes it made, `changed` holds them once it has returned,
-   * a `Changes.Transaction` of the layer's, or null where none were made; else it stays empty. */
-  abstract savepoint<T>(body: () => T, journal?: (() => string) | null, changed?: unknown[]): T;
+   * throws. */
+  abstract savepoint<T>(body: () => T): T;
 
   /** The uid of the transaction open, as its record and its journal give it: an upsert that gives no key is keyed by it
    * (102 in [CAP-139: upserts find before they create](mbse:mbse-basis/docs/capabilities/CAP-139.md#decided)). */
@@ -1302,21 +1351,22 @@ export abstract class Interpreter {
   // --- The stream ---
 
   /** `txn.exec`: the stream of the frames `remainder`, a `Remainder`, a whole transaction's expression or a callback
-   * building one (`Builders.Store.expressed`), makes of `frame`, a frame or a stream of them, within `txn`. */
-  exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
-    return this._exec(txn, frame, _remainder(this.store, expression(this.store, remainder)), allow_write);
+   * building one (`Builders.Store.expressed`), makes of `frame`, a frame or a stream of them, within `txn`; terminal
+   * frames among them where `terminal` asks for them. */
+  exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean, terminal = false): Observable<Item> {
+    return this._exec(txn, frame, _remainder(this.store, expression(this.store, remainder)), allow_write, terminal);
   }
 
   /** `txn.exec`'s stream ([the stacked stores proposal](mbse:mbse-basis/proposals/STACKED-STORES.md#a-cache-layer-and-the-layer-below)), within the transaction `txn` holds, produced as each subscriber
    * subscribes: each input frame, as it arrives, extended through `remainder`, its frames given as they are made of it,
-   * then `{"end": scope}`, `scope` its id. Each given back is its journal (CAP-318, `_givenBack`), whose id is the
-   * transaction's uid and the frame's position in the stream, carries its input frame's id, `scope`, and, where it
-   * halted read-only, its `remainder`. An error a term meets processing a frame is annotated on it (CAP-309). An error
-   * of no one frame is the stream's error, its `frames` every frame the transaction gave, and those made of the input
-   * frame it arose processing. What each input frame changed, a savepoint's, is carried by its completion marker, where
-   * it changed anything, as a `Changes.Transaction` whose id is the transaction's uid and the marker's position: what a
-   * frame's journal does not hold, a removal, or a write to a frame that a later term dropped, among it. */
-  _exec(txn: Transaction, given: unknown, remainder: Remainder, write: boolean): Observable<Item> {
+   * then `{"end": scope}`, `scope` its id, which marks the end and carries nothing else. Each given back is its journal
+   * (CAP-318, `_givenBack`), whose id is the transaction's uid and the frame's position in the stream, carries its input
+   * frame's id, `scope`, and, where it halted read-only, its `remainder`. A terminal frame (`Frame`) is given only where
+   * `terminal` asks for it, as a layer above does; an input frame that is terminal is passed through, uninterpreted.
+   * What a frame changed is in the layer's transaction, which commits it. An error a term meets processing a frame is
+   * annotated on it (CAP-309). An error of no one frame is the stream's error, its `frames` every frame the transaction
+   * gave, and those made of the input frame it arose processing. */
+  _exec(txn: Transaction, given: unknown, remainder: Remainder, write: boolean, terminal = false): Observable<Item> {
     return new Observable<Item>((observer) => {
       const made: Frame[] = [];
       const emit = (item: Item): void => {
@@ -1330,21 +1380,20 @@ export abstract class Interpreter {
           txn._open();
           const scope = (frame instanceof Frame ? frame.scope : null) ?? String(index);
           index += 1;
-          const changed: unknown[] = [];
-          const ahead: Frame[] = []; // the frames given back, ahead of the marker in the stream
-          this.savepoint(() => ahead.push(...this._extended(remainder, frame, write, scope, made)),
-            () => `${this.uid()}#${txn._count + ahead.length}`, changed);
+          const ahead: Frame[] = frame instanceof Frame && frame.terminal // a routing mark, passed through
+            ? [new Frame(Map.prototype.entries.call(frame) as IterableIterator<[string, any]>, frame.errors,
+              frame.remainder, scope, frame.journal, true)]
+            : this.savepoint(() => this._extended(remainder, frame, write, scope, made));
           made.length = 0;
           for (const item of ahead) {
-            item.journal = identified(this.store, item.journal, `${this.uid()}#${txn._count}`);
+            if (item.terminal && !terminal) continue;
+            if (item.journal !== null) item.journal = identified(this.store, item.journal, `${this.uid()}#${txn._count}`);
             txn._count += 1;
             txn._given.push(item);
             emit(item);
           }
-          const marker: Map<string, any> = new Map([["end", scope]]);
-          if (changed.length > 0 && changed[0] !== null) marker.set("journal", changed[0]);
           txn._count += 1;
-          emit(marker);
+          emit(new Map([["end", scope]]));
         }
       } catch (error) {
         if (error instanceof Unsubscribed) return;
@@ -1384,7 +1433,7 @@ export abstract class Interpreter {
       const state = new Run(transaction, true, null);
       made = root === null ? [new Frame()]
         : this._run(root, [new Frame()], ["mutations", 0, kindOf(this.store, root)], state);
-      made.push(...state.failed);
+      made = [...made.filter((frame) => !frame.terminal), ...state.failed];
       if (state.failed.length > 0) throw new Uncommitted();
     };
     try {
@@ -1406,12 +1455,12 @@ export abstract class Interpreter {
     return frames.map((frame) => {
       const entries = [...Map.prototype.entries.call(frame) as IterableIterator<[string, any]>];
       const references = new Map(entries.map(([symbol, target]) => [symbol, this.given(target)]));
-      const [properties, held] = this._referenced(frame, references);
+      const [properties, held, removed] = this._referenced(frame, references);
       const journal = Changes.state(this, new Map(entries.map(([symbol, target]) => [symbol, [target,
-        references.get(symbol)]] as [string, [any, any]])), properties, held);
+        references.get(symbol)]] as [string, [any, any]])), properties, held, removed);
       const bound = Changes._bindings(journal);
       return new Frame([...references].map(([symbol, reference]) => [symbol, bound.has(symbol) ? bound.get(symbol)
-        : reference] as [string, any]), frame.errors, frame.remainder, scope, journal);
+        : reference] as [string, any]), frame.errors, frame.remainder, scope, journal, frame.terminal);
     });
   }
 
@@ -1420,9 +1469,11 @@ export abstract class Interpreter {
    * has a reference, `[symbol, name]`, and the relation entries it names on an adjacency of one that are held,
    * `[symbol, adjacency, entry]`, an entry's that links a symbol the frame does not bind, or one refused, left out. The
    * schema is not consulted for more. */
-  _referenced(frame: Frame, references: Map<string, any>): [[string, string][], [string, string, any][]] {
+  _referenced(frame: Frame, references: Map<string, any>):
+    [[string, string][], [string, string, any][], [string, string, Plain.PlainMap, Plain.PlainMap][]] {
     const properties = new Map<string, [string, string]>();
     const entries: [string, string, any][] = [];
+    const removed: [string, string, Plain.PlainMap, Plain.PlainMap][] = [];
     const bound = (symbol: string): any => Map.prototype.get.call(frame, symbol);
     const data = new Set([...references].filter(([symbol, reference]) => _isReference(this.store, reference)
       && reference !== bound(symbol)).map(([symbol]) => symbol));
@@ -1442,17 +1493,21 @@ export abstract class Interpreter {
         for (const body of of("as_adjacency")) {
           const relation = schema.adjacencies.get(body.get("name")).relation;
           const held = this.entries(target, schema, body.get("name"));
-          for (const [, specs] of verbsOf(body)) {
+          for (const [verb, specs] of verbsOf(body)) {
+            if (verb === "clear" && held.length === 0) removed.push([symbol, body.get("name"), new Map(), new Map()]);
             for (const spec of specs) {
               if (symbolRefs(spec).some((ref) => !data.has(ref.get("symbol")))) continue;
-              entries.push(...held.filter((entry) => this._matches(relation, entry, spec, frame))
-                .map((entry) => [symbol, body.get("name"), entry] as [string, string, any]));
+              const found = held.filter((entry) => this._matches(relation, entry, spec, frame))
+                .map((entry) => [symbol, body.get("name"), entry] as [string, string, any]);
+              entries.push(...found);
+              const given = found.length > 0 || verb !== "remove" ? null : removal(spec);
+              if (given !== null) removed.push([symbol, body.get("name"), ...given]);
             }
           }
         }
       }
     }
-    return [[...properties.values()], entries];
+    return [[...properties.values()], entries, removed];
   }
 
   // --- The walk of the terms ---
@@ -1533,6 +1588,7 @@ export abstract class Interpreter {
    * nothing. */
   _written(): void {
     if (this._reading > 0) throw new Halt();
+    this._writes += 1;
   }
 
   /** The frames a term, `at` its path in the expression's wire form, and those after it, make of `frames`: those its
@@ -1553,9 +1609,16 @@ export abstract class Interpreter {
       const key = kind === "upsert" ? (store.member(term, "key") || this.uid()) : null;
       const made: Frame[] = [];
       for (const frame of frames) {
+        if (frame.terminal) { // a routing mark: passed through, not interpreted
+          made.push(frame);
+          continue;
+        }
         try {
           if (state.write) {
-            made.push(...on(this._term(kind, pattern, frame, key, null), frame, term));
+            const before = this._writes;
+            const found = this._term(kind, pattern, frame, key, null);
+            const changed = this._writes > before;
+            made.push(...(found.length > 0 ? on(found, frame, term, changed) : terminal([frame], changed)));
             continue;
           }
           if (this.cache && (kind !== "map" || this._unresolved(frame))) {
@@ -1581,6 +1644,8 @@ export abstract class Interpreter {
     } else if (kind === "reduce") {
       const dropped: string[] = [...term.symbols][0].collector.symbols;
       const unique = new Map<string, Frame>();
+      const passing = frames.filter((frame) => frame.terminal);
+      frames = frames.filter((frame) => !frame.terminal);
       if (!state.write && this.cache) {
         for (const frame of frames.filter((each) => this._unresolved(each))) {
           state.halt(frame, at); // a cache layer's: it cannot tell what it does not hold apart
@@ -1590,9 +1655,10 @@ export abstract class Interpreter {
       for (const frame of frames) {
         const [kept] = on([new Frame([...frame].filter(([name]) => !dropped.includes(name)))], frame, term) as [Frame];
         const identity = JSON.stringify([...kept].map(([name, target]) => [name, this.key(target)]));
-        if (!unique.has(identity)) unique.set(identity, kept);
+        if (unique.has(identity)) passing.push(...terminal([frame])); // the same as one kept: terminal, where it changed
+        else unique.set(identity, kept);
       }
-      frames = [...unique.values()];
+      frames = [...unique.values(), ...passing];
     } else if (kind === "partition") {
       let arms: [(string | number)[], any][] = [...term.branches].map((entry: any, index: number) =>
         [[...at, "branches", index], entry.branch]);
@@ -1602,7 +1668,9 @@ export abstract class Interpreter {
       }
       const otherwise = next(term, "none");
       if (arms.length === 0 && otherwise !== null) arms = [[[...at, "none", 0, kindOf(store, otherwise)], otherwise]];
-      const joined: Frame[] = [];
+      const joined = frames.filter((frame) => frame.terminal);
+      frames = frames.filter((frame) => !frame.terminal);
+      if (arms.length === 0) joined.push(...terminal(frames)); // no branch: its frames end, a changed one terminal
       for (const [armAt, arm] of arms) {
         const branch = state.arm();
         joined.push(...this._run(arm, frames.map((frame) => on([new Frame(frame)], frame, term)[0]!), armAt, branch));
@@ -1657,7 +1725,8 @@ export abstract class Interpreter {
    * frame where the layer holds none (references 8 in [CAP-141: queries start from a referenced object](mbse:mbse-basis/docs/capabilities/CAP-141.md#decided)). An upsert creates, where none is found, the object of a
    * symbol, and writes its spec where it does not hold; a counted object it created before from the same frame, for the
    * same symbol and key, it finds again (63), and finds none otherwise (102). Read-only, a map gives to `halted`, rather
-   * than dropping, each frame as bound so far where nothing the layer holds binds a symbol. */
+   * than dropping, each frame as bound so far where nothing the layer holds binds a symbol; a cache layer's, each whose
+   * spec does not hold, or reads what it does not hold all of, so that the layer below decides. */
   _bind(pattern: any, frame: Bound, upsert: boolean, key: unknown = null, halted: Bound[] | null = null): Bound[] {
     const store = this.store;
     const members = membersOf(pattern);
@@ -1728,6 +1797,8 @@ export abstract class Interpreter {
       } else if ([...members].every(([name, items]) =>
         this._holds(bound.get(name), this._schema(pattern, name, bound), items, bound, null))) {
         kept.push(bound);
+      } else if (cache) {
+        halted!.push(bound); // a cache layer drops no frame of its own judgment: what does not hold here, below decides
       }
     }
     return kept;
@@ -2220,12 +2291,8 @@ export class InMemory extends Interpreter {
 
   // --- Its transaction ---
 
-  savepoint<T>(body: () => T, journal: (() => string) | null = null, changed: unknown[] = []): T {
-    const store = this.store;
-    if (journal === null) return store._joined(body);
-    return store._proposing(body, (proposals: Proposals.OfStore) => {
-      changed.push(Changes._gather(store, proposals, journal()));
-    });
+  savepoint<T>(body: () => T): T {
+    return this.store._joined(body);
   }
 
   uid(): string {
@@ -2249,14 +2316,15 @@ export class InMemory extends Interpreter {
   /** `txn.exec` (`Interpreter.exec`); `remainder` may be a callback building a transaction, built as an expression is,
    * outside the transaction (94). A scope's transaction takes the first expression its `exec` is given as its own: its
    * record's, and its uid (`Provenance`). */
-  override exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean): Observable<Item> {
+  override exec(txn: Transaction, frame: unknown, remainder: unknown, allow_write: boolean,
+    terminal = false): Observable<Item> {
     const store = this.store;
     const given = _remainder(store, expression(store, remainder));
     const proposals = store._proposals === null ? null : outermost(store._proposals);
     if (proposals !== null && proposals.expression === null && proposals.uid === null) {
       proposals.expression = given.transaction; // a scope's: its record's, and its uid (Provenance)
     }
-    return this._exec(txn, frame, given, allow_write);
+    return this._exec(txn, frame, given, allow_write, terminal);
   }
 
   /** A cache layer's, writing: an install, the layer below's first, executed there as it reaches this layer, then this
@@ -2331,29 +2399,34 @@ export class InMemory extends Interpreter {
 
   /** What the layer below's transaction gives back of a frame a cache layer sends it with the rest of the expression to
    * execute, writing: each frame annotated with an error, as it is; each complete, its journal, the state its path
-   * references, applied to what the cache layer holds, and given as it is; each partial, executed again by the cache
-   * layer, writing, its writes sent below as it makes them (`Builders.Store._forward`); a completion marker's journal,
-   * what the input frame changed, applied. Applying a journal the cache layer holds already changes nothing. */
+   * referenced or changed, applied to what the cache layer holds, and given as it is; each terminal, its journal
+   * applied, and given to no caller; each partial, executed again by the cache layer, writing, its writes sent below as
+   * it makes them (`Builders.Store._forward`), a frame of it that a term drops terminal and sent straight down. Applying
+   * a journal the cache layer holds already changes nothing; what the layer below commits reaches the cache layer by
+   * its follow, as it commits. */
   _fromBelow(local: Frame, rest: Remainder, scope: string): Frame[] {
     const store = this.store;
     const frames: Frame[] = [];
     for (const item of store._lower.forward(local, rest) as Item[]) {
-      if (!(item instanceof Frame)) {
-        if (item.has("journal")) this._applyJournal(item.get("journal"));
-        continue;
-      }
+      if (!(item instanceof Frame)) continue;
       if (item.errors.length > 0) {
         frames.push(item);
         continue;
       }
       this._applyJournal(item.journal);
-      if (item.remainder === null) {
-        frames.push(item);
+      if (item.terminal || item.remainder === null) { // a terminal one, applied, and given to no caller
+        if (!item.terminal) frames.push(item);
         continue;
       }
       const made = store._proposing(() => this._one(item.remainder!, item, true, scope), // partial: executed
         (proposals: Proposals.OfStore) => store._forward(proposals)); // again here, writing, its writes sent below
-      frames.push(...this._givenBack(made, scope));
+      for (const given of this._givenBack(made, scope)) {
+        if (given.terminal) { // sent straight down, a routing mark, to the layer that commits
+          store._lower.forward(given, new Remainder(item.remainder!.transaction, []));
+        } else {
+          frames.push(given);
+        }
+      }
     }
     return frames;
   }
@@ -2418,11 +2491,8 @@ export class _Lower {
   /** The items the layer below's transaction's `exec` gives of `frame`, a frame of the cache layer's given back, and
    * `rest`, writing, each a value of the cache layer's. */
   forward(frame: Frame, rest: Remainder): Item[] {
-    return collected(this.txn.exec(this.down(frame), new Remainder(this.copy(rest.transaction), rest.at), true))
-      .map((item) => {
-        if (item instanceof Frame) return this.up(item);
-        return item.has("journal") ? new Map([...item, ["journal", this.journal(item.get("journal"))]]) : item;
-      });
+    return collected(this.txn.exec(this.down(frame), new Remainder(this.copy(rest.transaction), rest.at), true, true))
+      .map((item) => item instanceof Frame ? this.up(item) : item);
   }
 
   /** Executes a cache layer's own write, what it changed, a `Changes.Transaction` of the cache layer's whose id is its
@@ -2446,6 +2516,7 @@ export class _Lower {
    * it binds is what the cache layer's interpretation bound, or was given: an object it holds, by its reference, or a
    * schema object the layer below holds, every install having run there first. */
   down(frame: Frame): Frame {
+    if (frame.terminal) return new Frame(null, [], null, frame.scope, null, true); // a routing mark: not interpreted
     const bound = [...Map.prototype.entries.call(frame) as IterableIterator<[string, any]>]
       .map(([name, value]) => [name, carried(this.store, this.below, value)] as [string, any]);
     return new Frame(bound, frame.errors, null, frame.scope);
@@ -2454,8 +2525,8 @@ export class _Lower {
   /** A frame the layer below gave back, as the cache layer's: its journal, its bindings read from it, a refused one as
    * refused, and its remainder in the cache layer's expression. */
   up(frame: Frame): Frame {
-    const journal = this.journal(frame.journal); // every frame given back is its journal
-    const held: Map<string, any> = Changes._bindings(journal);
+    const journal = frame.journal === null ? null : this.journal(frame.journal); // a terminal one passed through: none
+    const held: Map<string, any> = journal === null ? new Map() : Changes._bindings(journal);
     const bound: [string, any][] = [];
     for (const [name, value] of Map.prototype.entries.call(frame) as IterableIterator<[string, any]>) {
       if (held.has(name)) {
@@ -2470,7 +2541,7 @@ export class _Lower {
     }
     const remainder = frame.remainder === null ? null
       : new Remainder(this.originals.get(frame.remainder.transaction), frame.remainder.at);
-    return new Frame(bound, frame.errors, remainder, frame.scope, journal);
+    return new Frame(bound, frame.errors, remainder, frame.scope, journal, frame.terminal);
   }
 
   /** A journal the layer below gave, a `Changes.Transaction`, as the cache layer's. */
